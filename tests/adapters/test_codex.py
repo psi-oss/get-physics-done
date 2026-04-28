@@ -685,6 +685,30 @@ class TestInstall:
         assert "[agents.gpd-executor]" in content
         assert 'config_file = "agents/gpd-executor.toml"' in content
 
+    def test_install_does_not_point_notify_at_preexisting_unowned_hook(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        hooks_dir = target / "hooks"
+        hooks_dir.mkdir()
+        custom_notify = hooks_dir / "notify.py"
+        custom_notify.write_text("print('user hook')\n", encoding="utf-8")
+        (gpd_root / "hooks" / "notify.py").unlink()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        assert custom_notify.read_text(encoding="utf-8") == "print('user hook')\n"
+        config = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
+        assert "notify" not in config
+        content = (target / "config.toml").read_text(encoding="utf-8")
+        assert "GPD update notification" not in content
+
     def test_install_registers_agent_roles_in_config_toml(
         self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path
     ) -> None:

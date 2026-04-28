@@ -48,6 +48,21 @@ SPECS_DIR = REPO_ROOT / "src/gpd/specs"
 TEMPLATES_DIR = SPECS_DIR / "templates"
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 
+PLAN_QUANTIFIER_VISIBILITY_PHRASES = (
+    "Keep `quantifiers[]` visible when an explicit quantifier or domain obligation exists.",
+    "Quantifiers are visible when explicit quantifier or domain obligations exist; unquantified proof-bearing claims "
+    "do not need a non-empty quantifier list.",
+)
+PROJECT_QUANTIFIER_VISIBILITY_PHRASES = (
+    "proof-bearing claims must keep `parameters`, `hypotheses`, `conclusion_clauses`, and `proof_deliverables` "
+    "visible, and must keep `quantifiers` visible when an explicit quantifier or domain obligation exists",
+    "`claims[].quantifiers[]` is optional for unquantified proof-bearing claims",
+)
+RESULT_QUANTIFIER_VISIBILITY_PHRASES = (
+    "A claim is quantified for this rule when explicit `claims[].quantifiers[]` or domain obligations are declared",
+    "unquantified proof-bearing claims do not need a non-empty quantifier list",
+)
+
 PLAN_MODELS = (
     ResearchContract,
     ContractScope,
@@ -165,6 +180,8 @@ def test_plan_contract_schema_surfaces_canonical_research_contract_fields() -> N
     assert "do not count as grounding" in plan_schema
     assert "proof-specific acceptance test" in plan_schema
     assert "proof_deliverables`, `parameters`, `hypotheses`, and `conclusion_clauses" in plan_schema
+    for phrase in PLAN_QUANTIFIER_VISIBILITY_PHRASES:
+        assert phrase in plan_schema
 
 
 def test_expanded_phase_prompt_surfaces_the_same_research_contract_fields_before_generation() -> None:
@@ -175,6 +192,8 @@ def test_expanded_phase_prompt_surfaces_the_same_research_contract_fields_before
     assert "do not count as grounding" in phase_prompt
     assert "proof-specific acceptance test" in phase_prompt
     assert "proof_deliverables`, `parameters`, `hypotheses`, and `conclusion_clauses" in phase_prompt
+    for phrase in PLAN_QUANTIFIER_VISIBILITY_PHRASES:
+        assert phrase in phase_prompt
 
 
 def test_contract_results_schema_and_verification_template_surface_canonical_result_ledger_fields() -> None:
@@ -187,13 +206,16 @@ def test_contract_results_schema_and_verification_template_surface_canonical_res
     assert (
         "Inside `evidence[]`, list-typed proof coverage fields (`covered_hypothesis_ids`, "
         "`missing_hypothesis_ids`, `covered_parameter_symbols`, `missing_parameter_symbols`, "
-        "`uncovered_quantifiers`, `uncovered_conclusion_clause_ids`) must stay YAML lists even when they contain a single item."
+        "`uncovered_conclusion_clause_ids`) must stay YAML lists even when they contain a single item. "
+        "Keep quantifier coverage in `proof_audit.uncovered_quantifiers`, not in `evidence[]`."
         in contract_results_schema
     )
     assert "contract-results-schema.md" in verification_report
     for token in ("contract_results", "suggested_contract_checks"):
         assert token in verification_report
     assert "proof-audit rules in the canonical schema" in verification_report
+    for phrase in RESULT_QUANTIFIER_VISIBILITY_PHRASES:
+        assert phrase in contract_results_schema
 
 
 def test_expanded_verifier_and_executor_prompts_keep_canonical_result_ledger_fields_visible() -> None:
@@ -226,6 +248,8 @@ def test_project_contract_schema_examples_surface_validator_accepted_proof_objec
             "acceptance-test, reference, forbidden-proxy, or link IDs."
         ) in schema_text
         assert "`links[].verified_by[]` must contain `acceptance_tests[].id` values only." in schema_text
+        for phrase in PROJECT_QUANTIFIER_VISIBILITY_PHRASES:
+            assert phrase in schema_text
 
 
 def test_state_json_schema_references_project_contract_schema_as_single_raw_source() -> None:

@@ -624,6 +624,8 @@ MAP_RESEARCH_INIT_FIELDS = frozenset(
         "commit_docs",
         "autonomy",
         "research_mode",
+        "map_focus",
+        "map_focus_provided",
         "parallelization",
         "research_map_dir",
         "existing_maps",

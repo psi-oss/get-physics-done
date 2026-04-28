@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from math import ceil
 from pathlib import Path
 
 from gpd.adapters.install_utils import expand_at_includes, parse_at_include_path
 
+DEFAULT_PROMPT_BUDGET_MARGIN = 0.03
+
 __all__ = [
+    "DEFAULT_PROMPT_BUDGET_MARGIN",
     "PromptSurfaceMetrics",
+    "budget_from_baseline",
     "count_raw_includes",
     "count_unfenced_heading",
+    "expanded_include_markers",
     "expanded_prompt_text",
     "first_line_containing_any",
     "iter_unfenced_lines",
@@ -31,6 +38,17 @@ class PromptSurfaceMetrics:
     expanded_char_count: int
     first_question_line: int | None = None
     first_question_marker: str | None = None
+
+
+def budget_from_baseline(
+    value: int,
+    *,
+    minimum_margin: int,
+    margin: float = DEFAULT_PROMPT_BUDGET_MARGIN,
+) -> int:
+    """Return a stable prompt budget with a small growth allowance."""
+
+    return value + max(minimum_margin, ceil(value * margin))
 
 
 def expanded_prompt_text(
@@ -62,6 +80,12 @@ def count_raw_includes(text: str) -> int:
         if parse_at_include_path(stripped) is not None:
             include_count += 1
     return include_count
+
+
+def expanded_include_markers(text: str) -> tuple[str, ...]:
+    """Return include marker filenames from an expanded prompt surface."""
+
+    return tuple(re.findall(r"<!-- \[included: ([^\]]+)\] -->", text))
 
 
 def iter_unfenced_lines(text: str) -> Sequence[str]:

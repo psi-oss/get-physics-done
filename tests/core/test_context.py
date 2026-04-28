@@ -42,6 +42,7 @@ from gpd.core.context import (
     init_write_paper,
     load_config,
 )
+from gpd.core.continuation import RESUMABLE_SEGMENT_STATUSES
 from gpd.core.errors import ConfigError, ValidationError
 from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256
 from gpd.core.recent_projects import record_recent_project
@@ -2892,6 +2893,55 @@ class TestInitNewProject:
         assert ctx["selected_publication_root"] == "GPD"
         assert ctx["selected_review_root"] == "GPD/review"
 
+    def test_peer_review_stage_bootstrap_resolves_project_context_from_nested_cwd_and_launch_relative_target(
+        self, tmp_path: Path
+    ) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nNested peer review target.\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        review_target = nested / "review-target.txt"
+        review_target.write_text("Standalone artifact from nested launch cwd.\n", encoding="utf-8")
+
+        full_ctx = init_peer_review(nested, subject=review_target.name)
+        staged_ctx = init_peer_review(nested, subject=review_target.name, stage="bootstrap")
+
+        for ctx in (full_ctx, staged_ctx):
+            assert ctx["project_exists"] is True
+            assert ctx["state_exists"] is True
+            assert ctx["review_target_input"] == review_target.name
+            assert ctx["review_target_mode"] == "standalone explicit-artifact review"
+            assert ctx["resolved_review_target"] == str(review_target)
+            assert ctx["resolved_review_root"] == str(nested)
+            assert ctx["project_contract"] is None
+            assert ctx["project_contract_validation"] is None
+            assert ctx["project_contract_gate"]["status"] == "standalone_explicit_artifact"
+            assert ctx["project_contract_gate"]["source_path"] is None
+            assert ctx["project_contract_gate"]["authoritative"] is False
+            assert ctx["project_contract_gate"]["visible"] is False
+            assert ctx["project_contract_load_info"]["status"] == "standalone_explicit_artifact"
+            assert ctx["project_contract_load_info"]["source_path"] is None
+            assert ctx["contract_intake"] is None
+            assert ctx["effective_reference_intake"] == {
+                "must_read_refs": [],
+                "must_include_prior_outputs": [],
+                "user_asserted_anchors": [],
+                "known_good_baselines": [],
+                "context_gaps": [],
+                "crucial_inputs": [],
+            }
+            assert ctx["active_reference_context"] == ""
+            assert ctx["selected_protocol_bundle_ids"] == []
+            assert ctx["protocol_bundle_context"] is None
+            assert ctx.get("publication_bootstrap") is None
+            assert ctx.get("publication_bootstrap_mode") is None
+            assert ctx.get("publication_bootstrap_root") is None
+            assert ctx.get("publication_bootstrap_detail") is None
+            assert ctx.get("publication_intake_root") is None
+            assert ctx["selected_publication_root"] == "GPD"
+            assert ctx["selected_review_root"] == "GPD/review"
+
     def test_arxiv_submission_stage_bootstrap_surfaces_subject_owned_publication_roots(
         self, tmp_path: Path
     ) -> None:
@@ -4061,6 +4111,8 @@ class TestInitMapResearch:
         ctx = init_map_research(tmp_path)
         assert ctx["has_maps"] is False
         assert ctx["existing_maps"] == []
+        assert ctx["map_focus"] == ""
+        assert ctx["map_focus_provided"] is False
 
     def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -4152,6 +4204,15 @@ class TestInitMapResearch:
             "reference_artifacts_content",
             "staged_loading",
         }
+
+    def test_stage_bootstrap_surfaces_focus_argument(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+
+        ctx = init_map_research(tmp_path, focus="Hamiltonian sector", stage="map_bootstrap")
+
+        assert ctx["map_focus"] == "Hamiltonian sector"
+        assert ctx["map_focus_provided"] is True
+        assert ctx["staged_loading"]["stage_id"] == "map_bootstrap"
 
 
 class TestInitLiteratureReview:
@@ -4433,6 +4494,30 @@ class TestInitProgress:
         assert ctx["paused_at"] == "2026-03-11T08:00:00+00:00"
         assert ctx["execution_resumable"] is True
         assert ctx["has_work_in_progress"] is True
+
+    @pytest.mark.parametrize("segment_status", sorted(RESUMABLE_SEGMENT_STATUSES))
+    def test_progress_uses_canonical_resumable_statuses_for_pause_timestamp(
+        self,
+        tmp_path: Path,
+        segment_status: str,
+    ) -> None:
+        _setup_project(tmp_path)
+        _write_current_execution(
+            tmp_path,
+            {
+                "session_id": f"sess-{segment_status}",
+                "phase": "02",
+                "segment_status": segment_status,
+                "resume_file": "GPD/phases/02-analysis/.continue-here.md",
+                "updated_at": "2026-03-11T08:00:00+00:00",
+            },
+        )
+
+        ctx = init_progress(tmp_path)
+
+        assert ctx["execution_resumable"] is True
+        assert ctx["execution_paused_at"] == "2026-03-11T08:00:00+00:00"
+        assert ctx["paused_at"] == "2026-03-11T08:00:00+00:00"
 
     def test_progress_marks_handoff_only_resume_target_as_work_in_progress(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

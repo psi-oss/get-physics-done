@@ -36,8 +36,11 @@ def test_runtime_catalog_schema_loader_exposes_canonical_optional_keys() -> None
     assert "public_command_surface_prefix" in schema["entry_optional_keys"]
     assert "managed_install_surface" in runtime_catalog._RUNTIME_ENTRY_OPTIONAL_KEYS
     assert "managed_install_surface" in schema["entry_optional_keys"]
+    assert "manifest_metadata_list_policies" in runtime_catalog._RUNTIME_ENTRY_OPTIONAL_KEYS
+    assert "manifest_metadata_list_policies" in schema["entry_optional_keys"]
     assert "unsupported" in runtime_catalog._RUNTIME_CAPABILITY_ENUMS["permissions_surface"]
     assert "unsupported" in schema["capability_enums"]["permissions_surface"]
+    assert schema["manifest_metadata_list_value_kinds"] == frozenset({"path_segment", "relpath"})
     assert schema["capability_defaults"] == asdict(runtime_catalog.RuntimeCapabilityPolicy())
     assert {key: tuple(value) for key, value in schema["hook_payload_defaults"].items()} == asdict(
         runtime_catalog.HookPayloadPolicy()

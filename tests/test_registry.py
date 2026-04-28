@@ -24,6 +24,7 @@ from gpd.registry import (
     _parse_agent_file,
     _parse_command_file,
     _parse_frontmatter,
+    _parse_interactive_spawn_contracts,
     _parse_spawn_contracts,
     _parse_tools,
     _RegistryCache,
@@ -520,6 +521,49 @@ class TestParseSpawnContracts:
         ):
             _parse_spawn_contracts(
                 self._contract_block(shared_state_policy="mutable"),
+                owner_name="gpd:test",
+            )
+
+    def test_parse_interactive_spawn_contracts_validates_no_write_checkpoint_contract(self) -> None:
+        contracts = _parse_interactive_spawn_contracts(
+            "<spawn_contract_interactive>\n"
+            "activation: mode == interactive\n"
+            "write_scope:\n"
+            "  mode: no_write\n"
+            "  allowed_paths: []\n"
+            "expected_artifacts: []\n"
+            "expected_return:\n"
+            "  status: checkpoint\n"
+            "shared_state_policy: none\n"
+            "</spawn_contract_interactive>",
+            owner_name="gpd:test",
+        )
+
+        assert contracts == (
+            {
+                "activation": "mode == interactive",
+                "write_scope": {"mode": "no_write", "allowed_paths": []},
+                "expected_artifacts": [],
+                "expected_return": {"status": "checkpoint"},
+                "shared_state_policy": "none",
+            },
+        )
+
+    def test_parse_interactive_spawn_contracts_rejects_write_contract_shape(self) -> None:
+        with pytest.raises(ValueError, match="invalid write_scope\\.mode 'scoped_write'; expected one of: no_write"):
+            _parse_interactive_spawn_contracts(
+                "<spawn_contract_interactive>\n"
+                "activation: mode == interactive\n"
+                "write_scope:\n"
+                "  mode: scoped_write\n"
+                "  allowed_paths:\n"
+                "    - GPD/CONVENTIONS.md\n"
+                "expected_artifacts:\n"
+                "  - GPD/CONVENTIONS.md\n"
+                "expected_return:\n"
+                "  status: completed\n"
+                "shared_state_policy: direct\n"
+                "</spawn_contract_interactive>",
                 owner_name="gpd:test",
             )
 
@@ -2696,6 +2740,30 @@ class TestPublicAPI:
             "direct",
         }
         assert {contract["write_scope"]["mode"] for contract in command.spawn_contracts} == {"scoped_write"}
+
+    def test_get_command_new_project_surfaces_notation_auto_and_interactive_contracts(self) -> None:
+        registry.invalidate_cache()
+
+        command = registry.get_command("gpd:new-project")
+        skill = registry.get_skill("gpd-new-project")
+
+        auto_contract = {
+            "activation": "mode == auto",
+            "write_scope": {"mode": "scoped_write", "allowed_paths": ["GPD/CONVENTIONS.md"]},
+            "expected_artifacts": ["GPD/CONVENTIONS.md"],
+            "shared_state_policy": "direct",
+        }
+        interactive_contract = {
+            "activation": "mode == interactive",
+            "write_scope": {"mode": "no_write", "allowed_paths": []},
+            "expected_artifacts": [],
+            "expected_return": {"status": "checkpoint"},
+            "shared_state_policy": "none",
+        }
+
+        assert auto_contract in command.spawn_contracts
+        assert command.interactive_spawn_contracts == (interactive_contract,)
+        assert skill.interactive_spawn_contracts == command.interactive_spawn_contracts
 
     def test_registry_spawn_contract_inventory_dedupes_repeated_continuation_sidecars(self) -> None:
         registry.invalidate_cache()

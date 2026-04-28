@@ -84,6 +84,11 @@ class TestDeriveOutputFilename:
         config = _minimal_config(title="!@#$%^&*()")
         assert derive_output_filename(config) == "paper_draft"
 
+    @pytest.mark.parametrize("title", ["CON", "NUL", "COM1"])
+    def test_reserved_device_title_falls_back_to_topic_neutral_default(self, title: str) -> None:
+        config = _minimal_config(title=title)
+        assert derive_output_filename(config) == "paper_draft"
+
     def test_output_filename_takes_precedence_over_title(self) -> None:
         config = _minimal_config(title="Some Title", output_filename="override")
         assert derive_output_filename(config) == "override"
@@ -96,9 +101,9 @@ class TestDeriveOutputFilename:
         config = _minimal_config()
         assert config.output_filename is None
 
-    def test_blank_output_filename_normalizes_to_none(self) -> None:
-        config = _minimal_config(output_filename="   ")
-        assert config.output_filename is None
+    def test_blank_output_filename_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="filename stem"):
+            _minimal_config(output_filename="   ")
 
     def test_output_filename_rejects_paths(self) -> None:
         with pytest.raises(ValueError, match="filename stem"):

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from gpd.core import storage_paths as storage_paths_module
 from gpd.core.constants import PLANNING_DIR_NAME
 from gpd.core.storage_paths import (
     DurableOutputKind,
@@ -292,6 +293,22 @@ def test_validate_final_output_rejects_internal_project_scratch_temp_and_externa
         layout.validate_final_output(external_root / "final.json")
 
 
+def test_validate_final_output_rejects_symlinked_scratch_path_by_link_location(tmp_path: Path) -> None:
+    layout = _make_layout(tmp_path)
+    target = layout.root / "artifacts" / "final.csv"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("x,y\n", encoding="utf-8")
+    symlink_output = layout.root / "tmp" / "linked-final.csv"
+    symlink_output.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        symlink_output.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    with pytest.raises(StoragePathError, match="scratch directories"):
+        layout.validate_final_output("tmp/linked-final.csv")
+
+
 def test_validate_final_output_accepts_policy_owned_gpd_managed_paths(tmp_path: Path) -> None:
     layout = _make_layout(tmp_path)
     policy = ManagedOutputPolicy.publication_manuscript_subtree("curvature-flow")
@@ -329,6 +346,22 @@ def test_validate_commit_target_allows_internal_docs_but_rejects_internal_artifa
 
     with pytest.raises(StoragePathError, match="scratch directories"):
         layout.validate_commit_target("tmp/final.csv")
+
+
+def test_validate_commit_target_rejects_symlinked_scratch_path_by_link_location(tmp_path: Path) -> None:
+    layout = _make_layout(tmp_path)
+    target = layout.root / "artifacts" / "final.csv"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("x,y\n", encoding="utf-8")
+    symlink_output = layout.root / "tmp" / "linked-final.csv"
+    symlink_output.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        symlink_output.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    with pytest.raises(StoragePathError, match="scratch directories"):
+        layout.validate_commit_target("tmp/linked-final.csv")
 
 
 def test_validate_commit_target_allows_policy_owned_gpd_managed_artifacts(tmp_path: Path) -> None:
@@ -417,6 +450,91 @@ def test_audit_storage_warnings_flags_hidden_results_and_scratch_outputs(tmp_pat
     assert any("tmp/final.csv" in warning for warning in warnings)
     assert any("notes/tmp/final.csv" in warning for warning in warnings)
     assert any("artifacts/tmp/final.csv" in warning for warning in warnings)
+
+
+def test_audit_storage_warnings_flags_symlinked_scratch_files_by_link_path(tmp_path: Path) -> None:
+    layout = _make_layout(tmp_path)
+    target = layout.root / "stable" / "final.csv"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("x,y\n", encoding="utf-8")
+    symlink_output = layout.root / "tmp" / "linked-final.csv"
+    symlink_output.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        symlink_output.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    warnings = layout.audit_storage_warnings()
+
+    assert any("tmp/linked-final.csv" in warning for warning in warnings)
+
+
+def test_audit_storage_warnings_prunes_runtime_ignored_and_cache_dirs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
+    monkeypatch.setattr(storage_paths_module, "_runtime_config_dir_names", lambda: (".agent-runtime",))
+    layout = _make_layout(tmp_path)
+    noisy_paths = (
+        layout.root / ".agent-runtime" / "cache" / "tmp" / "final.csv",
+        layout.root / ".cache" / "tmp" / "final.csv",
+        layout.root / ".pytest_cache" / "tmp" / "final.csv",
+        layout.root / ".ruff_cache" / "tmp" / "final.csv",
+        layout.root / "node_modules" / "tmp" / "final.csv",
+        layout.root / ".venv" / "tmp" / "final.csv",
+    )
+    for path in noisy_paths:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x,y\n", encoding="utf-8")
+
+    warnings = layout.audit_storage_warnings()
+
+    assert warnings == ()
+
+
+def test_audit_storage_warnings_flags_user_authored_generic_root_outputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
+    layout = _make_layout(tmp_path)
+    generic_outputs = (
+        layout.root / "cache" / "results" / "final.csv",
+        layout.root / "build" / "paper" / "draft.pdf",
+        layout.root / "dist" / "tables" / "measurements.tsv",
+    )
+    for path in generic_outputs:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("artifact\n", encoding="utf-8")
+
+    warnings = layout.audit_storage_warnings()
+
+    assert any("cache/results/final.csv" in warning for warning in warnings)
+    assert any("build/paper/draft.pdf" in warning for warning in warnings)
+    assert any("dist/tables/measurements.tsv" in warning for warning in warnings)
+
+
+def test_audit_storage_warnings_keep_policy_relevant_nested_cache_dirs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
+    layout = _make_layout(tmp_path)
+    nested_paths = (
+        layout.scratch_dir / "cache" / "final.csv",
+        layout.gpd / "phases" / "01" / "cache" / "results" / "out.csv",
+        layout.root / "tmp" / "cache" / "final.csv",
+    )
+    for path in nested_paths:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x,y\n", encoding="utf-8")
+
+    warnings = layout.audit_storage_warnings()
+
+    assert any("GPD/tmp/cache/final.csv" in warning for warning in warnings)
+    assert any("GPD/phases/01/cache/results/out.csv" in warning for warning in warnings)
+    assert any("tmp/cache/final.csv" in warning for warning in warnings)
 
 
 def test_audit_storage_warnings_respects_explicit_managed_output_policy(tmp_path: Path) -> None:

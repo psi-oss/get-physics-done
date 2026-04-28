@@ -492,11 +492,19 @@ def test_new_project_roadmapper_uses_spawn_contract_and_artifact_gate() -> None:
 def test_new_project_notation_coordinator_uses_explicit_model_and_spawn_contract() -> None:
     path = WORKFLOWS_DIR / "new-project.md"
     content = _read(path)
-    notation = _find_single_task(path, "gpd-notation-coordinator")
+    start = content.index("## 8.5. Establish Conventions")
+    end = content.index("**Handle notation-coordinator return:**", start)
+    notation_section = content[start:end]
 
-    _assert_spawn_contract(notation, ("GPD/CONVENTIONS.md",), shared_state_policy="direct")
-    assert 'model="{NOTATION_MODEL}"' in notation.text
-    assert "gpd convention set" in notation.text
+    assert _find_single_task(path, "gpd-notation-coordinator")
+    _assert_spawn_contract(notation_section, ("GPD/CONVENTIONS.md",), shared_state_policy="direct")
+    assert "activation: mode == auto" in notation_section
+    assert 'model="$NOTATION_MODEL"' in notation_section
+    assert 'model="{NOTATION_MODEL}"' not in notation_section
+    assert "<spawn_contract_interactive>" in notation_section
+    assert "write_scope:\n  mode: no_write" in notation_section
+    assert "status: checkpoint" in notation_section
+    assert "gpd convention set" in notation_section
     assert "Do not hardcode `natural` or `mostly_minus`" in content
     assert 'gpd convention set units "$RESOLVED_UNITS"' in content
     assert 'gpd convention set metric_signature "$RESOLVED_METRIC"' in content

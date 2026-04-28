@@ -1,10 +1,14 @@
 # Tests
 
-This directory contains the automated test suite for GPD: core CLI and state regressions, runtime adapter coverage, hooks and MCP checks, release contracts, and fixture-based parity tests.
+This directory contains GPD's automated tests: core CLI and state regressions, runtime adapter coverage, hooks and MCP checks, release contracts, and fixture-based parity tests.
 
-The final section of this README keeps the full checked-in repository interdependency graph that the graph guardrail tests read directly.
+The repository graph below is checked in because graph guardrail tests read it directly.
 
-Default `uv run pytest` runs the full checked-in suite, and `uv run pytest -q` does the same with quieter output. Both inherit `-n auto --dist=worksteal` from `pyproject.toml`, so pytest parallelizes by default and can rebalance giant modules across idle workers. For default full-suite local runs, `tests/conftest.py` also raises xdist auto-worker selection toward the current CI shard fanout, so local `uv run pytest` stays in the same rough parallelism range as CI without changing what gets collected. If you need a serial run for debugging, override that default explicitly with `uv run pytest -n 0`. The 180 second fast-suite budget is enforced per CI pytest shard, while the 10 minute job timeout remains the outer failure boundary for setup or cleanup stalls. Shard target resolution has its own 3 minute timeout and logs elapsed seconds before pytest starts. For a focused smoke pass, run `uv run pytest tests/test_runtime_abstraction_boundaries.py tests/core/test_contract_schema_prompt_parity.py tests/core/test_review_contract_prompt_visibility.py tests/mcp/test_tool_contract_visibility.py tests/core/test_verifier_prompt_contract_visibility.py tests/core/test_verification_surface_alignment_regressions.py -q`. The GitHub Actions workflow runs that same full suite as category-named runtime-informed shards: `root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp 1/2` through `mcp 2/2`, and `core 1/5` through `core 5/5`. `tests/ci_sharding.py` still weights files by collected test counts, boosts root modules that have been slow on GitHub Actions, splits known hotspot modules such as `tests/test_runtime_cli.py`, `tests/test_registry.py`, `tests/test_update_workflow.py`, `tests/hooks/test_runtime_detect.py`, and `tests/mcp/test_verification_contract_server_regressions.py`, and greedily rebalances those work units inside each category so the thematic shard names remain close to the well-balanced anonymous-shard timings while each shard still inherits the same default pytest work-stealing parallelism policy.
+Default `uv run pytest` runs the full checked-in suite, and `uv run pytest -q` does the same with quieter output. Both inherit `-n auto --dist=worksteal` from `pyproject.toml`. For local full-suite runs, `tests/conftest.py` raises xdist auto-worker selection toward the current CI shard fanout without changing collection. For serial debugging, override that default explicitly with `uv run pytest -n 0`.
+
+The 180 second fast-suite budget is enforced per CI pytest shard; the 10 minute job timeout remains the outer failure boundary. Shard target resolution has its own 3 minute timeout and logs elapsed seconds before pytest starts. For a focused smoke pass, run `uv run pytest tests/test_runtime_abstraction_boundaries.py tests/core/test_contract_schema_prompt_parity.py tests/core/test_review_contract_prompt_visibility.py tests/mcp/test_tool_contract_visibility.py tests/core/test_verifier_prompt_contract_visibility.py tests/core/test_verification_surface_alignment_regressions.py -q`.
+
+The GitHub Actions workflow runs that same full suite as category-named runtime-informed shards: `root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp 1/2` through `mcp 2/2`, and `core 1/5` through `core 5/5`. `tests/ci_sharding.py` weights files by collected test counts, boosts root modules that have been slow on GitHub Actions, splits known hotspot modules such as `tests/test_runtime_cli.py`, `tests/test_registry.py`, `tests/test_update_workflow.py`, `tests/hooks/test_runtime_detect.py`, and `tests/mcp/test_verification_contract_server_regressions.py`, and greedily rebalances those work units inside each category while pytest keeps the default work-stealing parallelism policy.
 
 ## Repository Interdependency Graph
 
@@ -14,9 +18,9 @@ Only marked repo-graph blocks are generated from the current worktree via `pytho
 
 ## Status
 
-This is the rebuilt root graph artifact for the repo. It is designed to be both the concrete dependency map and the root-level record of where absolute completeness is still not statically provable.
+This file is the repo's static dependency map plus its known blind spots.
 
-This graph therefore includes:
+It covers:
 
 - canonical in-repo source edges
 - installed and materialized artifact edges
@@ -1747,13 +1751,9 @@ This rebuilt file is substantially more complete than the earlier graph state be
 - explicit prompt/spec/reference include families
 - installer/build external-package and external-binary surfaces
 
-After repeated review waves, the remaining incompleteness appears predominantly dynamic, external, or runtime-branch-specific rather than obviously statically recoverable from the current worktree.
+Remaining gaps are mostly dynamic, external, or runtime-branch-specific. Treat this as a practical static map, not a proven exhaustive runtime dependency graph.
 
-The graph is therefore strong enough to answer "as complete as it could possibly be statically" with a practical yes.
-
-It is still not equivalent to a proven exhaustive runtime dependency graph.
-
-A full graph-wide dynamic execution layer is not presently worth adding. The highest-value extension is a bounded selector/runtime-contract overlay like the one above, not a generic execution trace graph.
+A full graph-wide dynamic execution layer is out of scope unless branch/path proof becomes more valuable than the current static contract.
 
 ### What This File Still Cannot Honestly Claim
 

@@ -281,6 +281,15 @@ def _get_cwd() -> Path:
     return _cwd.resolve()
 
 
+def _resolve_path_from_effective_cwd(path_text: str) -> Path:
+    """Resolve a CLI path argument against the effective global ``--cwd``."""
+
+    path = Path(path_text).expanduser()
+    if not path.is_absolute():
+        path = _get_cwd() / path
+    return path.resolve(strict=False)
+
+
 def _migrate_planning_files(cwd: Path) -> None:
     """Auto-migrate ROADMAP.md / PROJECT.md from root into GPD/ if needed."""
     from gpd.core.project_files import migrate_root_planning_files
@@ -5334,6 +5343,10 @@ def init_progress(
 
 @init_app.command("map-research")
 def init_map_research(
+    focus: str | None = typer.Argument(
+        None,
+        help="Optional specific area to emphasize in the research map.",
+    ),
     stage: str | None = typer.Option(
         None,
         "--stage",
@@ -5344,7 +5357,7 @@ def init_map_research(
     from gpd.core.context import init_map_research
 
     try:
-        payload = init_map_research(_get_cwd(), stage=stage)
+        payload = init_map_research(_get_cwd(), focus=focus, stage=stage)
     except ValueError as exc:
         _error(str(exc))
     _output(payload)
@@ -5738,6 +5751,7 @@ app.add_typer(config_app, name="config")
 
 
 _WOLFRAM_INTEGRATION_NAME = WOLFRAM_MANAGED_INTEGRATION.integration_id
+_INSTALL_RESULT_ADAPTER_KEY = "__gpd_install_adapter_instance__"
 
 
 def _integrations_config_path(cwd: Path) -> Path:
@@ -5755,13 +5769,10 @@ def _update_wolfram_integration_state(cwd: Path, *, enabled: bool) -> dict[str, 
     with file_lock(config_path):
         try:
             payload = WOLFRAM_MANAGED_INTEGRATION.project_payload(project_root)
-            current = WOLFRAM_MANAGED_INTEGRATION.project_record(project_root) or {}
+            WOLFRAM_MANAGED_INTEGRATION.project_record(project_root)
         except RuntimeError as exc:
             _error(str(exc))
         updated: dict[str, object] = {"enabled": enabled}
-        endpoint = current.get("endpoint")
-        if isinstance(endpoint, str) and endpoint and endpoint != WOLFRAM_MANAGED_INTEGRATION.default_endpoint:
-            updated["endpoint"] = endpoint
         payload[_WOLFRAM_INTEGRATION_NAME] = updated
         config_path.parent.mkdir(parents=True, exist_ok=True)
         atomic_write(config_path, json.dumps(payload, indent=2) + "\n")
@@ -6624,11 +6635,6 @@ class ManuscriptPublicationArtifacts:
     reproducibility_manifest: Path | None = None
 
 
-_MANAGED_BRIDGE_MODULE_FALLBACKS = {
-    "gpd-mcp-wolfram": "gpd.mcp.integrations.wolfram_bridge",
-}
-
-
 def _publication_lineage_search_roots(
     project_root: Path,
     *,
@@ -7060,6 +7066,14 @@ def _load_text_document_or_error(input_path: str) -> tuple[Path, str]:
         return _load_text_document(input_path)
     except GPDError as exc:
         _error(str(exc))
+
+
+def _manifest_reference_root_for_path_checks(input_path: str) -> Path:
+    """Return the root used for manifest-local referenced-path checks."""
+
+    if input_path == "-":
+        return _get_cwd()
+    return _resolve_path_from_effective_cwd(input_path).parent
 
 
 def _project_root_for_json_input(input_path: str) -> Path:
@@ -11037,7 +11051,7 @@ def validate_paper_quality(
     from gpd.core.paper_quality_artifacts import build_paper_quality_input
 
     if from_project:
-        project_root = Path(from_project)
+        project_root = _resolve_path_from_effective_cwd(from_project)
         manuscript_resolution = resolve_current_manuscript_resolution(project_root, allow_markdown=True)
         if manuscript_resolution.status != "resolved":
             raise GPDError(
@@ -11351,7 +11365,7 @@ def validate_reproducibility_manifest_cmd(
     )
 
     payload = _load_json_document_or_error(input_path)
-    project_root_for_check = _get_cwd() if check_paths else None
+    project_root_for_check = _manifest_reference_root_for_path_checks(input_path) if check_paths else None
     result = validate_reproducibility_manifest(payload, project_root=project_root_for_check)
     result_payload = result.model_dump(mode="json")
     result_payload["reproducibility_ready"] = result_payload.pop("ready_for_review")
@@ -12189,12 +12203,14 @@ def _install_single_runtime(
     else:
         dest = adapter.resolve_target_dir(is_global, _get_cwd())
 
-    return adapter.install(
+    result = adapter.install(
         gpd_root,
         dest,
         is_global=is_global,
         explicit_target=target_dir_override is not None,
     )
+    result[_INSTALL_RESULT_ADAPTER_KEY] = adapter
+    return result
 
 
 def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None:
@@ -12792,7 +12808,8 @@ def install(
             task = progress.add_task(f"Installing {adapter.display_name}...", total=None)
             try:
                 result = _install_single_runtime(rt, is_global=is_global, target_dir_override=target_dir)
-                adapter.finalize_install(result, force_statusline=force_statusline)
+                install_adapter = result.pop(_INSTALL_RESULT_ADAPTER_KEY, adapter)
+                install_adapter.finalize_install(result, force_statusline=force_statusline)
                 results.append((rt, result))
                 progress.update(task, description=f"[green]✓[/] {adapter.display_name}")
             except Exception as exc:
@@ -13009,10 +13026,6 @@ def mcp_serve(
     if managed_integration is not None:
         module_path = getattr(managed_integration, "bridge_module", None)
         if not isinstance(module_path, str) or not module_path.strip():
-            module_path = getattr(managed_integration, "bridge_module_path", None)
-        if not isinstance(module_path, str) or not module_path.strip():
-            module_path = _MANAGED_BRIDGE_MODULE_FALLBACKS.get(managed_integration.bridge_command)
-        if module_path is None:
             raise typer.BadParameter(
                 f"Managed server {managed_integration.managed_server_key} has no descriptor module path "
                 f"for {managed_integration.bridge_command}"

@@ -57,14 +57,20 @@ def test_tour_workflow_introduces_a_safe_beginner_walkthrough() -> None:
         "gpd:set-tier-models",
         "Use `start` when you are still deciding, not `new-project`",
         "Use `resume-work` only when the project already has GPD state",
-        "Use `set-tier-models` when you want to pin concrete runtime model ids only",
         "Use `help` when you want the command reference, not a setup wizard",
         "A few terms in plain English",
         "`GPD project` - a folder where GPD already saved its own project files and state",
         "`research map` - GPD's summary of an existing research folder before full project setup",
         "`phase` - one chunk of the project plan that GPD will organize later",
         "If you are still unsure, run gpd:start.",
-        "If you want to pin concrete tier-1, tier-2, and tier-3 model ids, run \\`gpd:set-tier-models\\`.",
-        "If you want to change permissions, autonomy, or runtime preferences after your first successful start or later, run \\`gpd:settings\\`.",
+        "`settings` is the guided runtime command for changing autonomy",
+        "`set-tier-models` is the direct runtime command for pinning concrete",
+        "settings/model commands from the startup table",
     ):
         assert fragment in workflow
+
+    assert workflow.count("gpd:set-tier-models") == 1
+    assert workflow.count("gpd:settings") == 1
+    assert workflow.count("set-tier-models") <= 3
+    assert workflow.count("settings") <= 5
+    assert workflow.count("tier-1") == 1

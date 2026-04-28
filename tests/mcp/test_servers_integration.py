@@ -729,15 +729,20 @@ class TestSkillsServerIntegration:
         assert "gpd_return:" in synthesizer["content"]
 
         expected_project_spawn_contracts = [dict(contract) for contract in registry.get_command("gpd:new-project").spawn_contracts]
+        expected_project_interactive_spawn_contracts = [
+            dict(contract) for contract in registry.get_command("gpd:new-project").interactive_spawn_contracts
+        ]
         expected_milestone_spawn_contracts = [
             dict(contract) for contract in registry.get_command("gpd:new-milestone").spawn_contracts
         ]
 
         assert new_project["spawn_contracts"] == expected_project_spawn_contracts
+        assert new_project["interactive_spawn_contracts"] == expected_project_interactive_spawn_contracts
         assert new_milestone["spawn_contracts"] == expected_milestone_spawn_contracts
         assert summary_contract in new_project["spawn_contracts"]
         assert summary_contract in new_milestone["spawn_contracts"]
         assert new_project["structured_metadata_authority"]["spawn_contracts"] == "mirrored"
+        assert new_project["structured_metadata_authority"]["interactive_spawn_contracts"] == "mirrored"
         assert new_milestone["structured_metadata_authority"]["spawn_contracts"] == "mirrored"
 
     def test_get_skill_surfaces_template_backed_schema_documents_for_writing_and_resume(self):

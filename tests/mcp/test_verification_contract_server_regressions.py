@@ -122,6 +122,31 @@ def test_run_contract_check_schema_allows_optional_fields_alongside_required_bra
     assert _schema_error_messages(schema, {"request": request}) == []
 
 
+def test_run_contract_check_schema_allows_empty_proof_arrays_on_generic_claims() -> None:
+    schema = _run_contract_check_input_schema()
+    contract = _load_project_contract_fixture()
+    claim = contract["claims"][0]
+    claim.update(
+        {
+            "claim_kind": "result",
+            "proof_deliverables": [],
+            "parameters": [],
+            "hypotheses": [],
+            "quantifiers": [],
+            "conclusion_clauses": [],
+        }
+    )
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "binding": {"claim_ids": ["claim-benchmark"]},
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+
+    assert _schema_error_messages(schema, {"request": request}) == []
+
+
 def test_contract_check_schemas_require_non_empty_scope_in_scope() -> None:
     contract = _load_project_contract_fixture()
     contract["scope"]["in_scope"] = []
@@ -648,6 +673,18 @@ def _proof_obligation_contract() -> dict[str, object]:
 def _proof_claim_without_proof_fields_contract() -> dict[str, object]:
     contract = _proof_contract()
     claim = contract["claims"][0]
+    for key in ("proof_deliverables", "parameters", "hypotheses", "conclusion_clauses"):
+        claim.pop(key, None)
+    return contract
+
+
+def _quantifier_only_proof_field_contract() -> dict[str, object]:
+    contract = _proof_contract()
+    claim = contract["claims"][0]
+    claim["statement"] = "The bounded profile follows from the declared domain."
+    claim["claim_kind"] = "result"
+    claim["observables"] = []
+    claim["acceptance_tests"] = ["test-proof-quant"]
     for key in ("proof_deliverables", "parameters", "hypotheses", "conclusion_clauses"):
         claim.pop(key, None)
     return contract
@@ -2238,6 +2275,36 @@ def test_run_contract_check_schema_rejects_soft_missing_proof_audit_fields() -> 
                 }
             },
             False,
+        ),
+        (
+            lambda: {
+                "request": {
+                    "check_key": "contract.proof_quantifier_domain",
+                    "contract": _quantifier_only_proof_field_contract(),
+                    "observed": {"quantifier_status": "matched", "scope_status": "matched"},
+                }
+            },
+            False,
+        ),
+        (
+            lambda: {
+                "request": {
+                    "check_key": "contract.proof_parameter_coverage",
+                    "contract": {
+                        **_proof_contract(),
+                        "claims": [
+                            {
+                                **_proof_contract()["claims"][0],
+                                "claim_kind": "result",
+                                "statement": "The bounded profile follows from the declared domain.",
+                            }
+                        ],
+                    },
+                    "metadata": {"theorem_parameter_symbols": ["r_0", "n"]},
+                    "observed": {"covered_parameter_symbols": ["r0", "n"]},
+                }
+            },
+            True,
         ),
     ],
 )

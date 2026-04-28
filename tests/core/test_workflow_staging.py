@@ -280,7 +280,8 @@ def test_stage_manifests_are_prompt_used_cli_reachable_or_explicitly_metadata_on
         manifest = load_workflow_stage_manifest(workflow_id)
         workflow_text = (WORKFLOW_STAGE_MANIFEST_DIR / f"{workflow_id}.md").read_text(encoding="utf-8")
 
-        prompt_uses_staged_init = f"gpd --raw init {workflow_id}" in workflow_text and "--stage" in workflow_text
+        init_command = "resume" if workflow_id == "resume-work" else workflow_id
+        prompt_uses_staged_init = f"gpd --raw init {init_command}" in workflow_text and "--stage" in workflow_text
         cli_init_reachable = f'@init_app.command("{workflow_id}")' in cli_text
 
         if manifest.prompt_usage == "metadata_only":

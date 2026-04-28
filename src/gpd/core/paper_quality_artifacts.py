@@ -79,7 +79,7 @@ _MANUSCRIPT_CONTENT_SUFFIXES = (".tex", ".md")
 
 
 class _FigureTrackerEntry(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="forbid")
 
     id: str = ""
     label: str = ""
@@ -368,22 +368,34 @@ def _manuscript_reference_status(
     return status_entries
 
 
-def _load_figure_registry(manuscript_dir: Path) -> list[_FigureTrackerEntry]:
+def _load_figure_registry(manuscript_dir: Path) -> tuple[list[_FigureTrackerEntry], bool]:
     tracker_path = manuscript_dir / "FIGURE_TRACKER.md"
-    meta = _extract_meta(tracker_path)
+    if not tracker_path.exists():
+        return [], True
+    parse_errors: list[str] = []
+    meta = _extract_meta(tracker_path, parse_errors=parse_errors)
+    if parse_errors:
+        return [], False
+    if "figure_registry" not in meta:
+        return [], True
     raw = meta.get("figure_registry")
+    if raw is None:
+        return [], False
     if not isinstance(raw, list):
-        return []
+        return [], False
 
     entries: list[_FigureTrackerEntry] = []
+    parse_ok = True
     for item in raw:
         if not isinstance(item, dict):
+            parse_ok = False
             continue
         try:
             entries.append(_FigureTrackerEntry.model_validate(item))
         except PydanticValidationError:
+            parse_ok = False
             continue
-    return entries
+    return entries, parse_ok
 
 
 def _parse_comparison_verdict_entries(
@@ -885,7 +897,11 @@ def build_paper_quality_input(
     )
     journal = _resolve_paper_journal(trusted_artifact_manifest, paper_config)
 
-    figure_registry = _load_figure_registry(paper_dir) if paper_dir is not None else {}
+    if paper_dir is not None:
+        figure_registry, figure_tracker_parse_ok = _load_figure_registry(paper_dir)
+    else:
+        figure_registry = []
+        figure_tracker_parse_ok = True
     verdicts, verdicts_parse_ok = _collect_comparison_verdicts(
         root,
         manuscript_root=paper_dir,
@@ -952,6 +968,7 @@ def build_paper_quality_input(
     raw_journal_extra_checks = paper_config.get("journal_extra_checks")
     if isinstance(raw_journal_extra_checks, dict):
         journal_extra_checks.update(raw_journal_extra_checks)
+    journal_extra_checks["figure_tracker_parse_ok"] = figure_tracker_parse_ok
     journal_extra_checks["manuscript_reference_status_present"] = bool(manuscript_reference_status)
     journal_extra_checks["manuscript_reference_bridge_complete"] = manuscript_reference_bridge_complete
     journal_extra_checks["empty_citation_commands_absent"] = empty_citation_commands == 0

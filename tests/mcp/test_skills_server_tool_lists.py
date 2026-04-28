@@ -305,6 +305,15 @@ def test_get_skill_command_surfaces_spawn_contract_sidecar_without_content_injec
             "expected_artifacts": ["GPD/CONVENTIONS.md"],
         },
     )
+    interactive_spawn_contracts = (
+        {
+            "activation": "mode == interactive",
+            "shared_state_policy": "none",
+            "write_scope": {"mode": "no_write", "allowed_paths": []},
+            "expected_artifacts": [],
+            "expected_return": {"status": "checkpoint"},
+        },
+    )
     command = CommandDef(
         name="gpd:new-project",
         description="New project.",
@@ -316,6 +325,7 @@ def test_get_skill_command_surfaces_spawn_contract_sidecar_without_content_injec
         path="/tmp/gpd-new-project.md",
         source="commands",
         spawn_contracts=spawn_contracts,
+        interactive_spawn_contracts=interactive_spawn_contracts,
     )
     skill = SkillDef(
         name="gpd-new-project",
@@ -326,6 +336,7 @@ def test_get_skill_command_surfaces_spawn_contract_sidecar_without_content_injec
         source_kind="command",
         registry_name="new-project",
         spawn_contracts=spawn_contracts,
+        interactive_spawn_contracts=interactive_spawn_contracts,
     )
 
     with (
@@ -340,6 +351,11 @@ def test_get_skill_command_surfaces_spawn_contract_sidecar_without_content_injec
     result["spawn_contracts"][0]["expected_artifacts"].append("GPD/EXTRA.md")
     assert command.spawn_contracts[0]["expected_artifacts"] == ["GPD/CONVENTIONS.md"]
     assert result["structured_metadata_authority"]["spawn_contracts"] == "mirrored"
+    assert result["interactive_spawn_contracts"] == [dict(interactive_spawn_contracts[0])]
+    assert result["interactive_spawn_contracts"] is not command.interactive_spawn_contracts
+    result["interactive_spawn_contracts"][0]["expected_artifacts"].append("GPD/EXTRA.md")
+    assert command.interactive_spawn_contracts[0]["expected_artifacts"] == []
+    assert result["structured_metadata_authority"]["interactive_spawn_contracts"] == "mirrored"
 
 
 def test_get_skill_execute_phase_surfaces_staged_loading_sidecar() -> None:
@@ -429,6 +445,15 @@ def test_get_skill_index_surfaces_spawn_contract_presence_sidecar() -> None:
                 "expected_artifacts": ["GPD/CONVENTIONS.md"],
             },
         ),
+        interactive_spawn_contracts=(
+            {
+                "activation": "mode == interactive",
+                "shared_state_policy": "none",
+                "write_scope": {"mode": "no_write", "allowed_paths": []},
+                "expected_artifacts": [],
+                "expected_return": {"status": "checkpoint"},
+            },
+        ),
     )
 
     with (
@@ -439,6 +464,7 @@ def test_get_skill_index_surfaces_spawn_contract_presence_sidecar() -> None:
 
     assert result["total_skills"] == 1
     assert result["command_envelopes"]["gpd-new-project"]["has_spawn_contracts"] is True
+    assert result["command_envelopes"]["gpd-new-project"]["has_interactive_spawn_contracts"] is True
     assert result["command_envelopes"]["gpd-new-project"]["has_review_contract"] is False
 
 

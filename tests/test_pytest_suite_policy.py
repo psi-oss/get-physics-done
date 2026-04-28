@@ -19,6 +19,7 @@ from tests.ci_sharding import (
     actual_ci_shard_matrix,
     all_test_relpaths,
     assert_ci_workflow_pytest_shard_policy,
+    assert_contributing_documents_current_pytest_commands,
     assert_tests_readme_documents_ci_shard_policy,
     build_ci_work_units,
     category_for_test_relpath,
@@ -27,6 +28,7 @@ from tests.ci_sharding import (
     expected_ci_shard_matrix,
     plan_category_ci_shards,
     synthetic_test_inventory,
+    untracked_non_ignored_test_relpaths,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -181,6 +183,14 @@ def test_default_collection_matches_all_checked_in_test_files() -> None:
     _assert_ci_shards_cover_inventory_without_overlap_or_empty_shards(inventory)
     _assert_expected_ci_matrix_rows_resolve_live_non_empty_targets(inventory)
     _assert_live_ci_shard_weight_spread_stays_tight(inventory)
+
+
+def test_no_untracked_non_ignored_tests_can_bypass_checked_in_inventory() -> None:
+    offenders = untracked_non_ignored_test_relpaths(repo_root=_repo_root())
+
+    assert not offenders, "Untracked non-ignored tests are invisible to checked-in CI inventory:\n" + "\n".join(
+        f"- tests/{relpath}" for relpath in offenders
+    )
 
 
 def _assert_hotspot_metadata_references_live_relpaths(all_relpaths: tuple[str, ...]) -> None:
@@ -344,6 +354,7 @@ def test_ci_collection_ignores_caller_pytest_addopts_and_disables_cache_writes(
         return SimpleNamespace(stdout="tests/test_sample.py::test_ok\n")
 
     monkeypatch.setenv("PYTEST_ADDOPTS", "-k no_tests --cache-clear")
+    monkeypatch.setattr(ci_sharding, "checked_in_test_relpaths", lambda **_: ("test_sample.py",))
     monkeypatch.setattr(ci_sharding.subprocess, "run", _fake_run)
     ci_sharding._collected_test_inventory_items.cache_clear()
     try:
@@ -362,7 +373,7 @@ def test_ci_collection_ignores_caller_pytest_addopts_and_disables_cache_writes(
         "pytest",
         "-p",
         "no:cacheprovider",
-        "tests/",
+        "tests/test_sample.py",
         "--collect-only",
         "-q",
         "-n",
@@ -384,6 +395,7 @@ def test_ci_shard_target_resolution_collects_only_requested_category(
             stdout="\n".join(f"tests/core/test_sample.py::test_{index}" for index in range(5)) + "\n"
         )
 
+    monkeypatch.setattr(ci_sharding, "checked_in_test_relpaths", lambda **_: ("core/test_sample.py",))
     monkeypatch.setattr(ci_sharding.subprocess, "run", _fake_run)
     ci_sharding._collected_test_inventory_items.cache_clear()
     try:
@@ -402,7 +414,7 @@ def test_ci_shard_target_resolution_collects_only_requested_category(
         "pytest",
         "-p",
         "no:cacheprovider",
-        "tests/core/",
+        "tests/core/test_sample.py",
         "--collect-only",
         "-q",
         "-n",
@@ -417,8 +429,10 @@ def test_ci_and_test_readme_document_default_full_suite_and_category_named_runti
     workflow = _workflow_data()
     pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
     tests_readme = (repo_root / "tests" / "README.md").read_text(encoding="utf-8")
+    contributing = (repo_root / "CONTRIBUTING.md").read_text(encoding="utf-8")
     assert_ci_workflow_pytest_shard_policy(workflow, pyproject_text=pyproject)
     assert_tests_readme_documents_ci_shard_policy(tests_readme)
+    assert_contributing_documents_current_pytest_commands(contributing)
 
 
 def test_hotspot_files_are_split_into_multiple_work_units() -> None:

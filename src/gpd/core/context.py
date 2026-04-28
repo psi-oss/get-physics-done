@@ -52,6 +52,7 @@ from gpd.core.constants import (
     ProjectLayout,
 )
 from gpd.core.continuation import (
+    RESUMABLE_SEGMENT_STATUSES,
     ContinuationResumeSource,
     ContinuationSource,
     normalize_continuation_reference,
@@ -1421,6 +1422,17 @@ def _merge_reference_intake(
     return merged
 
 
+def _empty_reference_intake() -> dict[str, list[str]]:
+    return {
+        "must_read_refs": [],
+        "must_include_prior_outputs": [],
+        "user_asserted_anchors": [],
+        "known_good_baselines": [],
+        "context_gaps": [],
+        "crucial_inputs": [],
+    }
+
+
 def _canonical_contract_intake(
     contract: ResearchContract,
     *,
@@ -2023,6 +2035,20 @@ def _build_publication_runtime_snapshot_context(
     return snapshot
 
 
+def _explicit_subject_from_launch_cwd(subject: str | None, launch_cwd: Path) -> str | None:
+    """Resolve explicit relative peer-review targets from the launch cwd."""
+
+    if not isinstance(subject, str):
+        return subject
+    normalized = subject.strip()
+    if not normalized:
+        return normalized
+    target = Path(normalized)
+    if target.is_absolute():
+        return normalized
+    return str((launch_cwd / target).resolve(strict=False))
+
+
 def _resolve_peer_review_target_context(
     cwd: Path,
     subject: str | None,
@@ -2052,10 +2078,13 @@ def _build_peer_review_runtime_context(
     cwd: Path,
     subject: str | None = None,
     *,
+    launch_cwd: Path | None = None,
     persist_manuscript_proof_review_manifest: bool = False,
 ) -> dict[str, object]:
     """Build the shared publication runtime payload for peer-review init and staging."""
 
+    target_base_cwd = (launch_cwd or cwd).expanduser().resolve(strict=False)
+    resolved_subject = _explicit_subject_from_launch_cwd(subject, target_base_cwd)
     result = dict(
         _build_reference_runtime_context(
             cwd, persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest
@@ -2069,12 +2098,19 @@ def _build_peer_review_runtime_context(
     result.update(
         _build_publication_runtime_snapshot_context(
             cwd,
-            subject=subject,
+            subject=resolved_subject,
             persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest,
         )
     )
-    resolved_mode, mode_reason = resolve_peer_review_mode(cwd, subject, workspace_cwd=cwd)
-    resolved_target, resolved_root = _resolve_peer_review_target_context(cwd, subject)
+    resolved_mode, mode_reason = resolve_peer_review_mode(cwd, resolved_subject, workspace_cwd=target_base_cwd)
+    resolved_target, resolved_root = _resolve_peer_review_target_context(cwd, resolved_subject)
+    standalone_contract_suppression_reason = (
+        "standalone explicit-artifact review does not use the current project contract as authoritative context"
+    )
+    standalone_contract_warning = (
+        "standalone explicit-artifact review hides current-project contract, bundle, and project-derived reference "
+        "context while preserving explicit-target manuscript/publication snapshot fields when they can be resolved"
+    )
     result.update(
         {
             "review_target_input": subject.strip() if isinstance(subject, str) else "",
@@ -2085,33 +2121,43 @@ def _build_peer_review_runtime_context(
         }
     )
     if resolved_mode == PEER_REVIEW_STANDALONE_MODE:
-        gate = dict(result.get("project_contract_gate") or {})
-        gate.update(
-            {
-                "authoritative": False,
-                "visible": False,
-                "approval_blocked": False,
-                "reason": "standalone explicit-artifact review does not use the current project contract as authoritative context",
-            }
-        )
-        load_info = dict(result.get("project_contract_load_info") or {})
-        warnings = list(load_info.get("warnings") or [])
-        warning = (
-            "standalone explicit-artifact review hides current-project contract, bundle, and project-derived reference "
-            "context while preserving explicit-target manuscript/publication snapshot fields when they can be resolved"
-        )
-        if warning not in warnings:
-            warnings.append(warning)
-        load_info["warnings"] = warnings
-        load_info["mode"] = PEER_REVIEW_STANDALONE_MODE
+        gate = {
+            "status": "standalone_explicit_artifact",
+            "visible": False,
+            "blocked": False,
+            "load_blocked": False,
+            "approval_blocked": False,
+            "authoritative": False,
+            "repair_required": False,
+            "raw_project_contract_classified": False,
+            "provenance": None,
+            "source_path": None,
+            "reason": standalone_contract_suppression_reason,
+        }
+        load_info = {
+            "status": "standalone_explicit_artifact",
+            "source_path": None,
+            "provenance": None,
+            "raw_project_contract_classified": False,
+            "errors": [],
+            "warnings": [standalone_contract_warning],
+            "mode": PEER_REVIEW_STANDALONE_MODE,
+        }
         result.update(
             {
                 "project_contract": None,
                 "project_contract_gate": gate,
                 "project_contract_load_info": load_info,
+                "project_contract_validation": None,
                 "contract_intake": None,
-                "effective_reference_intake": {},
+                "effective_reference_intake": _empty_reference_intake(),
+                "derived_active_references": [],
+                "derived_active_reference_count": 0,
+                "active_references": [],
+                "active_reference_count": 0,
                 "selected_protocol_bundle_ids": [],
+                "protocol_bundle_count": 0,
+                "protocol_bundle_verifier_extensions": [],
                 "protocol_bundle_context": None,
                 "active_reference_context": "",
                 "reference_artifact_files": [],
@@ -2120,11 +2166,26 @@ def _build_peer_review_runtime_context(
                 "literature_review_count": 0,
                 "research_map_reference_files": [],
                 "research_map_reference_count": 0,
+                "knowledge_doc_files": [],
+                "knowledge_doc_count": 0,
+                "stable_knowledge_doc_files": [],
+                "stable_knowledge_doc_count": 0,
+                "knowledge_doc_status_counts": {},
+                "knowledge_doc_warnings": [],
+                "derived_knowledge_docs": [],
+                "derived_knowledge_doc_count": 0,
                 "citation_source_files": [],
                 "citation_source_count": 0,
                 "citation_source_warnings": [],
                 "derived_citation_sources": [],
                 "derived_citation_source_count": 0,
+                "publication_bootstrap": None,
+                "publication_bootstrap_mode": None,
+                "publication_bootstrap_root": None,
+                "publication_bootstrap_detail": None,
+                "publication_intake_root": None,
+                "selected_publication_root": PLANNING_DIR_NAME,
+                "selected_review_root": f"{PLANNING_DIR_NAME}/review",
             }
         )
     return result
@@ -2215,12 +2276,11 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
     elif resume_projection.active_resume_source == ContinuationResumeSource.HANDOFF:
         execution_resume_file_source = "handoff_resume_file"
 
-    paused_states = {"paused", "awaiting_user", "ready_to_continue", "waiting_review", "blocked"}
-    segment_status = (snapshot.segment_status or "").lower() if snapshot is not None else ""
+    segment_status = (snapshot.segment_status or "").strip().lower() if snapshot is not None else ""
     is_resumable = bool(resume_projection.resumable)
     paused_at = (
         snapshot.updated_at
-        if snapshot is not None and segment_status in paused_states
+        if snapshot is not None and segment_status in RESUMABLE_SEGMENT_STATUSES
         else (position.get("paused_at") if isinstance(position, dict) else None)
     )
     resume_file = resume_projection.active_resume_file
@@ -2398,24 +2458,6 @@ def _canonical_resume_candidate(
     )
 
 
-def _has_candidate(
-    segment_candidates: list[dict[str, object]],
-    *,
-    source: str,
-    resume_file: str | None = None,
-    agent_id: str | None = None,
-) -> bool:
-    for candidate in segment_candidates:
-        if str(candidate.get("source") or "").strip() != source:
-            continue
-        if resume_file is not None and candidate.get("resume_file") != resume_file:
-            continue
-        if agent_id is not None and candidate.get("agent_id") != agent_id:
-            continue
-        return True
-    return False
-
-
 def _has_resume_candidate(
     resume_candidates: list[dict[str, object]],
     *,
@@ -2530,9 +2572,9 @@ def _build_resume_read_state(
                 )
             )
 
-    if interrupted_agent_id is not None and not _has_candidate(
+    if interrupted_agent_id is not None and not _has_resume_candidate(
         resume_candidates,
-        source="interrupted_agent",
+        kind="interrupted_agent",
         agent_id=interrupted_agent_id,
     ):
         candidate = {
@@ -2540,19 +2582,14 @@ def _build_resume_read_state(
             "status": "interrupted",
             "agent_id": interrupted_agent_id,
         }
-        if not _has_resume_candidate(
-            resume_candidates,
-            kind="interrupted_agent",
-            agent_id=interrupted_agent_id,
-        ):
-            resume_candidates.append(
-                _canonical_resume_candidate(
-                    candidate,
-                    kind="interrupted_agent",
-                    origin=_interrupted_agent_resume_origin(),
-                    resume_pointer=interrupted_agent_id,
-                )
+        resume_candidates.append(
+            _canonical_resume_candidate(
+                candidate,
+                kind="interrupted_agent",
+                origin=_interrupted_agent_resume_origin(),
+                resume_pointer=interrupted_agent_id,
             )
+        )
 
     hydrated_resume_candidates = [
         _hydrate_resume_result(candidate, result_lookup_by_id) for candidate in resume_candidates
@@ -2621,6 +2658,7 @@ def _promote_auto_selected_recent_bounded_segment(
     continuation_state: dict[str, object],
     *,
     reentry_metadata: Mapping[str, object],
+    result_lookup_by_id: Mapping[str, Mapping[str, object]],
 ) -> tuple[dict[str, object], bool]:
     """Promote a stronger auto-selected recent bounded segment over a same-pointer handoff."""
 
@@ -2681,6 +2719,7 @@ def _promote_auto_selected_recent_bounded_segment(
         origin=resume_origin_for_bounded_segment(),
         resume_pointer=resume_file,
     )
+    canonical_candidate = _hydrate_resume_result(canonical_candidate, result_lookup_by_id)
 
     def _replace_matching_candidate(
         candidates: object,
@@ -2722,6 +2761,9 @@ def _promote_auto_selected_recent_bounded_segment(
         promoted.get("resume_candidates"),
         canonical_candidate,
     )
+    active_resume_result = canonical_candidate.get("last_result")
+    if isinstance(active_resume_result, Mapping):
+        promoted["active_resume_result"] = dict(active_resume_result)
     return promoted, True
 
 
@@ -3728,6 +3770,7 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
     continuation_state, recent_bounded_segment_promoted = _promote_auto_selected_recent_bounded_segment(
         continuation_state,
         reentry_metadata=reentry_metadata,
+        result_lookup_by_id=result_lookup_by_id,
     )
     active_bounded_segment = continuation_state.get("active_bounded_segment")
     if not isinstance(active_bounded_segment, dict):
@@ -4109,18 +4152,20 @@ def init_write_paper(cwd: Path, stage: str | None = None) -> dict:
 
 def init_peer_review(cwd: Path, subject: str | None = None, stage: str | None = None) -> dict:
     """Assemble context for staged manuscript peer review."""
-    config = load_config(cwd)
+    launch_cwd = cwd.expanduser().resolve(strict=False)
+    effective_cwd = _resolve_project_scoped_cwd(launch_cwd)
+    config = load_config(effective_cwd)
     base_result: dict[str, object] = {
         "commit_docs": config["commit_docs"],
-        "state_exists": _state_exists(cwd),
-        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "state_exists": _state_exists(effective_cwd),
+        "project_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "autonomy": config["autonomy"],
         "research_mode": config["research_mode"],
-        "platform": _detect_platform(cwd),
+        "platform": _detect_platform(effective_cwd),
     }
     if stage is None:
         result = dict(base_result)
-        result.update(_build_peer_review_runtime_context(cwd, subject))
+        result.update(_build_peer_review_runtime_context(effective_cwd, subject, launch_cwd=launch_cwd))
         return result
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -4138,7 +4183,7 @@ def init_peer_review(cwd: Path, subject: str | None = None, stage: str | None = 
         ) from exc
 
     staged_source = dict(base_result)
-    staged_source.update(_build_peer_review_runtime_context(cwd, subject))
+    staged_source.update(_build_peer_review_runtime_context(effective_cwd, subject, launch_cwd=launch_cwd))
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
@@ -4458,10 +4503,11 @@ def init_milestone_op(cwd: Path) -> dict:
     }
 
 
-def init_map_research(cwd: Path, stage: str | None = None) -> dict:
+def init_map_research(cwd: Path, focus: str | None = None, stage: str | None = None) -> dict:
     """Assemble context for research mapping."""
     effective_cwd = _resolve_project_scoped_cwd(cwd)
     config = load_config(effective_cwd)
+    normalized_focus = focus.strip() if isinstance(focus, str) and focus.strip() else ""
 
     # Check for existing research maps
     research_map_dir = effective_cwd / PLANNING_DIR_NAME / RESEARCH_MAP_DIR_NAME
@@ -4479,6 +4525,8 @@ def init_map_research(cwd: Path, stage: str | None = None) -> dict:
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
         "research_mode": config["research_mode"],
+        "map_focus": normalized_focus,
+        "map_focus_provided": bool(normalized_focus),
         "parallelization": config["parallelization"],
         # Paths
         "research_map_dir": f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}",

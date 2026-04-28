@@ -11,10 +11,33 @@ from tests import new_project_stage_contract_support as stage_contract_module
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 NEW_PROJECT_COMMAND_PATH = REPO_ROOT / "src" / "gpd" / "commands" / "new-project.md"
+NEW_PROJECT_WORKFLOW_PATH = REPO_ROOT / "src" / "gpd" / "specs" / "workflows" / "new-project.md"
 
 
 def _read_new_project_command() -> str:
     return NEW_PROJECT_COMMAND_PATH.read_text(encoding="utf-8")
+
+
+def _read_new_project_workflow() -> str:
+    return NEW_PROJECT_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+
+def _tagged_block(text: str, tag: str) -> str:
+    start = text.index(f"<{tag}>")
+    end = text.index(f"</{tag}>", start)
+    return text[start:end]
+
+
+def _tagged_blocks(text: str, tag: str) -> list[str]:
+    blocks: list[str] = []
+    cursor = 0
+    while True:
+        start = text.find(f"<{tag}>", cursor)
+        if start == -1:
+            return blocks
+        end = text.index(f"</{tag}>", start)
+        blocks.append(text[start:end])
+        cursor = end + len(f"</{tag}>")
 
 
 def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
@@ -159,6 +182,33 @@ def test_new_project_command_mentions_approval_time_grounding_linkage() -> None:
 
     assert "project-contract-schema.md" in command_text
     assert "project-contract-grounding-linkage.md" in command_text
+
+
+def test_new_project_notation_contracts_split_checkpoint_from_artifact_write() -> None:
+    workflow_text = _read_new_project_workflow()
+    auto_contract = next(
+        block for block in _tagged_blocks(workflow_text, "spawn_contract") if "GPD/CONVENTIONS.md" in block
+    )
+    interactive_contract = _tagged_block(workflow_text, "spawn_contract_interactive")
+
+    assert "GPD/CONVENTIONS.md" in auto_contract
+    assert "expected_artifacts: []" in interactive_contract
+    assert "status: checkpoint" in interactive_contract
+    assert "GPD/CONVENTIONS.md" not in interactive_contract
+    assert "CHECKPOINT REACHED" not in workflow_text
+    assert "gpd_return.status: checkpoint" in workflow_text
+
+
+def test_new_project_notation_spawn_model_and_recovery_contract_are_conditional() -> None:
+    workflow_text = _read_new_project_workflow()
+
+    assert 'model="{NOTATION_MODEL}"' not in workflow_text
+    assert 'model="$NOTATION_MODEL"' in workflow_text
+    assert 'task(prompt=NOTATION_PROMPT, subagent_type="gpd-notation-coordinator", readonly=false' in workflow_text
+    assert "write the returned content in the main context" not in workflow_text
+    assert "re-execute the convention-establishment task in the main context" not in workflow_text
+    assert "spawn one fresh `gpd-notation-coordinator` continuation" in workflow_text
+    assert "fail closed" in workflow_text
 
 
 def test_new_project_stage_contract_rejects_unknown_top_level_keys() -> None:

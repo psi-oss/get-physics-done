@@ -83,6 +83,12 @@
     "managed_install_surface": {
       "nested_command_globs": ["commands/gpd/**/*"]
     },
+    "manifest_metadata_list_policies": [
+      {
+        "key": "managed_runtime_files",
+        "value_kind": "relpath"
+      }
+    ],
     "global_config": {
       "strategy": "env_or_home",
       "env_var": "GEMINI_CONFIG_DIR",
@@ -104,6 +110,13 @@
     "selection_flags": ["--codex"],
     "selection_aliases": ["codex"],
     "manifest_file_prefixes": ["skills/"],
+    "manifest_metadata_list_policies": [
+      {
+        "key": "codex_generated_skill_dirs",
+        "value_kind": "path_segment",
+        "item_prefix": "gpd-"
+      }
+    ],
     "installer_help_example_scope": "local",
     "validated_command_surface": "public_runtime_dollar_command",
     "capabilities": {
@@ -159,6 +172,14 @@
     "selection_flags": ["--opencode"],
     "selection_aliases": ["opencode", "open code"],
     "manifest_file_prefixes": ["command/"],
+    "manifest_metadata_list_policies": [
+      {
+        "key": "opencode_generated_command_files",
+        "value_kind": "path_segment",
+        "item_prefix": "gpd-",
+        "item_suffix": ".md"
+      }
+    ],
     "agent_prompt_uses_dollar_templates": true,
     "validated_command_surface": "public_runtime_slash_command",
     "capabilities": {

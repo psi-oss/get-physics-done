@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
-from collections.abc import Callable
-
 from gpd.core.model_visible_sections import (
     MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE,
     render_model_visible_note,
@@ -106,40 +103,17 @@ def _join_disjunction(values: tuple[str, ...]) -> str:
     return " or ".join(f"`{value}`" for value in values)
 
 
-def _load_canonical_agent_names() -> Callable[[], tuple[str, ...]]:
-    registry = importlib.import_module("gpd.registry")
-    return registry.canonical_agent_names
-
-
-def _command_agent_labels() -> tuple[str, ...]:
-    try:
-        canonical_agent_names = _load_canonical_agent_names()
-    except ModuleNotFoundError as exc:
-        if exc.name != "gpd.registry":
-            raise
-        return ()
-    return canonical_agent_names()
-
-
 def agent_visibility_note() -> str:
     return render_model_visible_note(
         "Agent YAML rules.",
         "`tools` is a list of tool names;",
-        f"`commit_authority` must be {_join_disjunction(AGENT_COMMIT_AUTHORITIES)};",
-        f"`surface` must be {_join_disjunction(AGENT_SURFACES)};",
-        f"`role_family` must be {_join_disjunction(AGENT_ROLE_FAMILIES)};",
-        f"`artifact_write_authority` must be {_join_disjunction(AGENT_ARTIFACT_WRITE_AUTHORITIES)};",
-        f"`shared_state_authority` must be {_join_disjunction(AGENT_SHARED_STATE_AUTHORITIES)}.",
+        "`commit_authority`, `surface`, `role_family`, `artifact_write_authority`, and `shared_state_authority` "
+        "must use the closed agent-authority vocabularies;",
+        "the active YAML values below are authoritative for this agent.",
     )
 
 
 def command_visibility_note() -> str:
-    agent_labels = _command_agent_labels()
-    agent_clause = (
-        f"`agent` when present must be one of {_join_disjunction(agent_labels)};"
-        if agent_labels
-        else "`agent` when present must match a built-in canonical agent label exactly;"
-    )
     return render_model_visible_note(
         "Command YAML rules.",
         "Strict booleans only. Empty optional fields may be omitted.",
@@ -155,12 +129,12 @@ def command_visibility_note() -> str:
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.project_context_mode` and `context_mode` "
         f"must be {_join_disjunction(VALID_CONTEXT_MODES)} when present;",
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.allowed_suffixes` must use dotted suffixes like `.tex` or `.md` when present;",
-        "Typed command policy is runtime-authoritative for command intake, supporting-context routing, and managed-output "
+        "Typed command policy is command-authoritative for command intake, supporting-context routing, and managed-output "
         "surfaces when a command declares it.",
         "`allowed_tools` is a list of tool names when present;",
         "`requires` is a closed mapping when present; only `files` is supported.",
         "`requires.files` is a string or list of strings.",
-        agent_clause,
+        "`agent` when present must match a built-in canonical agent label exactly; use the active YAML value below.",
         "`project_reentry_capable` must be `true` or `false` and may be `true` only when `context_mode` is `project-required`.",
         "Any user-visible completion, checkpoint, blocked return, failed return, retry gate, or stop that expects later "
         "action must end with a concrete `## > Next Up` or `## >> Next Up` section. Include copy-pasteable GPD "
@@ -169,31 +143,26 @@ def command_visibility_note() -> str:
 
 
 def review_contract_visibility_note() -> str:
-    review_modes = _join_disjunction(REVIEW_CONTRACT_MODES)
-    conditional_whens = _join_disjunction(REVIEW_CONTRACT_CONDITIONAL_WHENS)
-    required_states = _join_disjunction(REVIEW_CONTRACT_REQUIRED_STATES)
-    preflight_checks = _join_disjunction(REVIEW_CONTRACT_PREFLIGHT_CHECKS)
     return render_model_visible_note(
         "Review-contract YAML rules.",
         f"`{REVIEW_CONTRACT_PROMPT_WRAPPER_KEY}` is the wrapper key; `schema_version` must be the integer `1`;",
         "Omit empty optional fields.",
-        f"`review_mode` must be {review_modes};",
-        f"`required_state` when present must be {required_states};",
+        "`review_mode`, `required_state`, `preflight_checks`, `conditional_requirements[].when`, and scope-variant "
+        "preflight fields must use the closed review-contract vocabularies; active YAML values below are authoritative.",
         "List fields when present: `required_outputs`, `required_evidence`, `blocking_conditions`, "
         "`preflight_checks`, `stage_artifacts`, `scope_variants`;",
-        f"`preflight_checks` entries must be {preflight_checks};",
-        f"`conditional_requirements[].when` must be one of {conditional_whens};",
         "`conditional_requirements[].preflight_checks` and `conditional_requirements[].blocking_preflight_checks` "
-        "are lists of valid `preflight_checks` values when present.",
+        "are lists of valid preflight-check values when present.",
         "Each `conditional_requirements[].when` value may appear at most once.",
         "List fields reject blank entries and duplicates.",
         "Each conditional requirement needs one non-empty field.",
         "`scope_variants[].scope`/`.activation` must be non-empty strings.",
         "`scope_variants[].relaxed_preflight_checks`/`.optional_preflight_checks` are lists of valid "
-        "`preflight_checks` values when present.",
+        "preflight-check values when present.",
         "Scope override fields `required_outputs_override`, `required_evidence_override`, "
         "`blocking_conditions_override` are lists when present.",
-        "`relaxed_preflight_checks` make named checks non-blocking for that scope; `optional_preflight_checks` make missing inputs advisory.",
+        "`relaxed_preflight_checks` make named checks non-blocking for that scope; `optional_preflight_checks` "
+        "make missing inputs advisory.",
         "Non-empty scope override lists replace matching top-level lists.",
         "Each `scope_variants[].scope` may appear at most once.",
         "Each scope variant needs one non-empty override or preflight field.",

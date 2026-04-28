@@ -43,7 +43,11 @@ load_map_research_stage() {
   local stage_name="$1"
   local init_payload=""
 
-  init_payload=$(gpd --raw init map-research --stage "${stage_name}" 2>/dev/null)
+  if [ -n "${ARGUMENTS:-}" ]; then
+    init_payload=$(gpd --raw init map-research --stage "${stage_name}" -- "${ARGUMENTS:-}" 2>/dev/null)
+  else
+    init_payload=$(gpd --raw init map-research --stage "${stage_name}" 2>/dev/null)
+  fi
   if [ $? -ne 0 ] || [ -z "$init_payload" ]; then
     echo "ERROR: staged gpd initialization failed for stage '${stage_name}': ${init_payload}"
     return 1
@@ -60,7 +64,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Extract from init JSON: `mapper_model`, `commit_docs`, `research_mode`, `research_map_dir`, `existing_maps`, `has_maps`, `research_map_dir_exists`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`.
+Extract from init JSON: `mapper_model`, `commit_docs`, `research_mode`, `map_focus`, `map_focus_provided`, `research_map_dir`, `existing_maps`, `has_maps`, `research_map_dir_exists`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`.
 
 **Read mode settings:**
 
@@ -78,6 +82,7 @@ RESEARCH_MODE=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_mode --default b
 - Preserve stable anchor identity when you rewrite or merge references: every durable anchor in `REFERENCES.md` should carry a reusable `Anchor ID` and a concrete `Source / Locator`.
 - Keep workflow carry-forward scope separate from canonical contract subject linkage. `Carry Forward To` names workflow stages; if exact claim/deliverable IDs are known, record them in a dedicated `Contract Subject IDs` field instead of overloading the stage field.
 - Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. If the gate is blocked, keep the contract visible as context but do not treat it as approved mapping truth.
+- If `map_focus_provided` is true, keep `map_focus` visible and bias each slice without losing contract-critical coverage.
 Each mapper agent is a one-shot file-producing handoff. Route on `gpd_return.status`, then verify `gpd_return.files_written` against the expected artifacts before accepting the run.
 </step>
 
@@ -173,6 +178,7 @@ Prompt:
 First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructions.
 
 Focus: theory
+Map focus: {map_focus} (if provided, bias this theory slice toward it without dropping contract-critical anchors).
 
 Analyze this research project for theoretical content and literature foundations.
 Treat the machine-readable intake below as binding carry-forward context:
@@ -239,6 +245,7 @@ Prompt:
 First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructions.
 
 Focus: computation
+Map focus: {map_focus} (if provided, bias this computation slice toward it without dropping contract-critical anchors).
 
 Analyze this research project for computational methods, solvers, and project structure.
 Treat the machine-readable intake below as binding carry-forward context:
@@ -300,6 +307,7 @@ Prompt:
 First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructions.
 
 Focus: methodology
+Map focus: {map_focus} (if provided, bias this methodology slice toward it without dropping contract-critical anchors).
 
 Analyze this research project for notation conventions, unit systems, and validation practices.
 Treat the machine-readable intake below as binding carry-forward context:
@@ -361,6 +369,7 @@ Prompt:
 First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructions.
 
 Focus: status
+Map focus: {map_focus} (if provided, bias this status slice toward it without dropping contract-critical anchors).
 
 Analyze this research project for open questions, known issues, and areas of concern.
 Treat the machine-readable intake below as binding carry-forward context:

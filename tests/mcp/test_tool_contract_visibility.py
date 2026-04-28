@@ -344,6 +344,7 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
     _assert_closed_object(claims, label="contract.claims[]")
     assert claims["required"] == ["id", "statement", "deliverables", "acceptance_tests"]
     assert "Proof-bearing claims must set an explicit proof-oriented `claim_kind`" in claims["description"]
+    assert "preserve `quantifiers` when explicit quantifier or domain obligations exist" in claims["description"]
     assert "proof-specific acceptance test id" in claims["description"]
     assert claims["properties"]["id"]["minLength"] == 1
     assert claims["properties"]["id"]["pattern"] == r"\S"
@@ -398,6 +399,26 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
     assert "statement is theorem-like" in claims["description"]
     assert "`proof_obligation` target" in claims["description"]
     assert "Do not rely on runtime inference" in claims["description"]
+    proof_field_condition = next(clause for clause in claims["allOf"] if "anyOf" in clause.get("if", {}))
+    proof_field_triggers = {
+        required[0]
+        for branch in proof_field_condition["if"]["anyOf"]
+        if isinstance(branch, dict)
+        and isinstance((required := branch.get("required")), list)
+        and len(required) == 1
+    }
+    assert proof_field_triggers == {
+        "proof_deliverables",
+        "parameters",
+        "hypotheses",
+        "quantifiers",
+        "conclusion_clauses",
+    }
+    for branch in proof_field_condition["if"]["anyOf"]:
+        required = branch["required"]
+        assert len(required) == 1
+        field_name = required[0]
+        assert branch["properties"][field_name]["minItems"] == 1
 
     observables = contract_schema["properties"]["observables"]["items"]
     _assert_closed_object(observables, label="contract.observables[]")

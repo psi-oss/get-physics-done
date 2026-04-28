@@ -407,7 +407,7 @@ def test_integrations_enable_and_disable_wolfram_persist_project_local_config(tm
     config_path = project_root / "GPD" / "integrations.json"
     assert config_path.exists()
     saved = json.loads(config_path.read_text(encoding="utf-8"))
-    assert saved["wolfram"]["enabled"] is True
+    assert saved["wolfram"] == {"enabled": True}
 
     disable_result = runner.invoke(app, ["--cwd", str(project_root), "--raw", "integrations", "disable", "wolfram"])
     assert disable_result.exit_code == 0
@@ -419,6 +419,8 @@ def test_integrations_enable_and_disable_wolfram_persist_project_local_config(tm
     status_payload = json.loads(status_result.output)
     assert status_payload["enabled"] is False
     assert status_payload["state"] == "disabled"
+    saved = json.loads(config_path.read_text(encoding="utf-8"))
+    assert saved["wolfram"] == {"enabled": False}
 
 
 @pytest.mark.parametrize("command", ("status", "enable", "disable"))
@@ -6809,6 +6811,102 @@ def test_validate_paper_quality_from_project_rejects_missing_manuscript_root(tmp
     assert "no manuscript entrypoint found under paper/, manuscript/, draft/, or GPD/publication/*/manuscript" in str(
         result.exception
     )
+
+
+def test_validate_paper_quality_from_project_resolves_relative_root_against_cli_cwd(tmp_path: Path) -> None:
+    expected_root = (tmp_path / "project").resolve(strict=False)
+    expected_root.mkdir()
+    ready_report = SimpleNamespace(ready_for_submission=True)
+
+    with (
+        patch.object(
+            cli_module,
+            "resolve_current_manuscript_resolution",
+            return_value=SimpleNamespace(status="resolved", detail="paper"),
+        ) as mock_resolve,
+        patch(
+            "gpd.core.paper_quality_artifacts.build_paper_quality_input",
+            return_value={"paper": "input"},
+        ) as mock_build,
+        patch("gpd.core.paper_quality.score_paper_quality", return_value=ready_report),
+    ):
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "validate", "paper-quality", "--from-project", "project"],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0
+    mock_resolve.assert_called_once_with(expected_root, allow_markdown=True)
+    mock_build.assert_called_once_with(expected_root)
+
+
+def test_validate_reproducibility_manifest_check_paths_uses_manifest_file_root(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    (workspace / "GPD").mkdir(parents=True)
+    manifest_root = workspace / "paper"
+    manifest_root.mkdir()
+    (manifest_root / "data").mkdir()
+    (manifest_root / "scripts").mkdir()
+    (manifest_root / "results").mkdir()
+    (manifest_root / "data" / "input.csv").write_text("x\n", encoding="utf-8")
+    (manifest_root / "scripts" / "run.py").write_text("print('ok')\n", encoding="utf-8")
+    (manifest_root / "results" / "out.json").write_text("{}\n", encoding="utf-8")
+    manifest_path = manifest_root / "reproducibility-manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "paper_title": "Manifest Local Paths",
+                "date": "2026-04-27",
+                "environment": {
+                    "python_version": "3.12.1",
+                    "package_manager": "uv",
+                    "required_packages": [{"package": "numpy", "version": "1.26.4"}],
+                    "lock_file": "uv.lock",
+                    "system_requirements": {},
+                },
+                "input_data": [
+                    {
+                        "name": "input",
+                        "source": "data/input.csv",
+                        "version_or_date": "2026-04-27",
+                        "checksum_sha256": "a" * 64,
+                    }
+                ],
+                "generated_data": [{"name": "output", "script": "scripts/run.py", "checksum_sha256": "b" * 64}],
+                "execution_steps": [
+                    {"name": "run", "command": "python scripts/run.py", "outputs": ["results/out.json"]}
+                ],
+                "output_files": [{"path": "results/out.json", "checksum_sha256": "c" * 64}],
+                "resource_requirements": [{"step": "run", "cpu_cores": 1, "memory_gb": 1.0}],
+                "verification_steps": ["rerun pipeline", "compare outputs", "inspect artifacts"],
+                "minimum_viable": "1 core",
+                "recommended": "1 core",
+                "last_verified": "2026-04-27",
+                "last_verified_platform": "macOS 15 arm64",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "--raw",
+            "--cwd",
+            str(workspace),
+            "validate",
+            "reproducibility-manifest",
+            "paper/reproducibility-manifest.json",
+            "--check-paths",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["valid"] is True
+    assert payload["reproducibility_ready"] is True
 
 
 def test_paper_build_does_not_discover_internal_planning_configs(tmp_path: Path, capsys) -> None:

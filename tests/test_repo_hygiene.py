@@ -206,6 +206,8 @@ def test_gitignore_covers_generated_local_artifact_families(tmp_path: Path) -> N
         "GPD-FIX-REPORT-20260427.md",
         "GPD-FIX-REPORT/report.json",
         "GPD-FIX-REPORT-20260427/details.json",
+        "GPD/state.json.bak",
+        "GPD/state.json.lock",
     )
     for relpath in ignored_relpaths:
         path = repo / relpath

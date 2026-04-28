@@ -25,7 +25,7 @@ Bootstrap loads only immediate resume vocabulary. Later staged payloads name
 Load the shared resume bootstrap stage. `gpd:resume-work` is the guided runtime path, `gpd resume` is the public local read-only summary, `gpd resume --recent` is the cross-project discovery surface, and `gpd --raw resume` is the raw local view:
 
 ```bash
-INIT=$(gpd --raw init resume-work --stage resume_bootstrap)
+INIT=$(gpd --raw init resume --stage resume_bootstrap)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
@@ -79,7 +79,7 @@ If `active_bounded_segment.first_result_gate_pending` is true, do not treat late
 Load state-restore before using contract, reference, or readable state fields:
 
 ```bash
-STATE_RESTORE_INIT=$(gpd --raw init resume-work --stage state_restore)
+STATE_RESTORE_INIT=$(gpd --raw init resume --stage state_restore)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd state-restore initialization failed: $STATE_RESTORE_INIT"
   # STOP — display the error to the user and do not proceed.
@@ -133,7 +133,7 @@ cat GPD/PROJECT.md
 Load derivation-restore before reconstructing derivation history:
 
 ```bash
-DERIVATION_RESTORE_INIT=$(gpd --raw init resume-work --stage derivation_restore)
+DERIVATION_RESTORE_INIT=$(gpd --raw init resume --stage derivation_restore)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd derivation-restore initialization failed: $DERIVATION_RESTORE_INIT"
   # STOP — display the error to the user and do not proceed.
@@ -251,7 +251,7 @@ If convention check fails, flag in the status presentation (step present_status)
 Load resume-routing before deciding what work is incomplete or resumable:
 
 ```bash
-RESUME_ROUTING_INIT=$(gpd --raw init resume-work --stage resume_routing)
+RESUME_ROUTING_INIT=$(gpd --raw init resume --stage resume_routing)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd resume-routing initialization failed: $RESUME_ROUTING_INIT"
   # STOP — display the error to the user and do not proceed.

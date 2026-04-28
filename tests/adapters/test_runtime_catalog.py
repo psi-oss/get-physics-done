@@ -100,6 +100,11 @@ def _iter_runtime_descriptors_from_schema(
     )
     monkeypatch.setattr(
         runtime_catalog,
+        "_RUNTIME_MANIFEST_METADATA_LIST_VALUE_KINDS",
+        schema_shape["manifest_metadata_list_value_kinds"],
+    )
+    monkeypatch.setattr(
+        runtime_catalog,
         "_RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS",
         schema_shape["launch_wrapper_permission_surface_kinds"],
     )
@@ -252,6 +257,7 @@ def test_runtime_catalog_schema_dataclass_keys_stay_in_sync() -> None:
     assert set(schema["managed_install_surface_defaults"]) == {
         field.name for field in fields(runtime_catalog.ManagedInstallSurfacePolicy)
     }
+    assert set(schema["manifest_metadata_list_value_kinds"]) == {"path_segment", "relpath"}
 
 
 def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> None:
@@ -432,6 +438,27 @@ def test_managed_install_surface_policy_is_derived_from_runtime_metadata() -> No
     assert codex_policy.flat_command_globs == ()
     assert merged_policy.nested_command_globs == claude_policy.nested_command_globs
     assert merged_policy.flat_command_globs == opencode_policy.flat_command_globs
+
+
+def test_manifest_metadata_list_policies_are_derived_from_runtime_metadata() -> None:
+    catalog_payload = json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8"))
+    codex_entry = _catalog_entry_by_runtime_name(catalog_payload, "codex")
+    gemini_entry = _catalog_entry_by_runtime_name(catalog_payload, "gemini")
+    opencode_entry = _catalog_entry_by_runtime_name(catalog_payload, "opencode")
+
+    codex_policy = get_runtime_descriptor("codex").manifest_metadata_list_policies[0]
+    gemini_policy = get_runtime_descriptor("gemini").manifest_metadata_list_policies[0]
+    opencode_policy = get_runtime_descriptor("opencode").manifest_metadata_list_policies[0]
+
+    assert codex_policy.key == codex_entry["manifest_metadata_list_policies"][0]["key"]
+    assert codex_policy.value_kind == "path_segment"
+    assert codex_policy.item_prefix == "gpd-"
+    assert codex_policy.item_suffix is None
+    assert gemini_policy.key == gemini_entry["manifest_metadata_list_policies"][0]["key"]
+    assert gemini_policy.value_kind == "relpath"
+    assert opencode_policy.key == opencode_entry["manifest_metadata_list_policies"][0]["key"]
+    assert opencode_policy.item_prefix == "gpd-"
+    assert opencode_policy.item_suffix == ".md"
 
 
 def test_runtime_catalog_source_does_not_hardcode_managed_agent_globs() -> None:
@@ -842,6 +869,28 @@ def test_runtime_catalog_rejects_managed_install_surface_glob_escapes(
         ValueError,
         match=r"runtime catalog entry \d+\.managed_install_surface\.flat_command_globs\.0 "
         r"must be a relative managed install glob without traversal",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_rejects_manifest_metadata_policy_affix_on_relpaths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    gemini = _catalog_entry_by_runtime_name(payload, "gemini")
+    gemini["manifest_metadata_list_policies"] = [
+        {
+            "key": "managed_runtime_files",
+            "value_kind": "relpath",
+            "item_prefix": "gpd-",
+        }
+    ]
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog entry \d+\.manifest_metadata_list_policies\[0\]\.item_prefix/item_suffix "
+        r"require value_kind=path_segment",
     ):
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 

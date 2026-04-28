@@ -224,11 +224,12 @@ def test_new_project_notation_delegate_threads_resolved_model_through_the_spawn_
     content = (REPO_ROOT / "src/gpd/specs/workflows/new-project.md").read_text(encoding="utf-8")
     marker = 'NOTATION_MODEL=$(gpd resolve-model gpd-notation-coordinator)'
     start = content.index(marker)
-    task_start = content.index('task(prompt="First, read {GPD_AGENTS_DIR}/gpd-notation-coordinator.md', start)
-    task_end = content.index('description="Establish project conventions")', task_start)
-    notation_block = content[task_start:task_end]
+    section_end = content.index("**Handle notation-coordinator return:**", start)
+    notation_block = content[start:section_end]
 
-    assert 'model="{NOTATION_MODEL}"' in notation_block
+    assert 'task(prompt=NOTATION_PROMPT, subagent_type="gpd-notation-coordinator", model="$NOTATION_MODEL"' in notation_block
+    assert 'task(prompt=NOTATION_PROMPT, subagent_type="gpd-notation-coordinator", readonly=false' in notation_block
+    assert 'model="{NOTATION_MODEL}"' not in notation_block
     assert "If `NOTATION_MODEL` is empty or null, omit `model=` entirely in the spawn call." in content
 
 

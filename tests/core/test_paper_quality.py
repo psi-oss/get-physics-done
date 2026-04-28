@@ -324,6 +324,7 @@ def test_score_paper_quality_blocks_invalid_contract_and_comparison_ledgers() ->
                 "contract_results_parse_ok": False,
                 "contract_results_alignment_ok": False,
                 "comparison_verdicts_valid": False,
+                "figure_tracker_parse_ok": False,
             },
         )
     )
@@ -333,6 +334,7 @@ def test_score_paper_quality_blocks_invalid_contract_and_comparison_ledgers() ->
     assert "contract_results_parse_ok" in blocking_checks
     assert "contract_results_alignment_ok" in blocking_checks
     assert "comparison_verdicts_valid" in blocking_checks
+    assert "figure_tracker_parse_ok" in blocking_checks
 
 
 def test_score_paper_quality_blocks_empty_citation_and_reference_commands() -> None:

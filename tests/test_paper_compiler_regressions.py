@@ -96,6 +96,21 @@ class _FakeProcess:
         return self._stdout, self._stderr
 
 
+class _TimeoutProcess:
+    def __init__(self) -> None:
+        self.returncode = None
+        self.killed = False
+
+    async def communicate(self) -> tuple[bytes, bytes]:
+        raise TimeoutError
+
+    def kill(self) -> None:
+        self.killed = True
+
+    async def wait(self) -> int:
+        return -9
+
+
 @pytest.mark.asyncio
 async def test_latexmk_rejects_pdf_when_exit_code_is_nonzero(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     tex_path = tmp_path / "paper.tex"
@@ -231,8 +246,6 @@ async def test_manual_multipass_rejects_missing_bibtex_even_after_autofix(
 ) -> None:
     tex_path = tmp_path / "paper.tex"
     tex_path.write_text("broken content", encoding="utf-8")
-    aux_path = tmp_path / "paper.aux"
-    pdf_path = tmp_path / "paper.pdf"
     call_count = 0
 
     returncodes = iter([1, 0, 0, 0, 0, 0])
@@ -241,8 +254,9 @@ async def test_manual_multipass_rejects_missing_bibtex_even_after_autofix(
         nonlocal call_count
         call_count += 1
         if call_count >= 4:
-            aux_path.write_text(r"\citation{ref}", encoding="utf-8")
-            pdf_path.write_bytes(b"%PDF-fresh")
+            input_tex_path = Path(args[-1])
+            (tmp_path / f"{input_tex_path.stem}.aux").write_text(r"\citation{ref}", encoding="utf-8")
+            (tmp_path / f"{input_tex_path.stem}.pdf").write_bytes(b"%PDF-fresh")
         return _FakeProcess(returncode=next(returncodes), stdout=b"compile output", stderr=b"")
 
     def fake_find_compiler(name: str) -> str | None:
@@ -266,6 +280,7 @@ async def test_manual_multipass_rejects_missing_bibtex_even_after_autofix(
     assert result.success is False
     assert result.pdf_path is None
     assert result.error == "bibtex not found but citations require bibliography processing"
+    assert tex_path.read_text(encoding="utf-8") == "broken content"
 
 
 @pytest.mark.asyncio
@@ -339,7 +354,8 @@ async def test_manual_multipass_applies_autofix_even_after_compile_errors(
         nonlocal call_count
         call_count += 1
         if call_count >= 4:
-            pdf_path.write_bytes(b"%PDF-fake")
+            input_tex_path = Path(args[-1])
+            (tmp_path / f"{input_tex_path.stem}.pdf").write_bytes(b"%PDF-fake")
             return _FakeProcess(returncode=0, stdout=b"autofix ok", stderr=b"")
         return _FakeProcess(returncode=1 if call_count == 1 else 0, stdout=b"Missing $ inserted", stderr=b"")
 
@@ -363,6 +379,7 @@ async def test_manual_multipass_applies_autofix_even_after_compile_errors(
 
     assert result.success is True
     assert result.pdf_path == pdf_path
+    assert pdf_path.read_bytes() == b"%PDF-fake"
     assert tex_path.read_text(encoding="utf-8") == r"\documentclass{article}\begin{document}fixed\end{document}"
 
 
@@ -406,7 +423,47 @@ async def test_manual_multipass_autofix_requires_fresh_pdf_after_fix(
     assert result.success is False
     assert result.pdf_path is None
     assert result.error == "Compilation failed"
-    assert tex_path.read_text(encoding="utf-8") == r"\documentclass{article}\begin{document}fixed\end{document}"
+    assert tex_path.read_text(encoding="utf-8") == "broken content"
+
+
+@pytest.mark.asyncio
+async def test_manual_multipass_cleans_autofix_scratch_after_timeout(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tex_path = tmp_path / "paper.tex"
+    tex_path.write_text("broken content", encoding="utf-8")
+    call_count = 0
+
+    async def fake_create_subprocess_exec(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 4:
+            return _TimeoutProcess()
+        return _FakeProcess(returncode=1 if call_count == 1 else 0, stdout=b"Missing $ inserted", stderr=b"")
+
+    def fake_which(binary: str) -> str | None:
+        if binary == "pdflatex":
+            return "/usr/bin/pdflatex"
+        return None
+
+    monkeypatch.setattr("gpd.mcp.paper.compiler.asyncio.create_subprocess_exec", fake_create_subprocess_exec)
+    monkeypatch.setattr("gpd.mcp.paper.compiler.find_latex_compiler", fake_which)
+    monkeypatch.setattr(
+        "gpd.utils.latex.try_autofix",
+        lambda tex, log: AutoFixResult(
+            fixed_content=r"\documentclass{article}\begin{document}fixed\end{document}",
+            fixes_applied=("fixed",),
+            was_modified=True,
+        ),
+    )
+
+    result = await _compile_manual_multipass(tex_path, tmp_path, "pdflatex")
+
+    assert result.success is False
+    assert result.error == "Compilation timed out"
+    assert list(tmp_path.glob(".paper-gpd-autofix-*.tex")) == []
+    assert tex_path.read_text(encoding="utf-8") == "broken content"
 
 
 @pytest.mark.asyncio

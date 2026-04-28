@@ -24,7 +24,8 @@
     "installer_help_example_scope",
     "validated_command_surface",
     "public_command_surface_prefix",
-    "managed_install_surface"
+    "managed_install_surface",
+    "manifest_metadata_list_policies"
   ],
   "global_config_keys": {
     "env_or_home": [
@@ -180,6 +181,10 @@
     "flat_command_globs": [],
     "managed_agent_globs": ["agents/gpd-*.md", "agents/gpd-*.toml"]
   },
+  "manifest_metadata_list_value_kinds": [
+    "path_segment",
+    "relpath"
+  ],
   "install_help_example_scopes": [
     "global",
     "local"

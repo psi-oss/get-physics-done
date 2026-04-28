@@ -1635,6 +1635,79 @@ assert.throws(
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
 
 
+def test_bootstrap_runtime_catalog_validator_checks_manifest_metadata_list_policies() -> None:
+    result = _run_node_contract_validation(
+        r"""
+const assert = require("node:assert/strict");
+const { validateRuntimeCatalog, validateRuntimeCatalogSchemaShape } = require("./bin/install.js");
+const catalog = require("./src/gpd/adapters/runtime_catalog.json");
+const runtimeCatalogSchema = require("./src/gpd/adapters/runtime_catalog_schema.json");
+
+assert.doesNotThrow(() => validateRuntimeCatalogSchemaShape(runtimeCatalogSchema));
+const normalized = validateRuntimeCatalog(catalog);
+assert.ok(normalized.some((runtime) => runtime.manifest_metadata_list_policies.length > 0));
+assert.ok(
+  normalized.some((runtime) =>
+    runtime.manifest_metadata_list_policies.some((policy) =>
+      policy.value_kind === "path_segment" && policy.item_prefix && policy.item_suffix === null
+    )
+  )
+);
+assert.ok(
+  normalized.some((runtime) =>
+    runtime.manifest_metadata_list_policies.some((policy) =>
+      policy.value_kind === "relpath" && policy.item_prefix === null && policy.item_suffix === null
+    )
+  )
+);
+
+const malformedKey = JSON.parse(JSON.stringify(catalog));
+malformedKey[0].manifest_metadata_list_policies = [{ key: "ManagedFiles", value_kind: "relpath" }];
+assert.throws(
+  () => validateRuntimeCatalog(malformedKey),
+  /runtime catalog entry 0\.manifest_metadata_list_policies\[0\]\.key must be a lowercase manifest metadata key/
+);
+
+const unsupportedKind = JSON.parse(JSON.stringify(catalog));
+unsupportedKind[0].manifest_metadata_list_policies = [{ key: "managed_files", value_kind: "unknown" }];
+assert.throws(
+  () => validateRuntimeCatalog(unsupportedKind),
+  /runtime catalog entry 0\.manifest_metadata_list_policies\[0\]\.value_kind must be one of:/
+);
+
+const duplicateKey = JSON.parse(JSON.stringify(catalog));
+duplicateKey[0].manifest_metadata_list_policies = [
+  { key: "managed_files", value_kind: "relpath" },
+  { key: "managed_files", value_kind: "relpath" },
+];
+assert.throws(
+  () => validateRuntimeCatalog(duplicateKey),
+  /runtime catalog entry 0\.manifest_metadata_list_policies\[1\]\.key duplicates manifest metadata key/
+);
+
+const badAffixKind = JSON.parse(JSON.stringify(catalog));
+badAffixKind[0].manifest_metadata_list_policies = [
+  { key: "managed_files", value_kind: "relpath", item_prefix: "gpd-" },
+];
+assert.throws(
+  () => validateRuntimeCatalog(badAffixKind),
+  /runtime catalog entry 0\.manifest_metadata_list_policies\[0\]\.item_prefix\/item_suffix require value_kind=path_segment/
+);
+
+const badAffixPath = JSON.parse(JSON.stringify(catalog));
+badAffixPath[0].manifest_metadata_list_policies = [
+  { key: "managed_files", value_kind: "path_segment", item_prefix: "gpd/" },
+];
+assert.throws(
+  () => validateRuntimeCatalog(badAffixPath),
+  /runtime catalog entry 0\.manifest_metadata_list_policies\[0\]\.item_prefix must not contain path separators/
+);
+"""
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+
 def test_bootstrap_runtime_catalog_validator_stays_in_parity_with_python_loader(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

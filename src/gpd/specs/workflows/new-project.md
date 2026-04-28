@@ -1689,12 +1689,22 @@ Set `CONVENTION_MODE` before spawning:
 - `interactive` only when `autonomy=supervised`
 - `auto` for `autonomy=balanced` and `autonomy=yolo`
 
-Spawn gpd-notation-coordinator:
+Spawn gpd-notation-coordinator. Use the same prompt for both model paths; only the spawn call arguments differ:
 
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
+```text
+If NOTATION_MODEL has a concrete value:
+  task(prompt=NOTATION_PROMPT, subagent_type="gpd-notation-coordinator", model="$NOTATION_MODEL", readonly=false, description="Establish project conventions")
+
+If NOTATION_MODEL is empty or null:
+  task(prompt=NOTATION_PROMPT, subagent_type="gpd-notation-coordinator", readonly=false, description="Establish project conventions")
 ```
-  task(prompt="First, read {GPD_AGENTS_DIR}/gpd-notation-coordinator.md for your role and instructions.
+
+`NOTATION_PROMPT`:
+
+```
+First, read {GPD_AGENTS_DIR}/gpd-notation-coordinator.md for your role and instructions.
 
 <task>
 Establish initial conventions for this research project.
@@ -1725,7 +1735,10 @@ If mode=`interactive`:
 2. Include the suggested conventions, rationale, test values, and any conflicts
 3. Leave file creation and `gpd convention set` for the continuation handoff after user confirmation
 </output>
+Use only when mode=`auto`.
+
 <spawn_contract>
+activation: mode == auto
 write_scope:
   mode: scoped_write
   allowed_paths:
@@ -1734,14 +1747,24 @@ expected_artifacts:
   - GPD/CONVENTIONS.md
 shared_state_policy: direct
 </spawn_contract>
-", subagent_type="gpd-notation-coordinator", model="{NOTATION_MODEL}", readonly=false, description="Establish project conventions")
+
+<spawn_contract_interactive>
+activation: mode == interactive
+write_scope:
+  mode: no_write
+  allowed_paths: []
+expected_artifacts: []
+expected_return:
+  status: checkpoint
+shared_state_policy: none
+</spawn_contract_interactive>
 ```
 
 **Handle notation-coordinator return:**
 
-- **Artifact gate:** If the notation-coordinator returns success but `GPD/CONVENTIONS.md` is missing, treat the handoff as incomplete. Recover via the artifact-recovery protocol: write the returned content in the main context if available; otherwise re-execute the convention-establishment task in the main context. Do not silently proceed.
+- **Artifact gate:** For `auto` mode and for the approved continuation handoff, accept success only when `gpd_return.status` is typed as completed, `GPD/CONVENTIONS.md` is named in fresh `gpd_return.files_written`, and the file exists on disk. If the coordinator returns success but the artifact is missing, treat the handoff as incomplete. Do not write returned convention content in the main context and do not re-execute the convention task in the main context. If the return contains usable convention content, spawn one fresh `gpd-notation-coordinator` continuation with the original context, the returned content, and instructions to persist `GPD/CONVENTIONS.md` and the convention lock. If no usable content is available, or that continuation still fails the artifact gate, fail closed: surface the incomplete handoff and stop rather than proceeding with unstored conventions.
 
-- **`status: checkpoint` / `CHECKPOINT REACHED`:** Present the proposed conventions, rationale, test values, and any conflict table to the user. Collect confirmation or overrides. Then spawn a fresh `gpd-notation-coordinator` handoff (NOT send-message/resume) with:
+- **If `gpd_return.status: checkpoint`:** Present the proposed conventions, rationale, test values, and any conflict table to the user. Collect confirmation or overrides. Then spawn a fresh `gpd-notation-coordinator` handoff (NOT send-message/resume) with:
   1. the original project context,
   2. the proposal returned by the first handoff,
   3. the user-approved / user-overridden convention values,

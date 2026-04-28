@@ -786,6 +786,11 @@ def get_skill(
                 if command.spawn_contracts:
                     payload["spawn_contracts"] = _skill_spawn_contracts_payload(command.spawn_contracts)
                     payload["structured_metadata_authority"]["spawn_contracts"] = "mirrored"
+                if command.interactive_spawn_contracts:
+                    payload["interactive_spawn_contracts"] = _skill_spawn_contracts_payload(
+                        command.interactive_spawn_contracts
+                    )
+                    payload["structured_metadata_authority"]["interactive_spawn_contracts"] = "mirrored"
                 payload["allowed_tools"] = allowed_tools
             elif skill.source_kind == "agent":
                 agent = content_registry.get_agent(skill.registry_name)
@@ -1017,6 +1022,7 @@ def get_skill_index() -> dict:
                         "requires": copy.deepcopy(command.requires),
                         "has_review_contract": command.review_contract is not None,
                         "has_spawn_contracts": bool(command.spawn_contracts),
+                        "has_interactive_spawn_contracts": bool(command.interactive_spawn_contracts),
                     }
 
             lines = ["# Available GPD Skills", "", _SKILL_BEHAVIORAL_GUARDRAIL_HINT, ""]

@@ -2,20 +2,23 @@
 
 from __future__ import annotations
 
-from math import ceil
 from pathlib import Path
 
 import pytest
 
 from gpd import registry
-from tests.prompt_metrics_support import expanded_prompt_text, measure_prompt_surface
+from tests.prompt_metrics_support import (
+    budget_from_baseline,
+    expanded_include_markers,
+    expanded_prompt_text,
+    measure_prompt_surface,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENTS_DIR = REPO_ROOT / "src" / "gpd" / "agents"
 SOURCE_ROOT = REPO_ROOT / "src" / "gpd"
 PATH_PREFIX = "/runtime/"
 
-PROMPT_BUDGET_MARGIN = 0.03
 MIN_LINE_MARGIN = 20
 MIN_CHAR_MARGIN = 1_000
 
@@ -60,14 +63,23 @@ MODE_TABLE_ALLOWLIST = {
     "gpd-planner",
     "gpd-project-researcher",
 }
+WORST_AGENT_HARD_CAPS = {
+    "gpd-planner": (5_300, 265_000),
+    "gpd-executor": (3_100, 210_000),
+    "gpd-research-mapper": (2_850, 132_000),
+    "gpd-roadmapper": (2_650, 124_000),
+    "gpd-experiment-designer": (2_170, 121_000),
+    "gpd-research-synthesizer": (2_280, 118_500),
+}
+TOP_AGENT_HARD_CAP_COUNT = 6
+BULKY_REFERENCE_INCLUDE_FILES = (
+    "peer-review-panel.md",
+    "contradiction-resolution-example.md",
+)
 
 
 def test_agent_prompt_budget_table_covers_registered_agents() -> None:
     assert set(AGENT_BASELINES) == set(registry.list_agents())
-
-
-def _budget_from_baseline(value: int, *, minimum_margin: int) -> int:
-    return value + max(minimum_margin, ceil(value * PROMPT_BUDGET_MARGIN))
 
 
 def _markdown_table_blocks(text: str) -> list[list[str]]:
@@ -102,11 +114,11 @@ def test_expanded_agent_prompt_stays_under_budget(agent_name: str) -> None:
         path_prefix=PATH_PREFIX,
     )
 
-    assert metrics.expanded_line_count <= _budget_from_baseline(
+    assert metrics.expanded_line_count <= budget_from_baseline(
         baseline_lines,
         minimum_margin=MIN_LINE_MARGIN,
     )
-    assert metrics.expanded_char_count <= _budget_from_baseline(
+    assert metrics.expanded_char_count <= budget_from_baseline(
         baseline_chars,
         minimum_margin=MIN_CHAR_MARGIN,
     )
@@ -123,6 +135,45 @@ def test_full_autonomy_and_research_mode_tables_stay_on_allowlisted_agents() -> 
             offenders.append(agent_name)
 
     assert offenders == []
+
+
+@pytest.mark.parametrize("agent_name", sorted(WORST_AGENT_HARD_CAPS))
+def test_worst_expanded_agent_prompts_stay_under_hard_caps(agent_name: str) -> None:
+    max_lines, max_chars = WORST_AGENT_HARD_CAPS[agent_name]
+    metrics = measure_prompt_surface(
+        AGENTS_DIR / f"{agent_name}.md",
+        src_root=SOURCE_ROOT,
+        path_prefix=PATH_PREFIX,
+    )
+
+    assert metrics.expanded_line_count <= max_lines
+    assert metrics.expanded_char_count <= max_chars
+
+
+def test_largest_agent_prompts_have_hard_caps() -> None:
+    largest_agents = {
+        name
+        for name, _baseline in sorted(
+            AGENT_BASELINES.items(),
+            key=lambda item: item[1][1],
+            reverse=True,
+        )[:TOP_AGENT_HARD_CAP_COUNT]
+    }
+
+    assert largest_agents <= set(WORST_AGENT_HARD_CAPS)
+
+
+@pytest.mark.parametrize("agent_name", sorted(WORST_AGENT_HARD_CAPS))
+def test_worst_agent_prompts_do_not_eager_load_bulky_reference_examples(agent_name: str) -> None:
+    expanded_text = expanded_prompt_text(
+        AGENTS_DIR / f"{agent_name}.md",
+        src_root=SOURCE_ROOT,
+        path_prefix=PATH_PREFIX,
+    )
+    markers = set(expanded_include_markers(expanded_text))
+
+    for marker in BULKY_REFERENCE_INCLUDE_FILES:
+        assert marker not in markers
 
 
 @pytest.mark.parametrize("agent_name", PEER_REVIEW_SPECIALIST_AGENTS)

@@ -87,7 +87,10 @@ def test_project_contract_schema_example_surfaces_research_contract_required_key
         assert required_nested_key in text
 
     for proof_rule in (
-        "proof-bearing claims must keep `parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, and `proof_deliverables` visible",
+        "In `ProjectContract` (`project_contract.claims[]` / `ContractClaim`), treat a claim as proof-bearing",
+        "Do not import the staged peer-review Paper `ClaimRecord` meaning of `claim_kind: claim` here",
+        "proof-bearing claims must keep `parameters`, `hypotheses`, `conclusion_clauses`, and `proof_deliverables` visible, and must keep `quantifiers` visible when an explicit quantifier or domain obligation exists",
+        "`claims[].quantifiers[]` is optional for unquantified proof-bearing claims",
         "Do not collapse proof obligations into a generic claim statement",
         "include an acceptance test with `kind: claim_to_proof_alignment`",
     ):

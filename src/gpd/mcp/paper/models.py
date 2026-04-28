@@ -24,8 +24,19 @@ SourceNoteId = Annotated[str, Field(pattern=r"^NOTE-[A-Za-z0-9][A-Za-z0-9_-]*$")
 ResultId = Annotated[str, Field(pattern=r"^RES-[A-Za-z0-9][A-Za-z0-9_-]*$")]
 FigureAssetId = Annotated[str, Field(pattern=r"^FIG-[A-Za-z0-9][A-Za-z0-9_-]*$")]
 _RESERVED_LABEL_PREFIXES = ("sec:", "fig:", "app:")
+_LATEX_BARE_LABEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 _BIB_FILE_STEM_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 _SUBJECT_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_WINDOWS_RESERVED_DEVICE_STEMS = frozenset(
+    {
+        "con",
+        "prn",
+        "aux",
+        "nul",
+        *(f"com{index}" for index in range(1, 10)),
+        *(f"lpt{index}" for index in range(1, 10)),
+    }
+)
 REQUIRED_GPD_ACKNOWLEDGMENT = (
     "This research made use of Get Physics Done (GPD), developed by Physical Superintelligence PBC (PSI)."
 )
@@ -38,6 +49,10 @@ def _require_nonempty_text(value: str, *, field_name: str) -> str:
     return normalized
 
 
+def _is_reserved_device_stem(value: str) -> bool:
+    return value.casefold() in _WINDOWS_RESERVED_DEVICE_STEMS
+
+
 def _normalize_label_id(value: str, *, allow_blank: bool) -> str:
     normalized = value.strip()
     if not normalized:
@@ -45,10 +60,12 @@ def _normalize_label_id(value: str, *, allow_blank: bool) -> str:
             return ""
         raise ValueError("label must be a non-empty string")
     for prefix in _RESERVED_LABEL_PREFIXES:
-        if normalized.startswith(prefix):
+        if normalized.lower().startswith(prefix):
             raise ValueError(
                 f"label must omit the reserved {prefix!r} prefix; use the bare identifier because the renderer adds it"
             )
+    if not _LATEX_BARE_LABEL_RE.fullmatch(normalized):
+        raise ValueError("label must be a bare LaTeX-safe identifier using only letters, numbers, '_' or '-'")
     return normalized
 
 
@@ -888,6 +905,8 @@ class PaperConfig(BaseModel):
             raise ValueError("bib_file must be a non-empty stem")
         if not _BIB_FILE_STEM_RE.fullmatch(normalized):
             raise ValueError("bib_file must be a stem-safe filename without path separators or extensions")
+        if _is_reserved_device_stem(normalized):
+            raise ValueError("bib_file must not use a reserved device filename stem")
         return normalized
 
     @field_validator("output_filename")
@@ -895,12 +914,19 @@ class PaperConfig(BaseModel):
     def _validate_output_filename(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        normalized = value.strip()
-        if not normalized:
-            return None
-        if normalized in {".", ".."} or "/" in normalized or "\\" in normalized:
-            raise ValueError("output_filename must be a filename stem, not a path")
-        return normalized
+        if value != value.strip():
+            raise ValueError("output_filename must be a strict filename stem without whitespace")
+        if not value:
+            raise ValueError("output_filename must be a non-empty filename stem")
+        if value in {".", ".."} or "/" in value or "\\" in value:
+            raise ValueError("output_filename must be a strict filename stem, not a path")
+        if not _BIB_FILE_STEM_RE.fullmatch(value):
+            raise ValueError(
+                "output_filename must be a strict filename stem using only letters, numbers, '_' or '-'"
+            )
+        if _is_reserved_device_stem(value):
+            raise ValueError("output_filename must not use a reserved device filename stem")
+        return value
 
     @model_validator(mode="after")
     def _ensure_required_acknowledgment(self) -> PaperConfig:
@@ -973,7 +999,7 @@ def derive_output_filename(config: PaperConfig) -> str:
     selected_tokens = _select_topic_filename_tokens(tokens)
     slug = "_".join(selected_tokens)[:_MAX_FILENAME_LENGTH].strip("_")
 
-    if not slug:
+    if not slug or _is_reserved_device_stem(slug):
         return _FALLBACK_OUTPUT_FILENAME
 
     return slug

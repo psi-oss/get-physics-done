@@ -157,7 +157,7 @@ Route immediately into the real existing workflow for the chosen path.
 - Read `{GPD_INSTALL_DIR}/workflows/sync-state.md` with the file-read tool.
 - Follow that workflow as if the researcher had run `gpd:sync-state`.
 
-**If the researcher chooses `Review project status first` or `Review visible progress`:**
+**If the researcher chooses `Review the project status first`, `Review project status first`, or `Review visible progress`:**
 
 - Read `{GPD_INSTALL_DIR}/workflows/progress.md` with the file-read tool.
 - Follow that workflow as if the researcher had run `gpd:progress`.
@@ -176,7 +176,7 @@ Route immediately into the real existing workflow for the chosen path.
 
 - Follow the installed `gpd:new-project --minimal` command contract directly, as if the researcher had run it.
 
-**If the researcher chooses `Full guided setup` or `Turn this into a full GPD project`:**
+**If the researcher chooses `Full guided setup`, `Turn this into a full GPD project (recommended)`, or `Turn this into a full GPD project`:**
 
 - Follow the installed `gpd:new-project` command contract directly, as if the researcher had run it.
 
@@ -184,7 +184,7 @@ Route immediately into the real existing workflow for the chosen path.
 
 - Follow the installed `gpd:tour` command contract directly, as if the researcher had run it.
 
-**If the researcher chooses `Do a small bounded task`:**
+**If the researcher chooses `Do one small bounded task`:**
 
 - Read `{GPD_INSTALL_DIR}/workflows/quick.md` with the file-read tool.
 - Follow that workflow as if the researcher had run `gpd:quick`.

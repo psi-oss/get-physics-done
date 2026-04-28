@@ -112,16 +112,13 @@ Rules:
 - Missing contract-backed `contract_results` is invalid.
 - `uncertainty_markers` must remain explicit in contract-backed outputs so the model sees unresolved anchors, competing explanations, and disconfirming observations before writing.
 - Every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the referenced PLAN contract must appear in the matching section.
-- Section-specific status vocabularies are mandatory:
-- `claims`, `deliverables`, and `acceptance_tests` use `passed`, `partial`, `failed`, `blocked`, or `not_attempted`.
-- `references` use `completed`, `missing`, or `not_applicable`.
-- `forbidden_proxies` use `rejected`, `violated`, `unresolved`, or `not_applicable`.
 - `claims|deliverables|acceptance_tests -> passed|partial|failed|blocked|not_attempted`
 - `references -> completed|missing|not_applicable`
 - `forbidden_proxies -> rejected|violated|unresolved|not_applicable`
 - Do not silently omit unfinished work. Use the section-specific open-work status explicitly when a contract ID is still open.
 - `linked_ids` and evidence sub-IDs (`claim_id`, `deliverable_id`, `acceptance_test_id`, `reference_id`, `forbidden_proxy_id`) must point to declared contract IDs.
-- A claim is proof-bearing if any of these is true: `claim_kind` is `theorem|lemma|corollary|proposition|claim`; the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language); any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`); or `observables[]` references a `proof_obligation` target.
+- For `contract_results`, use the referenced `ProjectContract` (`project_contract.claims[]` / `ContractClaim`) semantics: a claim is proof-bearing if any of these is true: `claim_kind` is `theorem|lemma|corollary|proposition|claim`; the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language); any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`); or `observables[]` references a `proof_obligation` target.
+- Do not substitute the staged peer-review Paper `ClaimRecord` rule here: Paper `ClaimRecord.claim_kind: claim` is generic unless theorem metadata or theorem-like text makes the proof obligation explicit, but `ProjectContract` keeps `claim_kind: claim` in the proof-bearing contract vocabulary.
 - `proof_audit` belongs on `contract_results.claims.<claim-id>` for theorem/proof claims. Do not move it to `deliverables` or `acceptance_tests`.
 - If a proof-bearing claim is marked `status: passed`, `proof_audit` is mandatory and `proof_audit.completeness` must be explicit.
 - `proof_audit.completeness: complete | incomplete`
@@ -129,7 +126,7 @@ Rules:
 - `proof_audit.scope_status: matched | narrower_than_claim | mismatched | unclear`
 - `proof_audit.counterexample_status: none_found | counterexample_found | not_attempted | narrowed_claim`
 - `proof_audit.completeness: complete` is only valid when the audit has `reviewer: gpd-check-proof`, a non-empty `reviewed_at`, `proof_artifact_path`, `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, `claim_statement_sha256`, no missing hypotheses, no missing parameter symbols, no uncovered quantifiers, no uncovered conclusion clauses, `scope_status: matched`, `counterexample_status: none_found`, and `stale: false`.
-- A quantified proof-bearing claim must keep `proof_audit.quantifier_status` explicit; a passed quantified claim must use `quantifier_status: matched`.
+- A quantified proof-bearing claim must keep `proof_audit.quantifier_status` explicit; a passed quantified claim must use `quantifier_status: matched`. A claim is quantified for this rule when explicit `claims[].quantifiers[]` or domain obligations are declared; unquantified proof-bearing claims do not need a non-empty quantifier list.
 - A passed proof-bearing claim must carry `proof_artifact_path`, `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, and a `claim_statement_sha256` that matches the current claim statement so stale theorem text or proof-redteam artifacts cannot inherit an old proof audit silently.
 - `proof_audit.proof_artifact_path` must match a declared `proof_deliverables` path, and `proof_audit.audit_artifact_path` must point to a proof-redteam artifact.
 - A passed proof-bearing claim must also have every declared proof-specific acceptance test in `claims[].acceptance_tests[]` passing; proof-bearing claims must declare at least one such test (`claim_to_proof_alignment`, `proof_hypothesis_coverage`, `proof_parameter_coverage`, `proof_quantifier_domain`, `lemma_dependency_closure`, or `counterexample_search`).
@@ -149,7 +146,7 @@ Rules:
 - For list-typed proof-audit fields (`covered_hypothesis_ids`, `missing_hypothesis_ids`, `covered_parameter_symbols`, `missing_parameter_symbols`, `uncovered_quantifiers`, `uncovered_conclusion_clause_ids`), even a single item must stay a YAML list. Scalar strings are invalid.
 - `status`, `proof_audit.completeness`, and evidence literals such as `confidence`, `quantifier_status`, and `counterexample_status` use the exact lowercase literals shown here. Near-matches like `Passed` or `High` are invalid.
 - `evidence[].confidence: high | medium | low | unreliable`
-- Inside `evidence[]`, list-typed proof coverage fields (`covered_hypothesis_ids`, `missing_hypothesis_ids`, `covered_parameter_symbols`, `missing_parameter_symbols`, `uncovered_quantifiers`, `uncovered_conclusion_clause_ids`) must stay YAML lists even when they contain a single item.
+- Inside `evidence[]`, list-typed proof coverage fields (`covered_hypothesis_ids`, `missing_hypothesis_ids`, `covered_parameter_symbols`, `missing_parameter_symbols`, `uncovered_conclusion_clause_ids`) must stay YAML lists even when they contain a single item. Keep quantifier coverage in `proof_audit.uncovered_quantifiers`, not in `evidence[]`.
 
 ---
 

@@ -1663,6 +1663,28 @@ class TestInitCommands:
         assert payload["has_maps"] is True
         assert "theory.md" in payload["existing_maps"]
 
+    def test_init_map_research_stage_preserves_focus_argument(self, gpd_project: Path) -> None:
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(gpd_project),
+                "init",
+                "map-research",
+                "Hamiltonian sector",
+                "--stage",
+                "map_bootstrap",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["map_focus"] == "Hamiltonian sector"
+        assert payload["map_focus_provided"] is True
+        assert payload["staged_loading"]["stage_id"] == "map_bootstrap"
+
     def test_init_progress_can_skip_recent_project_reentry_for_projectless_config_bootstrap(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -3306,6 +3328,8 @@ class TestReviewValidationCommands:
         assert "standalone explicit-artifact intake applies" in payload["review_target_mode_reason"]
         assert payload["resolved_review_target"] == str(external_txt)
         assert payload["resolved_review_root"] == str(gpd_project)
+        assert payload["selected_publication_root"] == "GPD"
+        assert payload["selected_review_root"] == "GPD/review"
         assert payload["manuscript_resolution_status"] == "resolved"
         assert payload["manuscript_entrypoint"] == external_txt.name
         assert payload["project_contract"] is None
@@ -3341,6 +3365,8 @@ class TestReviewValidationCommands:
         assert payload["review_target_mode"] == "standalone explicit-artifact review"
         assert payload["resolved_review_target"] == str(external_txt)
         assert payload["resolved_review_root"] == str(gpd_project)
+        assert payload["selected_publication_root"] == "GPD"
+        assert payload["selected_review_root"] == "GPD/review"
         assert payload["staged_loading"]["stage_id"] == "bootstrap"
 
     @pytest.mark.parametrize(
@@ -8632,6 +8658,25 @@ class TestReviewValidationCommands:
 
         assert result.exit_code == 0, result.output
         assert called == ["gpd.mcp.integrations.wolfram_bridge", "main"]
+
+    def test_mcp_serve_requires_managed_integration_bridge_module_from_registry(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gpd.mcp import managed_integrations
+
+        descriptor = SimpleNamespace(
+            integration_id="wolfram",
+            managed_server_key="gpd-wolfram",
+            bridge_command="gpd-mcp-wolfram",
+            bridge_module="",
+        )
+        monkeypatch.setattr(managed_integrations, "list_managed_integrations", lambda: {"wolfram": descriptor})
+
+        result = runner.invoke(app, ["mcp-serve", "wolfram"])
+
+        assert result.exit_code != 0
+        assert "has no descriptor module path" in result.output
 
     def test_list_servers_json_uses_resolved_install_config_and_managed_integrations(
         self,

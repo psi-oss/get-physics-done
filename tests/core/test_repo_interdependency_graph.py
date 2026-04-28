@@ -17,6 +17,7 @@ from scripts.repo_graph_contract import (
     SAME_STEM_COMMAND_WORKFLOW_START,
     SCOPE_END,
     SCOPE_START,
+    build_contract,
     expected_scope_counts,
     extract_marked_block,
     graph_has_edge,
@@ -29,6 +30,7 @@ from scripts.repo_graph_contract import (
     render_scope_block,
     replace_marked_block,
     sync_readme_text,
+    untracked_graph_scope_files,
 )
 from scripts.sync_repo_graph_contract import check_generated_artifacts
 
@@ -261,6 +263,55 @@ def test_graph_check_detects_stale_generated_contract_without_mutation(tmp_path:
     diffs = check_generated_artifacts(graph_path=graph_path, contract_path=contract_path)
 
     assert any("repo_graph_contract.json" in diff for diff in diffs)
+    assert graph_path.read_text(encoding="utf-8") == before_graph
+    assert contract_path.read_text(encoding="utf-8") == before_contract
+
+
+def test_graph_check_detects_untracked_scope_files_without_mutation(tmp_path: Path) -> None:
+    tmp_root = tmp_path / "repo"
+    tmp_root.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=tmp_root, check=True, capture_output=True, text=True)
+
+    tracked_file = tmp_root / "src" / "gpd" / "commands" / "tracked.md"
+    tracked_file.parent.mkdir(parents=True)
+    tracked_file.write_text("tracked\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", tracked_file.relative_to(tmp_root).as_posix()],
+        cwd=tmp_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    graph_path = tmp_path / "README.md"
+    contract_path = tmp_path / "repo_graph_contract.json"
+    contract = build_contract(tmp_root)
+    graph_template = "\n".join(
+        (
+            GENERATED_ON_START,
+            GENERATED_ON_END,
+            SCOPE_START,
+            SCOPE_END,
+            SAME_STEM_COMMAND_WORKFLOW_START,
+            SAME_STEM_COMMAND_WORKFLOW_END,
+            "",
+        )
+    )
+    graph_path.write_text(sync_readme_text(graph_template, contract, tmp_root), encoding="utf-8")
+    contract_path.write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
+
+    untracked_file = tmp_root / "src" / "gpd" / "commands" / "untracked.md"
+    untracked_file.write_text("untracked\n", encoding="utf-8")
+    before_graph = graph_path.read_text(encoding="utf-8")
+    before_contract = contract_path.read_text(encoding="utf-8")
+
+    diffs = check_generated_artifacts(graph_path=graph_path, contract_path=contract_path, repo_root=tmp_root)
+
+    assert untracked_graph_scope_files(tmp_root) == (Path("src/gpd/commands/untracked.md"),)
+    assert any(
+        "Untracked repo graph scoped files" in diff and "src/gpd/commands/untracked.md" in diff
+        for diff in diffs
+    )
     assert graph_path.read_text(encoding="utf-8") == before_graph
     assert contract_path.read_text(encoding="utf-8") == before_contract
 

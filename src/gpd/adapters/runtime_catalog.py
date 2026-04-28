@@ -76,6 +76,14 @@ class ManagedInstallSurfacePolicy:
 
 
 @dataclass(frozen=True, slots=True)
+class ManifestMetadataListPolicy:
+    key: str
+    value_kind: str
+    item_prefix: str | None = None
+    item_suffix: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class RuntimeCapabilityPolicy:
     permissions_surface: str = "unsupported"
     permission_surface_kind: str = "none"
@@ -119,6 +127,7 @@ class RuntimeDescriptor:
     capabilities: RuntimeCapabilityPolicy = RuntimeCapabilityPolicy()
     managed_install_surface: ManagedInstallSurfacePolicy = ManagedInstallSurfacePolicy()
     manifest_file_prefixes: tuple[str, ...] = ()
+    manifest_metadata_list_policies: tuple[ManifestMetadataListPolicy, ...] = ()
     native_include_support: bool = False
     agent_prompt_uses_dollar_templates: bool = False
     installer_help_example_scope: str | None = None
@@ -146,6 +155,7 @@ _RUNTIME_CONFIG_SURFACE_LABEL_RE = re.compile(r"^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]
 _RUNTIME_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _RUNTIME_FLAG_RE = re.compile(r"^--[a-z0-9][a-z0-9-]*$")
 _RUNTIME_ENV_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_MANIFEST_METADATA_KEY_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 _PYTHON_MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
 _PYTHON_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _RUNTIME_CAPABILITY_BOOL_FIELDS = frozenset(
@@ -550,6 +560,7 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
         "hook_payload_defaults",
         "managed_install_surface_keys",
         "managed_install_surface_defaults",
+        "manifest_metadata_list_value_kinds",
         "install_help_example_scopes",
         "launch_wrapper_permission_surface_kinds",
     }
@@ -716,6 +727,13 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
         policy_keys=managed_install_surface_keys,
         policy_defaults=None,
     )
+    manifest_metadata_list_value_kinds = frozenset(
+        _require_string_tuple(
+            raw_schema.get("manifest_metadata_list_value_kinds"),
+            label="runtime catalog schema.manifest_metadata_list_value_kinds",
+            allow_empty=False,
+        )
+    )
     install_help_example_scopes = frozenset(
         _require_string_tuple(
             raw_schema.get("install_help_example_scopes"),
@@ -736,6 +754,7 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
         "hook_payload_defaults": hook_payload_defaults,
         "managed_install_surface_keys": managed_install_surface_keys,
         "managed_install_surface_defaults": managed_install_surface_defaults,
+        "manifest_metadata_list_value_kinds": manifest_metadata_list_value_kinds,
         "install_help_example_scopes": install_help_example_scopes,
         "launch_wrapper_permission_surface_kinds": launch_wrapper_permission_surface_kinds,
     }
@@ -761,6 +780,7 @@ _RUNTIME_HOOK_PAYLOAD_KEYS = _RUNTIME_CATALOG_SHAPE["hook_payload_keys"]
 _RUNTIME_HOOK_PAYLOAD_DEFAULTS = _RUNTIME_CATALOG_SHAPE["hook_payload_defaults"]
 _RUNTIME_MANAGED_INSTALL_SURFACE_KEYS = _RUNTIME_CATALOG_SHAPE["managed_install_surface_keys"]
 _RUNTIME_MANAGED_INSTALL_SURFACE_DEFAULTS = _RUNTIME_CATALOG_SHAPE["managed_install_surface_defaults"]
+_RUNTIME_MANIFEST_METADATA_LIST_VALUE_KINDS = _RUNTIME_CATALOG_SHAPE["manifest_metadata_list_value_kinds"]
 _RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS = _RUNTIME_CATALOG_SHAPE["launch_wrapper_permission_surface_kinds"]
 
 
@@ -953,6 +973,67 @@ def _parse_managed_install_surface(entry: object, *, label: str) -> ManagedInsta
     )
 
 
+def _require_manifest_metadata_item_affix(value: object, *, label: str) -> str:
+    affix = _require_string(value, label=label)
+    if "/" in affix or "\\" in affix:
+        raise ValueError(f"{label} must not contain path separators")
+    return affix
+
+
+def _parse_manifest_metadata_list_policies(entry: object, *, label: str) -> tuple[ManifestMetadataListPolicy, ...]:
+    if entry is None:
+        return ()
+    if not isinstance(entry, list):
+        raise ValueError(f"{label} must be a list")
+
+    policies: list[ManifestMetadataListPolicy] = []
+    seen_keys: set[str] = set()
+    allowed_keys = frozenset({"key", "value_kind", "item_prefix", "item_suffix"})
+    required_keys = frozenset({"key", "value_kind"})
+    for index, raw_policy in enumerate(entry):
+        policy_label = f"{label}[{index}]"
+        payload = _require_mapping(raw_policy, label=policy_label)
+        _require_allowed_keys(payload, label=policy_label, allowed_keys=allowed_keys)
+        _require_keys(payload, label=policy_label, required_keys=required_keys)
+        key = _require_pattern(
+            payload["key"],
+            label=f"{policy_label}.key",
+            pattern=_MANIFEST_METADATA_KEY_RE,
+            description="a lowercase manifest metadata key",
+        )
+        if key in seen_keys:
+            raise ValueError(f"{policy_label}.key duplicates manifest metadata key {key!r}")
+        seen_keys.add(key)
+
+        value_kind = _require_string(payload["value_kind"], label=f"{policy_label}.value_kind")
+        if value_kind not in _RUNTIME_MANIFEST_METADATA_LIST_VALUE_KINDS:
+            allowed = ", ".join(sorted(_RUNTIME_MANIFEST_METADATA_LIST_VALUE_KINDS))
+            raise ValueError(f"{policy_label}.value_kind must be one of: {allowed}")
+
+        item_prefix = (
+            _require_manifest_metadata_item_affix(payload["item_prefix"], label=f"{policy_label}.item_prefix")
+            if "item_prefix" in payload
+            else None
+        )
+        item_suffix = (
+            _require_manifest_metadata_item_affix(payload["item_suffix"], label=f"{policy_label}.item_suffix")
+            if "item_suffix" in payload
+            else None
+        )
+        if value_kind != "path_segment" and (item_prefix is not None or item_suffix is not None):
+            raise ValueError(f"{policy_label}.item_prefix/item_suffix require value_kind=path_segment")
+
+        policies.append(
+            ManifestMetadataListPolicy(
+                key=key,
+                value_kind=value_kind,
+                item_prefix=item_prefix,
+                item_suffix=item_suffix,
+            )
+        )
+    return tuple(policies)
+
+
 def _validate_runtime_descriptor_capability_contract(
     descriptor: RuntimeDescriptor,
     *,
@@ -1088,6 +1169,10 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
                 label=f"{label}.manifest_file_prefixes",
                 allow_empty=True,
             ),
+            manifest_metadata_list_policies=_parse_manifest_metadata_list_policies(
+                payload.get("manifest_metadata_list_policies", []),
+                label=f"{label}.manifest_metadata_list_policies",
+            ),
             native_include_support=_require_bool(
                 payload.get("native_include_support", False),
                 label=f"{label}.native_include_support",
@@ -1156,6 +1241,20 @@ def get_managed_install_surface_policy(runtime: str | None = None) -> ManagedIns
         flat_command_globs=_merge_unique(policy.flat_command_globs for policy in policies),
         managed_agent_globs=_merge_unique(policy.managed_agent_globs for policy in policies),
     )
+
+
+def get_manifest_metadata_list_policies(runtime: str | None = None) -> tuple[ManifestMetadataListPolicy, ...]:
+    """Return manifest list metadata validation policies declared by one runtime or the catalog."""
+    descriptors = (get_runtime_descriptor(runtime),) if runtime is not None else iter_runtime_descriptors()
+    policies: list[ManifestMetadataListPolicy] = []
+    seen_keys: set[str] = set()
+    for descriptor in descriptors:
+        for policy in descriptor.manifest_metadata_list_policies:
+            if policy.key in seen_keys:
+                continue
+            seen_keys.add(policy.key)
+            policies.append(policy)
+    return tuple(policies)
 
 
 def iter_runtime_descriptors() -> tuple[RuntimeDescriptor, ...]:
@@ -1301,11 +1400,13 @@ def resolve_global_config_dir_candidates(
 __all__ = [
     "GlobalConfigPolicy",
     "HookPayloadPolicy",
+    "ManifestMetadataListPolicy",
     "ManagedInstallSurfacePolicy",
     "RuntimeCapabilityPolicy",
     "RuntimeDescriptor",
     "SharedInstallMetadata",
     "get_hook_payload_policy",
+    "get_manifest_metadata_list_policies",
     "get_managed_install_surface_policy",
     "get_runtime_capabilities",
     "get_runtime_descriptor",

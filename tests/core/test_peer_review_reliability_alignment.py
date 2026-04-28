@@ -215,7 +215,9 @@ def test_peer_review_references_keep_generic_claim_kind_out_of_default_theorem_b
     assert "The runtime determines theorem-bearing coverage from the claim record itself" in reliability
     assert "claim_kind:" not in reliability
 
+    assert "Treat theorem-bearing status from the full Stage 1 Paper `ClaimRecord`, not from the `ProjectContract` `ContractClaim` vocabulary" in panel
     assert "The theorem-style `claim_kind` values are limited to `theorem`, `lemma`, `corollary`, and `proposition`." in panel
     assert "Do not treat `claim_kind: claim` as theorem-bearing by default." in panel
+    assert "This Paper `ClaimRecord` rule is intentionally different from `ProjectContract.claims[]`" in panel
     assert "non-theorem-style kinds such as `claim`, `result`, or `other` become theorem-bearing only" in referee
     assert "including a generic `claim_kind: claim`" in referee

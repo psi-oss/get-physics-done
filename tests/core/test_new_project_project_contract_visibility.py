@@ -148,11 +148,14 @@ def test_state_schema_surfaces_the_exact_approved_mode_grounding_rule() -> None:
     assert "`must_surface` is a boolean scalar. Use the JSON literals `true` and `false`;" in state_schema_text
     assert "`context_intake` must not be empty." in state_schema_text
     assert '`claims[]` — `{ "id", "statement", "claim_kind", "observables[]", "deliverables[]", "acceptance_tests[]", "references[]", "parameters[]", "hypotheses[]", "quantifiers[]", "conclusion_clauses[]", "proof_deliverables[]" }`' in state_schema_text
-    assert "Treat a claim as proof-bearing whenever any of these is true" in state_schema_text
+    assert "In `ProjectContract` (`project_contract.claims[]` / `ContractClaim`), treat a claim as proof-bearing whenever any of these is true" in state_schema_text
     assert "`claim_kind` is `theorem`, `lemma`, `corollary`, `proposition`, or `claim`" in state_schema_text
+    assert "Do not import the staged peer-review Paper `ClaimRecord` meaning of `claim_kind: claim` here" in state_schema_text
     assert "the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language)" in state_schema_text
     assert "any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`)" in state_schema_text
     assert "`observables[]` references a `proof_obligation` target" in state_schema_text
+    assert "must keep `quantifiers` visible when an explicit quantifier or domain obligation exists" in state_schema_text
+    assert "`claims[].quantifiers[]` is optional for unquantified proof-bearing claims" in state_schema_text
     assert "claims[].proof_deliverables[]" in state_schema_text
     assert "`claims[].parameters[]`, `claims[].hypotheses[]`, and `claims[].conclusion_clauses[]` must each be non-empty." in state_schema_text
     assert "`claims[].acceptance_tests[]` must include at least one proof-specific test kind" in state_schema_text

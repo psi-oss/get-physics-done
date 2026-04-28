@@ -77,7 +77,13 @@ _SPAWN_CONTRACT_BLOCK_RE = re.compile(
     r"^[ \t]*<spawn_contract>[ \t]*$\n(?P<body>.*?)^[ \t]*</spawn_contract>[ \t]*$",
     re.DOTALL | re.MULTILINE,
 )
+_INTERACTIVE_SPAWN_CONTRACT_BLOCK_RE = re.compile(
+    r"^[ \t]*<spawn_contract_interactive>[ \t]*$\n(?P<body>.*?)^[ \t]*</spawn_contract_interactive>[ \t]*$",
+    re.DOTALL | re.MULTILINE,
+)
 _SPAWN_CONTRACT_WRITE_SCOPE_MODES = ("scoped_write", "direct")
+_INTERACTIVE_SPAWN_CONTRACT_WRITE_SCOPE_MODES = ("no_write",)
+_INTERACTIVE_SPAWN_CONTRACT_SHARED_STATE_POLICIES = ("none",)
 _COMMAND_FRONTMATTER_KEYS = frozenset(
     {
         "name",
@@ -298,6 +304,7 @@ class CommandDef:
     agent: str | None = None
     staged_loading: WorkflowStageManifest | None = None
     spawn_contracts: tuple[dict[str, object], ...] = ()
+    interactive_spawn_contracts: tuple[dict[str, object], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -398,6 +405,7 @@ class SkillDef:
     source_kind: str  # "command" or "agent"
     registry_name: str
     spawn_contracts: tuple[dict[str, object], ...] = ()
+    interactive_spawn_contracts: tuple[dict[str, object], ...] = ()
 
 
 # ─── Parsing helpers ─────────────────────────────────────────────────────────
@@ -1873,6 +1881,24 @@ def _parse_spawn_contracts(content: str, *, owner_name: str) -> tuple[dict[str, 
     return tuple(contracts)
 
 
+def _parse_interactive_spawn_contracts(content: str, *, owner_name: str) -> tuple[dict[str, object], ...]:
+    """Parse supervised no-write checkpoint contracts from rendered markdown content."""
+
+    contracts: list[dict[str, object]] = []
+    seen_contracts: set[tuple[object, ...]] = set()
+    for match in _INTERACTIVE_SPAWN_CONTRACT_BLOCK_RE.finditer(content):
+        block = textwrap.dedent(match.group("body")).strip()
+        if not block:
+            raise ValueError(f"interactive spawn-contract for {owner_name}: empty block")
+        parsed = _parse_interactive_spawn_contract_block(block, owner_name=owner_name)
+        contract_key = _spawn_contract_key(parsed)
+        if contract_key in seen_contracts:
+            continue
+        seen_contracts.add(contract_key)
+        contracts.append(parsed)
+    return tuple(contracts)
+
+
 def _spawn_contract_key(value: object) -> tuple[object, ...]:
     """Return a hashable, order-preserving key for parsed spawn-contract metadata."""
 
@@ -1888,26 +1914,29 @@ def _validate_spawn_contract_list(
     *,
     field_name: str,
     owner_name: str,
+    allow_empty: bool = False,
+    contract_label: str = "spawn-contract",
 ) -> list[str]:
     """Validate a spawn-contract string list and reject empty or duplicate entries."""
 
     if not isinstance(values, list):
-        raise ValueError(f"spawn-contract for {owner_name}: {field_name} must be a list")
-    if not values:
-        raise ValueError(f"spawn-contract for {owner_name}: {field_name} must not be empty")
+        raise ValueError(f"{contract_label} for {owner_name}: {field_name} must be a list")
+    if not values and not allow_empty:
+        raise ValueError(f"{contract_label} for {owner_name}: {field_name} must not be empty")
 
     normalized: list[str] = []
     first_indices: dict[str, int] = {}
     for index, value in enumerate(values):
         if not isinstance(value, str):
-            raise ValueError(f"spawn-contract for {owner_name}: {field_name}[{index}] must be a string")
+            raise ValueError(f"{contract_label} for {owner_name}: {field_name}[{index}] must be a string")
         stripped = value.strip()
         if not stripped:
-            raise ValueError(f"spawn-contract for {owner_name}: {field_name}[{index}] must be a non-empty string")
+            raise ValueError(f"{contract_label} for {owner_name}: {field_name}[{index}] must be a non-empty string")
         if stripped in first_indices:
             first_index = first_indices[stripped]
             raise ValueError(
-                f"spawn-contract for {owner_name}: {field_name}[{index}] duplicates {field_name}[{first_index}]: {stripped}"
+                f"{contract_label} for {owner_name}: {field_name}[{index}] "
+                f"duplicates {field_name}[{first_index}]: {stripped}"
             )
         first_indices[stripped] = index
         normalized.append(stripped)
@@ -1916,6 +1945,11 @@ def _validate_spawn_contract_list(
 
 def _validate_spawn_contract(contract: dict[str, object], *, owner_name: str) -> dict[str, object]:
     """Validate and normalize one parsed spawn-contract block."""
+
+    allowed_keys = {"activation", "write_scope", "expected_artifacts", "shared_state_policy"}
+    unknown_keys = sorted(str(key) for key in contract if str(key) not in allowed_keys)
+    if unknown_keys:
+        raise ValueError(f"spawn-contract for {owner_name}: unexpected fields: {', '.join(unknown_keys)}")
 
     if "write_scope" not in contract:
         raise ValueError(f"spawn-contract for {owner_name}: missing write_scope")
@@ -1961,11 +1995,116 @@ def _validate_spawn_contract(contract: dict[str, object], *, owner_name: str) ->
             f"expected one of: {valid}"
         )
 
-    return {
+    normalized: dict[str, object] = {
         "write_scope": write_scope,
         "expected_artifacts": expected_artifacts,
         "shared_state_policy": shared_state_policy,
     }
+    if "activation" in contract:
+        activation = contract["activation"]
+        if not isinstance(activation, str) or not activation.strip():
+            raise ValueError(f"spawn-contract for {owner_name}: activation must be a non-empty string")
+        normalized["activation"] = activation.strip()
+    return normalized
+
+
+def _validate_interactive_spawn_contract(contract: dict[str, object], *, owner_name: str) -> dict[str, object]:
+    """Validate the supervised interactive no-write checkpoint contract family."""
+
+    allowed_keys = {"activation", "write_scope", "expected_artifacts", "expected_return", "shared_state_policy"}
+    unknown_keys = sorted(str(key) for key in contract if str(key) not in allowed_keys)
+    if unknown_keys:
+        raise ValueError(f"interactive spawn-contract for {owner_name}: unexpected fields: {', '.join(unknown_keys)}")
+
+    missing_keys = sorted(key for key in allowed_keys if key not in contract)
+    if missing_keys:
+        raise ValueError(f"interactive spawn-contract for {owner_name}: missing fields: {', '.join(missing_keys)}")
+
+    activation = contract["activation"]
+    if not isinstance(activation, str) or not activation.strip():
+        raise ValueError(f"interactive spawn-contract for {owner_name}: activation must be a non-empty string")
+    activation = activation.strip()
+
+    raw_write_scope = contract["write_scope"]
+    if not isinstance(raw_write_scope, dict):
+        raise ValueError(f"interactive spawn-contract for {owner_name}: write_scope must be a mapping")
+    write_scope = dict(raw_write_scope)
+    mode = write_scope.get("mode")
+    if not isinstance(mode, str) or not mode.strip():
+        raise ValueError(f"interactive spawn-contract for {owner_name}: write_scope.mode must be a non-empty string")
+    mode = mode.strip()
+    if mode not in _INTERACTIVE_SPAWN_CONTRACT_WRITE_SCOPE_MODES:
+        valid = ", ".join(_INTERACTIVE_SPAWN_CONTRACT_WRITE_SCOPE_MODES)
+        raise ValueError(
+            f"interactive spawn-contract for {owner_name}: invalid write_scope.mode {mode!r}; expected one of: {valid}"
+        )
+    write_scope["mode"] = mode
+    if "allowed_paths" not in write_scope:
+        raise ValueError(f"interactive spawn-contract for {owner_name}: missing write_scope.allowed_paths")
+    write_scope["allowed_paths"] = _validate_spawn_contract_list(
+        write_scope["allowed_paths"],
+        field_name="write_scope.allowed_paths",
+        owner_name=owner_name,
+        allow_empty=True,
+        contract_label="interactive spawn-contract",
+    )
+    if write_scope["allowed_paths"]:
+        raise ValueError(
+            f"interactive spawn-contract for {owner_name}: write_scope.allowed_paths must be empty for no_write"
+        )
+
+    expected_artifacts = _validate_spawn_contract_list(
+        contract["expected_artifacts"],
+        field_name="expected_artifacts",
+        owner_name=owner_name,
+        allow_empty=True,
+        contract_label="interactive spawn-contract",
+    )
+    if expected_artifacts:
+        raise ValueError(f"interactive spawn-contract for {owner_name}: expected_artifacts must be empty for no_write")
+
+    expected_return = contract["expected_return"]
+    if not isinstance(expected_return, dict):
+        raise ValueError(f"interactive spawn-contract for {owner_name}: expected_return must be a mapping")
+    expected_return = dict(expected_return)
+    expected_return_keys = [str(key) for key in expected_return]
+    if sorted(expected_return_keys) != ["status"]:
+        raise ValueError(f"interactive spawn-contract for {owner_name}: expected_return must contain only status")
+    status = next(value for key, value in expected_return.items() if str(key) == "status")
+    if not isinstance(status, str) or status.strip() != "checkpoint":
+        raise ValueError(f"interactive spawn-contract for {owner_name}: expected_return.status must be checkpoint")
+    expected_return = {"status": status.strip()}
+
+    shared_state_policy = contract["shared_state_policy"]
+    if not isinstance(shared_state_policy, str) or not shared_state_policy.strip():
+        raise ValueError(f"interactive spawn-contract for {owner_name}: shared_state_policy must be a non-empty string")
+    shared_state_policy = shared_state_policy.strip()
+    if shared_state_policy not in _INTERACTIVE_SPAWN_CONTRACT_SHARED_STATE_POLICIES:
+        valid = ", ".join(_INTERACTIVE_SPAWN_CONTRACT_SHARED_STATE_POLICIES)
+        raise ValueError(
+            f"interactive spawn-contract for {owner_name}: invalid shared_state_policy {shared_state_policy!r}; "
+            f"expected one of: {valid}"
+        )
+
+    return {
+        "activation": activation,
+        "write_scope": write_scope,
+        "expected_artifacts": expected_artifacts,
+        "expected_return": expected_return,
+        "shared_state_policy": shared_state_policy,
+    }
+
+
+def _parse_interactive_spawn_contract_block(block: str, *, owner_name: str) -> dict[str, object]:
+    """Parse one supervised interactive spawn-contract YAML block."""
+
+    try:
+        parsed = load_strict_yaml(block)
+    except yaml.YAMLError as exc:
+        raise ValueError(f"interactive spawn-contract for {owner_name}: malformed YAML: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError(f"interactive spawn-contract for {owner_name}: block must parse to a mapping")
+    return _validate_interactive_spawn_contract(parsed, owner_name=owner_name)
 
 
 def _parse_spawn_contract_block(block: str, *, owner_name: str) -> dict[str, object]:
@@ -1995,6 +2134,10 @@ def _parse_spawn_contract_block(block: str, *, owner_name: str) -> dict[str, obj
                     continue
                 raise ValueError(f"spawn-contract for {owner_name}: unexpected write_scope field {nested!r}")
             contract["write_scope"] = write_scope
+            continue
+        if line.startswith("activation:"):
+            contract["activation"] = line.split(":", 1)[1].strip()
+            index += 1
             continue
         if line == "expected_artifacts:":
             index += 1
@@ -2199,6 +2342,7 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
         command_policy=command_policy,
     )
     spawn_contracts = _parse_spawn_contracts(content, owner_name=command_name)
+    interactive_spawn_contracts = _parse_interactive_spawn_contracts(content, owner_name=command_name)
 
     return CommandDef(
         name=command_name,
@@ -2221,6 +2365,7 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
         review_contract=review_contract,
         staged_loading=staged_loading,
         spawn_contracts=spawn_contracts,
+        interactive_spawn_contracts=interactive_spawn_contracts,
         content=content,
         path=str(path),
         source=source,
@@ -2443,6 +2588,7 @@ def _discover_skills(commands: dict[str, CommandDef], agents: dict[str, AgentDef
             source_kind="command",
             registry_name=registry_name,
             spawn_contracts=command.spawn_contracts,
+            interactive_spawn_contracts=command.interactive_spawn_contracts,
         )
 
     for registry_name, agent in sorted(agents.items()):

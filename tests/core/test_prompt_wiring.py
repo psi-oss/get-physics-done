@@ -1266,11 +1266,14 @@ def test_peer_review_prompt_surfaces_generic_claim_kind_as_non_theorem_bearing_b
 
     _assert_contains_fragments(
         panel,
+        "Treat theorem-bearing status from the full Stage 1 Paper `ClaimRecord`, not from the `ProjectContract` `ContractClaim` vocabulary",
         "only `claim_kind: theorem | lemma | corollary | proposition` is theorem-bearing by kind alone",
         "`claim_kind: claim | result | other` becomes theorem-bearing only when non-empty theorem metadata "
         "or theorem-like statement text makes the proof obligation explicit.",
         "The theorem-style `claim_kind` values are limited to `theorem`, `lemma`, `corollary`, and `proposition`.",
         "Do not treat `claim_kind: claim` as theorem-bearing by default.",
+        "This Paper `ClaimRecord` rule is intentionally different from `ProjectContract.claims[]`, where "
+        "`claim_kind: claim` is proof-bearing contract vocabulary.",
     )
     assert (
         "Treat theorem-bearing status from the full Stage 1 claim record, not only from non-empty "
@@ -2060,8 +2063,13 @@ def test_workflows_use_raw_json_when_shell_snippets_pipe_cli_output_into_gpd_jso
     assert 'gpd --raw init phase-op --include state,config "${PHASE}"' not in research_command
     assert "BOOTSTRAP_INIT=$(load_map_research_stage map_bootstrap)" in map_workflow
     assert "MAPPER_AUTHORING_INIT=$(load_map_research_stage mapper_authoring)" in map_workflow
-    assert 'gpd --raw init map-research --stage "${stage_name}"' in map_workflow
+    assert 'gpd --raw init map-research --stage "${stage_name}" -- "${ARGUMENTS:-}"' in map_workflow
     assert 'RESEARCH_MODE=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_mode --default balanced)' in map_workflow
+    assert "MAP_RESEARCH_FOCUS=" not in map_workflow
+    assert "MAP_FOCUS=" not in map_workflow
+    assert "MAP_FOCUS_PROVIDED=" not in map_workflow
+    assert "Map focus: {map_focus}" in map_workflow
+    assert "If `map_focus_provided` is true" in map_workflow
     assert "gpd --raw config get research_mode" not in map_workflow
     assert "gpd --raw init map-research" not in map_command
     assert "ROADMAP=$(gpd --raw roadmap analyze)" in progress_workflow

@@ -815,16 +815,19 @@ def test_registry_command_surface_rewrite_surfaces_live_registry_errors(monkeypa
         command_labels.rewrite_runtime_command_surfaces("$gpd-help", canonical="command")
 
 
-def test_model_visible_command_note_surfaces_live_registry_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_model_visible_command_note_does_not_depend_on_live_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     import gpd.core.model_visible_text as model_visible_text
+    import gpd.registry as registry
 
     def _raise_registry_error() -> tuple[str, ...]:
         raise RuntimeError("registry agent parse failed")
 
-    monkeypatch.setattr(model_visible_text, "_load_canonical_agent_names", lambda: _raise_registry_error)
+    monkeypatch.setattr(registry, "list_agents", _raise_registry_error)
 
-    with pytest.raises(RuntimeError, match="registry agent parse failed"):
-        model_visible_text.command_visibility_note()
+    note = model_visible_text.command_visibility_note()
+
+    assert "`agent` when present must match a built-in canonical agent label exactly" in note
+    assert "gpd-planner" not in note
 
 
 def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
@@ -915,8 +918,44 @@ def test_gitignore_does_not_exclude_gpd_directory() -> None:
     """
     repo_root = _repo_root()
     content = (repo_root / ".gitignore").read_text(encoding="utf-8")
-    for pattern in ("GPD/", "GPD/*", "GPD/STATE.md", "GPD/state.json", "GPD/state.json.bak", "GPD/state.json.lock"):
-        assert pattern not in content, f".gitignore must not contain {pattern!r}"
+    ignored_patterns = {line.strip() for line in content.splitlines() if line.strip() and not line.startswith("#")}
+    for pattern in ("GPD/", "GPD/*", "GPD/STATE.md", "GPD/state.json"):
+        assert pattern not in ignored_patterns, f".gitignore must not contain {pattern!r}"
+
+
+def test_gitignore_only_excludes_specific_repo_root_gpd_state_noise(tmp_path: Path) -> None:
+    """State lock/backup files are local crash-recovery noise, not project docs."""
+    repo_root = _repo_root()
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    (tmp_path / ".gitignore").write_text((repo_root / ".gitignore").read_text(encoding="utf-8"), encoding="utf-8")
+
+    ignored = ("GPD/state.json.bak", "GPD/state.json.lock")
+    visible = ("GPD/state.json", "GPD/STATE.md", "GPD/phases/notes.md", "other/GPD/state.json.lock")
+
+    for relpath in (*ignored, *visible):
+        path = tmp_path / relpath
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("local state\n", encoding="utf-8")
+
+    for relpath in ignored:
+        result = subprocess.run(
+            ["git", "check-ignore", "--quiet", "--", relpath],
+            cwd=tmp_path,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, f"{relpath} should be ignored"
+
+    for relpath in visible:
+        result = subprocess.run(
+            ["git", "check-ignore", "--quiet", "--", relpath],
+            cwd=tmp_path,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 1, f"{relpath} should stay visible to git"
 
 
 def test_pre_commit_config_blocks_gpd_directory() -> None:

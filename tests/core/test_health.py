@@ -1022,18 +1022,17 @@ class TestCheckStoragePaths:
         ]
 
     def test_repo_gitignore_does_not_hide_gpd_state_surfaces(self, tmp_path: Path) -> None:
-        """Assert GPD/ files are not gitignored.
+        """Assert durable GPD/ state files are not gitignored.
 
         Workflow commit commands include these files; gitignoring them causes
-        ``git add`` failures (exit code 1) at commit time.  A pre-commit hook
-        strips GPD/ from commits to the codebase repo instead.
+        ``git add`` failures (exit code 1) at commit time. Transient lock and
+        backup files are intentionally ignored elsewhere.
         """
         repo = _init_git_repo(tmp_path)
 
         gpd_paths = [
             "GPD/STATE.md",
             "GPD/state.json",
-            "GPD/state.json.bak",
             "GPD/PROJECT.md",
             "GPD/ROADMAP.md",
             "GPD/REQUIREMENTS.md",

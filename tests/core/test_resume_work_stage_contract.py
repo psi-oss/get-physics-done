@@ -75,20 +75,21 @@ def test_resume_work_stage_manifest_rejects_invalid_field_drift() -> None:
         validate_workflow_stage_manifest_payload(payload, expected_workflow_id="resume-work")
 
 
-def test_resume_work_workflow_uses_compatible_init_alias_for_staged_payloads() -> None:
+def test_resume_work_workflow_uses_public_init_resume_for_staged_payloads() -> None:
     text = (WORKFLOWS_DIR / "resume-work.md").read_text(encoding="utf-8")
 
-    assert "INIT=$(gpd --raw init resume-work --stage resume_bootstrap)" in text
-    assert "STATE_RESTORE_INIT=$(gpd --raw init resume-work --stage state_restore)" in text
-    assert "DERIVATION_RESTORE_INIT=$(gpd --raw init resume-work --stage derivation_restore)" in text
-    assert "RESUME_ROUTING_INIT=$(gpd --raw init resume-work --stage resume_routing)" in text
-    assert "gpd init resume" not in text
+    assert "INIT=$(gpd --raw init resume --stage resume_bootstrap)" in text
+    assert "STATE_RESTORE_INIT=$(gpd --raw init resume --stage state_restore)" in text
+    assert "DERIVATION_RESTORE_INIT=$(gpd --raw init resume --stage derivation_restore)" in text
+    assert "RESUME_ROUTING_INIT=$(gpd --raw init resume --stage resume_routing)" in text
+    assert "gpd --raw init resume-work" not in text
     assert "@{GPD_INSTALL_DIR}/references/orchestration/continuation-format.md" not in text
     assert "@{GPD_INSTALL_DIR}/references/orchestration/state-portability.md" not in text
     assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" not in text
 
 
-def test_init_resume_work_hidden_alias_invokes_resume_context(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("init_alias", ["resume", "resume-work"])
+def test_init_resume_aliases_invoke_resume_context(monkeypatch: pytest.MonkeyPatch, init_alias: str) -> None:
     calls: list[str | None] = []
 
     def fake_init_resume(cwd: Path, *, stage: str | None = None) -> dict[str, object]:
@@ -97,7 +98,7 @@ def test_init_resume_work_hidden_alias_invokes_resume_context(monkeypatch: pytes
 
     monkeypatch.setattr("gpd.core.context.init_resume", fake_init_resume)
 
-    result = RUNNER.invoke(app, ["--raw", "init", "resume-work", "--stage", "resume_bootstrap"])
+    result = RUNNER.invoke(app, ["--raw", "init", init_alias, "--stage", "resume_bootstrap"])
 
     assert result.exit_code == 0
     assert calls == ["resume_bootstrap"]

@@ -2,20 +2,23 @@
 
 from __future__ import annotations
 
-from math import ceil
 from pathlib import Path
 
 import pytest
 
 from gpd import registry
-from tests.prompt_metrics_support import measure_prompt_surface
+from tests.prompt_metrics_support import (
+    budget_from_baseline,
+    expanded_include_markers,
+    expanded_prompt_text,
+    measure_prompt_surface,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
 SOURCE_ROOT = REPO_ROOT / "src" / "gpd"
 PATH_PREFIX = "/runtime/"
 
-PROMPT_BUDGET_MARGIN = 0.03
 MIN_LINE_MARGIN = 20
 MIN_CHAR_MARGIN = 1_000
 COMMAND_NAMES = tuple(registry.list_commands())
@@ -93,15 +96,114 @@ COMMAND_BASELINES = {
     "verify-work": (699, 33_598, 1),
     "write-paper": (2_465, 127_530, 1),
 }
+WORST_COMMAND_HARD_CAPS = {
+    "write-paper": (2_550, 134_000),
+    "respond-to-referees": (2_200, 112_000),
+    "execute-phase": (2_100, 106_500),
+    "new-project": (2_150, 101_000),
+    "help": (1_460, 76_000),
+    "peer-review": (1_260, 75_000),
+}
+TOP_COMMAND_HARD_CAP_COUNT = 6
+BULKY_COMMAND_INCLUDE_FILES = (
+    "peer-review-panel.md",
+    "project-contract-schema.md",
+    "contract-results-schema.md",
+)
+
+WORKFLOWS_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
+WORKFLOW_NAMES = tuple(path.stem for path in sorted(WORKFLOWS_DIR.glob("*.md")))
+WORKFLOW_BASELINES = {
+    "add-phase": (131, 3356, 0),
+    "add-todo": (180, 5106, 0),
+    "arxiv-submission": (551, 44012, 3),
+    "audit-milestone": (448, 16049, 2),
+    "autonomous": (1028, 35321, 0),
+    "branch-hypothesis": (334, 9657, 0),
+    "check-todos": (196, 5207, 0),
+    "compact-state": (213, 6877, 0),
+    "compare-branches": (359, 11466, 0),
+    "compare-experiment": (390, 17273, 0),
+    "compare-results": (93, 4468, 0),
+    "complete-milestone": (1178, 35882, 2),
+    "debug": (308, 14683, 1),
+    "decisions": (140, 3680, 0),
+    "derive-equation": (644, 30917, 1),
+    "digest-knowledge": (226, 9317, 0),
+    "dimensional-analysis": (314, 12789, 0),
+    "discover": (356, 14222, 0),
+    "discuss-phase": (633, 25170, 0),
+    "error-patterns": (143, 3937, 0),
+    "error-propagation": (387, 17168, 0),
+    "execute-phase": (1968, 101942, 1),
+    "execute-plan": (802, 51666, 0),
+    "explain": (287, 11438, 2),
+    "export": (432, 11274, 0),
+    "export-logs": (165, 5397, 0),
+    "graph": (258, 8104, 0),
+    "help": (1356, 71784, 1),
+    "insert-phase": (151, 4365, 0),
+    "limiting-cases": (464, 21443, 0),
+    "list-phase-assumptions": (279, 9881, 0),
+    "literature-review": (528, 25198, 1),
+    "map-research": (574, 21688, 1),
+    "merge-phases": (348, 11234, 0),
+    "new-milestone": (763, 37715, 3),
+    "new-project": (1962, 90928, 5),
+    "numerical-convergence": (482, 23820, 0),
+    "parameter-sweep": (748, 28648, 1),
+    "pause-work": (273, 13060, 0),
+    "peer-review": (1045, 63805, 2),
+    "plan-milestone-gaps": (290, 7888, 0),
+    "plan-phase": (1018, 51961, 1),
+    "progress": (574, 19223, 0),
+    "quick": (370, 16268, 2),
+    "reapply-patches": (114, 3750, 0),
+    "record-backtrack": (208, 9259, 0),
+    "record-insight": (122, 3969, 0),
+    "regression-check": (123, 4515, 0),
+    "remove-phase": (184, 4612, 0),
+    "research-phase": (329, 14238, 2),
+    "respond-to-referees": (2029, 103819, 5),
+    "resume-work": (603, 30721, 2),
+    "review-knowledge": (660, 22023, 3),
+    "revise-phase": (424, 12774, 0),
+    "route": (119, 4607, 0),
+    "sensitivity-analysis": (656, 28242, 0),
+    "set-profile": (185, 8685, 0),
+    "set-tier-models": (171, 6674, 0),
+    "settings": (465, 28494, 0),
+    "show-phase": (249, 6801, 0),
+    "slides": (200, 8586, 0),
+    "start": (233, 12282, 0),
+    "sync-state": (253, 8776, 0),
+    "tangent": (149, 5858, 0),
+    "tour": (167, 7135, 0),
+    "transition": (1064, 33370, 0),
+    "undo": (299, 9670, 0),
+    "update": (242, 6644, 0),
+    "validate-conventions": (225, 8911, 1),
+    "verify-phase": (2646, 134661, 7),
+    "verify-work": (626, 31697, 1),
+    "write-paper": (2360, 125155, 9),
+}
+WORST_WORKFLOW_HARD_CAPS = {
+    "verify-phase": (2_700, 138_000),
+    "write-paper": (2_400, 128_000),
+    "respond-to-referees": (2_070, 106_500),
+    "new-project": (2_020, 94_500),
+    "execute-phase": (2_010, 104_500),
+}
+EAGER_LOADED_BULKY_REFERENCE_INCLUDE_FILES = (
+    "peer-review-panel.md",
+    "contradiction-resolution-example.md",
+    "ising-experiment-design-example.md",
+)
 
 
 def test_command_prompt_budget_registry_covers_all_command_sources() -> None:
     assert set(COMMAND_NAMES) == {path.stem for path in COMMANDS_DIR.glob("*.md")}
     assert set(COMMAND_BASELINES) == set(COMMAND_NAMES)
-
-
-def _budget_from_baseline(value: int, *, minimum_margin: int) -> int:
-    return value + max(minimum_margin, ceil(value * PROMPT_BUDGET_MARGIN))
 
 
 @pytest.mark.parametrize("command_name", COMMAND_NAMES)
@@ -114,11 +216,100 @@ def test_expanded_command_prompt_stays_under_registry_budget(command_name: str) 
     )
 
     assert metrics.raw_include_count <= max_raw_includes
-    assert metrics.expanded_line_count <= _budget_from_baseline(
+    assert metrics.expanded_line_count <= budget_from_baseline(
         baseline_lines,
         minimum_margin=MIN_LINE_MARGIN,
     )
-    assert metrics.expanded_char_count <= _budget_from_baseline(
+    assert metrics.expanded_char_count <= budget_from_baseline(
         baseline_chars,
         minimum_margin=MIN_CHAR_MARGIN,
     )
+
+
+@pytest.mark.parametrize("command_name", sorted(WORST_COMMAND_HARD_CAPS))
+def test_worst_expanded_command_prompts_stay_under_hard_caps(command_name: str) -> None:
+    max_lines, max_chars = WORST_COMMAND_HARD_CAPS[command_name]
+    metrics = measure_prompt_surface(
+        COMMANDS_DIR / f"{command_name}.md",
+        src_root=SOURCE_ROOT,
+        path_prefix=PATH_PREFIX,
+    )
+
+    assert metrics.expanded_line_count <= max_lines
+    assert metrics.expanded_char_count <= max_chars
+
+
+def test_largest_command_prompts_have_hard_caps() -> None:
+    largest_commands = {
+        name
+        for name, _baseline in sorted(
+            COMMAND_BASELINES.items(),
+            key=lambda item: item[1][1],
+            reverse=True,
+        )[:TOP_COMMAND_HARD_CAP_COUNT]
+    }
+
+    assert largest_commands <= set(WORST_COMMAND_HARD_CAPS)
+
+
+@pytest.mark.parametrize("command_name", sorted(WORST_COMMAND_HARD_CAPS))
+def test_command_wrappers_do_not_eager_load_bulk_contract_templates(command_name: str) -> None:
+    expanded_text = expanded_prompt_text(
+        COMMANDS_DIR / f"{command_name}.md",
+        src_root=SOURCE_ROOT,
+        path_prefix=PATH_PREFIX,
+    )
+    markers = set(expanded_include_markers(expanded_text))
+
+    for marker in BULKY_COMMAND_INCLUDE_FILES:
+        assert marker not in markers
+
+
+def test_workflow_prompt_budget_table_covers_all_workflow_sources() -> None:
+    assert set(WORKFLOW_BASELINES) == set(WORKFLOW_NAMES)
+
+
+@pytest.mark.parametrize("workflow_name", WORKFLOW_NAMES)
+def test_expanded_workflow_prompt_stays_under_registry_budget(workflow_name: str) -> None:
+    baseline_lines, baseline_chars, max_raw_includes = WORKFLOW_BASELINES[workflow_name]
+    metrics = measure_prompt_surface(
+        WORKFLOWS_DIR / f"{workflow_name}.md",
+        src_root=SOURCE_ROOT,
+        path_prefix=PATH_PREFIX,
+    )
+
+    assert metrics.raw_include_count <= max_raw_includes
+    assert metrics.expanded_line_count <= budget_from_baseline(
+        baseline_lines,
+        minimum_margin=MIN_LINE_MARGIN,
+    )
+    assert metrics.expanded_char_count <= budget_from_baseline(
+        baseline_chars,
+        minimum_margin=MIN_CHAR_MARGIN,
+    )
+
+
+@pytest.mark.parametrize("workflow_name", sorted(WORST_WORKFLOW_HARD_CAPS))
+def test_worst_expanded_workflows_stay_under_hard_caps(workflow_name: str) -> None:
+    max_lines, max_chars = WORST_WORKFLOW_HARD_CAPS[workflow_name]
+    metrics = measure_prompt_surface(
+        WORKFLOWS_DIR / f"{workflow_name}.md",
+        src_root=SOURCE_ROOT,
+        path_prefix=PATH_PREFIX,
+    )
+
+    assert metrics.expanded_line_count <= max_lines
+    assert metrics.expanded_char_count <= max_chars
+
+
+@pytest.mark.parametrize("workflow_name", sorted(WORST_WORKFLOW_HARD_CAPS))
+def test_worst_workflows_do_not_eager_load_bulky_reference_examples(workflow_name: str) -> None:
+    expanded_text = expanded_prompt_text(
+        WORKFLOWS_DIR / f"{workflow_name}.md",
+        src_root=SOURCE_ROOT,
+        path_prefix=PATH_PREFIX,
+    )
+    markers = set(expanded_include_markers(expanded_text))
+
+    for marker in EAGER_LOADED_BULKY_REFERENCE_INCLUDE_FILES:
+        assert marker not in markers

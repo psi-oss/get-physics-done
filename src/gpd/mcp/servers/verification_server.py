@@ -816,6 +816,7 @@ _CONTRACT_PROOF_CONCLUSION_INPUT_SCHEMA: dict[str, object] = _object_schema(
     required=("id", "text"),
     additional_properties=False,
 )
+_PROOF_FIELD_CLAIM_KIND_VALUES = tuple(value for value in CONTRACT_CLAIM_KIND_VALUES if value != "other")
 _CONTRACT_CLAIM_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
         "id": _non_empty_string_schema(),
@@ -839,8 +840,9 @@ _CONTRACT_CLAIM_INPUT_SCHEMA["description"] = (
     "Scoping-only contracts should omit claims entirely instead of leaving those links implicit. "
     "Claims are proof-bearing not only when `claim_kind` is theorem-like, but also when the statement is theorem-like, "
     "when proof-specific fields are already populated, or when `observables` references a `proof_obligation` target. "
-    "Do not rely on runtime inference for those cases. Proof-bearing claims must set an explicit proof-oriented `claim_kind`, provide non-empty "
-    "`proof_deliverables`, `parameters`, `hypotheses`, and `conclusion_clauses`, and reference at least one "
+    "Do not rely on runtime inference for those cases. Proof-bearing claims must set an explicit proof-oriented "
+    "`claim_kind`, provide non-empty `proof_deliverables`, `parameters`, `hypotheses`, and `conclusion_clauses`, "
+    "preserve `quantifiers` when explicit quantifier or domain obligations exist, and reference at least one "
     "proof-specific acceptance test id."
 )
 _THEOREM_STYLE_STATEMENT_SCHEMA_PATTERNS = THEOREM_STYLE_STATEMENT_REGEX_PATTERNS
@@ -907,16 +909,23 @@ _CONTRACT_CLAIM_INPUT_SCHEMA["allOf"] = [
     {
         "if": {
             "anyOf": [
-                {"required": ["proof_deliverables"]},
-                {"required": ["parameters"]},
-                {"required": ["hypotheses"]},
-                {"required": ["conclusion_clauses"]},
+                {
+                    "required": [field_name],
+                    "properties": {field_name: {"type": "array", "minItems": 1}},
+                }
+                for field_name in (
+                    "proof_deliverables",
+                    "parameters",
+                    "hypotheses",
+                    "quantifiers",
+                    "conclusion_clauses",
+                )
             ]
         },
         "then": {
             "required": ["claim_kind", "proof_deliverables", "parameters", "hypotheses", "conclusion_clauses"],
             "properties": {
-                "claim_kind": _contract_enum_string_schema(THEOREM_CLAIM_KIND_VALUES),
+                "claim_kind": _contract_enum_string_schema(_PROOF_FIELD_CLAIM_KIND_VALUES),
                 "proof_deliverables": _contract_string_list_schema(min_items=1),
                 "parameters": {
                     "type": "array",

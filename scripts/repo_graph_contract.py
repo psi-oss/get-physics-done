@@ -137,6 +137,20 @@ def _tracked_repo_files(repo_root: Path) -> list[Path] | None:
     return [Path(relative_path) for relative_path in completed.stdout.decode("utf-8").split("\0") if relative_path]
 
 
+def _untracked_repo_files(repo_root: Path) -> list[Path] | None:
+    try:
+        completed = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return None
+
+    return [Path(relative_path) for relative_path in completed.stdout.decode("utf-8").split("\0") if relative_path]
+
+
 def _repo_files_in_scope(repo_root: Path) -> list[Path]:
     tracked_files = _tracked_repo_files(repo_root)
     if tracked_files is not None:
@@ -151,6 +165,38 @@ def _repo_files_in_scope(repo_root: Path) -> list[Path]:
         for path in repo_root.rglob("*")
         if path.is_file() and not _is_excluded_path(path.relative_to(repo_root))
     ]
+
+
+def _is_graph_scope_path(path: Path) -> bool:
+    return (
+        (_has_parent(path, "src", "gpd", "commands") and path.suffix == ".md")
+        or (_has_parent(path, "src", "gpd", "agents") and path.suffix == ".md")
+        or (_has_parent(path, "src", "gpd", "specs", "workflows") and path.suffix == ".md")
+        or (_is_under(path, "src", "gpd", "specs", "templates") and path.suffix == ".md")
+        or (_is_under(path, "src", "gpd", "specs", "references") and path.suffix == ".md")
+        or (_has_parent(path, "src", "gpd", "adapters") and path.suffix == ".py")
+        or (_has_parent(path, "src", "gpd", "hooks") and path.suffix == ".py")
+        or (_has_parent(path, "src", "gpd", "mcp", "servers") and path.suffix == ".py")
+        or (_has_parent(path, "infra") and path.suffix == ".json" and path.name.startswith("gpd-"))
+    )
+
+
+def untracked_graph_scope_files(repo_root: Path = REPO_ROOT) -> tuple[Path, ...]:
+    untracked_files = _untracked_repo_files(repo_root)
+    if untracked_files is None:
+        return ()
+    return tuple(
+        sorted(
+            (
+                path
+                for path in untracked_files
+                if not _is_excluded_path(path)
+                and _is_graph_scope_path(path)
+                and (repo_root / path).is_file()
+            ),
+            key=lambda path: path.as_posix(),
+        )
+    )
 
 
 def _is_under(path: Path, *parent_parts: str) -> bool:

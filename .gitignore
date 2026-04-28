@@ -30,6 +30,9 @@ tmp/
 # Local product/debug reports from live GPD runs do not belong in release commits.
 GPD-FIX-REPORT-*.md
 GPD-FIX-REPORT*/
+# Repo-root crash-recovery state noise from accidental local GPD runs.
+GPD/state.json.bak
+GPD/state.json.lock
 .mcp.json
 # Runtime-owned local mirrors/config snapshots.
 .agents/

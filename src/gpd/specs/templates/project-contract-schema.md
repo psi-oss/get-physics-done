@@ -202,11 +202,13 @@ The following fields always store arrays of objects, never arrays of plain strin
 - `forbidden_proxies[]` — `{ "id", "subject", "proxy", "reason" }`
 - `links[]` — `{ "id", "source", "target", "relation", "verified_by[]" }`
 
-Treat a claim as proof-bearing whenever any of these is true: `claim_kind` is `theorem`, `lemma`, `corollary`, `proposition`, or `claim`; the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language); any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`); or `observables[]` references a `proof_obligation` target.
+In `ProjectContract` (`project_contract.claims[]` / `ContractClaim`), treat a claim as proof-bearing whenever any of these is true: `claim_kind` is `theorem`, `lemma`, `corollary`, `proposition`, or `claim`; the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language); any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`); or `observables[]` references a `proof_obligation` target.
+
+Do not import the staged peer-review Paper `ClaimRecord` meaning of `claim_kind: claim` here: in `ProjectContract`, `claim_kind: claim` is proof-bearing contract vocabulary, while Paper `ClaimRecord.claim_kind: claim` is only a generic manuscript claim unless theorem metadata or theorem-like statement text makes a proof obligation explicit.
 
 When that applies, require:
 
-- proof-bearing claims must keep `parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, and `proof_deliverables` visible.
+- proof-bearing claims must keep `parameters`, `hypotheses`, `conclusion_clauses`, and `proof_deliverables` visible, and must keep `quantifiers` visible when an explicit quantifier or domain obligation exists.
 - Do not collapse proof obligations into a generic claim statement.
 - `claims[].claim_kind` must use the closed vocabulary: `theorem | lemma | corollary | proposition | result | claim | other`.
 - Closed semantic enum fields use these exact lowercase literals:
@@ -224,7 +226,7 @@ When that applies, require:
 - `claims[].parameters[]`, `claims[].hypotheses[]`, and `claims[].conclusion_clauses[]` must each be non-empty.
 - `claims[].acceptance_tests[]` must include at least one proof-specific test kind (`proof_hypothesis_coverage`, `proof_parameter_coverage`, `proof_quantifier_domain`, `claim_to_proof_alignment`, `lemma_dependency_closure`, or `counterexample_search`).
 - include an acceptance test with `kind: claim_to_proof_alignment` when the proof artifact must map a theorem-like claim to named hypotheses, parameters, and conclusion clauses.
-- `claims[].quantifiers[]` is optional but, when present, must stay a list (not a scalar string).
+- `claims[].quantifiers[]` is optional for unquantified proof-bearing claims, but explicit quantifier or domain obligations must stay visible there as a list (not a scalar string).
 
 ### Shared Grounding And Linkage Rules
 

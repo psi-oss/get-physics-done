@@ -845,6 +845,7 @@ class CodexAdapter(RuntimeAdapter):
             target_dir,
             is_global,
             explicit_target=getattr(self, "_install_explicit_target", False),
+            install_notify=self._installed_hook_script_available(HOOK_SCRIPTS["notify"]),
         )
         config_toml = target_dir / "config.toml"
         sandbox_mode = _CODEX_DEFAULT_SANDBOX_MODE
@@ -2247,6 +2248,7 @@ def _configure_config_toml(
     is_global: bool,
     *,
     explicit_target: bool = False,
+    install_notify: bool = True,
 ) -> None:
     """Configure GPD runtime settings in Codex config.toml."""
     config_toml = target_dir / "config.toml"
@@ -2259,14 +2261,23 @@ def _configure_config_toml(
 
     notify_hook = HOOK_SCRIPTS["notify"]
 
-    if is_global or explicit_target:
-        desired_path = str(target_dir / "hooks" / notify_hook).replace("\\", "/")
+    if install_notify:
+        if is_global or explicit_target:
+            desired_path = str(target_dir / "hooks" / notify_hook).replace("\\", "/")
+        else:
+            desired_path = f"{_codex_config_dir_name()}/hooks/{notify_hook}"
+        configured = _install_gpd_notify_config(
+            toml_content,
+            desired_path=desired_path,
+            target_dir=target_dir,
+        )
     else:
-        desired_path = f"{_codex_config_dir_name()}/hooks/{notify_hook}"
-    configured = _install_gpd_notify_config(
-        toml_content,
-        desired_path=desired_path,
-    )
+        logger.warning("Skipping Codex notify hook because hooks/notify.py is not GPD-managed")
+        configured = _remove_gpd_notify_config(
+            toml_content,
+            target_dir=target_dir,
+            path_only_matches_managed=False,
+        )
     config_toml.write_text(
         _install_gpd_multi_agent_config(configured),
         encoding="utf-8",
@@ -2348,6 +2359,7 @@ def _install_gpd_notify_config(
     toml_content: str,
     *,
     desired_path: str,
+    target_dir: Path | None = None,
 ) -> str:
     desired_line = _build_notify_line(desired_path)
     cleaned_lines: list[str] = []
@@ -2375,7 +2387,7 @@ def _install_gpd_notify_config(
             if insert_at is None:
                 insert_at = len(cleaned_lines)
             parsed = _parse_notify_assignment(line)
-            if pending_managed_block or _notify_assignment_is_gpd_managed(parsed):
+            if pending_managed_block or _notify_assignment_is_gpd_managed(parsed, target_dir=target_dir):
                 pending_managed_block = False
                 continue
             if parsed is not None:
@@ -2420,7 +2432,12 @@ def _install_gpd_notify_config(
     return _serialize_toml_lines(cleaned_lines)
 
 
-def _remove_gpd_notify_config(toml_content: str, *, target_dir: Path | None = None) -> str:
+def _remove_gpd_notify_config(
+    toml_content: str,
+    *,
+    target_dir: Path | None = None,
+    path_only_matches_managed: bool = True,
+) -> str:
     cleaned_lines: list[str] = []
     insert_at: int | None = None
     original_notify: str | None = None
@@ -2447,8 +2464,13 @@ def _remove_gpd_notify_config(toml_content: str, *, target_dir: Path | None = No
 
         if not past_first_section:
             parsed = _parse_notify_assignment(line)
+            path_match_is_managed = path_only_matches_managed and _notify_assignment_is_gpd_managed(
+                parsed,
+                target_dir=target_dir,
+            )
+            wrapper_is_managed = bool(parsed and _GPD_NOTIFY_WRAPPER_MARKER in parsed)
             if stripped.startswith("notify") and (
-                pending_managed_block or _notify_assignment_is_gpd_managed(parsed, target_dir=target_dir)
+                pending_managed_block or path_match_is_managed or wrapper_is_managed
             ):
                 if insert_at is None:
                     insert_at = len(cleaned_lines)

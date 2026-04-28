@@ -276,22 +276,71 @@ def assert_tests_readme_documents_ci_shard_policy(tests_readme: str) -> None:
     assert "greedily rebalances those work units inside each category" in tests_readme
 
 
+def assert_contributing_documents_current_pytest_commands(contributing: str) -> None:
+    assert "uv run pytest tests/ -q" in contributing
+    assert "`uv run pytest tests/ -q` is the fast local full checked-in suite" in contributing
+    assert "tests/ci_sharding.py" in contributing
+    assert 'uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"' in contributing
+    assert "180 second per-shard budget" in contributing
+    assert "complementary_heavy_suite_ignore_args" not in contributing
+    assert "HEAVY_SUITE_IGNORE_ARGS" not in contributing
+    assert "--full-suite" not in contributing
+    assert "GPD_TEST_FULL" not in contributing
+
+
+def _test_relpaths_from_git_lines(lines: tuple[str, ...]) -> tuple[str, ...]:
+    relpaths: list[str] = []
+    for line in lines:
+        if not line:
+            continue
+        path = Path(line)
+        if path.parts[:1] != ("tests",):
+            continue
+        if path.suffix != ".py" or not path.name.startswith("test_"):
+            continue
+        relpaths.append(Path(*path.parts[1:]).as_posix())
+    return tuple(sorted(relpaths))
+
+
+def _git_test_relpaths(repo_root: Path, *ls_files_args: str) -> tuple[str, ...]:
+    proc = subprocess.run(
+        ["git", "ls-files", "--full-name", *ls_files_args, "--", "tests"],
+        cwd=repo_root,
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    return _test_relpaths_from_git_lines(tuple(proc.stdout.splitlines()))
+
+
+def checked_in_test_relpaths(
+    *,
+    repo_root: Path | None = None,
+    category: str | None = None,
+) -> tuple[str, ...]:
+    relpaths = _git_test_relpaths(_normalized_repo_root(repo_root), "--cached")
+    if category is not None:
+        relpaths = tuple(relpath for relpath in relpaths if category_for_test_relpath(relpath) == category)
+    return relpaths
+
+
+def untracked_non_ignored_test_relpaths(
+    *,
+    repo_root: Path | None = None,
+) -> tuple[str, ...]:
+    return _git_test_relpaths(_normalized_repo_root(repo_root), "--others", "--exclude-standard")
+
+
 def all_test_relpaths(*, tests_root: Path) -> tuple[str, ...]:
-    return tuple(path.relative_to(tests_root).as_posix() for path in sorted(tests_root.rglob("test_*.py")))
+    return checked_in_test_relpaths(repo_root=tests_root.resolve().parent)
 
 
-def _normalized_repo_root(repo_root: Path | None) -> Path:
-    return (Path.cwd() if repo_root is None else repo_root).resolve()
+def _normalized_repo_root(repo_root: Path | str | None) -> Path:
+    return (Path.cwd() if repo_root is None else Path(repo_root)).resolve()
 
 
 def _pytest_collection_targets(repo_root: Path, *, category: str | None = None) -> tuple[str, ...]:
-    if category is None:
-        return ("tests/",)
-
-    tests_root = repo_root / "tests"
-    if category == "root":
-        return tuple(f"tests/{path.name}" for path in sorted(tests_root.glob("test_*.py")) if path.is_file())
-    return (f"tests/{category}/",)
+    return tuple(f"tests/{relpath}" for relpath in checked_in_test_relpaths(repo_root=repo_root, category=category))
 
 
 @cache

@@ -170,6 +170,9 @@ const RUNTIME_CATALOG_MANAGED_INSTALL_SURFACE_KEYS = new Set(RUNTIME_CATALOG_SCH
 const RUNTIME_MANAGED_INSTALL_SURFACE_DEFAULTS = Object.freeze(
   RUNTIME_CATALOG_SCHEMA.managed_install_surface_defaults
 );
+const RUNTIME_MANIFEST_METADATA_LIST_VALUE_KINDS = new Set(
+  RUNTIME_CATALOG_SCHEMA.manifest_metadata_list_value_kinds || []
+);
 const RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES = new Set(RUNTIME_CATALOG_SCHEMA.install_help_example_scopes);
 const RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS = new Set(
   RUNTIME_CATALOG_SCHEMA.launch_wrapper_permission_surface_kinds
@@ -198,6 +201,7 @@ const RUNTIME_CONFIG_SURFACE_LABEL_RE = /^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$/;
 const RUNTIME_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
 const RUNTIME_FLAG_RE = /^--[a-z0-9][a-z0-9-]*$/;
 const RUNTIME_ENV_VAR_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const MANIFEST_METADATA_KEY_RE = /^[a-z][a-z0-9_]*$/;
 const PYTHON_MODULE_RE = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/;
 const PYTHON_IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -721,6 +725,7 @@ function validateRuntimeCatalogSchemaShape(schemaPayload = RUNTIME_CATALOG_SCHEM
     "hook_payload_defaults",
     "managed_install_surface_keys",
     "managed_install_surface_defaults",
+    "manifest_metadata_list_value_kinds",
     "install_help_example_scopes",
     "launch_wrapper_permission_surface_kinds",
   ]);
@@ -789,6 +794,10 @@ function validateRuntimeCatalogSchemaShape(schemaPayload = RUNTIME_CATALOG_SCHEM
       managedInstallSurfaceDefaults: null,
     }
   );
+  requireStrictStringList(
+    schema.manifest_metadata_list_value_kinds,
+    "runtime catalog schema.manifest_metadata_list_value_kinds"
+  );
   return schema;
 }
 
@@ -849,6 +858,63 @@ function validateRuntimeCatalogManagedInstallSurface(managedInstallSurface, labe
     });
   }
   return validated;
+}
+
+function validateManifestMetadataItemAffix(value, label) {
+  const affix = requireStrictString(value, label);
+  if (affix.includes("/") || affix.includes("\\")) {
+    throw new Error(`${label} must not contain path separators`);
+  }
+  return affix;
+}
+
+function optionalManifestMetadataItemAffix(policy, fieldName, label) {
+  if (!Object.prototype.hasOwnProperty.call(policy, fieldName) || policy[fieldName] === null) {
+    return null;
+  }
+  return validateManifestMetadataItemAffix(policy[fieldName], label);
+}
+
+function validateRuntimeCatalogManifestMetadataListPolicies(policies, label) {
+  if (policies === undefined || policies === null) {
+    return [];
+  }
+  const payload = requireJsonArray(policies, label);
+  const allowedKeys = new Set(["key", "value_kind", "item_prefix", "item_suffix"]);
+  const seenKeys = new Set();
+  return payload.map((rawPolicy, index) => {
+    const policyLabel = `${label}[${index}]`;
+    const policy = requireJsonObject(rawPolicy, policyLabel);
+    requireKnownKeys(policy, allowedKeys, policyLabel);
+    requirePresentKeys(policy, ["key", "value_kind"], policyLabel);
+    const key = requireStrictPatternString(
+      policy.key,
+      `${policyLabel}.key`,
+      MANIFEST_METADATA_KEY_RE,
+      "a lowercase manifest metadata key"
+    );
+    if (seenKeys.has(key)) {
+      throw new Error(`${policyLabel}.key duplicates manifest metadata key ${JSON.stringify(key)}`);
+    }
+    seenKeys.add(key);
+
+    const valueKind = requireStrictEnumString(
+      policy.value_kind,
+      `${policyLabel}.value_kind`,
+      RUNTIME_MANIFEST_METADATA_LIST_VALUE_KINDS
+    );
+    const itemPrefix = optionalManifestMetadataItemAffix(policy, "item_prefix", `${policyLabel}.item_prefix`);
+    const itemSuffix = optionalManifestMetadataItemAffix(policy, "item_suffix", `${policyLabel}.item_suffix`);
+    if (valueKind !== "path_segment" && (itemPrefix !== null || itemSuffix !== null)) {
+      throw new Error(`${policyLabel}.item_prefix/item_suffix require value_kind=path_segment`);
+    }
+    return {
+      key,
+      value_kind: valueKind,
+      item_prefix: itemPrefix,
+      item_suffix: itemSuffix,
+    };
+  });
 }
 
 function validateRuntimeCatalogAttributionCoherence(capabilities, hookPayload, label) {
@@ -1000,6 +1066,10 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
     capabilities,
     hook_payload: hookPayload,
     managed_install_surface: managedInstallSurface,
+    manifest_metadata_list_policies: validateRuntimeCatalogManifestMetadataListPolicies(
+      payload.manifest_metadata_list_policies,
+      `${label}.manifest_metadata_list_policies`
+    ),
     manifest_file_prefixes: Object.prototype.hasOwnProperty.call(payload, "manifest_file_prefixes")
       ? requireRelativeCatalogPathList(payload.manifest_file_prefixes, `${label}.manifest_file_prefixes`, {
           allowEmpty: true,

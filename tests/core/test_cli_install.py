@@ -312,6 +312,7 @@ def gpd_root(tmp_path: Path) -> Path:
     )
     (root / "hooks" / "statusline.py").write_text("print('ok')\n", encoding="utf-8")
     (root / "hooks" / "check_update.py").write_text("print('ok')\n", encoding="utf-8")
+    (root / "hooks" / "notify.py").write_text("print('ok')\n", encoding="utf-8")
     for subdir in ("references", "templates", "workflows"):
         d = root / "specs" / subdir
         d.mkdir(parents=True)
@@ -886,6 +887,56 @@ def test_install_raw_finalize_failure_not_reported_as_installed(tmp_path: Path):
     payload = json.loads(result.output)
     assert payload["installed"] == []
     assert payload["failed"] == [{"runtime": _PRIMARY_INSTALL_DESCRIPTOR.runtime_name, "error": "finalize boom"}]
+
+
+def test_install_raw_finalizes_same_adapter_instance_used_for_install(tmp_path: Path) -> None:
+    """Deferred finalization must keep adapter instance state from install()."""
+    descriptor = _PRIMARY_INSTALL_DESCRIPTOR
+    target = _install_target(tmp_path, descriptor)
+    gpd_root = tmp_path / "gpd-root"
+    instances: list[object] = []
+
+    class SpyAdapter:
+        runtime_name = descriptor.runtime_name
+        display_name = descriptor.display_name
+        config_dir_name = descriptor.config_dir_name
+        help_command = _install_adapter(descriptor).help_command
+
+        def __init__(self) -> None:
+            self.installed = False
+            self.finalized = False
+            instances.append(self)
+
+        def resolve_target_dir(self, is_global, cwd=None):
+            return target
+
+        def install(self, gpd_root_arg, target_dir, *, is_global=False, explicit_target=False):
+            assert gpd_root_arg == gpd_root
+            assert target_dir == target
+            self.installed = True
+            return {"runtime": descriptor.runtime_name, "commands": 0, "agents": 0, "target": str(target)}
+
+        def finalize_install(self, install_result, *, force_statusline=False):
+            if not self.installed:
+                raise AssertionError("finalized a different adapter instance")
+            self.finalized = True
+
+    with (
+        patch("gpd.adapters.get_adapter", side_effect=lambda _runtime: SpyAdapter()),
+        patch("gpd.version.resolve_install_gpd_root", return_value=gpd_root),
+        patch("gpd.cli._get_cwd", return_value=tmp_path),
+    ):
+        result = runner.invoke(
+            app,
+            ["--raw", "install", descriptor.runtime_name, "--local", "--skip-readiness-check"],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["failed"] == []
+    assert "__gpd_install_adapter_instance__" not in json.dumps(payload)
+    assert any(getattr(instance, "installed", False) and getattr(instance, "finalized", False) for instance in instances)
 
 
 def test_install_human_reports_failures_after_progress_exits(tmp_path: Path):

@@ -14,6 +14,7 @@ import platform
 import re
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -801,12 +802,14 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
     compile_errors: list[str] = []
     fatal_errors: list[str] = []
     pdf_path = output_dir / f"{tex_path.stem}.pdf"
+    autofix_scratch_tex_path: Path | None = None
+    autofix_scratch_pdf_path: Path | None = None
 
-    def pdf_build_signature() -> tuple[int, int] | None:
-        if not pdf_path.exists():
+    def pdf_build_signature(path: Path = pdf_path) -> tuple[int, int] | None:
+        if not path.exists():
             return None
         try:
-            stat = pdf_path.stat()
+            stat = path.stat()
         except OSError:
             return None
         return stat.st_size, stat.st_mtime_ns
@@ -821,11 +824,48 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
             if fatal:
                 fatal_errors.append(error)
 
-    def fresh_pdf_was_generated(initial_signature: tuple[int, int] | None) -> bool:
-        current_signature = pdf_build_signature()
+    def fresh_pdf_was_generated(
+        initial_signature: tuple[int, int] | None,
+        path: Path = pdf_path,
+    ) -> bool:
+        current_signature = pdf_build_signature(path)
         if current_signature is None:
             return False
         return initial_signature is None or current_signature != initial_signature
+
+    def write_autofix_scratch(content: str) -> Path:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            suffix=".tex",
+            prefix=f".{tex_path.stem}-gpd-autofix-",
+            dir=tex_path.parent,
+            delete=False,
+        ) as handle:
+            handle.write(content)
+            return Path(handle.name)
+
+    def cleanup_autofix_scratch(scratch_tex_path: Path, scratch_pdf_path: Path | None = None) -> None:
+        scratch_output_dir = output_dir
+        scratch_stem = scratch_tex_path.stem
+        scratch_paths = [
+            scratch_tex_path,
+            scratch_output_dir / f"{scratch_stem}.aux",
+            scratch_output_dir / f"{scratch_stem}.bbl",
+            scratch_output_dir / f"{scratch_stem}.blg",
+            scratch_output_dir / f"{scratch_stem}.fdb_latexmk",
+            scratch_output_dir / f"{scratch_stem}.fls",
+            scratch_output_dir / f"{scratch_stem}.log",
+            scratch_output_dir / f"{scratch_stem}.out",
+            scratch_output_dir / f"{scratch_stem}.synctex.gz",
+        ]
+        if scratch_pdf_path is not None:
+            scratch_paths.append(scratch_pdf_path)
+        for path in scratch_paths:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                logger.debug("Could not remove autofix scratch artifact %s", path, exc_info=True)
 
     def aux_requires_bibliography(aux_path: Path) -> bool:
         try:
@@ -881,34 +921,56 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         tex_content = await asyncio.to_thread(tex_path.read_text, encoding="utf-8")
         fix_result = try_autofix(tex_content, combined_log)
         if fix_result.was_modified and fix_result.fixed_content:
-            await asyncio.to_thread(tex_path.write_text, fix_result.fixed_content, encoding="utf-8")
-            logger.info("Applied autofix: %s", fix_result.fixes_applied)
-            autofix_initial_pdf_signature = pdf_build_signature()
+            autofix_scratch_tex_path = await asyncio.to_thread(write_autofix_scratch, fix_result.fixed_content)
+            scratch_tex_path = autofix_scratch_tex_path
+            autofix_scratch_pdf_path = output_dir / f"{scratch_tex_path.stem}.pdf"
+            scratch_pdf_path = autofix_scratch_pdf_path
+            logger.info("Testing autofix on scratch TeX: %s", fix_result.fixes_applied)
+            autofix_initial_pdf_signature = pdf_build_signature(scratch_pdf_path)
+            autofix_base_cmd = [
+                compiler_path,
+                "-interaction=nonstopmode",
+                f"-output-directory={output_dir}",
+                str(scratch_tex_path),
+            ]
+            autofix_aux_path = output_dir / f"{scratch_tex_path.stem}.aux"
 
             combined_log_parts = []
             compile_errors = []
             fatal_errors = []
 
-            returncode, log = await run_cmd(base_cmd, cwd)
+            returncode, log = await run_cmd(autofix_base_cmd, cwd)
             record_result("pdflatex autofix pass 1", returncode, log)
-            if bibtex and aux_path.exists():
-                returncode, log = await run_cmd([bibtex, str(aux_path)], cwd)
+            if bibtex and autofix_aux_path.exists():
+                returncode, log = await run_cmd([bibtex, str(autofix_aux_path)], cwd)
                 record_result("bibtex autofix", returncode, log, fatal=True)
             if not bibtex:
+                aux_path = autofix_aux_path
                 record_missing_bibtex_requirement()
-            returncode, log = await run_cmd(base_cmd, cwd)
+            returncode, log = await run_cmd(autofix_base_cmd, cwd)
             record_result("pdflatex autofix pass 2", returncode, log)
-            returncode, log = await run_cmd(base_cmd, cwd)
+            returncode, log = await run_cmd(autofix_base_cmd, cwd)
             record_result("pdflatex autofix pass 3", returncode, log)
-            if fresh_pdf_was_generated(autofix_initial_pdf_signature) and (
+            if fresh_pdf_was_generated(autofix_initial_pdf_signature, scratch_pdf_path) and (
                 not compile_errors or (returncode == 0 and not fatal_errors)
             ):
+                await asyncio.to_thread(shutil.copy2, scratch_pdf_path, pdf_path)
+                await asyncio.to_thread(tex_path.write_text, fix_result.fixed_content, encoding="utf-8")
+                await asyncio.to_thread(cleanup_autofix_scratch, scratch_tex_path, scratch_pdf_path)
+                logger.info("Applied autofix: %s", fix_result.fixes_applied)
                 return CompilationResult(success=True, pdf_path=pdf_path)
+            await asyncio.to_thread(cleanup_autofix_scratch, scratch_tex_path, scratch_pdf_path)
 
         error = fatal_errors[0] if fatal_errors else compile_errors[0] if compile_errors else "Compilation failed"
         return CompilationResult(success=False, error=error, log="".join(combined_log_parts)[-5000:])
 
     except TimeoutError:
+        if autofix_scratch_tex_path is not None:
+            await asyncio.to_thread(
+                cleanup_autofix_scratch,
+                autofix_scratch_tex_path,
+                autofix_scratch_pdf_path,
+            )
         return CompilationResult(success=False, error="Compilation timed out")
 
 

@@ -587,3 +587,13 @@ def test_install_metadata_keeps_manifest_boundary_free_of_install_utils_imports(
     assert "import gpd.adapters.install_utils as" not in source
     assert "get_managed_install_surface_policy" in source
     assert "get_shared_install_metadata" in source
+
+
+def test_install_metadata_uses_catalog_manifest_metadata_policies() -> None:
+    import gpd.hooks.install_metadata as install_metadata
+
+    source = inspect.getsource(install_metadata)
+
+    assert "get_manifest_metadata_list_policies" in source
+    assert "codex_generated_skill_dirs" not in source
+    assert "opencode_generated_command_files" not in source

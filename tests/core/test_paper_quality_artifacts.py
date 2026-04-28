@@ -264,6 +264,68 @@ comparison_verdicts:
     assert result.results.decisive_artifacts_benchmark_anchored.satisfied == 1
 
 
+@pytest.mark.parametrize(
+    "figure_registry_yaml",
+    [
+        """
+  - id: fig-drift
+    label: benchmark
+    path: paper/figures/benchmark.pdf
+    unexpected_schema_key: stale
+""",
+        """
+  - id: fig-drift
+    label: benchmark
+    path: paper/figures/benchmark.pdf
+    contract_ids: claim-benchmark
+""",
+        """
+  - not-a-mapping
+""",
+        "\n",
+        " null\n",
+    ],
+)
+def test_build_paper_quality_input_surfaces_figure_tracker_schema_drift(
+    tmp_path: Path,
+    figure_registry_yaml: str,
+) -> None:
+    _write(
+        tmp_path / "paper" / "figure_drift.tex",
+        r"""
+\documentclass{article}
+\begin{document}
+\begin{abstract}
+Figure tracker drift.
+\end{abstract}
+\section{Introduction}
+Intro.
+\section{Conclusion}
+Done.
+\end{document}
+""".strip()
+        + "\n",
+    )
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps(_paper_config_payload("Figure Drift", "jhep", output_filename="figure_drift")),
+    )
+    _write(
+        tmp_path / "paper" / "FIGURE_TRACKER.md",
+        f"""---
+figure_registry:{figure_registry_yaml}
+---
+
+# Figure Tracker
+""",
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.journal_extra_checks["figure_tracker_parse_ok"] is False
+    assert result.figures.axes_labeled_with_units.total == 0
+
+
 def test_build_paper_quality_input_preserves_project_local_contract_anchors_through_verified_ledgers(
     tmp_path: Path,
 ) -> None:
