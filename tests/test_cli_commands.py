@@ -5673,7 +5673,24 @@ class TestReviewValidationCommands:
                     "partial_sources": 1,
                     "unverified_sources": 0,
                     "failed_sources": 0,
-                    "entries": [],
+                    "entries": [
+                        {
+                            "key": "einstein1905",
+                            "source_type": "paper",
+                            "reference_id": "ref-einstein",
+                            "title": "Relativity",
+                            "resolution_status": "provided",
+                            "verification_status": "verified",
+                        },
+                        {
+                            "key": "pending2026",
+                            "source_type": "paper",
+                            "reference_id": "ref-pending",
+                            "title": "Pending Reference",
+                            "resolution_status": "incomplete",
+                            "verification_status": "partial",
+                        },
+                    ],
                 }
             ),
             encoding="utf-8",
@@ -5690,6 +5707,53 @@ class TestReviewValidationCommands:
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["bibliography_audit"]["passed"] is True
         assert checks["bibliography_audit_clean"]["passed"] is False
+
+    def test_review_preflight_peer_review_strict_rejects_incoherent_clean_bibliography_audit(
+        self, gpd_project: Path
+    ) -> None:
+        paper_dir = gpd_project / "paper"
+        (paper_dir / "BIBLIOGRAPHY-AUDIT.json").write_text(
+            json.dumps(
+                {
+                    "generated_at": "2026-03-10T00:00:00+00:00",
+                    "total_sources": 1,
+                    "resolved_sources": 1,
+                    "partial_sources": 0,
+                    "unverified_sources": 0,
+                    "failed_sources": 0,
+                    "entries": [
+                        {
+                            "key": "doe2024",
+                            "source_type": "paper",
+                            "reference_id": "ref-doe",
+                            "title": "Unverified Reference",
+                            "resolution_status": "provided",
+                            "verification_status": "unverified",
+                            "verification_sources": [],
+                            "canonical_identifiers": [],
+                            "missing_core_fields": [],
+                            "enriched_fields": [],
+                            "warnings": [],
+                            "errors": [],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "peer-review", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["bibliography_audit_clean"]["passed"] is False
+        assert "bibliography audit is invalid" in checks["bibliography_audit_clean"]["detail"]
+        assert "summary counts do not match entries" in checks["bibliography_audit_clean"]["detail"]
 
     def test_review_preflight_peer_review_strict_rejects_invalid_bibliography_audit_shape(
         self, gpd_project: Path
@@ -6127,7 +6191,24 @@ class TestReviewValidationCommands:
                     "partial_sources": 1,
                     "unverified_sources": 0,
                     "failed_sources": 0,
-                    "entries": [],
+                    "entries": [
+                        {
+                            "key": "einstein1905",
+                            "source_type": "paper",
+                            "reference_id": "ref-einstein",
+                            "title": "Relativity",
+                            "resolution_status": "provided",
+                            "verification_status": "verified",
+                        },
+                        {
+                            "key": "pending2026",
+                            "source_type": "paper",
+                            "reference_id": "ref-pending",
+                            "title": "Pending Reference",
+                            "resolution_status": "incomplete",
+                            "verification_status": "partial",
+                        },
+                    ],
                 }
             ),
             encoding="utf-8",

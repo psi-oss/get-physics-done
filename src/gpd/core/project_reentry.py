@@ -64,6 +64,7 @@ class ProjectReentryCandidate(BaseModel):
     source_session_id: str | None = None
     source_segment_id: str | None = None
     source_transition_id: str | None = None
+    source_event_id: str | None = None
     source_recorded_at: str | None = None
     recovery_phase: str | None = None
     recovery_plan: str | None = None
@@ -302,6 +303,7 @@ def _candidate_from_recent_row(row: Mapping[str, object]) -> ProjectReentryCandi
         source_session_id=_normalize_recent_text(row, "source_session_id"),
         source_segment_id=_normalize_recent_text(row, "source_segment_id"),
         source_transition_id=_normalize_recent_text(row, "source_transition_id"),
+        source_event_id=_normalize_recent_text(row, "source_event_id"),
         source_recorded_at=_normalize_recent_text(row, "source_recorded_at"),
         recovery_phase=_normalize_recent_text(row, "recovery_phase"),
         recovery_plan=_normalize_recent_text(row, "recovery_plan"),

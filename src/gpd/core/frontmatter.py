@@ -503,7 +503,7 @@ def validate_knowledge_frontmatter(
                         errors.append(
                             f"knowledge.sources[{index}].source_artifacts[{artifact_index}]: expected a non-empty string"
                         )
-                    elif _is_absolute_path(artifact):
+                    elif _is_absolute_path(artifact) or _has_parent_path_component(artifact):
                         errors.append(
                             f"knowledge.sources[{index}].source_artifacts[{artifact_index}]: must be project-relative"
                         )
@@ -640,7 +640,15 @@ def _is_absolute_path(path_text: str) -> bool:
     """
     if path_text.startswith("/"):
         return True
+    if re.match(r"^[A-Za-z]:[\\/]", path_text):
+        return True
+    if path_text.startswith("\\\\"):
+        return True
     return Path(path_text).is_absolute()
+
+
+def _has_parent_path_component(path_text: str) -> bool:
+    return any(part == ".." for part in path_text.replace("\\", "/").split("/"))
 
 
 _KNOWLEDGE_STATUS_VALUES = ("draft", "in_review", "stable", "superseded")
@@ -750,7 +758,7 @@ def _validate_knowledge_project_relative_path(
         errors.append(f"knowledge.review.{field_name}: expected a non-empty string")
         return None
     stripped = value.strip()
-    if _is_absolute_path(stripped):
+    if _is_absolute_path(stripped) or _has_parent_path_component(stripped):
         errors.append(f"knowledge.review.{field_name}: must be a project-relative path")
         return None
     return stripped
@@ -799,10 +807,7 @@ def _validate_knowledge_review_block(
         errors.append("knowledge.review.review_round: expected an integer >= 1")
     _validate_knowledge_project_relative_path(review, "approval_artifact_path", errors)
     _validate_knowledge_sha256_field(review, "approval_artifact_sha256", errors)
-    if _validate_knowledge_sha256_field(review, "reviewed_content_sha256", errors) is None and review.get(
-        "reviewed_content_sha256"
-    ) is not None:
-        errors.append("knowledge.review.approval_artifact_sha256: expected a lowercase 64-hex sha256 digest")
+    reviewed_content_sha256 = _validate_knowledge_sha256_field(review, "reviewed_content_sha256", errors)
     stale = review.get("stale")
     if type(stale) is not bool:
         errors.append("knowledge.review.stale: expected a boolean")
@@ -816,13 +821,7 @@ def _validate_knowledge_review_block(
         elif status == "stable":
             if review.get("stale") is not False:
                 errors.append("knowledge.review.stale: approved stable docs must be marked stale: false")
-            if not isinstance(review.get("approval_artifact_path"), str) or not review.get("approval_artifact_path", "").strip():
-                errors.append("knowledge.review.approval_artifact_path: expected a project-relative path")
-            if not _is_lower_hex_sha256(review.get("approval_artifact_sha256")):
-                errors.append("knowledge.review.approval_artifact_sha256: expected a lowercase 64-hex sha256 digest")
-            if not _is_lower_hex_sha256(review.get("reviewed_content_sha256")):
-                errors.append("knowledge.review.reviewed_content_sha256: expected a lowercase 64-hex sha256 digest")
-            if review.get("reviewed_content_sha256") is not None and review.get("reviewed_content_sha256") != current_content_sha256:
+            if reviewed_content_sha256 is not None and reviewed_content_sha256 != current_content_sha256:
                 errors.append(
                     "knowledge.review.reviewed_content_sha256 does not match the current trusted content hash"
                 )

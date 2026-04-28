@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import abc
+import fnmatch
 import json
 import logging
 import os
@@ -38,7 +39,12 @@ from gpd.adapters.install_utils import (
     write_manifest,
     write_version_file,
 )
-from gpd.adapters.runtime_catalog import get_runtime_descriptor, get_shared_install_metadata, resolve_global_config_dir
+from gpd.adapters.runtime_catalog import (
+    get_managed_install_surface_policy,
+    get_runtime_descriptor,
+    get_shared_install_metadata,
+    resolve_global_config_dir,
+)
 from gpd.adapters.tool_names import (
     build_runtime_alias_map,
     reference_translation_map,
@@ -58,21 +64,47 @@ def _managed_install_surface(target_dir: Path):
     return inspect_managed_install_surface(target_dir)
 
 
-def _remove_gpd_flat_command_residue(flat_commands: Path, *, stop_at: Path) -> int:
-    """Remove managed flat command files and prune empty command directories."""
-    removed = 0
-    try:
-        entries = list(flat_commands.iterdir())
-    except OSError:
-        return 0
+def _catalog_command_surface_label(pattern: str) -> str:
+    """Return a stable missing-artifact label for a catalog command glob."""
+    normalized = pattern.replace("\\", "/")
+    if "/**" in normalized:
+        label = normalized.split("/**", 1)[0].rstrip("/")
+        if label:
+            return label
+    return normalized
 
-    for entry in entries:
-        if not entry.is_file():
+
+def _catalog_globs_have_files(target_dir: Path, patterns: tuple[str, ...]) -> bool:
+    """Return whether any catalog glob selects an installed file."""
+    try:
+        for pattern in patterns:
+            for match in target_dir.glob(pattern):
+                if match.is_file():
+                    return True
+                if match.is_dir() and _dir_contains_files(match):
+                    return True
+    except OSError:
+        return False
+    return False
+
+
+def _remove_gpd_flat_command_residue(target_dir: Path, patterns: tuple[str, ...], *, stop_at: Path) -> int:
+    """Remove catalog-owned flat command files and prune empty command directories."""
+    removed = 0
+    parents: set[Path] = set()
+    for pattern in patterns:
+        try:
+            entries = list(target_dir.glob(pattern))
+        except OSError:
             continue
-        if entry.name.startswith("gpd-") and entry.suffix == ".md":
+        for entry in entries:
+            if not entry.is_file():
+                continue
             entry.unlink()
             removed += 1
-    prune_empty_ancestors(flat_commands, stop_at=stop_at)
+            parents.add(entry.parent)
+    for parent in sorted(parents, key=lambda path: len(path.parts), reverse=True):
+        prune_empty_ancestors(parent, stop_at=stop_at)
     return removed
 
 
@@ -367,6 +399,21 @@ class RuntimeAdapter(abc.ABC):
         for relpath in self.install_completeness_relpaths():
             if not (target_dir / relpath).exists():
                 missing.append(relpath)
+        try:
+            command_policy = get_managed_install_surface_policy(self.runtime_name)
+        except KeyError:
+            command_policy = None
+        if command_policy is not None:
+            for pattern in (*command_policy.nested_command_globs, *command_policy.flat_command_globs):
+                if not _catalog_globs_have_files(target_dir, (pattern,)):
+                    missing.append(_catalog_command_surface_label(pattern))
+            manifest_files = self._read_install_manifest(target_dir).get("files")
+            tracked_paths = tuple(str(path) for path in manifest_files) if isinstance(manifest_files, dict) else ()
+            for pattern in command_policy.managed_agent_globs:
+                if not any(fnmatch.fnmatchcase(path, pattern) for path in tracked_paths):
+                    continue
+                if not _catalog_globs_have_files(target_dir, (pattern,)):
+                    missing.append(_catalog_command_surface_label(pattern))
         return tuple(missing)
 
     def install_verification_relpaths(self) -> tuple[str, ...]:
@@ -623,6 +670,23 @@ class RuntimeAdapter(abc.ABC):
         """Validate runtime-owned config before install mutates GPD files."""
         del target_dir, is_global
 
+    def _project_cwd_for_runtime_config(self, target_dir: Path, is_global: bool) -> Path | None:
+        """Return the project cwd whose runtime-adjacent config may be read."""
+        if is_global or getattr(self, "_install_explicit_target", False):
+            return None
+        return target_dir.parent
+
+    def _preflight_project_integrations_config(self, target_dir: Path, is_global: bool) -> None:
+        """Validate project-owned optional integration config before copying files."""
+        project_cwd = self._project_cwd_for_runtime_config(target_dir, is_global)
+        if project_cwd is None:
+            return
+
+        from gpd.mcp import managed_integrations as _managed_integrations
+
+        for integration in _managed_integrations.list_managed_integrations().values():
+            integration.project_record(project_cwd)
+
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         """Install commands in runtime-specific format.
 
@@ -745,9 +809,16 @@ class RuntimeAdapter(abc.ABC):
                 removed.append(f"{COMMANDS_DIR_NAME}/gpd/")
 
             # Remove flat command/ directory used by some runtimes.
-            flat_commands = target_dir / FLAT_COMMANDS_DIR_NAME
-            if flat_commands.is_dir():
-                removed_flat_commands = _remove_gpd_flat_command_residue(flat_commands, stop_at=target_dir)
+            try:
+                flat_command_globs = get_managed_install_surface_policy(self.runtime_name).flat_command_globs
+            except KeyError:
+                flat_command_globs = ()
+            if flat_command_globs:
+                removed_flat_commands = _remove_gpd_flat_command_residue(
+                    target_dir,
+                    flat_command_globs,
+                    stop_at=target_dir,
+                )
                 if removed_flat_commands:
                     removed.append(f"{removed_flat_commands} flat GPD commands")
 

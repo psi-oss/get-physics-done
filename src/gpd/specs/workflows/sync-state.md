@@ -20,9 +20,11 @@ if [ $? -ne 0 ]; then
   echo "ERROR: gpd sync-state bootstrap failed: $SYNC_BOOTSTRAP_INIT"
   # STOP - display the error to the user and do not proceed.
 fi
+export PROJECT_ROOT
+PROJECT_ROOT=$(echo "$SYNC_BOOTSTRAP_INIT" | gpd json get .project_root)
 ```
 
-Use `sync_bootstrap.required_init_fields` from `SYNC_BOOTSTRAP_INIT`. Do not re-probe `GPD/STATE.md`, `GPD/state.json`, or `GPD/state.json.bak` by hand during routing.
+Use `sync_bootstrap.required_init_fields` from `SYNC_BOOTSTRAP_INIT`. Use `project_root` from the init payload as the only write/read root; do not use the shell launch directory. Do not re-probe `GPD/STATE.md`, `GPD/state.json`, or `GPD/state.json.bak` by hand during routing.
 
 **If `state_md_exists` and `state_json_exists` are both false:**
 
@@ -51,9 +53,10 @@ Recover `state.json` from the markdown recovery source and preserve the JSON-onl
 ```bash
 uv run python - <<'PY'
 from pathlib import Path
+import os
 from gpd.core.state import save_state_markdown
 
-cwd = Path(".")
+cwd = Path(os.environ["PROJECT_ROOT"])
 md_path = cwd / "GPD" / "STATE.md"
 save_state_markdown(cwd, md_path.read_text(encoding="utf-8"))
 PY
@@ -81,9 +84,10 @@ Use `single_source_recovery.required_init_fields` from `SINGLE_SOURCE_RECOVERY_I
 uv run python - <<'PY'
 import json
 from pathlib import Path
+import os
 from gpd.core.state import save_state_json
 
-cwd = Path(".")
+cwd = Path(os.environ["PROJECT_ROOT"])
 state = json.loads((cwd / "GPD" / "state.json").read_text(encoding="utf-8"))
 save_state_json(cwd, state)
 PY
@@ -166,9 +170,10 @@ Regenerate `STATE.md` from `state.json`:
 uv run python - <<'PY'
 import json
 from pathlib import Path
+import os
 from gpd.core.state import save_state_json
 
-cwd = Path(".")
+cwd = Path(os.environ["PROJECT_ROOT"])
 state = json.loads((cwd / "GPD" / "state.json").read_text(encoding="utf-8"))
 save_state_json(cwd, state)
 PY
@@ -181,9 +186,10 @@ Recover `state.json` from `STATE.md` through the authoritative markdown write pa
 ```bash
 uv run python - <<'PY'
 from pathlib import Path
+import os
 from gpd.core.state import save_state_markdown
 
-cwd = Path(".")
+cwd = Path(os.environ["PROJECT_ROOT"])
 md_path = cwd / "GPD" / "STATE.md"
 save_state_markdown(cwd, md_path.read_text(encoding="utf-8"))
 PY

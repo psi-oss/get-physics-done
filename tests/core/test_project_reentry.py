@@ -74,6 +74,7 @@ def _recent_row(
         row.update(
             {
                 "source_kind": "continuation.bounded_segment",
+                "source_event_id": f"event-{project_root.name}",
                 "source_segment_id": f"segment-{project_root.name}",
                 "source_transition_id": f"transition-{project_root.name}",
                 "source_recorded_at": last_session_at,
@@ -390,6 +391,7 @@ def test_resolve_project_reentry_exposes_selected_candidate_metadata_for_bounded
     assert resolution.selected_candidate.resume_target_recorded_at == "2026-03-28T12:00:00+00:00"
     assert resolution.selected_candidate.summary == "last seen 2026-03-28T12:00:00+00:00; stopped at Phase 02; resume file ready"
     assert resolution.selected_candidate.source_kind == "continuation.bounded_segment"
+    assert resolution.selected_candidate.source_event_id == f"event-{project.name}"
     assert resolution.selected_candidate.source_segment_id == f"segment-{project.name}"
     assert resolution.selected_candidate.source_transition_id == f"transition-{project.name}"
     assert resolution.selected_candidate.recovery_phase == "02"

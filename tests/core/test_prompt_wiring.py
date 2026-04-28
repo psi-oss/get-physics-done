@@ -2259,7 +2259,7 @@ def test_workflows_surface_structured_proof_review_statuses() -> None:
     arxiv_submission = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
 
     assert "phase_proof_review_status" in verify_workflow
-    assert "structured freshness summary for the phase proof-review manifest" in verify_workflow
+    assert "proof-review freshness summary" in verify_workflow
     assert "derived_manuscript_proof_review_status" in verify_phase
     assert "manuscript-local proof-bearing artifact" in verify_phase
     assert "derived_manuscript_proof_review_status" in write_paper
@@ -3005,10 +3005,10 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     assert "effective_reference_intake" in peer_review
     assert "project_contract_validation" in peer_review
     assert "project_contract_load_info" in peer_review
-    assert (
-        "Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation};"
-        in peer_review
-    )
+    assert "Build one compact `REVIEW_CARRY_FORWARD` packet before spawning panel stages." in peer_review
+    assert "Carry-forward packet: {REVIEW_CARRY_FORWARD}" in peer_review
+    assert "Do not repeat full contract/reference payloads in every child prompt." in peer_review
+    assert "reference artifacts content {reference_artifacts_content}" not in peer_review
     contract_gate_note = (
         "Treat `project_contract_gate` as authoritative. Use `project_contract` and `contract_intake` only when "
         "`project_contract_gate.authoritative` is true; otherwise keep them as diagnostics/context and rely on "
@@ -3536,17 +3536,20 @@ def test_verify_work_workflow_uses_body_only_subject_kind_fields() -> None:
     assert "check_subject_kind: [claim | deliverable | acceptance_test | reference]" not in verify_work
     assert "{phase}" not in verify_work
     assert "GPD/phases/{phase_dir}" not in verify_work
-    assert "Write to `${phase_dir}/${phase_number}-VERIFICATION.md`" in verify_work
+    assert "Write to `${PHASE_DIR_ABS}/${phase_number}-VERIFICATION.md`" in verify_work
     assert (
         "Changed verification files fail `gpd pre-commit-check` when this header is missing or mismatched against the active lock."
         in verify_work
     )
-    assert 'gpd validate verification-contract "${phase_dir}/${phase_number}-VERIFICATION.md"' in verify_work
+    assert 'gpd validate verification-contract "${PHASE_DIR_ABS}/${phase_number}-VERIFICATION.md"' in verify_work
     assert (
-        'gpd commit "verify(${phase_number}): complete research validation - {passed} passed, {issues} issues" --files "${phase_dir}/${phase_number}-VERIFICATION.md"'
+        'gpd commit "verify(${phase_number}): complete research validation - {passed} passed, {issues} issues" --files "${PHASE_DIR_ABS}/${phase_number}-VERIFICATION.md"'
         in verify_work
     )
-    assert "Read all PLAN.md files in ${phase_dir}/ using the file_read tool." in verify_work
+    assert "Use `phase_dir_abs` for shell/file IO" in verify_work
+    assert "Read all PLAN.md files in `${PHASE_DIR_ABS}/` using the file_read tool." in verify_work
+    assert "${phase_dir}/" not in verify_work
+    assert "{phase_dir}/" not in verify_work
     assert (
         "\nsubject_kind: [claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check]"
         not in verify_work
@@ -3565,15 +3568,9 @@ def test_verify_work_active_sessions_use_canonical_verification_path_and_keep_st
     verify_work = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
 
     assert 'gpd frontmatter get "$file" --field session_status' in verify_work
-    assert (
-        "Only treat files whose frontmatter `session_status` is `validating` or `diagnosed` as active researcher sessions."
-        in verify_work
-    )
-    assert (
-        "extract canonical verification `status`, `session_status`, `phase`, and the Current Check section"
-        in verify_work
-    )
-    assert "`session_status` replace or overwrite the canonical verification `status`" in verify_work
+    assert "Active sessions are files with frontmatter `session_status` of `validating` or `diagnosed`." in verify_work
+    assert "Read frontmatter for canonical `status`, `session_status`, `phase`, and Current Check" in verify_work
+    assert "never let `session_status` overwrite `status`" in verify_work
     assert "`session_status` if present, otherwise `status`" not in verify_work
 
 
@@ -4516,11 +4513,8 @@ def test_publication_workflows_refresh_bibliography_audit_after_bibliography_cha
         encoding="utf-8"
     )
 
-    assert (
-        "`gpd paper-build` is the authoritative step that regenerates `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`"
-        in write_paper
-    )
-    assert "the derived `reference_id -> bibtex_key` bridge" in write_paper
+    assert "`gpd paper-build` regenerates `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`" in write_paper
+    assert "the `reference_id -> bibtex_key` bridge" in write_paper
     assert (
         "Prefer the `reference_id -> bibtex_key` mapping surfaced by `gpd paper-build` over reconstructing manuscript keys manually from prose or source ordering"
         in write_paper

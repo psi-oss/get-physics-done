@@ -117,7 +117,7 @@ RESUME_WORK_INIT_FIELDS = frozenset(
 )
 SYNC_STATE_INIT_FIELDS = frozenset(
     {
-        "prefer_mode",
+        "project_root",
         "state_md_exists",
         "state_json_exists",
         "state_json_backup_exists",
@@ -701,8 +701,10 @@ VERIFY_WORK_BASE_INIT_FIELDS = frozenset(
         "commit_docs",
         "autonomy",
         "research_mode",
+        "project_root",
         "phase_found",
         "phase_dir",
+        "phase_dir_abs",
         "phase_number",
         "phase_name",
         "has_verification",

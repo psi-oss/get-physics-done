@@ -384,7 +384,7 @@ def test_validate_frontmatter_rejects_stable_without_required_review_fields(
             _review_block(
                 reviewed_content_sha256="A" * 64,
             ),
-            "approval_artifact_sha256",
+            "reviewed_content_sha256",
         ),
         (
             _review_block(
@@ -424,6 +424,172 @@ def test_validate_frontmatter_rejects_stable_review_with_absolute_artifact_path(
 
     assert result.valid is False
     assert any("approval_artifact_path" in error for error in result.errors)
+
+
+@pytest.mark.parametrize(
+    "artifact_path",
+    [
+        r"C:\Users\researcher\K-renormalization-group-fixed-points-R1-REVIEW.md",
+        "C:/Users/researcher/K-renormalization-group-fixed-points-R1-REVIEW.md",
+        r"\\server\share\K-renormalization-group-fixed-points-R1-REVIEW.md",
+    ],
+)
+def test_validate_frontmatter_rejects_windows_absolute_artifact_paths_on_posix(
+    artifact_path: str,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "K-renormalization-group-fixed-points.md"
+    content = _knowledge_markdown(
+        status="stable",
+        review=_review_block(
+            reviewed_content_sha256=_stable_reviewed_content_sha256(),
+            approval_artifact_path=artifact_path,
+        ),
+    )
+    path.write_text(content, encoding="utf-8")
+
+    result = validate_frontmatter(content, "knowledge", source_path=path)
+
+    assert result.valid is False
+    assert "knowledge.review.approval_artifact_path: must be a project-relative path" in result.errors
+
+
+def test_validate_frontmatter_rejects_parent_relative_review_artifact_paths(tmp_path: Path) -> None:
+    path = tmp_path / "K-renormalization-group-fixed-points.md"
+    content = _knowledge_markdown(
+        status="stable",
+        review=_review_block(
+            reviewed_content_sha256=_stable_reviewed_content_sha256(),
+            approval_artifact_path="../outside/review.md",
+        ),
+    )
+    path.write_text(content, encoding="utf-8")
+
+    result = validate_frontmatter(content, "knowledge", source_path=path)
+
+    assert result.valid is False
+    assert "knowledge.review.approval_artifact_path: must be a project-relative path" in result.errors
+
+
+def test_validate_frontmatter_rejects_windows_absolute_source_artifact_paths_on_posix(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "K-renormalization-group-fixed-points.md"
+    content = _knowledge_markdown(
+        sources=r"""
+sources:
+  - source_id: source-main
+    kind: paper
+    locator: Doe et al., 2024
+    title: Renormalization Group Fixed Points
+    why_it_matters: Reviewed source that anchors the topic
+    source_artifacts:
+      - \\server\share\source.pdf
+""".strip(),
+    )
+    path.write_text(content, encoding="utf-8")
+
+    result = validate_frontmatter(content, "knowledge", source_path=path)
+
+    assert result.valid is False
+    assert "knowledge.sources[0].source_artifacts[0]: must be project-relative" in result.errors
+
+
+def test_validate_frontmatter_rejects_parent_relative_source_artifact_paths(tmp_path: Path) -> None:
+    path = tmp_path / "K-renormalization-group-fixed-points.md"
+    content = _knowledge_markdown(
+        sources="""
+sources:
+  - source_id: source-main
+    kind: paper
+    locator: Doe et al., 2024
+    title: Renormalization Group Fixed Points
+    why_it_matters: Reviewed source that anchors the topic
+    source_artifacts:
+      - ../outside/source.pdf
+""".strip(),
+    )
+    path.write_text(content, encoding="utf-8")
+
+    result = validate_frontmatter(content, "knowledge", source_path=path)
+
+    assert result.valid is False
+    assert "knowledge.sources[0].source_artifacts[0]: must be project-relative" in result.errors
+
+
+def test_strict_knowledge_runtime_rejects_windows_absolute_source_artifact_paths() -> None:
+    content = _knowledge_markdown(
+        sources=r"""
+sources:
+  - source_id: source-main
+    kind: paper
+    locator: Doe et al., 2024
+    title: Renormalization Group Fixed Points
+    why_it_matters: Reviewed source that anchors the topic
+    source_artifacts:
+      - C:\Users\researcher\source.pdf
+""".strip(),
+    )
+    meta, _body = extract_frontmatter(content)
+
+    with pytest.raises(ValueError, match="source_artifacts entry must be a project-relative path"):
+        knowledge_docs_module.parse_knowledge_doc_data_strict(meta)
+
+
+def test_strict_knowledge_runtime_rejects_backslash_parent_source_artifact_paths() -> None:
+    content = _knowledge_markdown(
+        sources=r"""
+sources:
+  - source_id: source-main
+    kind: paper
+    locator: Doe et al., 2024
+    title: Renormalization Group Fixed Points
+    why_it_matters: Reviewed source that anchors the topic
+    source_artifacts:
+      - GPD\knowledge\..\outside.pdf
+""".strip(),
+    )
+    meta, _body = extract_frontmatter(content)
+
+    with pytest.raises(ValueError, match="source_artifacts entry must be a project-relative path"):
+        knowledge_docs_module.parse_knowledge_doc_data_strict(meta)
+
+
+def test_strict_knowledge_runtime_rejects_backslash_parent_review_artifact_paths() -> None:
+    content = _knowledge_markdown(
+        status="stable",
+        review=_review_block(
+            reviewed_content_sha256=_stable_reviewed_content_sha256(),
+            approval_artifact_path=r"GPD\knowledge\..\reviews\K-review.md",
+        ),
+    )
+    meta, _body = extract_frontmatter(content)
+
+    with pytest.raises(ValueError, match="approval_artifact_path must be a project-relative path"):
+        knowledge_docs_module.parse_knowledge_doc_data_strict(meta)
+
+
+def test_validate_frontmatter_reports_invalid_reviewed_content_sha256_once(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "K-renormalization-group-fixed-points.md"
+    content = _knowledge_markdown(
+        status="stable",
+        review=_review_block(
+            reviewed_content_sha256="deadbeef",
+        ),
+    )
+    path.write_text(content, encoding="utf-8")
+
+    result = validate_frontmatter(content, "knowledge", source_path=path)
+
+    expected_error = "knowledge.review.reviewed_content_sha256: expected a lowercase 64-hex sha256 digest"
+    assert result.valid is False
+    assert result.errors.count(expected_error) == 1
+    assert not any(
+        "approval_artifact_sha256" in error and "reviewed_content_sha256" not in error
+        for error in result.errors
+    )
 
 
 def test_validate_frontmatter_rejects_approved_in_review_with_stale_false(tmp_path: Path) -> None:

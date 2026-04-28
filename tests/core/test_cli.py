@@ -54,6 +54,7 @@ from gpd.core.public_surface_contract import (
     local_cli_unattended_readiness_command,
     local_cli_validate_command_context_command,
 )
+from gpd.core.recent_projects import record_recent_project
 from gpd.core.resume_surface import RESUME_BACKEND_ONLY_FIELDS
 from gpd.core.state import default_state_dict, generate_state_markdown, save_state_json, save_state_markdown
 from tests.latex_test_support import toolchain_capability as _toolchain_capability
@@ -3790,6 +3791,106 @@ def test_validate_command_context_normalizes_inline_new_project_labels(label: st
     payload = json.loads(result.output)
     assert payload["command"] == "gpd:new-project"
     assert payload["context_mode"] == "projectless"
+
+
+def test_validate_command_context_global_and_projectless_do_not_migrate_root_planning_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "PROJECT.md").write_text("# Root project note\n", encoding="utf-8")
+    (workspace / "ROADMAP.md").write_text("# Root roadmap note\n", encoding="utf-8")
+    monkeypatch.setattr(
+        cli_module,
+        "_migrate_planning_files",
+        lambda _cwd: (_ for _ in ()).throw(AssertionError("projectless/global preflight must be read-only")),
+    )
+
+    for command_name in ("new-project", "help"):
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "command-context", command_name],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0, result.output
+
+    assert not (workspace / "GPD").exists()
+
+
+def test_validate_command_context_sync_state_accepts_partial_state_workspace(tmp_path: Path) -> None:
+    state = default_state_dict()
+    save_state_json(tmp_path, state)
+
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(tmp_path), "validate", "command-context", "sync-state"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "gpd:sync-state"
+    assert payload["passed"] is True
+    assert payload["project_exists"] is False
+    assert any(check["name"] == "state_exists" and check["passed"] for check in payload["checks"])
+
+
+def test_validate_command_context_sync_state_does_not_auto_select_recent_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data_root = tmp_path / "data"
+    recent_project = tmp_path / "recent-project"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    save_state_json(recent_project, default_state_dict())
+    resume_file = recent_project / "GPD" / "phases" / "01" / ".continue-here.md"
+    resume_file.parent.mkdir(parents=True, exist_ok=True)
+    resume_file.write_text("resume here\n", encoding="utf-8")
+    record_recent_project(
+        recent_project,
+        store_root=data_root,
+        session_data={
+            "last_session_at": "2026-04-28T12:00:00+00:00",
+            "resume_file": "GPD/phases/01/.continue-here.md",
+        },
+    )
+    monkeypatch.setenv("GPD_DATA_DIR", str(data_root))
+
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(outside), "validate", "command-context", "sync-state"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["passed"] is False
+    assert not any("auto-selected recoverable recent project" in check["detail"] for check in payload["checks"])
+    assert any(
+        check["name"] == "project_reentry" and check["detail"] == "no recoverable current-workspace project target found"
+        for check in payload["checks"]
+    )
+
+
+def test_validate_command_context_resume_work_accepts_partial_roadmap_workspace(tmp_path: Path) -> None:
+    planning = tmp_path / "GPD"
+    planning.mkdir()
+    (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(tmp_path), "validate", "command-context", "resume-work"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "gpd:resume-work"
+    assert payload["passed"] is True
+    assert payload["project_exists"] is False
+    assert any(check["name"] == "roadmap_exists" and check["passed"] for check in payload["checks"])
 
 
 def test_validate_command_context_accepts_tokenized_explain_arguments(tmp_path: Path) -> None:

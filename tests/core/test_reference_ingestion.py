@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -126,6 +127,10 @@ def _write_knowledge_doc(
         f"{body}"
     )
     reviewed_content_sha256 = compute_knowledge_reviewed_content_sha256(base_content)
+    approval_artifact = tmp_path / "GPD" / "knowledge" / "reviews" / f"{knowledge_id}-R1-REVIEW.md"
+    approval_artifact.parent.mkdir(parents=True, exist_ok=True)
+    approval_artifact.write_text(f"Approved review for {knowledge_id}.\n", encoding="utf-8")
+    approval_artifact_sha256 = hashlib.sha256(approval_artifact.read_bytes()).hexdigest()
     review_block = (
         "review:\n"
         "  reviewed_at: 2026-04-07T13:00:00Z\n"
@@ -135,7 +140,7 @@ def _write_knowledge_doc(
         "  decision: approved\n"
         "  summary: Stable review approved.\n"
         f"  approval_artifact_path: GPD/knowledge/reviews/{knowledge_id}-R1-REVIEW.md\n"
-        f"  approval_artifact_sha256: {'a' * 64}\n"
+        f"  approval_artifact_sha256: {approval_artifact_sha256}\n"
         f"  reviewed_content_sha256: {reviewed_content_sha256}\n"
         "  stale: false\n"
     )
@@ -152,7 +157,7 @@ def _write_knowledge_doc(
     elif status == "superseded":
         content = base_content.replace(
             "---\n\n",
-            f"review:\n  reviewed_at: 2026-04-07T13:00:00Z\n  review_round: 1\n  reviewer_kind: workflow\n  reviewer_id: gpd-review-knowledge\n  decision: approved\n  summary: Stable review approved.\n  approval_artifact_path: GPD/knowledge/reviews/{knowledge_id}-R1-REVIEW.md\n  approval_artifact_sha256: {'a' * 64}\n  reviewed_content_sha256: {reviewed_content_sha256}\n  stale: false\nsuperseded_by: K-renormalization-group-successor\n---\n\n",
+            f"review:\n  reviewed_at: 2026-04-07T13:00:00Z\n  review_round: 1\n  reviewer_kind: workflow\n  reviewer_id: gpd-review-knowledge\n  decision: approved\n  summary: Stable review approved.\n  approval_artifact_path: GPD/knowledge/reviews/{knowledge_id}-R1-REVIEW.md\n  approval_artifact_sha256: {approval_artifact_sha256}\n  reviewed_content_sha256: {reviewed_content_sha256}\n  stale: false\nsuperseded_by: K-renormalization-group-successor\n---\n\n",
         )
     else:
         content = base_content

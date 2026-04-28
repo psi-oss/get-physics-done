@@ -32,7 +32,22 @@ Do NOT skip contract-critical anchors.
 <step name="check_type_selection">
 ## Check Type Selection
 
-Parse `$ARGUMENTS` for targeted verification flags:
+Normalize args before init: the first non-flag token is the optional phase; flags may appear anywhere.
+
+```bash
+PHASE_ARG=""
+VERIFY_FLAGS=()
+for token in $ARGUMENTS; do
+  case "$token" in
+    --*) VERIFY_FLAGS+=("$token") ;;
+    *) [ -z "$PHASE_ARG" ] && PHASE_ARG="$token" ;;
+  esac
+done
+VERIFY_FLAG_TEXT="${VERIFY_FLAGS[*]}"
+[ -n "$VERIFY_FLAG_TEXT" ] || VERIFY_FLAG_TEXT="--all"
+```
+
+Targeted verification flags:
 
 - `--dimensional` - narrow the verifier's optional breadth to dimensional checks
 - `--limits` - narrow the verifier's optional breadth to limiting cases
@@ -56,9 +71,45 @@ fi
 
 Parse only `session_router.required_init_fields`.
 
-Do not assume reference ledgers, protocol bundles, or report-writing schemas are loaded during session routing. Reload the explicit later stage before relying on those fields.
+```bash
+export PROJECT_ROOT PHASE_DIR_ABS
+PROJECT_ROOT=$(echo "$SESSION_ROUTER_INIT" | gpd json get .project_root)
+PHASE_DIR_ABS=$(echo "$SESSION_ROUTER_INIT" | gpd json get .phase_dir_abs --default "")
+```
 
-**If `phase_found` is false:**
+Do not assume reference ledgers, protocol bundles, or report schemas are loaded here; reload later stages before use.
+
+**If no phase was provided:**
+
+```bash
+ACTIVE_VERIFY_SESSIONS=$(
+  for file in "$PROJECT_ROOT"/GPD/phases/*/*-VERIFICATION.md; do
+    [ -f "$file" ] || continue
+    session_status=$(gpd frontmatter get "$file" --field session_status 2>/dev/null)
+    if [ "$session_status" = "validating" ] || [ "$session_status" = "diagnosed" ]; then
+      printf '%s\n' "$file"
+    fi
+  done | sort | head -5
+)
+```
+
+Active sessions are files with frontmatter `session_status` of `validating` or `diagnosed`. Read frontmatter for canonical `status`, `session_status`, `phase`, and Current Check; never let `session_status` overwrite `status`.
+
+If active sessions exist, display:
+
+```
+## Active Verification Sessions
+
+| # | Phase | Session | Verification Status | Current Check | Progress |
+|---|-------|---------|---------------------|---------------|----------|
+| 1 | 04-dispersion | validating | gaps_found | 3. Limiting Cases | 2/6 |
+
+Reply with a number to resume, or provide a phase number.
+```
+
+Wait for user response; load phase-only stages only after `PHASE_ARG` is set. If none exist, stop with: `No active verification sessions. Provide a phase number to start validation (e.g., gpd:verify-work 4)`.
+
+**If non-empty `${PHASE_ARG}` is not found:**
 
 ```
 ERROR: Phase not found: ${PHASE_ARG}
@@ -66,7 +117,7 @@ ERROR: Phase not found: ${PHASE_ARG}
 Available phases:
 $(gpd phase list)
 
-Usage: gpd:verify-work <phase-number>
+Usage: gpd:verify-work <phase>
 ```
 
 Exit.
@@ -95,12 +146,12 @@ Use canonical artifact discovery helpers during bootstrap:
 
 ```bash
 PHASE_INFO=$(gpd --raw roadmap get-phase "${phase_number}")
-ls "$phase_dir"/*SUMMARY.md 2>/dev/null
-ls "$phase_dir"/*-VERIFICATION.md 2>/dev/null | head -1
-ls GPD/phases/*/*SUMMARY.md 2>/dev/null | sort
+ls "$PHASE_DIR_ABS"/*SUMMARY.md 2>/dev/null
+ls "$PHASE_DIR_ABS"/*-VERIFICATION.md 2>/dev/null | head -1
+ls "$PROJECT_ROOT"/GPD/phases/*/*SUMMARY.md 2>/dev/null | sort
 ```
 
-Read all PLAN.md files in ${phase_dir}/ using the file_read tool.
+Use `phase_dir_abs` for shell/file IO; `phase_dir` stays the project-relative label. Read all PLAN.md files in `${PHASE_DIR_ABS}/` using the file_read tool.
 </step>
 
 <step name="proof_readiness_gate">
@@ -116,11 +167,12 @@ if [ $? -ne 0 ]; then
   echo "ERROR: gpd phase-bootstrap initialization failed: $PHASE_BOOTSTRAP_INIT"
   # STOP - display the error to the user and do not proceed.
 fi
+PHASE_DIR_ABS=$(echo "$PHASE_BOOTSTRAP_INIT" | gpd json get .phase_dir_abs --default "$PHASE_DIR_ABS")
 ```
 
 Use `phase_bootstrap.required_init_fields` as the refreshed bootstrap payload.
 
-Use `phase_proof_review_status` as the structured freshness summary for the phase proof-review manifest if present. If a required proof-redteam audit is missing, stale, malformed, or not `passed`, spawn `gpd-check-proof` once before finalizing the gap ledger.
+Use `phase_proof_review_status` as the proof-review freshness summary. If a required proof-redteam audit is missing, stale, malformed, or not `passed`, spawn `gpd-check-proof` once before finalizing the gap ledger.
 Proof-bearing phases require a canonical `*-PROOF-REDTEAM.md` artifact.
 For proof-bearing work, an additional mandatory floor applies before the wrapper can accept a passed verification result.
 
@@ -139,7 +191,7 @@ task(
 Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
 
 Write to:
-- `${phase_dir}/${phase_number}-PROOF-REDTEAM.md`
+- `${PHASE_DIR_ABS}/${phase_number}-PROOF-REDTEAM.md`
 
 Read the phase proof artifacts, the relevant PLAN contract slice, and any current verification artifact before auditing.
 Return `status: checkpoint` instead of waiting for user input inside this run.",
@@ -147,7 +199,7 @@ Return `status: checkpoint` instead of waiting for user input inside this run.",
 )
 ```
 
-After the proof critic returns, re-open `${phase_dir}/${phase_number}-PROOF-REDTEAM.md` from disk and confirm the artifact exists and is `passed` before finalizing the gap ledger. Never trust the return text alone; if the file is missing, stale, malformed, or not passed, keep the verification session fail-closed and start a fresh proof continuation.
+After the proof critic returns, re-open `${PHASE_DIR_ABS}/${phase_number}-PROOF-REDTEAM.md` from disk and confirm the artifact exists and is `passed` before finalizing the gap ledger. Never trust the return text alone; if the file is missing, stale, malformed, or not passed, keep the verification session fail-closed and start a fresh proof continuation.
 If `gpd-check-proof` still cannot produce a passed audit, keep the verification status fail-closed.
 </step>
 
@@ -187,55 +239,6 @@ Use `protocol_bundle_context` from init JSON as additive specialized guidance.
   4. Call `run_contract_check(request=..., project_dir=...)` so contract-aware checks are executed rather than only discovered.
 </step>
 
-<step name="check_active_session">
-**First: Check for active verification sessions**
-
-```bash
-for file in GPD/phases/*/*-VERIFICATION.md; do
-  [ -f "$file" ] || continue
-  session_status=$(gpd frontmatter get "$file" --field session_status 2>/dev/null)
-  if [ "$session_status" = "validating" ] || [ "$session_status" = "diagnosed" ]; then
-    printf '%s\n' "$file"
-  fi
-done | sort | head -5
-```
-
-**If active sessions exist and no `$ARGUMENTS` are provided:**
-
-Only treat files whose frontmatter `session_status` is `validating` or `diagnosed` as active researcher sessions. Read each active file's frontmatter to extract canonical verification `status`, `session_status`, `phase`, and the Current Check section. Do not let `session_status` replace or overwrite the canonical verification `status`.
-
-Display:
-
-```
-## Active Verification Sessions
-
-| # | Phase | Session | Verification Status | Current Check | Progress |
-|---|-------|---------|---------------------|---------------|----------|
-| 1 | 04-dispersion | validating | gaps_found | 3. Limiting Cases | 2/6 |
-| 2 | 05-numerics | diagnosed | expert_needed | 1. Convergence Test | 0/4 |
-
-Reply with a number to resume, or provide a phase number to start new.
-```
-
-Wait for user response.
-
-**If active sessions exist and `$ARGUMENTS` are provided:**
-
-Check whether a session already exists for that phase. If yes, offer to resume or restart. If no, continue to verifier delegation.
-
-**If no active sessions exist and no `$ARGUMENTS` are provided:**
-
-```
-No active verification sessions.
-
-Provide a phase number to start validation (e.g., gpd:verify-work 4)
-```
-
-**If no active sessions exist and `$ARGUMENTS` are provided:**
-
-Continue to verifier delegation.
-</step>
-
 <step name="delegate_verification">
 ## Delegate Verification
 
@@ -265,17 +268,18 @@ task(
 
 Verify Phase {phase_number}. Keep verifier ownership of contract-backed target extraction, evidence mapping, proof-bearing policy, computational checks, decisive comparisons, and canonical verification status semantics.
 
-Verification flags from the invoking wrapper: $ARGUMENTS
+Verification flags from the normalized parser: $VERIFY_FLAG_TEXT
 Treat `--dimensional`, `--limits`, `--convergence`, and `--regression` as optional-breadth narrowing only. Otherwise run the full verifier package.
 
 <files_to_read>
 Read these files using the file_read tool:
-- Verification artifact if present: {phase_dir}/{phase_number}-VERIFICATION.md
-- All PLAN.md files in {phase_dir}/
-- All SUMMARY.md files in {phase_dir}/
-- All `*-PROOF-REDTEAM.md` files in {phase_dir}/
-- GPD/STATE.md
-- GPD/ROADMAP.md
+- Project-relative artifact label from `phase_dir` and `phase_number` (label only)
+- Verification artifact absolute path: `${PHASE_DIR_ABS}/${phase_number}-VERIFICATION.md`
+- All PLAN.md files in `${PHASE_DIR_ABS}/`
+- All SUMMARY.md files in `${PHASE_DIR_ABS}/`
+- All `*-PROOF-REDTEAM.md` files in `${PHASE_DIR_ABS}/`
+- `${PROJECT_ROOT}/GPD/STATE.md`
+- `${PROJECT_ROOT}/GPD/ROADMAP.md`
 </files_to_read>
 
 <verification_context>
@@ -298,9 +302,9 @@ Treat `project_contract` as authoritative only when `project_contract_gate.autho
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - {phase_dir}/{phase_number}-VERIFICATION.md
+    - ${PHASE_DIR_ABS}/${phase_number}-VERIFICATION.md
 expected_artifacts:
-  - {phase_dir}/{phase_number}-VERIFICATION.md
+  - ${PHASE_DIR_ABS}/${phase_number}-VERIFICATION.md
 shared_state_policy: return_only
 </spawn_contract>
 ",
@@ -316,9 +320,9 @@ Read the verifier-produced verification file or report path.
 
 - Route only on the canonical verification frontmatter and `gpd_return.status`; do not route on headings or marker strings.
 - `gpd_return.status: completed` means success only after verifying that:
-  1. `${phase_dir}/${phase_number}-VERIFICATION.md` exists on disk and is readable
+  1. `${PHASE_DIR_ABS}/${phase_number}-VERIFICATION.md` exists on disk and is readable
   2. the same path appears in `gpd_return.files_written`
-  3. `gpd validate verification-contract "${phase_dir}/${phase_number}-VERIFICATION.md"` passes before any downstream routing
+  3. `gpd validate verification-contract "${PHASE_DIR_ABS}/${phase_number}-VERIFICATION.md"` passes before any downstream routing
 - If a canonical verification file already existed before this run, do not treat it as fresh verifier output unless the child reported that same path in `gpd_return.files_written`.
 - `gpd_return.status: checkpoint` means present the verifier checkpoint, collect user input, spawn a fresh verifier continuation, and end the stop with `## > Next Up`: primary `gpd:resume-work`, plus `gpd:verify-work ${phase_number}` and `gpd:suggest-next`. Do not overwrite canonical verification status in this workflow.
 - `gpd_return.status: blocked` or `failed` means keep the session fail-closed, present the issues, and end with `## > Next Up`: primary `gpd:verify-work ${phase_number}`, plus `gpd:resume-work` and `gpd:suggest-next`. Do not treat any preexisting verification file as a new verifier result on this path.
@@ -339,7 +343,7 @@ fi
 
 Use `interactive_validation.required_init_fields` before writing the session overlay.
 Keep the session overlay frontmatter compatible with the authoritative verification report.
-Write to `${phase_dir}/${phase_number}-VERIFICATION.md`.
+Write to `${PHASE_DIR_ABS}/${phase_number}-VERIFICATION.md`.
 Changed verification files fail `gpd pre-commit-check` when this header is missing or mismatched against the active lock.
 </step>
 
@@ -560,7 +564,7 @@ Clear the current check display to indicate completion.
 Validate the final verification file, then commit it.
 
 ```bash
-gpd commit "verify(${phase_number}): complete research validation - {passed} passed, {issues} issues" --files "${phase_dir}/${phase_number}-VERIFICATION.md"
+gpd commit "verify(${phase_number}): complete research validation - {passed} passed, {issues} issues" --files "${PHASE_DIR_ABS}/${phase_number}-VERIFICATION.md"
 ```
 
 **Atomically advance shared state** so `gpd:progress` / `gpd:show-phase` reflect the verifier outcome without a manual `gpd:sync-state`:

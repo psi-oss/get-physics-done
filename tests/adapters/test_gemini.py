@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 from pathlib import Path
 
 import pytest
@@ -839,6 +840,22 @@ class TestInstall:
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         assert "gpd-wolfram" not in settings.get("mcpServers", {})
 
+    def test_install_fails_closed_for_malformed_project_integrations_before_copying_artifacts(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "integrations.json").write_text('{"wolfram":', encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="Malformed integrations config"):
+            adapter.install(gpd_root, target)
+
+        _assert_no_manifestless_gpd_artifacts(target)
+
     def test_install_adds_policy_path_shell_sentinel_and_policy_file(
         self,
         adapter: GeminiAdapter,
@@ -1117,6 +1134,17 @@ class TestInstall:
         missing = adapter.missing_install_artifacts(target)
         assert missing == ("settings.json",)
         assert adapter.missing_install_verification_artifacts(target) == ()
+
+    def test_install_completeness_requires_catalog_command_surface(
+        self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        shutil.rmtree(target / "commands" / "gpd")
+
+        assert "commands/gpd" in adapter.missing_install_artifacts(target)
 
     def test_install_fails_closed_for_malformed_settings_json(
         self,

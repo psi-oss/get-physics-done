@@ -37,6 +37,7 @@ def test_literature_review_workflow_requires_reviewer_and_bibliographer_spawn_co
     assert "GPD/literature/{slug}-CITATION-SOURCES.json" in workflow
     assert "GPD/literature/{slug}-CITATION-AUDIT.md" in workflow
     assert "gpd_return.files_written" in workflow
+    assert "A completed return must list `GPD/literature/{slug}-CITATION-AUDIT.md` in `gpd_return.files_written`." in workflow
     assert "fresh continuation handoff" in workflow
     assert "checkpoint_response" in workflow
     assert "Do not trust the runtime handoff status by itself." in workflow
@@ -44,6 +45,7 @@ def test_literature_review_workflow_requires_reviewer_and_bibliographer_spawn_co
     assert "If `topic` is empty, do not invent or auto-derive it from project state" in workflow
     assert "The review topic must already be explicit or newly clarified" in workflow
     assert "Proceed without citation audit." not in workflow
+    assert "**If BIBLIOGRAPHY UPDATED:**" not in workflow
 
 
 def test_literature_review_workflow_removes_legacy_commit_ownership_and_keeps_completion_fail_closed() -> None:
@@ -52,5 +54,6 @@ def test_literature_review_workflow_removes_legacy_commit_ownership_and_keeps_co
     assert "gpd commit" not in workflow
     assert "Return to orchestrator through the typed child-return contract." in workflow
     assert "Route on `gpd_return.status` and the artifact gate" in workflow
+    assert "Return `gpd_return.status: completed` only when the review, citation sidecar, and citation audit are named in `gpd_return.files_written`" in workflow
     assert "If the review is incomplete or blocked, use `gpd_return.status: blocked` or `failed`" in workflow
     assert "spawn a fresh continuation run after the response" in workflow

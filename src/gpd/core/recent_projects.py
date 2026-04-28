@@ -522,6 +522,7 @@ def record_recent_project(
         ):
             resume_target_recorded_at = source_recorded_at or last_session_at or last_seen_at
         if "resume_file" in session_data and normalized_resume_file is None:
+            normalized_last_result_id = None
             resume_target_kind = None
             resume_target_recorded_at = None
             source_kind = None
@@ -530,6 +531,8 @@ def record_recent_project(
             source_transition_id = None
             source_event_id = None
             source_recorded_at = None
+            recovery_phase = None
+            recovery_plan = None
         updated_entry = RecentProjectEntry(
             project_root=resolved_root.as_posix(),
             last_session_at=last_session_at,

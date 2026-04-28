@@ -18,7 +18,10 @@ def test_literature_review_workflow_routes_on_typed_status_and_artifact_gate() -
     assert "presentation only" in workflow
     assert "Verify `GPD/literature/{slug}-REVIEW.md` exists on disk" in workflow
     assert "Verify `GPD/literature/{slug}-CITATION-SOURCES.json` exists on disk and remains aligned with the review's Full Reference List" in workflow
-    assert "Return `gpd_return.status: completed` only when the review is named in `gpd_return.files_written` and the sidecar is present, readable, and aligned on disk" in workflow
+    assert (
+        "Return `gpd_return.status: completed` only when the review, citation sidecar, and citation audit "
+        "are named in `gpd_return.files_written` and present/readable on disk"
+    ) in workflow
     assert "gpd_return.status: completed" in workflow
     assert "gpd_return.status: checkpoint" in workflow
     assert "fresh continuation run" in workflow

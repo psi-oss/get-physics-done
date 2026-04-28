@@ -428,7 +428,7 @@ task(
   subagent_type="gpd-bibliographer",
   model="{biblio_model}",
   readonly=false,
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-bibliographer.md for your role and instructions.\\n\\nVerify all citations in the literature review.\\n\\nMode: Audit bibliography\\n\\nReview file: GPD/literature/{slug}-REVIEW.md\\n\\nFor every reference listed in the Full Reference List and cited in the body:\\n1. Run the hallucination detection protocol (Steps 1-5) against INSPIRE, ADS, arXiv\\n2. Cross-check metadata (title, authors, year, journal, identifiers)\\n3. Flag any hallucinated or inaccurate citations\\n4. Correct metadata errors where possible\\n\\nWrite results to GPD/literature/{slug}-CITATION-AUDIT.md\\n\\nReturn a typed `gpd_return` envelope. Use `status: completed` when the bibliography task finished, even if the human-readable heading is `## CITATION ISSUES FOUND`; use `status: checkpoint` only when researcher input is required to continue."
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-bibliographer.md for your role and instructions.\\n\\nVerify all citations in the literature review.\\n\\nMode: Audit bibliography\\n\\nReview file: GPD/literature/{slug}-REVIEW.md\\n\\nFor every reference listed in the Full Reference List and cited in the body:\\n1. Run the hallucination detection protocol (Steps 1-5) against INSPIRE, ADS, arXiv\\n2. Cross-check metadata (title, authors, year, journal, identifiers)\\n3. Flag any hallucinated or inaccurate citations\\n4. Correct metadata errors where possible\\n\\nWrite results to GPD/literature/{slug}-CITATION-AUDIT.md\\n\\nReturn a typed `gpd_return` envelope. Use `status: completed` when the bibliography task finished, even if the human-readable heading is `## CITATION ISSUES FOUND`; use `status: checkpoint` only when researcher input is required to continue. A completed return must list `GPD/literature/{slug}-CITATION-AUDIT.md` in `gpd_return.files_written`."
 )
 ```
 
@@ -450,11 +450,13 @@ shared_state_policy: return_only
 - Fix or remove hallucinated citations from the review document
 - Update corrected metadata in the reference list
 - Refresh `GPD/literature/{slug}-CITATION-SOURCES.json` so the sidecar stays aligned with the corrected review and reference keys.
+- Re-run or refresh `GPD/literature/{slug}-CITATION-AUDIT.md` if citation fixes changed the review or sidecar.
 - Note unresolvable citations in the return summary
 
-**If BIBLIOGRAPHY UPDATED:**
+**If the bibliographer reports `gpd_return.status: completed`:**
 
-- All citations verified, proceed to return results
+- Verify `GPD/literature/{slug}-CITATION-AUDIT.md` is readable, current for the review/sidecar pair, and named in `gpd_return.files_written`.
+- Proceed only after the fresh citation-audit gate passes. A `BIBLIOGRAPHY UPDATED` heading or success prose alone is not enough.
   </step>
 
 <step name="return_results">
@@ -474,9 +476,10 @@ On completion:
 
 - Verify `GPD/literature/{slug}-REVIEW.md` exists on disk
 - Verify `GPD/literature/{slug}-CITATION-SOURCES.json` exists on disk and remains aligned with the review's Full Reference List
-- Return `gpd_return.status: completed` only when the review is named in `gpd_return.files_written` and the sidecar is present, readable, and aligned on disk
+- Verify `GPD/literature/{slug}-CITATION-AUDIT.md` is fresh for the current review and sidecar
+- Return `gpd_return.status: completed` only when the review, citation sidecar, and citation audit are named in `gpd_return.files_written` and present/readable on disk
 - Include `papers_reviewed`, `field_assessment`, and citation verification details as needed
-- If either artifact is missing, malformed, or stale, return `gpd_return.status: blocked` or `failed` instead of `completed`
+- If any required artifact is missing, malformed, or stale, return `gpd_return.status: blocked` or `failed` instead of `completed`
 
 On checkpoint:
 

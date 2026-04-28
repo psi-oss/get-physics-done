@@ -35,6 +35,14 @@ def test_execute_phase_command_stays_thin_and_only_eagerly_loads_the_workflow() 
 def test_execute_phase_workflow_refreshes_stage_context_in_order() -> None:
     workflow_text = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
 
+    assert 'PHASE_ARG=""' in workflow_text
+    assert "EXECUTE_FLAGS=()" in workflow_text
+    assert "GAPS_ONLY=false" in workflow_text
+    assert '[ "$flag" = "--gaps-only" ] && GAPS_ONLY=true' in workflow_text
+    assert '*) [ -z "$PHASE_ARG" ] && PHASE_ARG="$token" ;;' in workflow_text
+    assert workflow_text.index("<step name=\"normalize_arguments\"") < workflow_text.index(
+        "BOOTSTRAP_INIT=$(load_execute_phase_stage phase_bootstrap)"
+    )
     assert "BOOTSTRAP_INIT=$(load_execute_phase_stage phase_bootstrap)" in workflow_text
     assert "WAVE_PLANNING_INIT=$(load_execute_phase_stage wave_planning)" in workflow_text
     assert "PRE_EXECUTION_INIT=$(load_execute_phase_stage pre_execution_specialists)" in workflow_text
@@ -49,6 +57,8 @@ def test_execute_phase_workflow_refreshes_stage_context_in_order() -> None:
         "WAVE_DISPATCH_INIT=$(load_execute_phase_stage wave_dispatch)"
     )
     assert 'gpd --raw init execute-phase "${PHASE_ARG}" --include state,config' not in workflow_text
+    assert "If `$GAPS_ONLY` is true, also skip non-gap_closure plans." in workflow_text
+    assert "**After gap closure execution completes (`$GAPS_ONLY` is true):**" in workflow_text
     assert "execute-plan.md owns plan-local execution semantics" in workflow_text
     assert "# task(subagent_type=\"gpd-notation-coordinator\"" not in workflow_text
     assert "# task(subagent_type=\"gpd-experiment-designer\"" not in workflow_text

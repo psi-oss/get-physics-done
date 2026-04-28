@@ -935,6 +935,22 @@ class TestInstall:
         assert "gpd-wolfram" not in config.get("mcp", {})
         assert "super-secret-token" not in json.dumps(config)
 
+    def test_install_fails_closed_for_malformed_project_integrations_before_copying_artifacts(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "integrations.json").write_text('{"wolfram":', encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="Malformed integrations config"):
+            adapter.install(gpd_root, target)
+
+        _assert_no_manifestless_gpd_artifacts(target)
+
 
 class TestRuntimePermissions:
     def test_runtime_permissions_status_marks_yolo_as_relaunch_required(

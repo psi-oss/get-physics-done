@@ -54,7 +54,7 @@ fi
 INIT="$PAPER_BOOTSTRAP_INIT"
 ```
 
-Parse bootstrap JSON for: the manifest-owned `paper_bootstrap.required_init_fields` in `write-paper-stage-manifest.json`, including `project_contract_gate`, `contract_intake`, `effective_reference_intake`, publication routing fields (`publication_subject_slug`, `publication_lane_kind`, `publication_lane_owner`, `selected_publication_root`, `selected_review_root`, `managed_publication_root`, `managed_manuscript_root`, `publication_intake_root`), manuscript artifact paths, protocol bundle fields, active reference context, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, and `derived_manuscript_proof_review_status`. Do not maintain a second inline field list here.
+Parse bootstrap JSON using the manifest-owned `paper_bootstrap.required_init_fields` in `write-paper-stage-manifest.json`. Keep `project_contract_gate` visible before authoritative-use decisions; do not duplicate the manifest's required-field list in prose. When later steps need publication routing, manuscript artifact paths, protocol bundle fields, active references, or derived manuscript review statuses, read them from the staged payload by their manifest names.
 
 **Load mode settings:**
 
@@ -462,9 +462,10 @@ ls GPD/literature/*-REVIEW.md 2>/dev/null
 1. Does a project bibliography exist (`references/references.bib` or `${PAPER_DIR}/references.bib`)?
 2. Does at least one `GPD/literature/*-REVIEW.md` or phase `RESEARCH.md` exist?
 3. Are key prior works identified (the research digest's "Prior Work" or literature review)?
-4. If `GPD/literature/*-CITATION-SOURCES.json` exists for the current topic, treat it as the citation-source handoff from literature-review and pass it through `gpd paper-build --citation-sources` instead of reconstructing the list manually.
-5. If `derived_manuscript_reference_status` is present in the init/context payload, use it as the manuscript-local status summary for the active manuscript instead of reconstructing read/verified/cited state from prose or source ordering.
-6. `gpd paper-build` is the authoritative step that regenerates `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` and the derived `reference_id -> bibtex_key` bridge for the active manuscript root. Rerun it whenever the bibliography or citation set changes before strict review. The JSON audit is the review contract artifact; `${PAPER_DIR}/CITATION-AUDIT.md` is only the human-readable report.
+4. Resolve exactly one `ACTIVE_BIBLIOGRAPHY_PATH` from the latest `gpd paper-build` output / `PAPER-CONFIG.json` `bib_file` / existing bibliography files. Use that path in bibliographer prompts and `files_written` checks; do not hardcode `references/references.bib` when the active manuscript uses `${PAPER_DIR}/references.bib`.
+5. If `GPD/literature/*-CITATION-SOURCES.json` exists for the current topic, treat it as the citation-source handoff from literature-review and pass it through `gpd paper-build --citation-sources` instead of reconstructing the list manually.
+6. If `derived_manuscript_reference_status` is present in the init/context payload, use it as the manuscript-local status summary for the active manuscript instead of reconstructing read/verified/cited state from prose or source ordering.
+7. `gpd paper-build` regenerates `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` and the `reference_id -> bibtex_key` bridge for the active manuscript root. Rerun it whenever the bibliography or citation set changes before strict review. The JSON audit is the review contract artifact; `${PAPER_DIR}/CITATION-AUDIT.md` is the fresh human-readable audit.
    For the default bootstrap path, this means: rerun `paper-build` so `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` reflects the current bibliography before strict review.
 
 **No bibliography file, no literature review, and no citation-source sidecar** → WARNING (citations will need to be built from scratch).
@@ -970,7 +971,7 @@ Verify all references in the paper and audit citation completeness.
 Mode: Audit bibliography + Audit manuscript
 
 Paper directory: ${PAPER_DIR}/
-Bibliography: `references/references.bib` (preferred) or `${PAPER_DIR}/references.bib` if the manuscript keeps a local copy
+Bibliography: `{ACTIVE_BIBLIOGRAPHY_PATH}` (the resolved active bibliography for this manuscript)
 Citation sources: `GPD/literature/*-CITATION-SOURCES.json` when literature-review has already assembled a machine-readable citation list for the current topic
 Manuscript tree: all `.tex` files under `${PAPER_DIR}` recursively, rooted at the manifest-resolved manuscript directory
 Target journal: {target_journal}
@@ -986,14 +987,13 @@ Tasks:
 
 Write audit report to ${PAPER_DIR}/CITATION-AUDIT.md
 
-Return a typed `gpd_return` envelope. Use `status: completed` when the bibliography task finished, even if the human-readable heading is `## CITATION ISSUES FOUND`; use `status: checkpoint` only when researcher input is required to continue. A completed return must list `references/references.bib` and `GPD/references-status.json` in `gpd_return.files_written`, and both files must exist on disk before the bibliography pass is accepted."
+Return a typed `gpd_return` envelope. Use `status: completed` when the bibliography task finished, even if the human-readable heading is `## CITATION ISSUES FOUND`; use `status: checkpoint` only when researcher input is required to continue. A completed return must always list `${PAPER_DIR}/CITATION-AUDIT.md` and `GPD/references-status.json` in `gpd_return.files_written`; list `{ACTIVE_BIBLIOGRAPHY_PATH}` only when the bibliography file changed. The active bibliography file must exist on disk before the bibliography pass is accepted."
 )
 ```
 
 **If the bibliographer agent fails to spawn or returns an error:** Do not mark bibliography verification complete. Offer: 1) Retry the bibliographer, 2) Run the audit in the main context, 3) Stop and leave citation status unverified. Do not proceed to strict review, reproducibility-manifest generation, or final review until `${PAPER_DIR}/CITATION-AUDIT.md` and the refreshed `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` exist.
 
-Treat `${PAPER_DIR}/CITATION-AUDIT.md`, the refreshed `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, and the bibliographer's typed `gpd_return` envelope as the bibliography success gate; all three must be present, and the typed return must name the bibliography outputs, before the pass is accepted.
-If the typed return is missing, blocked, or does not name the bibliography outputs, keep the bibliography pass incomplete even if older audit files are still on disk.
+Treat `${PAPER_DIR}/CITATION-AUDIT.md`, the refreshed `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, the existing `{ACTIVE_BIBLIOGRAPHY_PATH}`, and the bibliographer's typed `gpd_return` envelope as the bibliography success gate. The typed return must name `${PAPER_DIR}/CITATION-AUDIT.md` and `GPD/references-status.json`, and must name `{ACTIVE_BIBLIOGRAPHY_PATH}` only when the bibliography changed; otherwise keep the pass incomplete even if older audit files are still on disk.
 
 **If the bibliographer completed with issues recorded in the audit report or `GPD/references-status.json`:**
 

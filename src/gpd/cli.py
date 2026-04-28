@@ -425,7 +425,16 @@ def _command_preflight_cwd(
 ) -> Path:
     """Resolve the authoritative preflight root for one command."""
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    effective_context_mode = _command_effective_context_mode(command)
+    if effective_context_mode == "global":
+        return workspace_cwd
+    if effective_context_mode == "projectless":
+        return _read_only_project_scoped_cwd(workspace_cwd)
+
     if _command_supports_project_reentry(command):
+        reentry_policy = _command_effective_project_reentry_mode(command).casefold()
+        if reentry_policy in {"current-workspace", "current_workspace", "current-workspace-only", "current_workspace_only"}:
+            return _read_only_project_scoped_cwd(workspace_cwd)
         return _status_command_cwd(workspace_cwd)
 
     command_name = str(getattr(command, "name", "") or "")
@@ -5278,11 +5287,6 @@ def init_resume(
 
 @init_app.command("sync-state")
 def init_sync_state(
-    prefer: str | None = typer.Option(
-        None,
-        "--prefer",
-        help="Preferred mirrored-field authority for sync-state: md or json.",
-    ),
     stage: str | None = typer.Option(
         None,
         "--stage",
@@ -5293,7 +5297,7 @@ def init_sync_state(
     from gpd.core.context import init_sync_state
 
     try:
-        payload = init_sync_state(_get_cwd(), prefer_mode=prefer, stage=stage)
+        payload = init_sync_state(_get_cwd(), stage=stage)
     except ValueError as exc:
         _error(str(exc))
     _output(payload)
@@ -7937,11 +7941,10 @@ def _command_effective_context_mode(command: object) -> str:
 
 def _command_effective_project_reentry_mode(command: object) -> str:
     """Return the runtime-authoritative project re-entry mode for one command."""
-    if _command_review_mode(command) == "publication":
-        supporting_context_policy = _command_supporting_context_policy(command)
-        project_reentry_mode = str(getattr(supporting_context_policy, "project_reentry_mode", "") or "").strip()
-        if project_reentry_mode:
-            return project_reentry_mode
+    supporting_context_policy = _command_supporting_context_policy(command)
+    project_reentry_mode = str(getattr(supporting_context_policy, "project_reentry_mode", "") or "").strip()
+    if project_reentry_mode:
+        return project_reentry_mode
     return "allowed" if bool(getattr(command, "project_reentry_capable", False)) else "disallowed"
 
 
@@ -9331,6 +9334,13 @@ def _build_command_context_preflight(
     if effective_context_mode == "project-required":
         required_file_patterns = _command_required_file_patterns(command)
         if _command_supports_project_reentry(command):
+            reentry_policy = _command_effective_project_reentry_mode(command).casefold()
+            current_workspace_reentry_only = reentry_policy in {
+                "current-workspace",
+                "current_workspace",
+                "current-workspace-only",
+                "current_workspace_only",
+            }
             reentry = _status_command_reentry(cwd)
             current_workspace_candidate = next(
                 (
@@ -9340,18 +9350,31 @@ def _build_command_context_preflight(
                 ),
                 None,
             )
-            selected_candidate = current_workspace_candidate or reentry.selected_candidate
+            selected_candidate = current_workspace_candidate or (
+                None if current_workspace_reentry_only else reentry.selected_candidate
+            )
             if selected_candidate is not None:
                 selected_root = Path(selected_candidate.project_root).expanduser().resolve(strict=False)
                 selected_root_source = selected_candidate.source
+            elif current_workspace_reentry_only:
+                selected_root = context_cwd
+                selected_root_source = "workspace"
             else:
                 selected_root = reentry.resolved_project_root or context_cwd
                 selected_root_source = reentry.source or "workspace"
-            selected_root_auto_selected = current_workspace_candidate is None and reentry.auto_selected
-            selected_root_requires_user_selection = (
-                current_workspace_candidate is None and reentry.requires_user_selection
+            selected_root_auto_selected = (
+                current_workspace_candidate is None and not current_workspace_reentry_only and reentry.auto_selected
             )
-            selected_reentry_mode = "current-workspace" if current_workspace_candidate is not None else reentry.mode
+            selected_root_requires_user_selection = (
+                current_workspace_candidate is None
+                and not current_workspace_reentry_only
+                and reentry.requires_user_selection
+            )
+            selected_reentry_mode = (
+                "current-workspace"
+                if current_workspace_candidate is not None or current_workspace_reentry_only
+                else reentry.mode
+            )
             layout = ProjectLayout(selected_root)
             state_exists, roadmap_exists, project_exists = recoverable_project_context(selected_root)
             resolved_subject = _build_resolved_command_subject(
@@ -9368,6 +9391,13 @@ def _build_command_context_preflight(
                     "project_reentry",
                     True,
                     "current workspace or ancestor project root is recoverable",
+                    blocking=False,
+                )
+            elif current_workspace_reentry_only:
+                add_check(
+                    "project_reentry",
+                    False,
+                    "no recoverable current-workspace project target found",
                     blocking=False,
                 )
             elif reentry.auto_selected and reentry.project_root:

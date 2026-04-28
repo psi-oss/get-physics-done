@@ -316,6 +316,7 @@ class TestRecentProjectsIndexPersistence:
             session_data={
                 "last_date": "2026-03-26T12:00:00+00:00",
                 "resume_file": "GPD/phases/03/.continue-here.md",
+                "last_result_id": "result-03",
                 "resume_target_kind": "bounded_segment",
                 "resume_target_recorded_at": "2026-03-26T12:01:00+00:00",
                 "source_kind": "continuation.handoff",
@@ -333,6 +334,7 @@ class TestRecentProjectsIndexPersistence:
 
         assert len(loaded.rows) == 1
         row = loaded.rows[0]
+        assert row.last_result_id == "result-03"
         assert row.resume_target_kind == "bounded_segment"
         assert row.resume_target_recorded_at == "2026-03-26T12:01:00+00:00"
         assert row.source_kind == "continuation.handoff"
@@ -353,6 +355,7 @@ class TestRecentProjectsIndexPersistence:
             session_data={
                 "last_date": "2026-03-26T12:00:00+00:00",
                 "resume_file": "GPD/phases/03/.continue-here.md",
+                "last_result_id": "result-03",
                 "resume_target_kind": "bounded_segment",
                 "resume_target_recorded_at": "2026-03-26T12:01:00+00:00",
                 "source_kind": "continuation.bounded_segment",
@@ -379,6 +382,7 @@ class TestRecentProjectsIndexPersistence:
         row = load_recent_projects_index(store_root).rows[0]
 
         assert row.resume_file is None
+        assert row.last_result_id is None
         assert row.resume_target_kind is None
         assert row.resume_target_recorded_at is None
         assert row.source_kind is None
@@ -387,6 +391,8 @@ class TestRecentProjectsIndexPersistence:
         assert row.source_transition_id is None
         assert row.source_event_id is None
         assert row.source_recorded_at is None
+        assert row.recovery_phase is None
+        assert row.recovery_plan is None
 
     def test_record_recent_project_reads_index_after_lock_acquisition(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         store_root = tmp_path / "cache"

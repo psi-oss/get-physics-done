@@ -17,6 +17,7 @@ from collections.abc import Callable
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from gpd.adapters.runtime_catalog import (
+    get_managed_install_surface_policy,
     get_runtime_descriptor,
     get_shared_install_metadata,
     resolve_global_config_dir,
@@ -1695,6 +1696,47 @@ def generate_manifest(directory: str | Path, base_dir: str | Path | None = None)
     return manifest
 
 
+def _manifest_entries_for_catalog_globs(
+    config_dir: Path,
+    patterns: tuple[str, ...],
+    *,
+    suffixes: tuple[str, ...] | None = None,
+) -> dict[str, str]:
+    """Return manifest entries for files selected by catalog-owned globs."""
+    files: dict[str, str] = {}
+    allowed_suffixes = set(suffixes or ())
+
+    def _include_file(path: Path) -> None:
+        if allowed_suffixes and path.suffix not in allowed_suffixes:
+            return
+        try:
+            rel = path.relative_to(config_dir).as_posix()
+        except ValueError:
+            return
+        if rel in files:
+            return
+        files[rel] = file_hash(path)
+
+    for pattern in patterns:
+        try:
+            matches = sorted(config_dir.glob(pattern))
+        except OSError:
+            continue
+        for match in matches:
+            if match.is_symlink():
+                continue
+            if match.is_file():
+                _include_file(match)
+                continue
+            if not match.is_dir():
+                continue
+            for rel, digest in generate_manifest(match, config_dir).items():
+                if allowed_suffixes and PurePosixPath(rel).suffix not in allowed_suffixes:
+                    continue
+                files.setdefault(rel, digest)
+    return files
+
+
 def write_manifest(
     config_dir: str | Path,
     version: str,
@@ -1727,6 +1769,12 @@ def write_manifest(
     agents_dir = config_dir / "agents"
     hooks_dir = config_dir / "hooks"
     normalized_runtime = runtime.strip() if isinstance(runtime, str) and runtime.strip() else None
+    managed_surface = None
+    if normalized_runtime is not None:
+        try:
+            managed_surface = get_managed_install_surface_policy(normalized_runtime)
+        except KeyError:
+            managed_surface = None
 
     manifest: dict[str, object] = {
         "version": version,
@@ -1754,38 +1802,32 @@ def write_manifest(
         files[f"{GPD_INSTALL_DIR_NAME}/" + rel] = h
 
     # commands/gpd/
-    if include_nested_commands and commands_dir.exists():
+    if include_nested_commands and managed_surface is not None:
+        files.update(_manifest_entries_for_catalog_globs(config_dir, managed_surface.nested_command_globs))
+    elif include_nested_commands and commands_dir.exists():
         for rel, h in generate_manifest(commands_dir).items():
             files["commands/gpd/" + rel] = h
 
-    descriptor_prefixes: tuple[str, ...] = ()
-    if normalized_runtime is not None:
-        try:
-            descriptor_prefixes = get_runtime_descriptor(normalized_runtime).manifest_file_prefixes
-        except KeyError:
-            descriptor_prefixes = ()
-    if flat_command_file_names is not None or "command/" in descriptor_prefixes:
-        if flat_command_file_names is None:
-            flat_command_file_names = (
-                tuple(
-                    sorted(
-                        entry.name
-                        for entry in flat_commands_dir.iterdir()
-                        if entry.is_file() and entry.name.startswith("gpd-") and entry.suffix == ".md"
-                    )
-                )
-                if flat_commands_dir.exists()
-                else ()
-            )
+    if flat_command_file_names is not None:
         for name in flat_command_file_names:
             if not isinstance(name, str) or not name.startswith("gpd-") or not name.endswith(".md"):
                 continue
             command_path = flat_commands_dir / name
             if command_path.is_file():
                 files["command/" + name] = file_hash(command_path)
+    elif managed_surface is not None:
+        files.update(_manifest_entries_for_catalog_globs(config_dir, managed_surface.flat_command_globs))
 
     # agents/gpd-*.(md|toml)
-    if agents_dir.exists():
+    if managed_surface is not None:
+        files.update(
+            _manifest_entries_for_catalog_globs(
+                config_dir,
+                managed_surface.managed_agent_globs,
+                suffixes=agent_suffixes,
+            )
+        )
+    elif agents_dir.exists():
         for f in sorted(agents_dir.iterdir()):
             if f.name.startswith("gpd-") and f.suffix in set(agent_suffixes):
                 files["agents/" + f.name] = file_hash(f)

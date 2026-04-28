@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shlex
+import shutil
 from pathlib import Path
 
 import pytest
@@ -146,6 +147,34 @@ class TestInstall:
 
         assert adapter.missing_install_artifacts(target) == ("settings.json",)
         assert adapter.missing_install_verification_artifacts(target) == ()
+
+    def test_install_completeness_requires_catalog_command_surface(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+        adapter.install(gpd_root, target)
+
+        shutil.rmtree(target / "commands" / "gpd")
+
+        assert "commands/gpd" in adapter.missing_install_artifacts(target)
+
+    def test_install_completeness_requires_catalog_agent_surface(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+        adapter.install(gpd_root, target)
+
+        shutil.rmtree(target / "agents")
+
+        assert "agents/gpd-*.md" in adapter.missing_install_artifacts(target)
 
     def test_install_fails_closed_for_malformed_settings_json(
         self,

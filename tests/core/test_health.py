@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shlex
@@ -2602,6 +2603,10 @@ def _write_knowledge_doc(
 
     lines = base_content.splitlines()
     if reviewed_content_sha256 is not None:
+        approval_artifact = path.parent / "reviews" / f"{knowledge_id}-R1-REVIEW.md"
+        approval_artifact.parent.mkdir(parents=True, exist_ok=True)
+        approval_artifact.write_text(f"Approved review for {knowledge_id}.\n", encoding="utf-8")
+        approval_artifact_sha256 = hashlib.sha256(approval_artifact.read_bytes()).hexdigest()
         review_lines = [
             "review:",
             "  reviewed_at: 2026-04-07T12:00:00Z",
@@ -2611,7 +2616,7 @@ def _write_knowledge_doc(
             "  decision: approved",
             "  summary: Reviewed and accepted for downstream use",
             f"  approval_artifact_path: GPD/knowledge/reviews/{knowledge_id}-R1-REVIEW.md",
-            "  approval_artifact_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            f"  approval_artifact_sha256: {approval_artifact_sha256}",
             f"  reviewed_content_sha256: {reviewed_content_sha256}",
             "  stale: false",
         ]

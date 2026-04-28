@@ -57,6 +57,7 @@ def test_write_paper_stage_manifest_uses_canonical_publication_contracts() -> No
     assert authoring.writes_allowed[0] == WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT
     assert consistency.writes_allowed[0] == WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT
     assert publication_review.writes_allowed[0] == WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT
+    assert "selected_review_root" in publication_review.required_init_fields
     assert "GPD/references-status.json" in consistency.writes_allowed
     assert "GPD/AUTHOR-RESPONSE.md" in publication_review.writes_allowed
     assert "GPD/REFEREE-REPORT.tex" in publication_review.writes_allowed
@@ -125,6 +126,15 @@ def test_peer_review_stage_manifest_uses_canonical_publication_contracts() -> No
         "references/publication/publication-response-artifacts.md",
     )
     assert "GPD/review/CLAIMS{round_suffix}.json" in panel_stages.writes_allowed
+    for field in (
+        "manuscript_root",
+        "manuscript_entrypoint",
+        "artifact_manifest_path",
+        "bibliography_audit_path",
+        "reproducibility_manifest_path",
+    ):
+        assert field in panel_stages.required_init_fields
+        assert field in final_adjudication.required_init_fields
     assert "GPD/publication/{subject_slug}/review/CLAIMS{round_suffix}.json" in panel_stages.writes_allowed
     assert "GPD/publication/{subject_slug}/review/PROOF-REDTEAM{round_suffix}.md" in panel_stages.writes_allowed
     assert "references/publication/peer-review-panel.md" in final_adjudication.loaded_authorities

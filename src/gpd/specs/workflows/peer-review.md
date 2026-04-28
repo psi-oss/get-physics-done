@@ -37,7 +37,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse bootstrap JSON for: the manifest-owned `bootstrap.required_init_fields` in `peer-review-stage-manifest.json`, including `project_contract_gate`, target routing, publication routing fields (`publication_subject_slug`, `publication_lane_kind`, `managed_publication_root`, `selected_publication_root`, `selected_review_root`), manuscript artifact paths, and latest review/response state. Do not maintain a second inline field list here.
+Parse bootstrap JSON using the manifest-owned `bootstrap.required_init_fields` in `peer-review-stage-manifest.json`. Keep `project_contract_gate` visible before authoritative-use decisions; do not duplicate the manifest's required-field list in prose. When later steps need target routing, publication roots, manuscript artifact paths, or review/response state, read them from the staged payload by their manifest names.
 
 **Read mode settings:**
 
@@ -77,7 +77,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse target-aware init JSON for: the same manifest-owned `bootstrap.required_init_fields` in `peer-review-stage-manifest.json`. Treat the target-aware payload as authoritative after explicit artifact intake; if the manifest changes, follow the manifest instead of stale copied field prose.
+Parse target-aware init JSON using the same manifest-owned `bootstrap.required_init_fields` in `peer-review-stage-manifest.json`. Treat the target-aware payload as authoritative after explicit artifact intake; if the manifest changes, follow the manifest instead of stale copied field prose.
 
 Run centralized context preflight before continuing:
 
@@ -105,6 +105,7 @@ After resolution, keep all manuscript-local support artifacts rooted at the same
 - `RESOLVED_REVIEW_TARGET` = `resolved_review_target` from the target-aware `INIT` payload
 - `RESOLVED_REVIEW_ROOT` = `resolved_review_root` from the target-aware `INIT` payload
 - `PUBLICATION_SUBJECT_SLUG` = `publication_subject_slug` from the target-aware `INIT` payload when present
+- `PUBLICATION_LANE_KIND` = `publication_lane_kind` from the target-aware `INIT` payload when present
 - `PUBLICATION_ROOT` = `selected_publication_root` from target-aware `INIT`, otherwise `managed_publication_root` when present, otherwise `GPD`
 - `REVIEW_ROOT` = `selected_review_root` from target-aware `INIT`, otherwise `resolved_review_root`, otherwise `GPD/review`
 - `RESOLVED_MANUSCRIPT` = `manuscript_entrypoint` from the target-aware `INIT` payload
@@ -348,6 +349,12 @@ Every spawned review child must return a typed `gpd_return` envelope with `statu
 Panel-stage artifacts use {GPD_INSTALL_DIR}/references/publication/peer-review-panel.md. Final adjudication uses {GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md and {GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md. Load these only in panel or final-adjudication stages.
 </step>
 
+<step name="build_panel_carry_forward">
+Build one compact `REVIEW_CARRY_FORWARD` packet before spawning panel stages.
+
+Include paths and short summaries for: project contract authority/gate/load/validation, approved contract or diagnostics, active references, derived manuscript reference status, contract/effective intake, protocol bundle guidance, and reference-artifact files. Pass `reference_artifacts_content` only as a brief summary; if a stage needs exact source text, pass the artifact path plus the specific section or locator to read. Do not repeat full contract/reference payloads in every child prompt.
+</step>
+
 <step name="stage_1_read">
 **Stage 1 — Read the whole manuscript once.**
 
@@ -452,7 +459,7 @@ Operate in literature-context stage mode with a fresh context.
 Target journal: {target_journal}
 Round: {round}
 Selected protocol bundles: {selected_protocol_bundle_ids}
-Carry-forward context: protocol bundle guidance {protocol_bundle_context}; project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
+Carry-forward packet: {REVIEW_CARRY_FORWARD}
 Output path: `${REVIEW_ROOT}/STAGE-literature{round_suffix}.json`
 
 <spawn_contract>
@@ -494,7 +501,7 @@ Operate in mathematical-soundness stage mode with a fresh context.
 
 Target journal: {target_journal}
 Round: {round}
-Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
+Carry-forward packet: {REVIEW_CARRY_FORWARD}
 Output path: `${REVIEW_ROOT}/STAGE-math{round_suffix}.json`
 
 <spawn_contract>
@@ -538,7 +545,7 @@ If the runtime needs user input, return `status: checkpoint` instead of waiting 
 
 Target journal: {target_journal}
 Round: {round}
-Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
+Carry-forward packet: {REVIEW_CARRY_FORWARD}
 Write to: `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md`
 
 <spawn_contract>
@@ -632,8 +639,8 @@ Operate in physical-soundness stage mode with a fresh context.
 Target journal: {target_journal}
 Round: {round}
 Selected protocol bundles: {selected_protocol_bundle_ids}
-Additive specialized guidance: {protocol_bundle_context}
-Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
+Additive specialized guidance: use the protocol-bundle summary in `{REVIEW_CARRY_FORWARD}`
+Carry-forward packet: {REVIEW_CARRY_FORWARD}
 Output path: `${REVIEW_ROOT}/STAGE-physics{round_suffix}.json`
 
 <spawn_contract>
@@ -713,7 +720,7 @@ Operate in interestingness-and-venue-fit stage mode with a fresh context.
 
 Target journal: {target_journal}
 Round: {round}
-Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
+Carry-forward packet: {REVIEW_CARRY_FORWARD}
 Output path: `${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json`
 
 <spawn_contract>
@@ -801,8 +808,8 @@ Round: {round}
 <autonomy_mode>{AUTONOMY}</autonomy_mode>
 <research_mode>{RESEARCH_MODE}</research_mode>
 Selected protocol bundles: {selected_protocol_bundle_ids}
-Additive specialized guidance: {protocol_bundle_context}
-Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
+Additive specialized guidance: use the protocol-bundle summary in `{REVIEW_CARRY_FORWARD}`
+Carry-forward packet: {REVIEW_CARRY_FORWARD}
 
 <spawn_contract>
 write_scope:

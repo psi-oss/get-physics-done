@@ -36,6 +36,7 @@ from gpd.core.cli_args import (
 )
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, ENV_GPD_DISABLE_CHECKOUT_REEXEC
 from gpd.hooks.install_metadata import (
+    assess_install_target,
     config_dir_has_managed_install_markers,
     load_install_manifest_explicit_target_status,
     load_install_manifest_runtime_status,
@@ -62,6 +63,7 @@ class _BridgeFailureKind(StrEnum):
     UNSUPPORTED_RUNTIME = "unsupported_runtime"
     RUNTIME_MISMATCH = "runtime_mismatch"
     INSTALL_SCOPE_MISMATCH = "install_scope_mismatch"
+    UNTRUSTED_MANIFEST = "untrusted_manifest"
     MISSING_INSTALL_ARTIFACTS = "missing_install_artifacts"
 
 
@@ -685,6 +687,30 @@ def _untrusted_manifest_error_message(
     )
 
 
+def _untrusted_manifest_metadata_error_message(
+    *,
+    runtime: str,
+    config_dir: Path,
+    install_scope: str,
+    explicit_target: bool,
+    cli_cwd: Path,
+    manifest_state: str,
+) -> str:
+    """Return repair guidance when manifest ownership metadata fails validation."""
+    repair_command = _build_repair_command(
+        runtime=runtime,
+        config_dir=config_dir,
+        install_scope=install_scope,
+        explicit_target=explicit_target,
+        cli_cwd=cli_cwd,
+    )
+    return (
+        f"GPD runtime bridge rejected untrusted install manifest at `{config_dir}`.\n"
+        f"The manifest ownership metadata failed validation (`{manifest_state}`).\n"
+        f"Repair or reinstall with: `{repair_command}`"
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     """Validate the install contract, then dispatch into ``gpd.cli``."""
     raw_argv = list(sys.argv[1:] if argv is None else argv)
@@ -737,6 +763,20 @@ def main(argv: list[str] | None = None) -> int:
         missing=None,
         has_managed_install_markers=has_managed_install_markers,
     )
+    if failure is None:
+        assessment = assess_install_target(config_dir, expected_runtime=runtime)
+        if assessment.state == "untrusted_manifest":
+            failure = _bridge_failure(
+                _BridgeFailureKind.UNTRUSTED_MANIFEST,
+                _untrusted_manifest_metadata_error_message(
+                    runtime=runtime,
+                    config_dir=config_dir,
+                    install_scope=options.install_scope,
+                    explicit_target=repair_explicit_target,
+                    cli_cwd=cli_cwd,
+                    manifest_state=assessment.manifest_state,
+                ),
+            )
     if failure is None:
         failure = _classify_bridge_failure(
             runtime=runtime,

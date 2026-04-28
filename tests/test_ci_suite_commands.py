@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from tests.ci_sharding import assert_ci_workflow_pytest_shard_policy, assert_tests_readme_documents_ci_shard_policy
@@ -96,6 +97,34 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
     workflow = _workflow_data()
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert_ci_workflow_pytest_shard_policy(workflow, pyproject_text=pyproject)
+
+
+def test_ci_represents_documented_default_fast_suite_without_duplicate_full_suite_lane() -> None:
+    workflow = _workflow_data()
+    jobs = workflow["jobs"]
+    pytest_job = jobs["pytest"]
+    steps = pytest_job["steps"]
+    run_pytest_shard = next(step for step in steps if step.get("name") == "Run pytest shard")
+    env = run_pytest_shard["env"]
+    run_command = run_pytest_shard["run"]
+
+    assert env["GPD_DEFAULT_FAST_SUITE_COMMAND"] == "uv run pytest tests/ -q"
+    assert int(env["GPD_FAST_SUITE_BUDGET_SECONDS"]) <= 180
+    assert 'timeout "${GPD_FAST_SUITE_BUDGET_SECONDS}s" uv run pytest -q' in run_command
+    assert "${PYTEST_TARGETS[@]}" in run_command
+
+    direct_default_suite_pattern = re.compile(r"(?m)^\s*(?:timeout\s+[^\n]+\s+)?uv run pytest tests/ -q\b")
+    assert direct_default_suite_pattern.search("uv run pytest tests/ -q")
+    assert direct_default_suite_pattern.search("timeout 180s uv run pytest tests/ -q --durations=20")
+
+    direct_default_suite_steps = [
+        f"{job_id}:{step.get('name', '<unnamed>')}"
+        for job_id, job in jobs.items()
+        for step in job.get("steps", [])
+        if direct_default_suite_pattern.search(step.get("run", ""))
+    ]
+
+    assert direct_default_suite_steps == []
 
 
 def test_ci_workflow_runs_lightweight_python_compatibility_matrix() -> None:

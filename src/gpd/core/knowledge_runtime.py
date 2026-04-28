@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -122,7 +123,27 @@ def _knowledge_doc_match_tokens(record: KnowledgeDocRuntimeRecord) -> set[str]:
     return tokens
 
 
+def _approval_artifact_matches(project_root: Path, rel_path: str, expected_sha256: str) -> bool:
+    root = project_root.resolve(strict=False)
+    artifact = (root / rel_path).resolve(strict=False)
+    try:
+        artifact.relative_to(root)
+    except ValueError:
+        return False
+    if not artifact.is_file():
+        return False
+    digest = hashlib.sha256()
+    try:
+        with artifact.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(8192), b""):
+                digest.update(chunk)
+    except OSError:
+        return False
+    return digest.hexdigest() == expected_sha256
+
+
 def _record_from_parsed_doc(
+    project_root: Path,
     rel_path: str,
     parsed: KnowledgeDocData,
     content: str,
@@ -140,9 +161,15 @@ def _record_from_parsed_doc(
         reviewed_content_sha256 = parsed.review.reviewed_content_sha256
         stale = parsed.review.stale
         if parsed.review.decision == "approved":
+            approval_artifact_fresh = _approval_artifact_matches(
+                project_root,
+                parsed.review.approval_artifact_path,
+                parsed.review.approval_artifact_sha256,
+            )
             review_fresh = (
                 parsed.review.stale is False
                 and parsed.review.reviewed_content_sha256 == compute_knowledge_reviewed_content_sha256(content)
+                and approval_artifact_fresh
             )
         else:
             review_fresh = False
@@ -194,7 +221,7 @@ def discover_knowledge_docs(project_root: Path) -> KnowledgeDocDiscovery:
             discovery.warnings.append(f"skipping knowledge doc {rel_path}: {exc}; {migration_hint}")
             continue
         del body
-        discovery.records.append(_record_from_parsed_doc(rel_path, parsed, content))
+        discovery.records.append(_record_from_parsed_doc(project_root, rel_path, parsed, content))
     return discovery
 
 

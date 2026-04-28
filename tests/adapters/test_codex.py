@@ -51,6 +51,15 @@ def expected_codex_bridge(target: Path, *, is_global: bool = False, explicit_tar
     )
 
 
+def _assert_no_manifestless_gpd_artifacts(target: Path, skills_dir: Path) -> None:
+    assert not (target / "gpd-file-manifest.json").exists()
+    assert not (target / "get-physics-done").exists()
+    assert not (target / "agents").exists()
+    assert not (target / "hooks").exists()
+    assert not (target / "config.toml").exists()
+    assert not any(skills_dir.glob("gpd-*"))
+
+
 def test_codex_command_runtime_note_injection_is_idempotent() -> None:
     content = (
         "---\n"
@@ -853,6 +862,24 @@ class TestInstall:
             adapter.install(gpd_root, target, is_global=False, skills_dir=skills)
 
         assert config_toml_path.read_text(encoding="utf-8") == before
+
+    def test_install_fails_closed_for_malformed_project_integrations_before_copying_artifacts(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "integrations.json").write_text('{"wolfram":', encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="Malformed integrations config"):
+            adapter.install(gpd_root, target, is_global=False, skills_dir=skills)
+
+        _assert_no_manifestless_gpd_artifacts(target, skills)
 
     def test_install_translates_tool_references_in_skill_body(self, adapter: CodexAdapter, tmp_path: Path) -> None:
         gpd_root = _make_checkout(tmp_path, "9.9.9")

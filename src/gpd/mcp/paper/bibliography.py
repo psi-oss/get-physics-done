@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Literal
 
 from pybtex.database import BibliographyData, Entry
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic import ValidationError as PydanticValidationError
 
 logger = logging.getLogger(__name__)
@@ -170,6 +170,26 @@ class BibliographyAudit(BaseModel):
     unverified_sources: int
     failed_sources: int
     entries: list[CitationAuditRecord]
+
+    @model_validator(mode="after")
+    def _validate_summary_counts(self) -> BibliographyAudit:
+        expected_counts = {
+            "total_sources": len(self.entries),
+            "resolved_sources": sum(
+                1 for entry in self.entries if entry.resolution_status in {"provided", "enriched"}
+            ),
+            "partial_sources": sum(1 for entry in self.entries if entry.verification_status == "partial"),
+            "unverified_sources": sum(1 for entry in self.entries if entry.verification_status == "unverified"),
+            "failed_sources": sum(1 for entry in self.entries if entry.resolution_status == "failed"),
+        }
+        mismatches = [
+            f"{field} expected {expected} from entries, got {getattr(self, field)}"
+            for field, expected in expected_counts.items()
+            if getattr(self, field) != expected
+        ]
+        if mismatches:
+            raise ValueError("bibliography audit summary counts do not match entries: " + "; ".join(mismatches))
+        return self
 
 
 # ---- BibTeX entry creation ----

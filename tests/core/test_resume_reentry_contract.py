@@ -49,6 +49,20 @@ def test_init_resume_keeps_requested_workspace_availability_separate_from_auto_s
     assert ctx["planning_exists"] is True
 
 
+def test_init_resume_no_recovery_does_not_label_unselected_project_root_as_workspace(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    ctx = init_resume(workspace, data_root=tmp_path / "data")
+
+    assert ctx["project_root"] is None
+    assert ctx["project_root_source"] is None
+    assert ctx["project_reentry_mode"] == "no-recovery"
+    assert ctx["project_reentry_selected_candidate"] is None
+
+
 def test_recoverable_project_context_treats_unreadable_state_as_non_recoverable(
     monkeypatch,
     tmp_path: Path,

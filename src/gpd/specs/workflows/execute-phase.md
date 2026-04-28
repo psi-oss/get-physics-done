@@ -14,6 +14,30 @@ For artifact class definitions and review priority rules, see `@{GPD_INSTALL_DIR
 
 <process>
 
+<step name="normalize_arguments" priority="first">
+Normalize phase and flags before any init call. The first non-flag positional token is the phase; flags may appear before or after it.
+
+```bash
+PHASE_ARG=""
+EXECUTE_FLAGS=()
+for token in $ARGUMENTS; do
+  case "$token" in
+    --*) EXECUTE_FLAGS+=("$token") ;;
+    *) [ -z "$PHASE_ARG" ] && PHASE_ARG="$token" ;;
+  esac
+done
+GAPS_ONLY=false
+for flag in "${EXECUTE_FLAGS[@]}"; do
+  [ "$flag" = "--gaps-only" ] && GAPS_ONLY=true
+done
+
+if [ -z "$PHASE_ARG" ]; then
+  echo "ERROR: missing phase. Usage: gpd:execute-phase <phase-number> [--gaps-only]"
+  exit 1
+fi
+```
+</step>
+
 <step name="initialize" priority="first">
 Load the bootstrap stage first. Keep later wave and closeout context on demand.
 
@@ -393,7 +417,7 @@ PLAN_INDEX=$(gpd phase index "${phase_number}")
 
 Parse JSON for: `phase`, `plans[]` (each with `id`, `wave`, `interactive`, `objective`, `files_modified`, `task_count`, `has_summary`), `waves` (map of wave number -> plan IDs), `incomplete`, `has_checkpoints`.
 
-**Filtering:** Skip plans where `has_summary: true`. If `--gaps-only`: also skip non-gap_closure plans. If all filtered: "No matching incomplete plans" -> exit.
+**Filtering:** Skip plans where `has_summary: true`. If `$GAPS_ONLY` is true, also skip non-gap_closure plans. If all filtered: "No matching incomplete plans" -> exit.
 
 **Intra-wave dependency validation:** Verify that no plan's `depends_on` references another plan in the SAME wave (which would be a circular dependency within a wave):
 
@@ -1639,7 +1663,7 @@ Phase {X} has failed verification twice after gap closure attempts.
 Do NOT attempt a third automated cycle.
 ```
 
-**After gap closure execution completes (`--gaps-only` mode):**
+**After gap closure execution completes (`$GAPS_ONLY` is true):**
 
 Automatically re-verify the phase to confirm gaps are closed:
 

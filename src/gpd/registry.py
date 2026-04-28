@@ -1044,6 +1044,14 @@ def _normalize_command_policy_payload(
         payload.get("supporting_context_policy"),
         command_name=command_name,
     )
+    effective_frontmatter_supporting_context = frontmatter_supporting_context
+    if (
+        supporting_context_policy is not None
+        and supporting_context_policy.get("project_reentry_mode") == "current-workspace"
+        and frontmatter_supporting_context.get("project_reentry_mode") == "allowed"
+    ):
+        effective_frontmatter_supporting_context = dict(frontmatter_supporting_context)
+        effective_frontmatter_supporting_context["project_reentry_mode"] = "current-workspace"
     output_policy = _normalize_command_output_policy(payload.get("output_policy"), command_name=command_name)
 
     return {
@@ -1051,7 +1059,7 @@ def _normalize_command_policy_payload(
         "subject_policy": subject_policy,
         "supporting_context_policy": _merge_command_policy_submapping(
             supporting_context_policy,
-            frontmatter_supporting_context,
+            effective_frontmatter_supporting_context,
             field_name="command_policy.supporting_context_policy",
             command_name=command_name,
             allow_explicit_override=_command_policy_is_publication_contract(review_contract),

@@ -68,6 +68,94 @@ def test_get_skill_surfaces_malformed_reference_frontmatter(tmp_path: Path) -> N
     assert contract_documents["peer-review-panel.md"]["frontmatter_error"]
 
 
+def test_get_skill_surfaces_unclosed_reference_frontmatter(tmp_path: Path) -> None:
+    from gpd.mcp.servers import skills_server
+
+    reference_path = tmp_path / "unclosed-schema.md"
+    reference_path.write_text(
+        "---\ntype: schema\n# Missing closing delimiter\n",
+        encoding="utf-8",
+    )
+
+    command = CommandDef(
+        name="gpd:debug",
+        description="Debug.",
+        argument_hint="",
+        requires={},
+        allowed_tools=["file_read"],
+        content="Command body.",
+        path=str(tmp_path / "gpd-debug.md"),
+        source="commands",
+    )
+    skill = SkillDef(
+        name="gpd-debug",
+        description="Debug.",
+        content="See @{GPD_INSTALL_DIR}/templates/unclosed-schema.md\n",
+        category="debugging",
+        path=str(tmp_path / "gpd-debug.md"),
+        source_kind="command",
+        registry_name="debug",
+    )
+
+    original_portable_reference_path = skills_server._portable_reference_path
+
+    def _patched_portable_reference_path(raw_path: str, *, base_path: Path | None = None):
+        if raw_path == "@{GPD_INSTALL_DIR}/templates/unclosed-schema.md":
+            return raw_path, reference_path
+        return original_portable_reference_path(raw_path, base_path=base_path)
+
+    skills_server._reference_document_metadata.cache_clear()
+    try:
+        with (
+            patch("gpd.mcp.servers.skills_server._resolve_skill", return_value=skill),
+            patch("gpd.mcp.servers.skills_server.content_registry.get_command", return_value=command),
+            patch(
+                "gpd.mcp.servers.skills_server._portable_reference_path", side_effect=_patched_portable_reference_path
+            ),
+        ):
+            result = skills_server.get_skill("gpd-debug")
+    finally:
+        skills_server._reference_document_metadata.cache_clear()
+
+    schema_documents = {Path(entry["path"]).name: entry for entry in result["schema_documents"]}
+
+    assert "unclosed-schema.md" in schema_documents
+    assert schema_documents["unclosed-schema.md"]["frontmatter_error"] == "Unclosed frontmatter block"
+
+
+def test_portable_skill_content_preserves_bare_lazy_path_placeholders() -> None:
+    from gpd.mcp.servers.skills_server import _portable_skill_content
+
+    content = (
+        "Load {GPD_INSTALL_DIR}/references/verification/errors/llm-errors-core.md on demand.\n"
+        "Read {GPD_AGENTS_DIR}/gpd-verifier.md only when spawning the verifier.\n"
+        "Use @{GPD_INSTALL_DIR}/templates/verification-report.md when eager loading is intentional.\n"
+    )
+
+    portable = _portable_skill_content(content)
+
+    assert "{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-core.md" in portable
+    assert "{GPD_AGENTS_DIR}/gpd-verifier.md" in portable
+    assert "@{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-core.md" not in portable
+    assert "@{GPD_INSTALL_DIR}/templates/verification-report.md" in portable
+
+
+def test_extract_referenced_files_ignores_bare_lazy_schema_placeholders() -> None:
+    from gpd.mcp.servers.skills_server import _extract_referenced_files
+
+    direct_references, transitive_references = _extract_referenced_files(
+        "Load {GPD_INSTALL_DIR}/templates/lazy-schema.md only if needed.\n"
+        "Use @{GPD_INSTALL_DIR}/templates/verification-report.md eagerly.\n",
+        read_transitive_reference_bodies=False,
+    )
+
+    direct_paths = [entry["path"] for entry in direct_references]
+    transitive_paths = [entry["path"] for entry in transitive_references]
+    assert "@{GPD_INSTALL_DIR}/templates/verification-report.md" in direct_paths
+    assert "@{GPD_INSTALL_DIR}/templates/lazy-schema.md" not in direct_paths
+    assert "@{GPD_INSTALL_DIR}/templates/lazy-schema.md" not in transitive_paths
+
+
 def test_get_skill_transitive_schema_documents_are_metadata_only_by_default(tmp_path: Path) -> None:
     from gpd.mcp.servers import skills_server
 

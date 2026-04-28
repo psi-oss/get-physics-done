@@ -956,7 +956,7 @@ class OpenCodeAdapter(RuntimeAdapter):
 
     def _preflight_runtime_config(self, target_dir: Path, is_global: bool) -> None:
         """Fail before copying files when OpenCode-owned config is malformed."""
-        del is_global
+        self._preflight_project_integrations_config(target_dir, is_global)
         _, config_parse_error = _read_opencode_config_state(target_dir)
         if config_parse_error is not None:
             raise RuntimeError("OpenCode opencode.json is malformed; refusing to overwrite it during install.")

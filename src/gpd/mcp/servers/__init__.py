@@ -7,6 +7,7 @@ import copy
 import importlib
 import logging
 import os
+import re
 import sys
 from collections.abc import Mapping
 from pathlib import Path
@@ -100,6 +101,12 @@ def resolve_absolute_project_dir(project_dir: str) -> Path | None:
 
 def parse_frontmatter_with_error(text: str) -> tuple[dict[str, object], str, str | None]:
     """Split YAML frontmatter from markdown body and surface parse failures."""
+    candidate = re.sub(r"^(?:[ \t]*\r?\n)+(?=---[ \t]*\r?\n)", "", text.lstrip("\ufeff"), count=1)
+    if re.match(r"^---[ \t]*(?:\r?\n|$)", candidate) and not re.match(
+        r"^---[ \t]*\r?\n(?:[\s\S]*?\r?\n)?---[ \t]*(?:\r?\n|$)",
+        candidate,
+    ):
+        return {}, text, "Unclosed frontmatter block"
     try:
         meta, body = extract_frontmatter(text)
     except FrontmatterParseError as exc:

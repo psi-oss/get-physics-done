@@ -156,6 +156,11 @@ def test_start_workflow_routes_to_existing_entrypoints() -> None:
     assert "Read `{GPD_INSTALL_DIR}/workflows/new-project.md` with the file-read tool." not in workflow
     assert "Read `{GPD_INSTALL_DIR}/workflows/help.md` with the file-read tool." not in workflow
     assert "Read `{GPD_INSTALL_DIR}/workflows/tour.md` with the file-read tool." not in workflow
+    assert "Only list commands whose command-context preflight can pass for the detected state" in workflow
+    assert "When `roadmap_exists=true`, include:" in workflow
+    assert "When `state_exists=true`, include:" in workflow
+    assert "Do not list `gpd:progress` for partial state" in workflow
+    assert "Review visible progress - use `gpd:progress`" not in workflow
 
 
 def test_start_workflow_displayed_choice_labels_route_verbatim() -> None:

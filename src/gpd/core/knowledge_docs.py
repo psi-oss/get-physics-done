@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
@@ -84,7 +84,14 @@ def _normalize_knowledge_id(value: object) -> str:
 def _normalize_project_relative_path(value: object, field_name: str) -> str:
     normalized = _normalize_required_text(value)
     path = Path(normalized)
-    if path.is_absolute() or any(part == ".." for part in path.parts):
+    normalized_path = normalized.replace("\\", "/")
+    normalized_parts = PurePosixPath(normalized_path).parts
+    if (
+        path.is_absolute()
+        or normalized.startswith("\\\\")
+        or re.match(r"^[A-Za-z]:/", normalized_path)
+        or any(part == ".." for part in normalized_parts)
+    ):
         raise ValueError(f"{field_name} must be a project-relative path")
     return normalized
 

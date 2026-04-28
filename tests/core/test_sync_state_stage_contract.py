@@ -31,7 +31,7 @@ def test_sync_state_stage_manifest_loads_and_preserves_stage_order() -> None:
 
     assert bootstrap.loaded_authorities == ("workflows/sync-state.md",)
     assert bootstrap.required_init_fields == (
-        "prefer_mode",
+        "project_root",
         "state_md_exists",
         "state_json_exists",
         "state_json_backup_exists",
@@ -73,6 +73,10 @@ def test_sync_state_workflow_uses_staged_fields_instead_of_manual_state_probing(
     assert "SINGLE_SOURCE_RECOVERY_INIT=$(gpd --raw init sync-state --stage single_source_recovery)" in text
     assert "CONFLICT_ANALYSIS_INIT=$(gpd --raw init sync-state --stage conflict_analysis)" in text
     assert "RECONCILE_INIT=$(gpd --raw init sync-state --stage reconcile_and_validate)" in text
+    assert 'PROJECT_ROOT=$(echo "$SYNC_BOOTSTRAP_INIT" | gpd json get .project_root)' in text
+    assert 'cwd = Path(os.environ["PROJECT_ROOT"])' in text
+    assert 'cwd = Path(".")' not in text
+    assert "--prefer" not in text
     assert "Do not re-probe `GPD/STATE.md`, `GPD/state.json`, or `GPD/state.json.bak` by hand during routing." in text
     assert "Do not re-read the mirrored files by hand for comparison." in text
     assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" not in text

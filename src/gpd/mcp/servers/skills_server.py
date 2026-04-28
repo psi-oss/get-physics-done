@@ -134,7 +134,7 @@ def _markdown_reference_re() -> re.Pattern[str]:
         for prefix in (*[spec.raw_prefix for spec in _REFERENCE_PREFIX_SPECS], *_RELATIVE_REFERENCE_PREFIXES)
     )
     return re.compile(
-        r"(?P<path>(?:@?\{GPD_(?:INSTALL|AGENTS)_DIR\}/|(?:\.\./|\.\/)?"
+        r"(?P<path>(?:@\{GPD_(?:INSTALL|AGENTS)_DIR\}/|(?:\.\./|\.\/)?"
         rf"(?:{relative_prefixes}|GPD/|src/gpd/))[^\s`\"')]+?\.md)"
     )
 
@@ -308,10 +308,6 @@ def _canonicalize_runtime_command_wildcards(content: str) -> str:
 
 def _portable_skill_content(content: str) -> str:
     """Keep skill content portable while normalizing runtime command references."""
-    content = re.sub(r"(?<!@)\{GPD_INSTALL_DIR\}/", "@{GPD_INSTALL_DIR}/", content)
-    content = re.sub(r"(?<!@)\{GPD_AGENTS_DIR\}/", "@{GPD_AGENTS_DIR}/", content)
-    content = re.sub(r"(?<!@)\{GPD_INSTALL_DIR\}(?=[^\s/`\"')])", "@{GPD_INSTALL_DIR}/", content)
-    content = re.sub(r"(?<!@)\{GPD_AGENTS_DIR\}(?=[^\s/`\"')])", "@{GPD_AGENTS_DIR}/", content)
     return _canonicalize_command_surface(content)
 
 

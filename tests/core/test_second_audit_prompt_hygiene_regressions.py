@@ -85,8 +85,9 @@ def test_quick_command_and_workflow_keep_the_project_gate_and_drop_the_custom_st
 def test_peer_review_init_fields_are_manifest_owned_and_stage5_bullets_are_space_indented() -> None:
     peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
 
-    assert "Parse bootstrap JSON for: the manifest-owned `bootstrap.required_init_fields`" in peer_review
-    assert "Parse target-aware init JSON for: the same manifest-owned `bootstrap.required_init_fields`" in peer_review
+    assert "Parse bootstrap JSON using the manifest-owned `bootstrap.required_init_fields`" in peer_review
+    assert "Parse target-aware init JSON using the same manifest-owned `bootstrap.required_init_fields`" in peer_review
+    assert "do not duplicate the manifest's required-field list in prose" in peer_review
     assert "peer-review-stage-manifest.json" in peer_review
     assert "Parse bootstrap JSON for: `project_exists`" not in peer_review
     assert "Parse target-aware init JSON for: `project_exists`" not in peer_review

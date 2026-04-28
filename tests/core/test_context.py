@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -1072,6 +1073,10 @@ def _write_knowledge_doc(
     )
     reviewed_content_sha256 = compute_knowledge_reviewed_content_sha256(base_content)
     if status == "stable":
+        approval_artifact = tmp_path / "GPD" / "knowledge" / "reviews" / f"{knowledge_id}-R1-REVIEW.md"
+        approval_artifact.parent.mkdir(parents=True, exist_ok=True)
+        approval_artifact.write_text(f"Approved review for {knowledge_id}.\n", encoding="utf-8")
+        approval_artifact_sha256 = hashlib.sha256(approval_artifact.read_bytes()).hexdigest()
         content = base_content.replace(
             "---\n\n",
             "review:\n"
@@ -1082,12 +1087,16 @@ def _write_knowledge_doc(
             "  decision: approved\n"
             "  summary: Stable review approved.\n"
             f"  approval_artifact_path: GPD/knowledge/reviews/{knowledge_id}-R1-REVIEW.md\n"
-            f"  approval_artifact_sha256: {'a' * 64}\n"
+            f"  approval_artifact_sha256: {approval_artifact_sha256}\n"
             f"  reviewed_content_sha256: {reviewed_content_sha256}\n"
             "  stale: false\n"
             "---\n\n",
         )
     elif status == "in_review":
+        approval_artifact = tmp_path / "GPD" / "knowledge" / "reviews" / f"{knowledge_id}-R1-REVIEW.md"
+        approval_artifact.parent.mkdir(parents=True, exist_ok=True)
+        approval_artifact.write_text(f"Pending review for {knowledge_id}.\n", encoding="utf-8")
+        approval_artifact_sha256 = hashlib.sha256(approval_artifact.read_bytes()).hexdigest()
         content = base_content.replace(
             "---\n\n",
             "review:\n"
@@ -1098,7 +1107,7 @@ def _write_knowledge_doc(
             "  decision: approved\n"
             "  summary: Needs re-review after edits.\n"
             f"  approval_artifact_path: GPD/knowledge/reviews/{knowledge_id}-R1-REVIEW.md\n"
-            f"  approval_artifact_sha256: {'a' * 64}\n"
+            f"  approval_artifact_sha256: {approval_artifact_sha256}\n"
             f"  reviewed_content_sha256: {reviewed_content_sha256}\n"
             "  stale: true\n"
             "---\n\n",
@@ -3731,6 +3740,8 @@ class TestInitVerifyWork:
         ctx = init_verify_work(tmp_path, "1")
         assert ctx["phase_found"] is True
         assert ctx["has_verification"] is True
+        assert ctx["project_root"] == tmp_path.resolve(strict=False).as_posix()
+        assert ctx["phase_dir_abs"].endswith("/GPD/phases/01-setup")
 
     def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -3744,6 +3755,8 @@ class TestInitVerifyWork:
         assert ctx["phase_found"] is True
         assert ctx["phase_number"] == "01"
         assert ctx["has_verification"] is True
+        assert ctx["project_root"] == tmp_path.resolve(strict=False).as_posix()
+        assert ctx["phase_dir_abs"].endswith("/GPD/phases/01-setup")
 
     def test_stage_session_router_returns_bootstrap_only_payload(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -3753,6 +3766,8 @@ class TestInitVerifyWork:
         ctx = init_verify_work(tmp_path, "1", stage="session_router")
 
         assert ctx["phase_found"] is True
+        assert ctx["project_root"] == tmp_path.resolve(strict=False).as_posix()
+        assert ctx["phase_dir_abs"].endswith("/GPD/phases/01-setup")
         assert ctx["project_contract_gate"]["visible"] is True
         assert ctx["phase_proof_review_status"]["scope"] == "phase"
         assert ctx["phase_proof_review_status"]["state"] == "not_reviewed"
@@ -3775,7 +3790,9 @@ class TestInitVerifyWork:
 
         assert ctx["phase_found"] is False
         assert ctx["phase_dir"] is None
+        assert ctx["phase_dir_abs"] is None
         assert ctx["phase_number"] is None
+        assert ctx["project_root"] == tmp_path.resolve(strict=False).as_posix()
         assert ctx["project_contract_gate"]["visible"] is True
         assert ctx["staged_loading"]["stage_id"] == "session_router"
 

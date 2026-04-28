@@ -339,7 +339,7 @@ _RESUME_FILE_CONTENT_FIELDS = frozenset(
 )
 _SYNC_STATE_BASE_INIT_FIELDS = frozenset(
     {
-        "prefer_mode",
+        "project_root",
         "state_md_exists",
         "state_json_exists",
         "state_json_backup_exists",
@@ -1002,10 +1002,11 @@ def _resolve_reentry_context(
     resolution = resolve_project_reentry(cwd, data_root=data_root)
     selected_project_root = resolution.resolved_project_root
     effective_cwd = selected_project_root or cwd.expanduser().resolve(strict=False)
+    project_root_source = resolution.source if selected_project_root is not None else None
     metadata: dict[str, object] = {
         "workspace_root": resolution.workspace_root,
         "project_root": selected_project_root.as_posix() if selected_project_root is not None else None,
-        "project_root_source": resolution.source or "workspace",
+        "project_root_source": project_root_source,
         "project_root_auto_selected": resolution.auto_selected,
         "project_reentry_mode": resolution.mode,
         "project_reentry_requires_selection": resolution.requires_user_selection,
@@ -2841,6 +2842,9 @@ def _promote_auto_selected_recent_bounded_segment(
     resume_file = _mapping_text(selected_candidate, "resume_file")
     if resume_file is None:
         return continuation_state, False
+    last_result_id = _mapping_text(selected_candidate, "last_result_id")
+    if last_result_id is not None and last_result_id not in result_lookup_by_id:
+        last_result_id = None
 
     active_resume_kind = _mapping_text(continuation_state, "active_resume_kind")
     active_resume_pointer = _mapping_text(continuation_state, "active_resume_pointer")
@@ -2865,14 +2869,16 @@ def _promote_auto_selected_recent_bounded_segment(
         "plan": _mapping_text(selected_candidate, "recovery_plan"),
         "segment_id": _mapping_text(selected_candidate, "source_segment_id"),
         "transition_id": _mapping_text(selected_candidate, "source_transition_id"),
-        "last_result_id": _mapping_text(selected_candidate, "last_result_id"),
+        "last_result_id": last_result_id,
         "updated_at": (
             _mapping_text(selected_candidate, "resume_target_recorded_at")
             or _mapping_text(selected_candidate, "source_recorded_at")
         ),
     }
     bounded_segment = {
-        key: value for key, value in bounded_segment.items() if not isinstance(value, str) or value.strip()
+        key: value
+        for key, value in bounded_segment.items()
+        if value is not None and (not isinstance(value, str) or value.strip())
     }
 
     raw_candidate = build_resume_segment_candidate(bounded_segment, source="recent_project")
@@ -2883,6 +2889,8 @@ def _promote_auto_selected_recent_bounded_segment(
         origin=resume_origin_for_bounded_segment(),
         resume_pointer=resume_file,
     )
+    if last_result_id is None:
+        canonical_candidate.pop("last_result_id", None)
     canonical_candidate = _hydrate_resume_result(canonical_candidate, result_lookup_by_id)
 
     def _replace_matching_candidate(
@@ -4074,15 +4082,12 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
     return staged_payload
 
 
-def init_sync_state(cwd: Path, *, prefer_mode: str | None = None, stage: str | None = None) -> dict:
+def init_sync_state(cwd: Path, *, stage: str | None = None) -> dict:
     """Assemble context for state reconciliation."""
     effective_cwd = _resolve_project_scoped_cwd(cwd)
-    normalized_prefer = prefer_mode.strip() if isinstance(prefer_mode, str) and prefer_mode.strip() else None
-    if normalized_prefer not in {None, "md", "json"}:
-        raise ValueError("sync-state prefer mode must be one of: md, json")
 
     base_result = {
-        "prefer_mode": normalized_prefer,
+        "project_root": effective_cwd.as_posix(),
         "state_md_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
         "state_json_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/state.json"),
         "state_json_backup_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{STATE_JSON_BACKUP_FILENAME}"),
@@ -4154,9 +4159,11 @@ def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> 
     cwd = _resolve_project_scoped_cwd(cwd)
     config = load_config(cwd)
     phase_info = _try_find_phase(cwd, phase) if phase else None
+    phase_dir = phase_info["directory"] if phase_info else None
+    phase_dir_abs = (cwd / str(phase_dir)).as_posix() if phase_dir else None
     phase_proof_review_status = resolve_phase_proof_review_status(
         cwd,
-        cwd / phase_info["directory"] if phase_info else None,
+        cwd / phase_dir if phase_dir else None,
         persist_manifest=stage is None,
     )
 
@@ -4169,9 +4176,11 @@ def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> 
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
         "research_mode": config["research_mode"],
+        "project_root": cwd.as_posix(),
         # Phase info
         "phase_found": phase_info is not None,
-        "phase_dir": phase_info["directory"] if phase_info else None,
+        "phase_dir": phase_dir,
+        "phase_dir_abs": phase_dir_abs,
         "phase_number": phase_info["phase_number"] if phase_info else None,
         "phase_name": phase_info.get("phase_name") if phase_info else None,
         # Existing artifacts

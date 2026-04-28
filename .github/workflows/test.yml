@@ -282,10 +282,12 @@ jobs:
       - name: Run pytest shard
         timeout-minutes: 10
         env:
+          GPD_DEFAULT_FAST_SUITE_COMMAND: "uv run pytest tests/ -q"
           GPD_FAST_SUITE_BUDGET_SECONDS: "180"
           PYTEST_SHARD_TARGET_FILE: ${{ runner.temp }}/pytest-targets.txt
         run: |
           mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"
+          echo "Default fast suite command represented by CI shards: ${GPD_DEFAULT_FAST_SUITE_COMMAND}"
           echo "Fast suite budget: ${GPD_FAST_SUITE_BUDGET_SECONDS}s enforced per pytest shard; job timeout: 10 minutes"
           set +e
           timeout "${GPD_FAST_SUITE_BUDGET_SECONDS}s" uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"

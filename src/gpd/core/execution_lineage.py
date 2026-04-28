@@ -346,19 +346,30 @@ def derive_execution_lineage_head(
     if not normalized:
         return None
 
-    latest = max(normalized, key=lambda item: (item.seq, item.recorded_at, item.event_id))
-    if latest.head_effect == ExecutionHeadEffect.NOOP and latest.head_after is None and latest.bounded_segment_after is None:
-        prior = [item for item in normalized if item.seq < latest.seq]
-        if prior:
-            latest = max(prior, key=lambda item: (item.seq, item.recorded_at, item.event_id))
+    current_execution: dict[str, object] | None = None
+    current_bounded_segment: ContinuationBoundedSegment | None = None
+    latest: ExecutionLineageEntry | None = None
+    for entry in sorted(normalized, key=lambda item: (item.seq, item.recorded_at, item.event_id)):
+        latest = entry
+        if entry.head_effect in {ExecutionHeadEffect.SEED, ExecutionHeadEffect.REPLACE}:
+            current_execution = entry.head_after
+            current_bounded_segment = entry.bounded_segment_after
+        elif entry.head_effect == ExecutionHeadEffect.CLEAR:
+            current_execution = None
+            current_bounded_segment = None
+        elif entry.head_effect == ExecutionHeadEffect.NOOP:
+            continue
+
+    if latest is None:
+        return None
 
     return project_execution_lineage_head(
-        latest.head_after,
-        bounded_segment=latest.bounded_segment_after,
+        current_execution,
+        bounded_segment=current_bounded_segment,
         last_applied_seq=latest.seq,
         last_applied_event_id=latest.event_id,
         recorded_at=latest.recorded_at,
-        reducer_version=latest.reducer_version,
+        reducer_version=EXECUTION_LINEAGE_REDUCER_VERSION,
     )
 
 
@@ -372,8 +383,10 @@ def _head_matches_ledger_tail(
     head: ExecutionLineageHead,
     tail: ExecutionLineageEntry | None,
 ) -> bool:
+    if head.reducer_version != EXECUTION_LINEAGE_REDUCER_VERSION:
+        return False
     if tail is None:
-        return True
+        return False
     return head.last_applied_seq == tail.seq and head.last_applied_event_id == tail.event_id
 
 

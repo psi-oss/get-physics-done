@@ -87,12 +87,15 @@ Other useful options, only if one of these is what you need:
 
 **This folder has partial/recoverable GPD state**
 
-Recommended next steps:
+Recommended next steps depend on the recovered artifacts. Only list commands whose command-context preflight can pass for the detected state:
 
+When `roadmap_exists=true`, include:
 1. Inspect recovery state (recommended) - use `gpd:resume-work`.
-2. Reconcile state files - use `gpd:sync-state`.
-3. Review visible progress - use `gpd:progress`.
 
+When `state_exists=true`, include:
+2. Reconcile state files - use `gpd:sync-state`.
+
+Do not list `gpd:progress` for partial state; reserve it for initialized projects with `project_exists=true`.
 Do not offer `gpd:new-project` as a fresh start unless the researcher explicitly says they want to delete or move the existing `GPD/` artifacts first.
 
 **This folder already has GPD's folder summary (`research map`)**

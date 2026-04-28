@@ -356,6 +356,11 @@
         "managed_publication_root",
         "selected_publication_root",
         "selected_review_root",
+        "manuscript_root",
+        "manuscript_entrypoint",
+        "artifact_manifest_path",
+        "bibliography_audit_path",
+        "reproducibility_manifest_path",
         "platform"
       ],
       "loaded_authorities": [
@@ -464,6 +469,9 @@
         "manuscript_resolution_detail",
         "manuscript_root",
         "manuscript_entrypoint",
+        "artifact_manifest_path",
+        "bibliography_audit_path",
+        "reproducibility_manifest_path",
         "latest_review_round",
         "latest_review_round_suffix",
         "latest_referee_report_md",

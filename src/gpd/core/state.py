@@ -306,7 +306,7 @@ def _project_recent_project_entry(
         active_bounded_segment.last_result_id if active_bounded_segment is not None else None,
         handoff.last_result_id if target_kind == "handoff" else None,
         session.get("last_result_id") if isinstance(session, dict) else None,
-        existing.last_result_id if existing is not None else None,
+        existing.last_result_id if existing is not None and target_kind is not None else None,
     )
     resume_file = projection.active_resume_file
     if resume_file is None and target_kind == "handoff":
@@ -5055,12 +5055,13 @@ def state_record_session(
             and resume_file.strip().casefold() not in {"none", "null"}
         ):
             raise StateError("resume_file must be a repo-relative path inside the project root")
+        effective_clear_last_result_id = clear_last_result_id or clear_resume_file
         requested_last_result_id = (
             None
-            if clear_last_result_id
+            if effective_clear_last_result_id
             else (_optional_state_text(last_result_id) if last_result_id is not None else None)
         )
-        if last_result_id is not None:
+        if last_result_id is not None and not effective_clear_last_result_id:
             if requested_last_result_id is None:
                 raise StateError("last_result_id must be a non-empty string when provided")
             if not state_has_canonical_result_id(state_obj, requested_last_result_id):
@@ -5087,7 +5088,7 @@ def state_record_session(
         desired_stopped_at = stopped_at if stopped_at is not None else existing_handoff.stopped_at
         desired_last_result_id = (
             None
-            if clear_last_result_id
+            if effective_clear_last_result_id
             else (
                 requested_last_result_id
                 if last_result_id is not None

@@ -32,13 +32,13 @@ def test_verify_work_verifier_sync_requires_artifact_gate_before_downstream_rout
     workflow = _read(WORKFLOWS_DIR / "verify-work.md")
 
     assert "Route only on the canonical verification frontmatter and `gpd_return.status`; do not route on headings or marker strings." in workflow
-    assert "`${phase_dir}/${phase_number}-VERIFICATION.md` exists on disk and is readable" in workflow
+    assert "`${PHASE_DIR_ABS}/${phase_number}-VERIFICATION.md` exists on disk and is readable" in workflow
     assert "the same path appears in `gpd_return.files_written`" in workflow
-    assert 'gpd validate verification-contract "${phase_dir}/${phase_number}-VERIFICATION.md"' in workflow
+    assert 'gpd validate verification-contract "${PHASE_DIR_ABS}/${phase_number}-VERIFICATION.md"' in workflow
     assert "Do not recompute canonical verification status in this workflow." in workflow
     assert "If a canonical verification file already existed before this run" in workflow
     assert "If a canonical verification file already exists, preserve its authoritative frontmatter and append only the session-local overlay here." in workflow
-    assert "Write to `${phase_dir}/${phase_number}-VERIFICATION.md`." in workflow
+    assert "Write to `${PHASE_DIR_ABS}/${phase_number}-VERIFICATION.md`." in workflow
     assert "Validate the final verification file, then commit it." in workflow
     assert workflow.count("Changed verification files fail `gpd pre-commit-check` when this header is missing or mismatched against the active lock.") == 1
     assert "If the verifier agent fails to spawn or returns an error, keep the session fail-closed." in workflow
@@ -91,10 +91,10 @@ def test_verify_work_gap_plan_success_reconciles_files_written_and_disk_artifact
 def test_verify_work_proof_check_handoff_uses_structured_freshness_and_fail_closed_artifact_gates() -> None:
     workflow = _read(WORKFLOWS_DIR / "verify-work.md")
 
-    assert "Use `phase_proof_review_status` as the structured freshness summary for the phase proof-review manifest if present." in workflow
+    assert "Use `phase_proof_review_status` as the proof-review freshness summary." in workflow
     assert "> Runtime delegation rule: this is a single-turn handoff. If the spawned agent needs user input, it checkpoints and returns; do not keep the original run waiting inside the same task." in workflow
     assert "Return `status: checkpoint` instead of waiting for user input inside this run." in workflow
     assert "Never trust the return text alone; if the file is missing, stale, malformed, or not passed, keep the verification session fail-closed and start a fresh proof continuation." in workflow
-    assert "After the proof critic returns, re-open `${phase_dir}/${phase_number}-PROOF-REDTEAM.md` from disk and confirm the artifact exists and is `passed` before finalizing the gap ledger." in workflow
+    assert "After the proof critic returns, re-open `${PHASE_DIR_ABS}/${phase_number}-PROOF-REDTEAM.md` from disk and confirm the artifact exists and is `passed` before finalizing the gap ledger." in workflow
     assert "If `gpd-check-proof` still cannot produce a passed audit, keep the verification status fail-closed." in workflow
     assert "File-producing handoffs must prove the expected artifact exists before success is accepted." in workflow

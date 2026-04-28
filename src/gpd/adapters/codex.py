@@ -762,6 +762,10 @@ class CodexAdapter(RuntimeAdapter):
     def _pre_cleanup(self, target_dir: Path) -> None:
         pre_install_cleanup(target_dir, skills_dir=str(self._skills_dir))
 
+    def _preflight_runtime_config(self, target_dir: Path, is_global: bool) -> None:
+        """Fail before copying files when project-owned integration config is malformed."""
+        self._preflight_project_integrations_config(target_dir, is_global)
+
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         commands_src = gpd_root / "commands"
         launcher = self._gpd_shell_launcher(target_dir)

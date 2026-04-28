@@ -1239,7 +1239,7 @@ class GeminiAdapter(RuntimeAdapter):
 
     def _preflight_runtime_config(self, target_dir: Path, is_global: bool) -> None:
         """Fail before copying files when Gemini-owned config is malformed."""
-        del is_global
+        self._preflight_project_integrations_config(target_dir, is_global)
         settings_path = target_dir / "settings.json"
         _validate_existing_gemini_managed_state(target_dir)
         _, settings_parse_error = _read_gemini_settings_state(settings_path)

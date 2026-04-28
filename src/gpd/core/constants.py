@@ -183,7 +183,7 @@ EXECUTION_LINEAGE_HEAD_FILENAME = "execution-head.json"
 EXECUTION_LINEAGE_SCHEMA_VERSION = 1
 """Schema version for execution lineage records and head projections."""
 
-EXECUTION_LINEAGE_REDUCER_VERSION = "1"
+EXECUTION_LINEAGE_REDUCER_VERSION = "2"
 """Reducer version for the execution lineage projector."""
 
 MILESTONES_DIR_NAME = "milestones"

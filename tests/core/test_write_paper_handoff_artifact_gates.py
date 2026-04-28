@@ -21,9 +21,11 @@ def test_write_paper_bibliography_completion_requires_typed_status_files_written
     source = WORKFLOW.read_text(encoding="utf-8")
 
     assert "Use `status: completed` when the bibliography task finished" in source
-    assert "A completed return must list `references/references.bib` and `GPD/references-status.json` in `gpd_return.files_written`" in source
-    assert "Treat `${PAPER_DIR}/CITATION-AUDIT.md`, the refreshed `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, and the bibliographer's typed `gpd_return` envelope as the bibliography success gate" in source
-    assert "does not name the bibliography outputs" in source
+    assert "A completed return must always list `${PAPER_DIR}/CITATION-AUDIT.md` and `GPD/references-status.json` in `gpd_return.files_written`; list `{ACTIVE_BIBLIOGRAPHY_PATH}` only when the bibliography file changed." in source
+    assert "and `{ACTIVE_BIBLIOGRAPHY_PATH}` only if the bibliography file changed" not in source
+    assert "Bibliography: `{ACTIVE_BIBLIOGRAPHY_PATH}` (the resolved active bibliography for this manuscript)" in source
+    assert "The typed return must name `${PAPER_DIR}/CITATION-AUDIT.md` and `GPD/references-status.json`, and must name `{ACTIVE_BIBLIOGRAPHY_PATH}` only when the bibliography changed" in source
+    assert "keep the pass incomplete even if older audit files are still on disk" in source
 
 
 def test_write_paper_response_artifact_completion_requires_typed_status_files_written_and_disk_artifacts() -> None:
