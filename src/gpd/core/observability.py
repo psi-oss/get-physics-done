@@ -690,6 +690,16 @@ def _persist_durable_bounded_segment(layout: ProjectLayout, next_execution: Curr
     state_set_continuation_bounded_segment(layout.root, desired_bounded_segment)
 
 
+def _best_effort_persist_durable_bounded_segment(
+    layout: ProjectLayout,
+    next_execution: CurrentExecutionState | None,
+) -> None:
+    try:
+        _persist_durable_bounded_segment(layout, next_execution)
+    except Exception:
+        return
+
+
 def get_current_execution(cwd: Path | None = None) -> CurrentExecutionState | None:
     layout = _layout(cwd)
     if layout is None:
@@ -2148,7 +2158,7 @@ def observe_event(
                 previous_execution=previous_execution,
                 next_execution=next_execution,
             )
-            _persist_durable_bounded_segment(layout, next_execution)
+            _best_effort_persist_durable_bounded_segment(layout, next_execution)
     else:
         _append_event(session_log, payload.model_dump(mode="json"))
 

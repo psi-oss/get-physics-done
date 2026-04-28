@@ -224,9 +224,9 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
     },
     "gpd-arxiv": {
         "description": (
-            "Optional/conditional arXiv paper search, retrieval, and source-archive download via arxiv-mcp-server. "
-            "Available only when the optional arxiv-mcp-server dependency is installed; "
-            "search for physics papers, fetch abstracts, download full text, and download raw source archives."
+            "Optional arXiv bridge for arxiv-mcp-server. Advertises the baseline upstream tools "
+            "search_papers, download_paper, list_papers, and read_paper, forwards only tools exposed "
+            "by the live upstream server, and adds GPD download_source for raw source archives."
         ),
         "capabilities": [
             "search_papers",

@@ -71,4 +71,4 @@ def test_execute_phase_single_sources_runtime_delegation_boilerplate() -> None:
     assert "Canonical runtime delegation convention for every `task()` block in this workflow:" in workflow_text
     assert "Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism." not in workflow_text
     assert "owns empty-model omission, file-producing `readonly=false`, artifact-gated completion" in workflow_text
-    assert workflow_text.count("Apply the canonical runtime delegation convention above.") == 6
+    assert workflow_text.count("Apply the canonical runtime delegation convention above.") == 5

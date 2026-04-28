@@ -260,6 +260,9 @@ def assert_tests_readme_documents_ci_shard_policy(tests_readme: str) -> None:
     assert "The 180 second fast-suite budget is enforced per CI pytest shard" in tests_readme
     assert "10 minute job timeout remains the outer failure boundary" in tests_readme
     assert "Shard target resolution has its own 3 minute timeout and logs elapsed seconds" in tests_readme
+    assert "Shard target resolution collects only the requested category" in tests_readme
+    assert "In-process repeated resolutions reuse the same immutable collection result" in tests_readme
+    assert "CI matrix jobs stay isolated and do not share collection state across jobs" in tests_readme
     assert "advisory full-suite wall-clock target" not in tests_readme
     assert "GitHub Actions workflow runs that same full suite as category-named runtime-informed shards" in tests_readme
     assert (

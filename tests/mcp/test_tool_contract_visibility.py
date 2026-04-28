@@ -916,7 +916,9 @@ def test_public_descriptors_surface_contract_and_optional_dependency_visibility(
     verification = descriptors["gpd-verification"]
     assert verification["description"].startswith("GPD physics verification checks.")
     assert verification_contract_surface_summary_text() in verification["description"]
-    assert "Proof-oriented checks still require an authoritative contract payload." in verification["description"]
+    assert "Proof checks require authoritative contract payloads." in verification["description"]
+    assert "Only contract-payload enum case drift is recoverable" in verification["description"]
+    assert "observed enums must match source evidence exactly" in verification["description"]
 
 
 @pytest.mark.parametrize(

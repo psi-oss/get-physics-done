@@ -2804,12 +2804,12 @@ def _parse_project_contract_data(
     if not isinstance(data, dict):
         return _project_contract_parse_result(blocking_errors=["project contract must be a JSON object"])
 
-    from gpd.core.contract_validation import _collect_list_shape_drift_errors, salvage_project_contract
+    from gpd.core.project_contract_schema import _collect_list_shape_drift_errors, salvage_project_contract
 
     contract, schema_findings = salvage_project_contract(data)
     list_shape_drift_errors = _collect_list_shape_drift_errors(data)
     if strict:
-        from gpd.core.contract_validation import (
+        from gpd.core.project_contract_schema import (
             _collect_literal_case_drift_errors,
             _project_contract_schema_version_missing_error,
             split_project_contract_schema_findings,
@@ -2842,7 +2842,7 @@ def _parse_project_contract_data(
             return _project_contract_parse_result(blocking_errors=blocking_errors)
         return _project_contract_parse_result(contract=contract)
 
-    from gpd.core.contract_validation import split_project_contract_schema_findings
+    from gpd.core.project_contract_schema import split_project_contract_schema_findings
 
     schema_warnings, schema_errors = split_project_contract_schema_findings(
         schema_findings,

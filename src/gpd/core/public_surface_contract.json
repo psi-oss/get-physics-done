@@ -56,7 +56,7 @@
     "install_local_example": "gpd install <runtime> --local",
     "doctor_local_command": "gpd doctor --runtime <runtime> --local",
     "doctor_global_command": "gpd doctor --runtime <runtime> --global",
-    "validate_command_context_command": "gpd validate command-context gpd:<name>"
+    "validate_command_context_command": "gpd validate command-context <name>"
   },
   "post_start_settings": {
     "primary_sentence": "After your first successful start or later, use the runtime `settings` command to review autonomy, workflow defaults, model-cost posture, runtime permission sync, and preset/tier overrides.",

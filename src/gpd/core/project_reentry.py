@@ -13,6 +13,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.core.constants import ProjectLayout
+from gpd.core.continuation import normalize_continuation_reference
 from gpd.core.recent_projects import (
     _strict_bool_value,
     classify_recent_project_recovery,
@@ -238,8 +239,30 @@ def _normalize_recent_text(row: Mapping[str, object], *keys: str) -> str | None:
     return None
 
 
-def _recent_project_summary(row: Mapping[str, object]) -> str | None:
-    return project_reentry_candidate_summary(row)
+def _live_resume_file_metadata(project_root: Path, resume_file: str | None) -> tuple[str | None, bool | None, str | None]:
+    if resume_file is None:
+        return None, None, None
+
+    normalized = normalize_continuation_reference(project_root, resume_file)
+    if normalized is None:
+        return None, False, "resume file outside project root"
+
+    try:
+        root_is_dir = project_root.is_dir()
+    except OSError:
+        root_is_dir = False
+    if not root_is_dir:
+        return normalized, None, None
+
+    target = project_root / normalized
+    try:
+        if not target.exists():
+            return normalized, False, "resume file missing"
+        if not target.is_file():
+            return normalized, False, "resume file is not a file"
+    except OSError:
+        return normalized, False, "resume file unavailable"
+    return normalized, True, None
 
 
 def _candidate_from_recent_row(row: Mapping[str, object]) -> ProjectReentryCandidate | None:
@@ -272,10 +295,24 @@ def _candidate_from_recent_row(row: Mapping[str, object]) -> ProjectReentryCandi
     else:
         available = _strict_bool_value(available_value) is True and inferred_available
     recoverable = available and (state_exists or roadmap_exists or project_exists)
-    resume_file = _normalize_recent_text(row, "resume_file")
-    resume_file_available = _strict_bool_value(row.get("resume_file_available"))
-    resumable = _strict_bool_value(row.get("resumable")) is True or resume_file_available is True
-    recovery = classify_recent_project_recovery(row)
+    resume_file, resume_file_available, computed_resume_file_reason = _live_resume_file_metadata(
+        project_root,
+        _normalize_recent_text(row, "resume_file"),
+    )
+    resumable = available and resume_file_available is True
+    resume_file_reason = (
+        None
+        if resume_file_available is True
+        else computed_resume_file_reason or _normalize_recent_text(row, "resume_file_reason")
+    )
+    recovery_payload = {
+        **dict(row),
+        "available": available,
+        "resume_file": resume_file,
+        "resume_file_available": resume_file_available,
+        "resumable": resumable,
+    }
+    recovery = classify_recent_project_recovery(recovery_payload)
     candidate = ProjectReentryCandidate(
         source="recent_project",
         project_root=project_root.as_posix(),
@@ -284,7 +321,7 @@ def _candidate_from_recent_row(row: Mapping[str, object]) -> ProjectReentryCandi
         resumable=resumable,
         confidence="medium" if recoverable else "low",
         reason="recent project cache entry",
-        summary=_recent_project_summary(row),
+        summary=None,
         state_exists=state_exists,
         roadmap_exists=roadmap_exists,
         project_exists=project_exists,
@@ -293,7 +330,7 @@ def _candidate_from_recent_row(row: Mapping[str, object]) -> ProjectReentryCandi
         resume_target_kind=recovery.resume_target_kind,
         resume_target_recorded_at=recovery.resume_target_recorded_at,
         resume_file_available=resume_file_available,
-        resume_file_reason=_normalize_recent_text(row, "resume_file_reason"),
+        resume_file_reason=resume_file_reason,
         hostname=_normalize_recent_text(row, "hostname"),
         platform=_normalize_recent_text(row, "platform"),
         availability_reason=_normalize_recent_text(row, "availability_reason"),
@@ -313,7 +350,7 @@ def _candidate_from_recent_row(row: Mapping[str, object]) -> ProjectReentryCandi
         update={
             "confidence": "high" if concrete_target else "medium" if recoverable else "low",
             "reason": recovery.candidate_reason(recoverable=recoverable),
-            "summary": _recent_project_summary(row),
+            "summary": project_reentry_candidate_summary(candidate),
         }
     )
 

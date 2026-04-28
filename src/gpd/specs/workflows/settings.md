@@ -104,7 +104,7 @@ If `model_overrides.<runtime>` already exists, surface the current `tier-1` / `t
 
 Treat this as the primary guided unattended-use flow: explain that autonomy, unattended budgets, runtime permission sync, and conservative preset bundles all live here. `Supervised` is the default for frequent checkpoints. Point users at `Balanced` when they want fewer routine pauses after they trust the workflow.
 
-**Checkpoint keystrokes.** Most supervised checkpoints render a one-line summary and resume with `[Y/n/e]`: press **Enter** (or `Y`) to accept the recommended action, `n` to reject, `e` to edit or provide freeform feedback. Enter always means "accept what I just saw." A handful of physics-bearing or destructive checkpoints intentionally do not collapse to a single keystroke (convention lock, destructive rails, blocker triage, claim↔deliverable precheck, first-result gate after firing) — see `@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md`.
+**Checkpoint keystrokes.** Most supervised checkpoints render a one-line summary and resume with `[Y/n/e]`: press **Enter** (or `Y`) to accept the recommended action, `n` to reject, `e` to edit or provide freeform feedback. Enter always means "accept what I just saw." A handful of physics-bearing or destructive checkpoints intentionally do not collapse to a single keystroke (convention lock, destructive rails, blocker triage, claim↔deliverable precheck, first-result gate after firing) — see `{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md`.
 
 Teach one coherent posture-to-inspection loop:
 

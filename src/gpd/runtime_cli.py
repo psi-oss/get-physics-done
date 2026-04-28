@@ -508,30 +508,6 @@ def _classify_bridge_failure(
 ) -> _BridgeFailure | None:
     """Return the first structured bridge failure for the current install state."""
 
-    if manifest_scope_status == "missing_install_scope":
-        return _bridge_failure(
-            _BridgeFailureKind.MISSING_INSTALL_SCOPE,
-            _install_scope_status_error_message(
-                runtime=runtime,
-                config_dir=config_dir,
-                install_scope=install_scope,
-                explicit_target=explicit_target,
-                cli_cwd=cli_cwd,
-                state=manifest_scope_status,
-            ),
-        )
-    if manifest_scope_status == "malformed_install_scope":
-        return _bridge_failure(
-            _BridgeFailureKind.MALFORMED_INSTALL_SCOPE,
-            _install_scope_status_error_message(
-                runtime=runtime,
-                config_dir=config_dir,
-                install_scope=install_scope,
-                explicit_target=explicit_target,
-                cli_cwd=cli_cwd,
-                state=manifest_scope_status,
-            ),
-        )
     if manifest_status == "missing" and has_managed_install_markers:
         return _bridge_failure(
             _BridgeFailureKind.MISSING_MANIFEST,
@@ -610,6 +586,30 @@ def _classify_bridge_failure(
                 install_scope=install_scope,
                 explicit_target=explicit_target,
                 cli_cwd=cli_cwd,
+            ),
+        )
+    if manifest_scope_status == "missing_install_scope":
+        return _bridge_failure(
+            _BridgeFailureKind.MISSING_INSTALL_SCOPE,
+            _install_scope_status_error_message(
+                runtime=runtime,
+                config_dir=config_dir,
+                install_scope=install_scope,
+                explicit_target=explicit_target,
+                cli_cwd=cli_cwd,
+                state=manifest_scope_status,
+            ),
+        )
+    if manifest_scope_status == "malformed_install_scope":
+        return _bridge_failure(
+            _BridgeFailureKind.MALFORMED_INSTALL_SCOPE,
+            _install_scope_status_error_message(
+                runtime=runtime,
+                config_dir=config_dir,
+                install_scope=install_scope,
+                explicit_target=explicit_target,
+                cli_cwd=cli_cwd,
+                state=manifest_scope_status,
             ),
         )
     if isinstance(manifest_install_scope, str) and manifest_install_scope in {"local", "global"}:

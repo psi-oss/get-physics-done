@@ -1304,6 +1304,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
+            "`peer-review` can review the current project manuscript or one explicit",
             "`gpd:peer-review` can review the current project manuscript or one explicit",
             "`gpd:peer-review` is the project-aware intake step and can review the current project manuscript or one explicit",
         ),
@@ -1357,6 +1358,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
+            "`peer-review` remains the standalone follow-on command",
             "`gpd:peer-review` remains the standalone follow-on command",
             "standalone follow-on command when the bounded external-authoring lane needs review",
             "route authored-manuscript review to standalone `gpd:peer-review`",
@@ -1376,6 +1378,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
+            "`respond-to-referees` stays tied to the resolved manuscript root",
             "`gpd:respond-to-referees` stays tied to the resolved manuscript root",
             "`gpd:respond-to-referees` and `gpd:arxiv-submission` still operate on the resolved manuscript root",
             "`gpd:respond-to-referees` and `gpd:arxiv-submission` stay tied to the resolved manuscript root",
@@ -1388,6 +1391,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
+            "`arxiv-submission` only packages a GPD-owned manuscript root or `.tex` entrypoint",
             "`gpd:arxiv-submission` only packages a GPD-owned manuscript root or `.tex` entrypoint",
             "`gpd:arxiv-submission` packages only a GPD-owned manuscript root or `.tex` entrypoint",
             "resolved GPD-owned manuscript root",

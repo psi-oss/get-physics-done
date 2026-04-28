@@ -349,21 +349,21 @@ def assess_install_target(
                 manifest_runtime=manifest_runtime,
                 has_managed_markers=True,
             )
-        if manifest_scope_state != "ok":
-            return InstallTargetAssessment(
-                config_dir=resolved,
-                expected_runtime=expected_runtime,
-                state="untrusted_manifest",
-                manifest_state=manifest_scope_state,
-                manifest_runtime=manifest_runtime,
-                has_managed_markers=True,
-            )
         if expected_runtime is not None and manifest_runtime != expected_runtime:
             return InstallTargetAssessment(
                 config_dir=resolved,
                 expected_runtime=expected_runtime,
                 state="foreign_runtime",
                 manifest_state=manifest_state,
+                manifest_runtime=manifest_runtime,
+                has_managed_markers=True,
+            )
+        if manifest_scope_state != "ok":
+            return InstallTargetAssessment(
+                config_dir=resolved,
+                expected_runtime=expected_runtime,
+                state="untrusted_manifest",
+                manifest_state=manifest_scope_state,
                 manifest_runtime=manifest_runtime,
                 has_managed_markers=True,
             )

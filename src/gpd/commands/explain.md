@@ -51,7 +51,7 @@ This wrapper owns command-context validation and the public output-root boundary
 Concept, result, method, notation, or paper: $ARGUMENTS
 
 GPD-authored explanation artifacts stay under `GPD/explanations/` rooted at the current workspace.
-Use `@{GPD_INSTALL_DIR}/references/results/result-lookup-policy.md` for upstream result dependencies.
+Use `{GPD_INSTALL_DIR}/references/results/result-lookup-policy.md` for upstream result dependencies.
 If `$ARGUMENTS` is empty in standalone mode, stop and ask the user to rerun with an explicit concept/topic.
 
 </context>

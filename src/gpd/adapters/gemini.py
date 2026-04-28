@@ -487,7 +487,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run convention verification directly instead of capturing it in CONV_CHECK.
+# Gemini: run convention verification directly.
 gpd --raw convention check 2>/dev/null
 ```""",
     )
@@ -500,7 +500,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run convention verification directly instead of capturing it in CONV_CHECK.
+# Gemini: run convention verification directly.
 gpd --raw convention check 2>/dev/null
 ```""",
     )
@@ -513,7 +513,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run the command-context validation directly instead of capturing it in CONTEXT.
+# Gemini: run command-context validation directly.
 gpd --raw validate command-context validate-conventions "$ARGUMENTS"
 ```""",
     )
@@ -526,7 +526,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run the command-context validation directly instead of capturing it in CONTEXT.
+# Gemini: run command-context validation directly.
 gpd --raw validate command-context write-paper "$ARGUMENTS"
 ```""",
     )
@@ -535,7 +535,7 @@ gpd --raw validate command-context write-paper "$ARGUMENTS"
 QUALITY=$(gpd --raw validate paper-quality --from-project . 2>/dev/null)
 ```""",
         """```bash
-# Gemini auto-edit: run paper-quality validation directly instead of capturing it in QUALITY.
+# Gemini: run paper-quality validation directly.
 gpd --raw validate paper-quality --from-project . 2>/dev/null
 ```""",
     )
@@ -549,7 +549,7 @@ gpd commit \
   --files "${COMPARISON_OUTPUT_PATH}"
 ```""",
         """```bash
-# Gemini auto-edit: run the pre-check directly; if it fails, inspect the output before committing.
+# Gemini: run the pre-check directly; inspect output before committing.
 gpd pre-commit-check --files "${COMPARISON_OUTPUT_PATH}" 2>&1 || true
 
 gpd commit \
@@ -565,7 +565,7 @@ echo "$PRE_CHECK"
 gpd commit "docs: generate dependency graph" --files GPD/DEPENDENCY-GRAPH.md
 ```""",
         """```bash
-# Gemini auto-edit: run the pre-check directly; if it fails, inspect the output before committing.
+# Gemini: run the pre-check directly; inspect output before committing.
 gpd pre-commit-check --files GPD/DEPENDENCY-GRAPH.md 2>&1 || true
 
 gpd commit "docs: generate dependency graph" --files GPD/DEPENDENCY-GRAPH.md
@@ -580,7 +580,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run initialization directly instead of capturing it in INIT.
+# Gemini: run initialization directly.
 gpd --raw init phase-op
 ```""",
     )
@@ -593,7 +593,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run initialization directly instead of capturing it in INIT.
+# Gemini: run initialization directly.
 gpd --raw init progress --include state,roadmap,config
 ```""",
     )
@@ -606,7 +606,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run initialization directly instead of capturing it in INIT.
+# Gemini: run initialization directly.
 gpd --raw init progress --include state
 ```""",
     )
@@ -619,7 +619,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run initialization directly instead of capturing it in INIT.
+# Gemini: run initialization directly.
 gpd --raw init phase-op --include state,config "${PHASE_ARG:-}"
 ```""",
     )
@@ -632,7 +632,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run initialization directly instead of capturing it in INIT.
+# Gemini: run initialization directly.
 gpd --raw init progress --include state,config
 ```""",
     )
@@ -643,24 +643,35 @@ _GEMINI_CAPTURE_ASSIGNMENT_RE = re.compile(
     r"^(?P<indent>[ \t]*)(?P<var>[A-Z][A-Z0-9_]*)=\$\((?P<command>gpd[^\n]*)\)(?P<suffix>[ \t]*(?:\|\|\s*true)?)$",
     re.MULTILINE,
 )
-_GEMINI_CAPTURED_INIT_BLOCK_RE = re.compile(
-    r"^(?P<indent>[ \t]*)(?P<var>[A-Z][A-Z0-9_]*)=\$\((?P<command>gpd --raw init[^\n]*)\)(?P<suffix>[ \t]*(?:\|\|\s*true)?)\n"
+_GEMINI_CAPTURED_GPD_STATUS_BLOCK_RE = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<var>[A-Z][A-Z0-9_]*)=\$\((?P<command>gpd[^\n]*)\)(?P<suffix>[ \t]*(?:\|\|\s*true)?)\n"
     r"(?P=indent)if \[ \$\? -ne 0 \]; then\n"
     r"(?:(?P=indent)[ \t]+.*\n)+?"
     r"(?P=indent)fi$",
     re.MULTILINE,
 )
+_GEMINI_CAPTURED_GPD_ECHO_BLOCK_RE = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<var>[A-Z][A-Z0-9_]*)=\$\((?P<command>gpd[^\n]*)\)(?P<suffix>[ \t]*(?:\|\|\s*true)?)\n"
+    r'(?P=indent)echo "\$(?P=var)"$',
+    re.MULTILINE,
+)
+
+
+def _gemini_direct_command_comment(command: str) -> str:
+    """Return a concise Gemini note for transformed shell-capture examples."""
+    if command.startswith("gpd --raw init"):
+        return "# Gemini: run initialization directly."
+    return "# Gemini: run this command directly."
 
 
 def _rewrite_gemini_capture_assignments(content: str) -> str:
     """Rewrite single-line Gemini shell capture examples into direct commands."""
 
-    def _replace_init_block(match: re.Match[str]) -> str:
+    def _replace_capture_block(match: re.Match[str]) -> str:
         indent = match.group("indent")
-        var = match.group("var")
         command = match.group("command").strip()
         suffix = (match.group("suffix") or "").strip()
-        comment = f"{indent}# Gemini auto-edit: run initialization directly instead of capturing it in {var}."
+        comment = f"{indent}{_gemini_direct_command_comment(command)}"
         rewritten = f"{indent}{command}"
         if suffix:
             rewritten = f"{rewritten} {suffix}"
@@ -668,17 +679,17 @@ def _rewrite_gemini_capture_assignments(content: str) -> str:
 
     def _replace(match: re.Match[str]) -> str:
         indent = match.group("indent")
-        var = match.group("var")
         command = match.group("command").strip()
         suffix = match.group("suffix") or ""
         suffix = suffix.strip()
-        comment = f"{indent}# Gemini auto-edit: run the command directly instead of capturing it in {var}."
+        comment = f"{indent}{_gemini_direct_command_comment(command)}"
         rewritten = f"{indent}{command}"
         if suffix:
             rewritten = f"{rewritten} {suffix}"
         return f"{comment}\n{rewritten}"
 
-    content = _GEMINI_CAPTURED_INIT_BLOCK_RE.sub(_replace_init_block, content)
+    content = _GEMINI_CAPTURED_GPD_STATUS_BLOCK_RE.sub(_replace_capture_block, content)
+    content = _GEMINI_CAPTURED_GPD_ECHO_BLOCK_RE.sub(_replace_capture_block, content)
     return _GEMINI_CAPTURE_ASSIGNMENT_RE.sub(_replace, content)
 
 

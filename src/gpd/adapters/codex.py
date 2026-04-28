@@ -276,14 +276,48 @@ def _load_live_managed_codex_skill_dirs(skills_dir: Path | None) -> tuple[str, .
     for entry in sorted(skills_dir.iterdir()):
         if not entry.is_dir() or not entry.name.startswith("gpd-"):
             continue
-        skill_md = entry / "SKILL.md"
-        try:
-            content = skill_md.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        if _GPD_CODEX_SKILL_MARKER in content:
+        if _codex_skill_dir_has_managed_marker(entry):
             names.append(entry.name)
     return tuple(names)
+
+
+def _codex_skill_dir_has_managed_marker(skill_dir: Path) -> bool:
+    """Return whether a Codex skill directory carries the GPD ownership marker."""
+    try:
+        content = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return _GPD_CODEX_SKILL_MARKER in content
+
+
+def _assert_no_unowned_planned_codex_skill_collisions(
+    skills_dir: Path,
+    *,
+    planned_skill_dirs: set[str],
+    prior_install_skill_dirs: tuple[str, ...],
+) -> None:
+    """Fail before staging when a planned GPD skill would overwrite user content."""
+    if not skills_dir.exists():
+        return
+
+    prior_owned = set(prior_install_skill_dirs)
+    collisions: list[str] = []
+    for skill_name in sorted(planned_skill_dirs):
+        entry = skills_dir / skill_name
+        if not entry.exists() or skill_name in prior_owned:
+            continue
+        if entry.is_dir() and _codex_skill_dir_has_managed_marker(entry):
+            continue
+        collisions.append(skill_name)
+
+    if collisions:
+        formatted = ", ".join(f"`{name}`" for name in collisions[:5])
+        if len(collisions) > 5:
+            formatted = f"{formatted}, ..."
+        raise RuntimeError(
+            "Refusing to install Codex command skills because existing unowned skill path(s) "
+            f"would be overwritten: {formatted}."
+        )
 
 
 def _load_manifest_tracked_codex_skill_dirs(target_dir: Path) -> tuple[str, ...]:
@@ -1371,6 +1405,11 @@ def _copy_commands_as_skills(
     generated_skill_dirs: set[str] = set()
     planned_skill_dirs = _planned_codex_skill_dirs(src_dir, prefix)
     prior_install_skill_dirs = _load_manifest_codex_cleanup_skill_dirs(workflow_target_dir)
+    _assert_no_unowned_planned_codex_skill_collisions(
+        skills_dir,
+        planned_skill_dirs=planned_skill_dirs,
+        prior_install_skill_dirs=prior_install_skill_dirs,
+    )
     try:
         if skills_dir.exists():
             for entry in sorted(skills_dir.iterdir()):

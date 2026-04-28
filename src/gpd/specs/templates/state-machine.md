@@ -80,8 +80,8 @@ Disk status values (from `roadmap_analyze`): `no_directory`, `empty`, `discussed
 ### Verification Synthesis
 
 Two verification tracks exist:
-1. **Automated (verify-phase.md):** Computational checks via gpd-verifier subagent → VERIFICATION.md
-2. **Interactive (verify-work.md):** Conversational walkthrough with researcher → detailed check results
+1. **Automated verification:** Computational checks via verifier subagent → VERIFICATION.md
+2. **Interactive verification:** Conversational walkthrough with researcher → detailed check results
 
 **When both are required:** Novel results, publication-bound phases, milestone-final phases
 **When automated suffices:** Standard computations with clear benchmarks, intermediate phases

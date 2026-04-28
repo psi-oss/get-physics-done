@@ -11,7 +11,7 @@ Canonical source of truth for `GPD/AUTHOR-RESPONSE{round_suffix}.md`.
 
 Use this structure whenever drafting the internal response tracker that later review rounds and the referee workflow will read. The journal-facing `GPD/review/REFEREE_RESPONSE{round_suffix}.md` mirrors the same issue IDs, classifications, statuses, and new-calculation tracking.
 
-The paired response-artifact contract at `@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md` owns the one-shot completion gate, the fresh `gpd_return.files_written` requirement, and the rule that `fixed` is only valid after the manuscript edit already exists on disk.
+The paired response-artifact contract at `{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md` owns the one-shot completion gate, the fresh `gpd_return.files_written` requirement, and the rule that `fixed` is only valid after the manuscript edit already exists on disk.
 
 ---
 

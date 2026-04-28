@@ -673,7 +673,7 @@ mkdir -p "${PAPER_DIR}/figures"
 
 Before drafting sections, generate all planned figures:
 
-1. Before reading or updating `${PAPER_DIR}/FIGURE_TRACKER.md`, load `@{GPD_INSTALL_DIR}/templates/paper/figure-tracker.md` and treat its `figure_registry` frontmatter as the schema source of truth. Keep the registry machine-readable for paper-quality scoring; do not invent ad hoc keys or collapse it into prose.
+1. Before reading or updating `${PAPER_DIR}/FIGURE_TRACKER.md`, load `{GPD_INSTALL_DIR}/templates/paper/figure-tracker.md` and treat its `figure_registry` frontmatter as the schema source of truth. Keep the registry machine-readable for paper-quality scoring; do not invent ad hoc keys or collapse it into prose.
 2. Read `${PAPER_DIR}/FIGURE_TRACKER.md` for figure specifications
 3. For each figure with status != "Final":
    a. Locate source data (from phase directories)
@@ -1087,7 +1087,7 @@ Apply the shared publication round contract exactly:
 
 @{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md
 
-Then follow `@{GPD_INSTALL_DIR}/workflows/peer-review.md` exactly, using the resolved `${PAPER_DIR}/{topic_specific_stem}.tex` target recorded in `ARTIFACT-MANIFEST.json` as the review target. Keep the current `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, and `active_reference_context` visible throughout that staged review; the contract remains authoritative only when `project_contract_gate.authoritative` is true.
+Then follow `{GPD_INSTALL_DIR}/workflows/peer-review.md` exactly, using the resolved `${PAPER_DIR}/{topic_specific_stem}.tex` target recorded in `ARTIFACT-MANIFEST.json` as the review target. Keep the current `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, and `active_reference_context` visible throughout that staged review; the contract remains authoritative only when `project_contract_gate.authoritative` is true.
 
 **If the staged panel fails:** Do not silently waive the review. Note the failure and recommend running `gpd:peer-review` directly after resolving the blocking issue.
 

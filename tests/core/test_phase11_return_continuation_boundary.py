@@ -40,8 +40,8 @@ def test_validate_and_apply_the_same_durable_continuation_payload(tmp_path: Path
             "      resume_file: GPD/phases/01-test-phase/.continue-here.md\n"
             "    bounded_segment:\n"
             "      resume_file: GPD/phases/01-test-phase/.continue-here.md\n"
-            "      phase: 01\n"
-            "      plan: 01\n"
+            "      phase: \"01\"\n"
+            "      plan: \"01\"\n"
             "      segment_id: seg-01\n"
             "      segment_status: paused\n"
             "      checkpoint_reason: segment_boundary\n"
@@ -149,6 +149,83 @@ def test_child_return_rejects_bounded_segment_with_unknown_last_result_id(tmp_pa
     assert result.passed is False
     assert any("set_bounded_segment" in error and "missing-result" in error for error in result.errors)
     assert stored_state["continuation"]["bounded_segment"] is None
+
+
+def test_child_return_rejects_numeric_handoff_resume_file_without_clearing_existing_pointer(
+    tmp_path: Path,
+) -> None:
+    gpd_dir = _write_project_state(tmp_path)
+    state_path = gpd_dir / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["continuation"]["handoff"]["resume_file"] = "GPD/phases/old/.continue-here.md"
+    state["continuation"]["handoff"]["stopped_at"] = "old stop"
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    return_file = tmp_path / "numeric_handoff.md"
+    return_file.write_text(
+        _wrap_return_block(
+            "  status: checkpoint\n"
+            "  files_written: [GPD/state.json]\n"
+            "  issues: []\n"
+            "  next_actions: [gpd:resume-work]\n"
+            "  continuation_update:\n"
+            "    handoff:\n"
+            "      stopped_at: new stop\n"
+            "      resume_file: 123\n"
+        ),
+        encoding="utf-8",
+    )
+
+    validation = validate_gpd_return_markdown(return_file.read_text(encoding="utf-8"))
+    result = cmd_apply_return_updates(tmp_path, return_file)
+    stored_state = json.loads(state_path.read_text(encoding="utf-8"))
+
+    assert validation.passed is False
+    assert any("resume_file must be a string or null" in error for error in validation.errors)
+    assert result.passed is False
+    assert stored_state["continuation"]["handoff"]["resume_file"] == "GPD/phases/old/.continue-here.md"
+    assert stored_state["continuation"]["handoff"]["stopped_at"] == "old stop"
+
+
+def test_child_return_rejects_numeric_bounded_segment_fields(tmp_path: Path) -> None:
+    _write_project_state(tmp_path)
+    payload = _wrap_return_block(
+        "  status: checkpoint\n"
+        "  files_written: [GPD/state.json]\n"
+        "  issues: []\n"
+        "  next_actions: [gpd:resume-work]\n"
+        "  continuation_update:\n"
+        "    bounded_segment:\n"
+        "      resume_file: GPD/phases/01-test-phase/.continue-here.md\n"
+        "      phase: 1\n"
+        "      segment_status: paused\n"
+    )
+
+    validation = validate_gpd_return_markdown(payload)
+
+    assert validation.passed is False
+    assert any("phase must be a string or null" in error for error in validation.errors)
+
+
+def test_child_return_rejects_null_bounded_segment_boolean_gate(tmp_path: Path) -> None:
+    _write_project_state(tmp_path)
+    payload = _wrap_return_block(
+        "  status: checkpoint\n"
+        "  files_written: [GPD/state.json]\n"
+        "  issues: []\n"
+        "  next_actions: [gpd:resume-work]\n"
+        "  continuation_update:\n"
+        "    bounded_segment:\n"
+        "      resume_file: GPD/phases/01-test-phase/.continue-here.md\n"
+        "      phase: \"01\"\n"
+        "      segment_status: paused\n"
+        "      waiting_for_review: null\n"
+    )
+
+    validation = validate_gpd_return_markdown(payload)
+
+    assert validation.passed is False
+    assert any("waiting_for_review must be a boolean when provided" in error for error in validation.errors)
 
 
 def test_failed_child_return_does_not_roll_back_external_state_change(

@@ -422,7 +422,11 @@ class TestUninstallOwnership:
         target.mkdir()
 
         adapter.install(gpd_root, target)
-        (command_dir / "gpd-obsolete.md").write_text("stale", encoding="utf-8")
+        (command_dir / "gpd-obsolete.md").write_text(
+            "<!-- Managed by Get Physics Done (GPD). -->\nstale",
+            encoding="utf-8",
+        )
+        (command_dir / "gpd-user-keep.md").write_text("keep", encoding="utf-8")
         (command_dir / "custom-command.md").write_text("keep", encoding="utf-8")
 
         manifest_path = target / MANIFEST_NAME
@@ -436,7 +440,10 @@ class TestUninstallOwnership:
         adapter.uninstall(target)
 
         assert command_dir.exists()
-        assert not list(command_dir.glob("gpd-*.md"))
+        assert not (command_dir / "gpd-help.md").exists()
+        assert not (command_dir / "gpd-start.md").exists()
+        assert not (command_dir / "gpd-obsolete.md").exists()
+        assert (command_dir / "gpd-user-keep.md").exists()
         assert (command_dir / "custom-command.md").exists()
         assert not manifest_path.exists()
 
@@ -456,7 +463,7 @@ class TestInstall:
         content = (target / "command" / "gpd-help.md").read_text(encoding="utf-8")
         assert "slash-command" not in content
         assert "Show available GPD commands and usage guide" in content
-        assert "gpd:" in content
+        assert "gpd:" not in content
 
     def test_local_install_uses_relative_gpd_paths(
         self,
@@ -622,6 +629,9 @@ class TestInstall:
         assert command_dir.is_dir()
         gpd_cmds = [f for f in command_dir.iterdir() if f.name.startswith("gpd-")]
         assert len(gpd_cmds) > 0
+        assert "<!-- Managed by Get Physics Done (GPD). -->" in (command_dir / "gpd-help.md").read_text(
+            encoding="utf-8"
+        )
 
     def test_update_command_inlines_workflow(self, adapter: OpenCodeAdapter, tmp_path: Path) -> None:
         gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"

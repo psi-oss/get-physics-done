@@ -312,6 +312,22 @@ class TestBuiltinServerDescriptors:
         ]
         assert "emit_phase_event" not in descriptor["capabilities"]
 
+    def test_arxiv_public_descriptor_describes_baseline_and_live_upstream_forwarding(self):
+        from gpd.mcp.builtin_servers import build_public_descriptors
+
+        descriptor = build_public_descriptors()["gpd-arxiv"]
+
+        assert "baseline upstream tools" in descriptor["description"]
+        assert "forwards only tools exposed by the live upstream server" in descriptor["description"]
+        assert "download_source" in descriptor["description"]
+        assert descriptor["capabilities"] == [
+            "search_papers",
+            "download_paper",
+            "list_papers",
+            "read_paper",
+            "download_source",
+        ]
+
     def test_state_public_descriptor_health_check_is_executable_without_fake_project_path(self):
         from gpd.mcp.builtin_servers import build_public_descriptors
         from gpd.mcp.servers.state_server import mcp

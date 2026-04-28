@@ -157,7 +157,7 @@ fi
 ```
 
 If matching round-specific files exist, load them as structured context, but keep the shared handoff below as the canonical source for active-round selection and paired response-artifact discovery.
-Read `@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md` here for the canonical failure-recovery, round-suffix, and latest-round artifact conventions that keep this workflow fail-closed.
+Read `{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md` here for the canonical failure-recovery, round-suffix, and latest-round artifact conventions that keep this workflow fail-closed.
 Apply the shared publication response-writer handoff exactly:
 
 @{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md
@@ -237,14 +237,12 @@ Confirm parsing is correct, or paste corrections.
 <step name="create_response_file">
 **Create the structured referee response document:**
 
-Read the canonical templates and the shared publication response-writer handoff:
+Read the canonical templates. Use the publication response-writer handoff already loaded during initialization:
 
 ```bash
 cat {GPD_INSTALL_DIR}/templates/paper/author-response.md
 cat {GPD_INSTALL_DIR}/templates/paper/referee-response.md
 ```
-
-@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md
 
 Create both response artifacts for the current round:
 
@@ -255,7 +253,7 @@ Those two GPD-owned response artifacts stay canonical even when the manuscript s
 
 Populate `${RESPONSE_REFEREE_PATH}` with paper metadata, decision summaries, mirrored per-comment classification/status fields from the canonical response templates, blocking items from `REVIEW-LEDGER*.json` when available, and the progress tracking table. Leave response and changes-made fields empty until the later draft/revision step fills them.
 
-Before writing `${RESPONSE_AUTHOR_PATH}`, load the canonical template at `@{GPD_INSTALL_DIR}/templates/paper/author-response.md` and keep the internal tracker aligned with it.
+Before writing `${RESPONSE_AUTHOR_PATH}`, load the canonical template at `{GPD_INSTALL_DIR}/templates/paper/author-response.md` and keep the internal tracker aligned with it.
 
 Populate `${RESPONSE_AUTHOR_PATH}` with one section per `REF-*` issue, classification (`fixed`, `rebutted`, `acknowledged`, `needs-calculation`), exact manuscript change locations or planned follow-up work, `New calculations required` and `Source phase for new work` when needed, and any blocking / recommendation-floor context imported from `REVIEW-LEDGER*.json` or `REFEREE-DECISION*.json`. Use `**Evidence:**` blocks for rebuttals and `**Plan:**` blocks for acknowledged or `needs-calculation` responses when needed.
 
@@ -476,9 +474,7 @@ Options:
 <step name="generate_response_letter">
 **Finalize the canonical response artifacts and generate an optional manuscript-local response letter companion:**
 
-Apply the shared publication response-writer handoff exactly before treating the response-artifact pair as complete:
-
-@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md
+Apply the already-loaded shared publication response-writer handoff before treating the response-artifact pair as complete.
 
 Read the completed `${RESPONSE_AUTHOR_PATH}` and `${RESPONSE_REFEREE_PATH}` (all comments should have status "Response drafted" or "Final"). Treat those files as complete only if the expected mirrored artifacts exist on disk, their response frontmatter binds to the active manuscript path and review round when the subject is explicit, and the orchestrator has aggregated every section handoff: the revised section file exists, both response artifacts exist, and the fresh child `gpd_return.files_written` for that section names all required outputs. Do not rely on stale pre-existing edits or prose completion alone.
 Those two Markdown artifacts under the selected GPD publication/review roots are the canonical required outputs for this workflow. `${PAPER_DIR}/response-letter.tex` or `${PAPER_DIR}/response-letter.md` is optional and should be generated only when the journal or user asked for a manuscript-local submission companion. If the manuscript subject is an explicit external artifact, keep auxiliary response outputs under the selected GPD roots and do not write sidecars beside that external manuscript unless the main integration later exposes a subject-local export hook.

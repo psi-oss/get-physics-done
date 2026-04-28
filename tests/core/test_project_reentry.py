@@ -58,11 +58,16 @@ def _recent_row(
     resume_target_recorded_at: str | None = None,
 ) -> dict[str, object]:
     recorded_at = resume_target_recorded_at or last_session_at
+    resume_file = "GPD/phases/02/.continue-here.md"
+    if resumable:
+        resume_path = project_root / resume_file
+        resume_path.parent.mkdir(parents=True, exist_ok=True)
+        resume_path.write_text("# Continue here\n", encoding="utf-8")
     row: dict[str, object] = {
         "project_root": project_root.resolve(strict=False).as_posix(),
         "last_session_at": last_session_at,
         "stopped_at": "Phase 02",
-        "resume_file": "GPD/phases/02/.continue-here.md",
+        "resume_file": resume_file,
         "resume_target_kind": resume_target_kind,
         "resume_target_recorded_at": recorded_at,
         "resume_file_available": True,
@@ -197,6 +202,9 @@ def test_resolve_project_reentry_does_not_prefer_unrecoverable_state_file_over_r
 def test_resolve_project_reentry_rejects_string_booleans_on_recent_project_rows(tmp_path: Path) -> None:
     workspace = _make_gpd_workspace(tmp_path / "workspace")
     recent = _make_gpd_workspace(tmp_path / "recent-project", project=True, roadmap=True, state=True)
+    resume_path = recent / "GPD" / "phases" / "02" / ".continue-here.md"
+    resume_path.parent.mkdir(parents=True, exist_ok=True)
+    resume_path.write_text("# Continue here\n", encoding="utf-8")
 
     resolution = resolve_project_reentry(
         workspace,
@@ -218,7 +226,7 @@ def test_resolve_project_reentry_rejects_string_booleans_on_recent_project_rows(
     assert resolution.selected_candidate is None
     assert resolution.candidates[0].available is False
     assert resolution.candidates[0].resumable is False
-    assert resolution.candidates[0].resume_file_available is None
+    assert resolution.candidates[0].resume_file_available is True
 
 
 def test_resolve_project_reentry_ignores_backup_only_state_as_current_workspace(tmp_path: Path) -> None:
@@ -429,7 +437,56 @@ def test_resolve_project_reentry_leaves_selected_candidate_empty_for_missing_han
     assert resolution.candidates[0].source == "recent_project"
     assert resolution.candidates[0].resume_target_kind == "handoff"
     assert resolution.candidates[0].resume_file is None
+    assert resolution.candidates[0].resume_file_available is None
+    assert resolution.candidates[0].auto_selectable is False
+
+
+def test_resolve_project_reentry_recomputes_missing_resume_file_and_does_not_auto_select(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    project = _make_gpd_workspace(tmp_path / "recent-stale", project=True)
+    row = _recent_row(project, last_session_at="2026-03-28T12:00:00+00:00")
+    (project / str(row["resume_file"])).unlink()
+
+    resolution = resolve_project_reentry(workspace, recent_rows=[row])
+
+    assert resolution.mode == "recent-projects"
+    assert resolution.auto_selected is False
+    assert resolution.project_root is None
+    assert resolution.candidates[0].resume_file == "GPD/phases/02/.continue-here.md"
     assert resolution.candidates[0].resume_file_available is False
+    assert resolution.candidates[0].resume_file_reason == "resume file missing"
+    assert resolution.candidates[0].resumable is False
+    assert resolution.candidates[0].auto_selectable is False
+
+
+def test_resolve_project_reentry_rejects_outside_resume_file_for_auto_selection(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    project = _make_gpd_workspace(tmp_path / "recent-injected", project=True)
+    outside_resume = tmp_path / "outside" / ".continue-here.md"
+    outside_resume.parent.mkdir(parents=True, exist_ok=True)
+    outside_resume.write_text("# Outside\n", encoding="utf-8")
+    row = {
+        **_recent_row(project, last_session_at="2026-03-28T12:00:00+00:00"),
+        "resume_file": outside_resume.as_posix(),
+        "resume_file_available": True,
+        "resumable": True,
+    }
+
+    resolution = resolve_project_reentry(workspace, recent_rows=[row])
+
+    assert resolution.mode == "recent-projects"
+    assert resolution.auto_selected is False
+    assert resolution.project_root is None
+    assert resolution.candidates[0].resume_file is None
+    assert resolution.candidates[0].resume_file_available is False
+    assert resolution.candidates[0].resume_file_reason == "resume file outside project root"
+    assert resolution.candidates[0].resumable is False
     assert resolution.candidates[0].auto_selectable is False
 
 

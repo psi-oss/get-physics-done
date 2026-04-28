@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -515,6 +516,85 @@ async def test_build_paper_routes_sidecars_to_independent_output_paths(
         artifact for artifact in result.manifest.artifacts if artifact.artifact_id == "audit-bibliography"
     )
     assert audit_artifact.path == ".paper-meta/BIBLIOGRAPHY-AUDIT.json"
+
+
+@pytest.mark.asyncio
+async def test_build_paper_does_not_refresh_manifest_for_preserved_stale_tex(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir = tmp_path / "paper"
+    output_dir.mkdir()
+    config = PaperConfig(
+        title="Stale Manifest Paper",
+        authors=[Author(name="A. Researcher")],
+        abstract="Abstract.",
+        sections=[Section(title="Intro", content="Fresh config content.")],
+    )
+    tex_path = output_dir / f"{derive_output_filename(config)}.tex"
+    tex_path.write_text(
+        "\\documentclass{article}\n\\begin{document}\nPreserved manual content.\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    existing_manifest = {
+        "version": 1,
+        "paper_title": "Old Manifest",
+        "journal": "prl",
+        "created_at": "2026-04-02T00:00:00+00:00",
+        "artifacts": [],
+    }
+    manifest_path = output_dir / "ARTIFACT-MANIFEST.json"
+    manifest_path.write_text(json.dumps(existing_manifest, indent=2) + "\n", encoding="utf-8")
+    pdf_path = output_dir / f"{derive_output_filename(config)}.pdf"
+
+    async def fake_compile(tex_path, output_dir, compiler="pdflatex"):
+        pdf_path.write_bytes(b"%PDF-fake")
+        return CompilationResult(success=True, pdf_path=pdf_path)
+
+    monkeypatch.setattr("gpd.mcp.paper.compiler.check_journal_dependencies", lambda spec: (True, []))
+    monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", fake_compile)
+
+    result = await build_paper(config, output_dir)
+
+    assert result.success is False
+    assert result.manifest_path is None
+    assert result.manifest is None
+    assert json.loads(manifest_path.read_text(encoding="utf-8")) == existing_manifest
+    assert any("ARTIFACT-MANIFEST.json was not refreshed" in error for error in result.errors)
+
+
+@pytest.mark.asyncio
+async def test_build_paper_rejects_external_sidecar_root_when_emitting_manifest(tmp_path) -> None:
+    config = PaperConfig(
+        title="External Sidecars",
+        authors=[Author(name="A. Researcher")],
+        abstract="Abstract.",
+        sections=[Section(title="Intro", content="No citations here.")],
+    )
+    output_dir = tmp_path / "paper"
+    external_sidecar_root = tmp_path / "paper-sidecars"
+
+    with pytest.raises(ValueError, match="sidecar_root must stay inside output_dir"):
+        await build_paper(config, output_dir, sidecar_root=external_sidecar_root)
+
+    assert not external_sidecar_root.exists()
+
+
+@pytest.mark.asyncio
+async def test_build_paper_rejects_external_manifest_referenced_audit_path(tmp_path) -> None:
+    config = PaperConfig(
+        title="External Audit",
+        authors=[Author(name="A. Researcher")],
+        abstract="Abstract.",
+        sections=[Section(title="Intro", content="No citations here.")],
+    )
+    output_dir = tmp_path / "paper"
+    external_audit_path = tmp_path / "external-meta" / "BIBLIOGRAPHY-AUDIT.json"
+
+    with pytest.raises(ValueError, match="bibliography_audit_output_path must stay inside output_dir"):
+        await build_paper(config, output_dir, bibliography_audit_output_path=external_audit_path)
+
+    assert not external_audit_path.parent.exists()
 
 
 # ---- Assertions for compiler imports and dead-code invariants ----

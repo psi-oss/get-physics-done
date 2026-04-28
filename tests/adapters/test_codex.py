@@ -447,6 +447,25 @@ class TestInstall:
         assert (preserved_skill / "SKILL.md").read_text(encoding="utf-8") == "keep"
         assert (preserved_skill / "notes.txt").read_text(encoding="utf-8") == "extra"
 
+    def test_install_refuses_to_overwrite_unmarked_planned_gpd_skill_collision(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        colliding_skill = skills / "gpd-help"
+        colliding_skill.mkdir(parents=True)
+        (colliding_skill / "SKILL.md").write_text("user-owned help skill", encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="existing unowned skill path"):
+            adapter.install(gpd_root, target, skills_dir=skills)
+
+        assert (colliding_skill / "SKILL.md").read_text(encoding="utf-8") == "user-owned help skill"
+        assert not (target / "gpd-file-manifest.json").exists()
+
     def test_reinstall_removes_stale_manifest_tracked_generated_gpd_skills(
         self,
         adapter: CodexAdapter,
@@ -488,7 +507,10 @@ class TestInstall:
 
         existing_skill = skills / "gpd-help"
         existing_skill.mkdir()
-        (existing_skill / "SKILL.md").write_text("old help", encoding="utf-8")
+        (existing_skill / "SKILL.md").write_text(
+            "<!-- Managed by Get Physics Done (GPD). -->\nold help",
+            encoding="utf-8",
+        )
         preserved_skill = skills / "custom-keep"
         preserved_skill.mkdir()
         (preserved_skill / "SKILL.md").write_text("keep", encoding="utf-8")
@@ -501,7 +523,9 @@ class TestInstall:
         with pytest.raises(RuntimeError, match="boom"):
             adapter.install(gpd_root, target, skills_dir=skills)
 
-        assert (existing_skill / "SKILL.md").read_text(encoding="utf-8") == "old help"
+        assert (existing_skill / "SKILL.md").read_text(encoding="utf-8") == (
+            "<!-- Managed by Get Physics Done (GPD). -->\nold help"
+        )
         assert (preserved_skill / "SKILL.md").read_text(encoding="utf-8") == "keep"
 
     def test_install_failure_after_live_backup_restores_original_skills(
@@ -518,7 +542,10 @@ class TestInstall:
 
         existing_skill = skills / "gpd-help"
         existing_skill.mkdir()
-        (existing_skill / "SKILL.md").write_text("old help", encoding="utf-8")
+        (existing_skill / "SKILL.md").write_text(
+            "<!-- Managed by Get Physics Done (GPD). -->\nold help",
+            encoding="utf-8",
+        )
         preserved_skill = skills / "custom-keep"
         preserved_skill.mkdir()
         (preserved_skill / "SKILL.md").write_text("keep", encoding="utf-8")
@@ -541,7 +568,9 @@ class TestInstall:
         with pytest.raises(RuntimeError, match="boom after backup"):
             adapter.install(gpd_root, target, skills_dir=skills)
 
-        assert (existing_skill / "SKILL.md").read_text(encoding="utf-8") == "old help"
+        assert (existing_skill / "SKILL.md").read_text(encoding="utf-8") == (
+            "<!-- Managed by Get Physics Done (GPD). -->\nold help"
+        )
         assert (preserved_skill / "SKILL.md").read_text(encoding="utf-8") == "keep"
 
     def test_install_rewrites_gpd_cli_calls_to_runtime_cli_bridge(

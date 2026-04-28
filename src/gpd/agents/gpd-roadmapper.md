@@ -42,7 +42,7 @@ Your job: Transform research objectives into a phase structure that advances the
   </role>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
+- `{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
 </references>
 
 <autonomy_awareness>

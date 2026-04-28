@@ -108,7 +108,7 @@ Be prescriptive, not exploratory.
 
 <!-- Tool strategy, confidence levels, research pitfalls, and pre-submission checklist loaded from researcher-shared.md (see @ reference above) -->
 
-**Subfield Reference:** For subfield-specific methods, tools, software, validation strategies, and common pitfalls, consult `@{GPD_INSTALL_DIR}/references/physics-subfields.md`
+**Subfield Reference:** For subfield-specific methods, tools, software, validation strategies, and common pitfalls, consult `{GPD_INSTALL_DIR}/references/physics-subfields.md`
 
 <output_format>
 

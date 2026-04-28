@@ -82,7 +82,7 @@ grep -E "^| ${phase_number}" GPD/REQUIREMENTS.md 2>/dev/null
 
 Extract **phase goal** from ROADMAP.md (the research outcome to verify, not tasks) and **requirements** from REQUIREMENTS.md if it exists.
 
-**Verification independence:** Load only what the verifier needs to judge results on their own merits. See @{GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md.
+**Verification independence:** Load only what the verifier needs to judge results on their own merits. See {GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md.
 
 If `derived_manuscript_proof_review_status` is present, use it as the structured freshness summary for any manuscript-local proof-bearing artifact and keep the corresponding `*-PROOF-REDTEAM.md` artifact authoritative for pass/fail decisions.
 If `project_contract_gate.visible` is true, keep `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, and `protocol_bundle_context` in the verifier context even when `project_contract_gate.authoritative` is false. They remain visible carry-forward context, not authoritative scope, until the gate clears. Stable knowledge docs that surface through this context are reviewed background synthesis only: they may guide check selection and interpretation, but they do not override the contract, the gate, or decisive evidence.
@@ -501,7 +501,7 @@ A requirement is SATISFIED only if the supporting user-visible claims / delivera
 2. **Verify conservation laws** numerically by computing conserved quantities at multiple time steps
 3. **Check numerical results against analytical limiting cases** by evaluating at parameter values where analytical results are known
 4. **Spot-check output values** against independently computed test cases
-5. Reference: @{GPD_INSTALL_DIR}/workflows/numerical-convergence.md for detailed methodology
+5. Reference: {GPD_INSTALL_DIR}/workflows/numerical-convergence.md for detailed methodology
 
 For each numerical result, record:
 
@@ -547,7 +547,7 @@ If both summaries exist, check for cross-phase consistency by reading:
 2. **Previous summary artifact** — "Approximations Used" table and "Key Results" / "Equations Derived"
 3. **STATE.md** — "Active Approximations" table and "Convention Lock"
 
-Reference: @{GPD_INSTALL_DIR}/references/verification/core/verification-core.md (+ relevant domain verification file)
+Reference: {GPD_INSTALL_DIR}/references/verification/core/verification-core.md (+ relevant domain verification file)
 
 **Check the four most common cross-phase errors:**
 

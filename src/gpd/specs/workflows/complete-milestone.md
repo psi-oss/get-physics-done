@@ -6,8 +6,8 @@ Mark a completed research stage (v1.0, v1.1, v2.0) as done. Creates historical r
 
 <required_reading>
 
-1. `@{GPD_INSTALL_DIR}/templates/milestone.md`
-2. `@{GPD_INSTALL_DIR}/templates/milestone-archive.md`
+1. `{GPD_INSTALL_DIR}/templates/milestone.md`
+2. `{GPD_INSTALL_DIR}/templates/milestone-archive.md`
 3. `GPD/ROADMAP.md`
 4. `GPD/REQUIREMENTS.md`
 5. `GPD/PROJECT.md`
@@ -27,7 +27,7 @@ When a research milestone completes:
 
 **Context Efficiency:** Archives keep ROADMAP.md constant-size and REQUIREMENTS.md milestone-scoped.
 
-**ROADMAP archive** uses `@{GPD_INSTALL_DIR}/templates/milestone-archive.md` -- includes milestone header (status, phases, date), full phase details, milestone summary (decisions, key findings, open questions).
+**ROADMAP archive** uses `{GPD_INSTALL_DIR}/templates/milestone-archive.md` -- includes milestone header (status, phases, date), full phase details, milestone summary (decisions, key findings, open questions).
 
 **REQUIREMENTS archive** contains all requirements marked complete with outcomes, traceability table with final status, notes on changed requirements.
 

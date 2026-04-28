@@ -394,6 +394,20 @@ _NOCITE_STAR_RE = re.compile(r"\\nocite\{\s*\*\s*\}")
 _BIB_KEY_RE = re.compile(r"@\w+\s*\{\s*([^,\s]+)\s*,")
 
 
+def _path_is_under(path: Path, root: Path) -> bool:
+    resolved_path = path.resolve(strict=False)
+    resolved_root = root.resolve(strict=False)
+    return resolved_path == resolved_root or resolved_path.is_relative_to(resolved_root)
+
+
+def _reject_external_manifest_sidecar(path: Path, output_dir: Path, *, label: str) -> None:
+    if not _path_is_under(path, output_dir):
+        raise ValueError(
+            f"{label} must stay inside output_dir when emitting ARTIFACT-MANIFEST.json; "
+            "external sidecars would make the portable manifest reference paths outside the paper package"
+        )
+
+
 def check_citation_bib_coherence(
     tex_content: str,
     bib_content: str,
@@ -1043,6 +1057,22 @@ async def build_paper(
     File-specific output paths override the shared sidecar root so callers can
     promote one sidecar without moving the other.
     """
+    if emit_artifact_manifest:
+        if sidecar_root is not None:
+            _reject_external_manifest_sidecar(sidecar_root, output_dir, label="sidecar_root")
+        if artifact_manifest_output_path is not None:
+            _reject_external_manifest_sidecar(
+                artifact_manifest_output_path,
+                output_dir,
+                label="artifact_manifest_output_path",
+            )
+        if emit_bibliography_audit and bibliography_audit_output_path is not None:
+            _reject_external_manifest_sidecar(
+                bibliography_audit_output_path,
+                output_dir,
+                label="bibliography_audit_output_path",
+            )
+
     output_dir.mkdir(parents=True, exist_ok=True)
     if sidecar_root is not None:
         sidecar_root.mkdir(parents=True, exist_ok=True)
@@ -1137,15 +1167,26 @@ async def build_paper(
     bib_stem = config.bib_file.removesuffix(".bib")
     if bib_stem != config.bib_file:
         config = config.model_copy(update={"bib_file": bib_stem})
-    tex_content = render_paper(config)
+    rendered_tex_content = render_paper(config)
+    tex_content = rendered_tex_content
     output_stem = derive_output_filename(config)
     tex_path = output_dir / f"{output_stem}.tex"
+    preserved_tex_differs_from_config = False
     if tex_path.exists():
         logger.warning("Skipping .tex write — %s already exists. Delete it to regenerate.", tex_path)
         # Read on-disk content so the coherence check audits the file that
         # will actually be compiled, not the freshly rendered string which
         # may differ after manual edits or scaffold-once reruns.
         tex_content = await asyncio.to_thread(tex_path.read_text, encoding="utf-8")
+        preserved_tex_differs_from_config = tex_content != rendered_tex_content
+        if preserved_tex_differs_from_config and emit_artifact_manifest:
+            errors.append(
+                f"Existing TeX file {tex_path} differs from the current PaperConfig render; "
+                "ARTIFACT-MANIFEST.json was not refreshed because it would claim metadata for stale preserved TeX. "
+                "Delete the TeX file to regenerate it, or run with sidecar emission disabled when intentionally "
+                "compiling manual edits."
+            )
+            manifest_path = None
     else:
         await asyncio.to_thread(tex_path.write_text, tex_content, encoding="utf-8")
 
@@ -1157,18 +1198,19 @@ async def build_paper(
             logger.warning("Citation coherence: %s", w)
         citation_warnings = coherence.warnings
 
-    manifest = build_artifact_manifest(
-        config,
-        output_dir,
-        tex_path=tex_path,
-        bib_path=bib_path,
-        bib_entry_source=bib_entry_source,
-        bibliography_audit_path=bibliography_audit_path,
-        bibliography_audit=bibliography_audit,
-        figure_source_pairs=figure_source_pairs,
-    )
-    if emit_artifact_manifest and manifest_path is not None:
-        await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
+    if not preserved_tex_differs_from_config or not emit_artifact_manifest:
+        manifest = build_artifact_manifest(
+            config,
+            output_dir,
+            tex_path=tex_path,
+            bib_path=bib_path,
+            bib_entry_source=bib_entry_source,
+            bibliography_audit_path=bibliography_audit_path,
+            bibliography_audit=bibliography_audit,
+            figure_source_pairs=figure_source_pairs,
+        )
+        if emit_artifact_manifest and manifest_path is not None:
+            await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
 
     # 4. Check required TeX resources (blocking subprocess; run in thread to avoid stalling the loop)
     spec = get_journal_spec(config.journal)
@@ -1200,19 +1242,20 @@ async def build_paper(
     final_success = result.success and figures_prepared_successfully and not errors
     published_pdf_path = result.pdf_path if final_success else None
 
-    manifest = build_artifact_manifest(
-        config,
-        output_dir,
-        tex_path=tex_path,
-        bib_path=bib_path,
-        bib_entry_source=bib_entry_source,
-        bibliography_audit_path=bibliography_audit_path,
-        bibliography_audit=bibliography_audit,
-        figure_source_pairs=figure_source_pairs,
-        pdf_path=published_pdf_path,
-    )
-    if emit_artifact_manifest and manifest_path is not None:
-        await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
+    if not preserved_tex_differs_from_config or not emit_artifact_manifest:
+        manifest = build_artifact_manifest(
+            config,
+            output_dir,
+            tex_path=tex_path,
+            bib_path=bib_path,
+            bib_entry_source=bib_entry_source,
+            bibliography_audit_path=bibliography_audit_path,
+            bibliography_audit=bibliography_audit,
+            figure_source_pairs=figure_source_pairs,
+            pdf_path=published_pdf_path,
+        )
+        if emit_artifact_manifest and manifest_path is not None:
+            await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
 
     return PaperOutput(
         tex_content=tex_content,

@@ -84,7 +84,7 @@ The autonomy mode (from `GPD/config.json` field `autonomy`, default: `"supervise
 
 **Supervised mode** (`autonomy: "supervised"`) — DEFAULT:
 
-- **Checkpoints:** Insert `checkpoint:human-verify` after EVERY task that produces a physics result. Insert `checkpoint:decision` before every approximation or method choice. Every inserted `checkpoint:human-verify` uses the `[Y/n/e]` resume-signal idiom (Enter = Y). See `@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md`.
+- **Checkpoints:** Insert `checkpoint:human-verify` after EVERY task that produces a physics result. Insert `checkpoint:decision` before every approximation or method choice. Every inserted `checkpoint:human-verify` uses the `[Y/n/e]` resume-signal idiom (Enter = Y). See `{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md`.
 - **Scope:** Plans must be EXACTLY what the user discussed in CONTEXT.md. No discretionary additions.
 - **Contract fidelity:** The approved contract, anchors, and forbidden proxies are fixed. Human checkpoints decide how to satisfy them, not whether they apply.
 - **Conventions:** Every convention choice is a `checkpoint:decision`. No automatic convention selection.
@@ -241,7 +241,7 @@ If not set in config.json, default to `balanced`.
 
 <references>
 - `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared Protocols: forbidden files, source hierarchy, convention tracking, physics verification
-- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, commit protocol
+- `{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, commit protocol
 - `{GPD_INSTALL_DIR}/references/protocols/order-of-limits.md` -- Non-commuting limits protocol (load on demand when a plan involves multiple limits or asymptotic ordering)
 
 **On-demand references:**
@@ -561,9 +561,9 @@ Loaded from shared-protocols.md reference. See `<references>` section above.
 
 For subfield-specific priority checks, red flags, and standard benchmarks, consult the selected protocol bundle context first. If no bundle is selected or the bundle is incomplete, fall back to:
 
-- `@{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Methods, tools, validation per subfield
-- `@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` -- Universal verification checks and quick-reference priority checks
-- `@{GPD_INSTALL_DIR}/references/orchestration/checkpoints.md` -- Checkpoint types, when to use, and structuring guidance
+- `{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Methods, tools, validation per subfield
+- `{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` -- Universal verification checks and quick-reference priority checks
+- `{GPD_INSTALL_DIR}/references/orchestration/checkpoints.md` -- Checkpoint types, when to use, and structuring guidance
 
 When planning verification tasks, include the verifier extensions, estimator policies, and decisive artifact guidance from the selected protocol bundles when present. Use the subfield selection guide only as a fallback when bundle metadata is absent or insufficient.
 
@@ -573,7 +573,7 @@ When planning verification tasks, include the verifier extensions, estimator pol
 
 ## Checkpoint Policy
 
-Canonical checkpoint structure and examples live in `@{GPD_INSTALL_DIR}/references/orchestration/checkpoints.md`. Resume-signal wording lives in `@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md`. Do not inline a second checkpoint template here.
+Canonical checkpoint structure and examples live in `{GPD_INSTALL_DIR}/references/orchestration/checkpoints.md`. Resume-signal wording lives in `{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md`. Do not inline a second checkpoint template here.
 
 Planner responsibilities:
 

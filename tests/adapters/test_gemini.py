@@ -332,11 +332,45 @@ class TestRewriteGeminiShellWorkflowGuidance:
 
         result = _rewrite_gemini_shell_workflow_guidance(content)
 
-        assert "run initialization directly instead of capturing it in BOOTSTRAP" in result
+        assert "# Gemini: run initialization directly." in result
         assert "gpd --raw init progress --include state,config" in result
         assert "BOOTSTRAP=$(" not in result
         assert 'echo "$BOOTSTRAP"' not in result
         assert "if [ $? -ne 0 ]" not in result
+
+    def test_rewrites_generic_captured_gpd_status_block(self) -> None:
+        content = (
+            "```bash\n"
+            "CHECK=$(gpd --raw validate project-contract GPD/contract.json 2>&1)\n"
+            "if [ $? -ne 0 ]; then\n"
+            '  echo "$CHECK"\n'
+            "  exit 1\n"
+            "fi\n"
+            "```"
+        )
+
+        result = _rewrite_gemini_shell_workflow_guidance(content)
+
+        assert "# Gemini: run this command directly." in result
+        assert "gpd --raw validate project-contract GPD/contract.json 2>&1" in result
+        assert "CHECK=$(" not in result
+        assert "$CHECK" not in result
+        assert "if [ $? -ne 0 ]" not in result
+
+    def test_rewrites_generic_captured_gpd_echo_block(self) -> None:
+        content = (
+            "```bash\n"
+            "PREVIEW=$(gpd pre-commit-check --files GPD/STATE.md 2>&1) || true\n"
+            'echo "$PREVIEW"\n'
+            "```"
+        )
+
+        result = _rewrite_gemini_shell_workflow_guidance(content)
+
+        assert "# Gemini: run this command directly." in result
+        assert "gpd pre-commit-check --files GPD/STATE.md 2>&1 || true" in result
+        assert "PREVIEW=$(" not in result
+        assert "$PREVIEW" not in result
 
 
 class TestGeminiCommandRuntimeNotes:

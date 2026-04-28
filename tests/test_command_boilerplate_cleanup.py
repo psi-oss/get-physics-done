@@ -252,9 +252,9 @@ def test_review_knowledge_command_delegates_schema_surfaces_to_workflow() -> Non
     assert "@{GPD_INSTALL_DIR}/templates/knowledge-schema.md" not in text
     assert "@{GPD_INSTALL_DIR}/templates/knowledge.md" not in text
     assert "@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md" not in text
-    assert "@{GPD_INSTALL_DIR}/templates/knowledge-schema.md" in workflow
-    assert "@{GPD_INSTALL_DIR}/templates/knowledge.md" in workflow
-    assert "@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md" in workflow
+    assert "{GPD_INSTALL_DIR}/templates/knowledge-schema.md" in workflow
+    assert "{GPD_INSTALL_DIR}/templates/knowledge.md" in workflow
+    assert "{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md" in workflow
 
 
 def test_legacy_publication_contract_stubs_are_removed_in_favor_of_canonical_files() -> None:

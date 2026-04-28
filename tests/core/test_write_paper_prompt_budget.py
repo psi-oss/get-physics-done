@@ -33,7 +33,7 @@ def test_write_paper_command_stays_thin_and_only_eagerly_loads_the_workflow() ->
     assert "@{GPD_INSTALL_DIR}/workflows/write-paper.md" in command_text
     assert "--intake path/to/write-paper-authoring-input.json" in command_text
     assert "GPD/publication/{subject_slug}/intake/" in command_text
-    assert command_text.count("@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md") == 1
+    assert command_text.count("{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md") == 1
     assert "@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md" not in command_text

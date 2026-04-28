@@ -12,7 +12,7 @@ AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 def test_peer_review_workflow_references_canonical_reliability_doc_and_round_suffixed_artifacts() -> None:
     workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
 
-    assert "@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md" in workflow
+    assert "{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md" in workflow
     assert "${REVIEW_ROOT}/CLAIMS{round_suffix}.json" in workflow
     assert "${REVIEW_ROOT}/STAGE-reader{round_suffix}.json" in workflow
     assert "${REVIEW_ROOT}/STAGE-literature{round_suffix}.json" in workflow
@@ -78,7 +78,7 @@ def test_peer_review_surfaces_describe_dual_mode_project_and_external_artifact_r
 
     assert "current GPD project or an explicit external artifact" in command
     assert "standalone external artifact review" in command
-    assert "@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" in command
+    assert "{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" in command
     assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in publication_modes
     assert "do not infer a full publication-tree relocation from that one continuation path" in command
     assert "standalone skeptical peer review" not in workflow

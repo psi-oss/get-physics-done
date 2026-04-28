@@ -1492,7 +1492,7 @@ def test_verification_template_surfaces_strict_passed_and_blocked_semantics() ->
     assert "If decisive work remains open, use `gaps_found`, `expert_needed`, or `human_needed`" in verification_template
     assert "Nested `contract_results` entries still use the canonical contract-result status vocabulary" in verification_template
     assert (
-        "Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing and apply it literally."
+        "Reload `{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing and apply it literally."
         in verification_template
     )
     assert "record structured `suggested_contract_checks` instead of padding prose" in verification_template
@@ -1503,7 +1503,7 @@ def test_research_verification_template_surfaces_non_empty_uncertainty_markers()
     research_verification = (TEMPLATES_DIR / "research-verification.md").read_text(encoding="utf-8")
 
     assert (
-        "Use `@{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract."
+        "Use `{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract."
         in research_verification
     )
     assert (
@@ -1548,7 +1548,7 @@ def test_write_paper_prompt_loads_figure_tracker_schema_before_updating_tracker(
 
     assert staging is not None
 
-    assert "@{GPD_INSTALL_DIR}/templates/paper/figure-tracker.md" in source
+    assert "{GPD_INSTALL_DIR}/templates/paper/figure-tracker.md" in source
     assert "${PAPER_DIR}/FIGURE_TRACKER.md" in source
     assert (
         "references/shared/canonical-schema-discipline.md"

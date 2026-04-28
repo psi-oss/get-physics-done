@@ -10,7 +10,7 @@ Template for `GPD/review/REFEREE_RESPONSE{round_suffix}.md` — tracks referee c
 
 This journal-facing template mirrors the canonical internal author-response contract at `templates/paper/author-response.md`. Keep the same issue IDs, classifications, status labels, and new-calculation tracking aligned between the two files.
 
-The paired response-artifact contract at `@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md` owns the one-shot completion gate, fresh `gpd_return.files_written` requirement, and the rule that `fixed` is only valid after the manuscript edit already exists on disk.
+The paired response-artifact contract at `{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md` owns the one-shot completion gate, fresh `gpd_return.files_written` requirement, and the rule that `fixed` is only valid after the manuscript edit already exists on disk.
 
 ---
 

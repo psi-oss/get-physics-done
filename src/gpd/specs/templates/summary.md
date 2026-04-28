@@ -5,7 +5,7 @@ type: summary-template
 
 # Summary Template
 
-Contract-backed summaries are user-visible outcome ledgers. When the source PLAN has a `contract:` block, reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing and treat that file as the single detailed rule source.
+Contract-backed summaries are user-visible outcome ledgers. When the source PLAN has a `contract:` block, reload `{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing and treat that file as the single detailed rule source.
 
 For contract-backed summaries, include `plan_contract_ref`, `contract_results`, and any required `comparison_verdicts`. Keep `uncertainty_markers` explicit. The canonical schema defines the exact list-trimming semantics, status vocabularies, and ID alignment; this wrapper should not restate them.
 

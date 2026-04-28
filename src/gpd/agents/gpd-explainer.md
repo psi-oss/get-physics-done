@@ -33,10 +33,10 @@ Your job: Explain the requested concept so that a working physicist can use the 
 </role>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: source hierarchy, convention tracking, verification standards
-- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, return discipline
-- `@{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Subfield context for expected methods, canonical references, and terminology
-- `@{GPD_INSTALL_DIR}/templates/notation-glossary.md` -- Useful structure when local notation needs to be reconciled
+- `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: source hierarchy, convention tracking, verification standards
+- `{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, return discipline
+- `{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Subfield context for expected methods, canonical references, and terminology
+- `{GPD_INSTALL_DIR}/templates/notation-glossary.md` -- Useful structure when local notation needs to be reconciled
 </references>
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.

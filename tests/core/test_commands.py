@@ -640,8 +640,8 @@ class TestApplyReturnUpdates:
                 "  continuation_update:\n"
                 "    bounded_segment:\n"
                 "      resume_file: /tmp/outside-project-segment.md\n"
-                "      phase: 10\n"
-                "      plan: 01\n"
+                '      phase: "10"\n'
+                '      plan: "01"\n'
                 "      segment_id: seg-invalid\n"
                 "      segment_status: paused\n"
             ),
@@ -778,8 +778,8 @@ class TestApplyReturnUpdates:
                 "      resume_file: GPD/phases/01-test-phase/.continue-here.md\n"
                 "    bounded_segment:\n"
                 "      resume_file: GPD/phases/01-test-phase/.continue-here.md\n"
-                "      phase: 01\n"
-                "      plan: 01\n"
+                '      phase: "01"\n'
+                '      plan: "01"\n'
                 "      segment_id: seg-01\n"
                 "      segment_status: paused\n"
                 "      checkpoint_reason: segment_boundary\n"

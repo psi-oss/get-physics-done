@@ -8,8 +8,8 @@ Orchestrator coordinates, not executes. Each subagent loads the full execute-pla
 
 <required_reading>
 Load the structured init-state payload first; reopen STATE.md only if a later staged refresh is missing, stale, or flagged by `state_load_source` / `state_integrity_issues`.
-For agent selection strategy and verification failure routing, see `@{GPD_INSTALL_DIR}/references/orchestration/meta-orchestration.md`.
-For artifact class definitions and review priority rules, see `@{GPD_INSTALL_DIR}/references/orchestration/artifact-surfacing.md`.
+For agent selection strategy and verification failure routing, see `{GPD_INSTALL_DIR}/references/orchestration/meta-orchestration.md`.
+For artifact class definitions and review priority rules, see `{GPD_INSTALL_DIR}/references/orchestration/artifact-surfacing.md`.
 </required_reading>
 
 <process>
@@ -1575,7 +1575,7 @@ TOTAL_COUNT=$(rg -c '^status: (passed|gaps_found|expert_needed|human_needed)$' "
 | Failure Pattern | Recovery | Cost |
 |---|---|---|
 | 1 contract target failed, rest passed | Re-execute the specific failing plan only | 1 subagent |
-| Multiple failures, same error type (e.g., all sign errors) | Spawn notation-coordinator to check conventions, then re-execute | 2 subagents |
+| Multiple failures, same error type (e.g., all sign errors) | Stop and route through `gpd:validate-conventions`; repair happens in a fresh continuation before re-execution | validate + follow-up |
 | Multiple failures, different error types | Escalate to user -- approach may be fundamentally wrong | 0 (user decides) |
 | Same gap persists after 1 gap-closure | Spawn debugger to identify root cause before 2nd attempt | 1-2 subagents |
 
@@ -1609,7 +1609,7 @@ task(
 )
 ```
 
-**For systematic failures:** Spawn notation-coordinator first to check for convention drift, then re-execute with corrected conventions.
+**For systematic failures:** Do not route notation repair inline from this workflow. Stop and point the user to `gpd:validate-conventions`; if convention repair is needed, that workflow and the fresh continuation handoff own the `gpd-notation-coordinator` spawn and typed return routing. After conventions are validated, re-enter `gpd:execute-phase {X}` or `gpd:execute-phase {X} --gaps-only` as appropriate.
 
 **For persistent failures (same gap after 1 cycle):** Spawn debugger BEFORE the second gap-closure attempt:
 
@@ -1779,56 +1779,11 @@ fi
 **Handle the checker response through `gpd_return.status`:**
 - `gpd_return.status: completed`: accept only if the artifact gate passes. Surface any `issues` as warnings, then continue.
 - `gpd_return.status: checkpoint`: stop, surface the checkpoint payload from the checker, and end with `## > Next Up`: primary `gpd:resume-work`, plus `gpd:validate-conventions` and `gpd:suggest-next`. Do not wait in place for user input inside this run.
-- `gpd_return.status: blocked` / `gpd_return.status: failed`: stop execution, surface the returned issues, and end with `## > Next Up`: primary `gpd:validate-conventions`, plus `gpd:resume-work` and `gpd:suggest-next`. If the user wants convention repair, spawn `gpd-notation-coordinator` from a fresh continuation after the stop.
+- `gpd_return.status: blocked` / `gpd_return.status: failed`: stop execution, surface the returned issues, and end with `## > Next Up`: primary `gpd:validate-conventions`, plus `gpd:resume-work` and `gpd:suggest-next`. If the user wants convention repair, route through `gpd:validate-conventions`; the fresh continuation handoff owns any notation-coordinator work.
 
 **If the checker output is malformed or omits `gpd_return.status`:** Treat it as blocked. Do not infer success from prose headings or untyped routing.
 
-If the user chooses convention repair in a fresh continuation, spawn `gpd-notation-coordinator` to fix the conflicts:
-
-```bash
-NOTATION_MODEL=$(gpd resolve-model gpd-notation-coordinator)
-```
-
-> Apply the canonical runtime delegation convention above.
-
-```
-task(
-  subagent_type="gpd-notation-coordinator",
-  model="{NOTATION_MODEL}",
-  readonly=false,
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-notation-coordinator.md for your role and instructions.
-
-<task>
-Resolve convention inconsistencies found by consistency checker after phase {PHASE_NUMBER} execution.
-</task>
-
-<issues>
-{consistency_checker_issues}
-</issues>
-
-<project_context>
-file_read: GPD/STATE.md, GPD/state.json, GPD/CONVENTIONS.md only if the structured payload is missing or inconsistent
-Prefer the structured init-state payload (`convention_lock` / `derived_convention_lock`) first; only reopen `STATE.md` / `state.json` if the payload is missing or inconsistent.
-file_read: All SUMMARY.md files from phase {PHASE_NUMBER}
-Load conventions: gpd convention list
-</project_context>
-
-<output>
-1. Update convention lock via gpd convention set (if lock is wrong)
-2. Update CONVENTIONS.md (if doc is stale)
-3. Flag any phase artifacts that need re-execution with corrected conventions
-4. Return CONVENTION UPDATE or CONVENTION CONFLICT
-</output>
-",
-  description="Resolve convention conflicts after Phase {PHASE_NUMBER}"
-)
-```
-
-**If the notation coordinator agent fails to spawn or returns an error:** The consistency issues remain unresolved. End with `## > Next Up`: primary `gpd:validate-conventions`, plus `gpd:resume-work`, `gpd convention set <key> <value>`, and `gpd:suggest-next`. Do not silently proceed — convention errors compound across phases.
-
-Handle notation-coordinator return:
-- **`CONVENTION UPDATE`:** Conventions fixed. Commit CONVENTIONS.md. Then verify `gpd convention check` reports `locked` or `complete`, and re-check any phase artifacts flagged for re-execution are still present on disk before continuing. If the lock is still open or a flagged artifact is missing, treat the update as incomplete and keep the phase blocked.
-- **`CONVENTION CONFLICT`:** Unresolvable conflict requiring user decision. Return blocked and resume only in a fresh continuation.
+Convention repair is intentionally out-of-line here. Do not spawn `gpd-notation-coordinator` from `execute-phase`, do not route on checker-local prose markers, and do not accept a stale convention document as proof of repair. The next step is `gpd:validate-conventions`, followed by `gpd:resume-work` or a fresh `gpd:execute-phase {PHASE_NUMBER}` continuation after that workflow reports a typed result and the convention lock is valid.
 
 **If "Force continue":** Log the forced override to DECISIONS.md:
 

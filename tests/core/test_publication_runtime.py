@@ -266,6 +266,34 @@ def test_publication_runtime_requires_referee_reports_for_complete_review_round(
     assert context["latest_review_artifacts"]["missing_artifacts"] == ["referee_report_md", "referee_report_tex"]
 
 
+def test_publication_runtime_requires_proof_redteam_for_theorem_bearing_complete_review_round(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "paper" / "main.tex",
+        "\\documentclass{article}\n\\begin{document}\n\\begin{theorem}Bounded.\\end{theorem}\n\\end{document}\n",
+    )
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    review_dir = tmp_path / "GPD" / "review"
+    review_dir.mkdir(parents=True)
+    _write_review_round(review_dir, manuscript_path="paper/main.tex", round_number=2)
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+    context = publication_runtime_snapshot_context(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.state == "partial"
+    assert snapshot.latest_review_artifacts.complete is False
+    assert snapshot.latest_review_artifacts.proof_redteam_required is True
+    assert snapshot.latest_review_artifacts.missing_artifacts == ("proof_redteam",)
+    assert context["latest_review_artifacts"]["complete"] is False
+    assert context["latest_review_artifacts"]["proof_redteam_required"] is True
+    assert context["latest_review_artifacts"]["missing_artifacts"] == ["proof_redteam"]
+
+
 def test_publication_runtime_does_not_fall_back_past_malformed_latest_review_round(
     tmp_path: Path,
 ) -> None:

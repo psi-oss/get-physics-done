@@ -216,6 +216,31 @@ def test_expected_runtime_marker_scan_preserves_foreign_manifest_safety(tmp_path
     assert assessment.has_managed_markers is True
 
 
+@pytest.mark.parametrize("manifest_scope", [None, "workspace"])
+def test_assess_install_target_classifies_foreign_runtime_before_scope_failures(
+    tmp_path: Path,
+    manifest_scope: str | None,
+) -> None:
+    descriptors = iter_runtime_descriptors()
+    expected_runtime = descriptors[0].runtime_name
+    foreign_runtime = next(
+        descriptor.runtime_name for descriptor in descriptors if descriptor.runtime_name != expected_runtime
+    )
+    config_dir = tmp_path / "runtime-config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    manifest: dict[str, object] = {"runtime": foreign_runtime}
+    if manifest_scope is not None:
+        manifest["install_scope"] = manifest_scope
+    (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    assessment = assess_install_target(config_dir, expected_runtime=expected_runtime)
+
+    assert assessment.state == "foreign_runtime"
+    assert assessment.manifest_state == "ok"
+    assert assessment.manifest_runtime == foreign_runtime
+    assert assessment.expected_runtime == expected_runtime
+
+
 def test_assess_install_target_distinguishes_absent_and_clean_targets(tmp_path: Path) -> None:
     absent = tmp_path / ".codex"
     clean = tmp_path / ".codex-clean"

@@ -52,7 +52,7 @@ def test_public_surface_contract_smoke_keeps_bridge_commands_and_named_commands_
     assert contract.local_cli_bridge.doctor_global_command == "gpd doctor --runtime <runtime> --global"
     assert (
         contract.local_cli_bridge.validate_command_context_command
-        == "gpd validate command-context gpd:<name>"
+        == "gpd validate command-context <name>"
     )
 
 

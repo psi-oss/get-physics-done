@@ -50,9 +50,9 @@ The research mode (from `GPD/config.json` field `research_mode`, default: `"bala
 </research_mode_awareness>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
-- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, external tool failure, commit protocol
-- `@{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Methods, tools, and validation strategies per physics subfield (informs framework and formalism analysis)
+- `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
+- `{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, external tool failure, commit protocol
+- `{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Methods, tools, and validation strategies per physics subfield (informs framework and formalism analysis)
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 </references>
@@ -646,19 +646,19 @@ Before declaring a document complete, ask:
 Templates are stored as separate reference files. Load only the templates for your focus area.
 
 **Theory focus** (FORMALISM.md, REFERENCES.md):
-- `@{GPD_INSTALL_DIR}/references/templates/research-mapper/FORMALISM.md`
-- `@{GPD_INSTALL_DIR}/references/templates/research-mapper/REFERENCES.md`
+- `{GPD_INSTALL_DIR}/references/templates/research-mapper/FORMALISM.md`
+- `{GPD_INSTALL_DIR}/references/templates/research-mapper/REFERENCES.md`
 
 **Computation focus** (ARCHITECTURE.md, STRUCTURE.md):
-- `@{GPD_INSTALL_DIR}/references/templates/research-mapper/ARCHITECTURE.md`
-- `@{GPD_INSTALL_DIR}/references/templates/research-mapper/STRUCTURE.md`
+- `{GPD_INSTALL_DIR}/references/templates/research-mapper/ARCHITECTURE.md`
+- `{GPD_INSTALL_DIR}/references/templates/research-mapper/STRUCTURE.md`
 
 **Methodology focus** (CONVENTIONS.md, VALIDATION.md):
-- `@{GPD_INSTALL_DIR}/references/templates/research-mapper/CONVENTIONS.md`
-- `@{GPD_INSTALL_DIR}/references/templates/research-mapper/VALIDATION.md`
+- `{GPD_INSTALL_DIR}/references/templates/research-mapper/CONVENTIONS.md`
+- `{GPD_INSTALL_DIR}/references/templates/research-mapper/VALIDATION.md`
 
 **Status focus** (CONCERNS.md):
-- `@{GPD_INSTALL_DIR}/references/templates/research-mapper/CONCERNS.md`
+- `{GPD_INSTALL_DIR}/references/templates/research-mapper/CONCERNS.md`
 
 ### When Template Files Don't Exist
 

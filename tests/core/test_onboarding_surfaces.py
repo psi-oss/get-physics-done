@@ -158,7 +158,7 @@ def test_public_surface_contract_rejects_recovery_ladder_command_drift(
         ("install_local_example", "gpd install <runtime> --local"),
         ("doctor_local_command", "gpd doctor --runtime <runtime> --local"),
         ("doctor_global_command", "gpd doctor --runtime <runtime> --global"),
-        ("validate_command_context_command", "gpd validate command-context gpd:<name>"),
+        ("validate_command_context_command", "gpd validate command-context <name>"),
     ],
 )
 def test_public_surface_contract_loader_rejects_local_cli_bridge_command_drift(
@@ -458,7 +458,7 @@ def test_public_surface_contract_bridge_note_surfaces_runtime_readiness_and_plan
     assert "gpd validate plan-preflight <PLAN.md>" in public_surface_contract_module.local_cli_plan_preflight_command()
     assert (
         public_surface_contract_module.local_cli_validate_command_context_command()
-        == "gpd validate command-context gpd:<name>"
+        == "gpd validate command-context <name>"
     )
 
 
@@ -609,7 +609,7 @@ def test_doc_surface_contract_helpers_read_runtime_normalized_contract(
             install_local_example="gpd install <runtime> --local",
             doctor_local_command="gpd doctor --runtime <runtime> --local",
             doctor_global_command="gpd doctor --runtime <runtime> --global",
-            validate_command_context_command="gpd validate command-context gpd:<name>",
+            validate_command_context_command="gpd validate command-context <name>",
         ),
         post_start_settings=public_surface_contract_module.PostStartSettingsContract(
             primary_sentence="Run settings after start.",
@@ -663,7 +663,7 @@ def test_doc_surface_contract_helpers_read_runtime_normalized_contract(
     assert public_surface_contract_module.local_cli_install_local_example_command() == "gpd install <runtime> --local"
     assert (
         public_surface_contract_module.local_cli_validate_command_context_command()
-        == "gpd validate command-context gpd:<name>"
+        == "gpd validate command-context <name>"
     )
 
     doc_surface_contracts_module._public_surface_contract_payload.cache_clear()
@@ -713,7 +713,7 @@ def test_doc_surface_contract_helpers_refresh_dynamic_command_surfaces(
             install_local_example="gpd install dynamic --local",
             doctor_local_command="gpd doctor dynamic --runtime <runtime> --local",
             doctor_global_command="gpd doctor dynamic --runtime <runtime> --global",
-            validate_command_context_command="gpd validate dynamic-context gpd:<name>",
+            validate_command_context_command="gpd validate dynamic-context <name>",
         ),
         post_start_settings=public_surface_contract_module.PostStartSettingsContract(
             primary_sentence="Use settings later.",

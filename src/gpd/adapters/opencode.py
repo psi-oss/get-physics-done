@@ -94,6 +94,7 @@ _GPD_SLASH_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9/_.-])/gpd:(?P<command>[A-Za-
 _GPD_BARE_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9_./$-])gpd:([a-z0-9-]+)\b")
 _OPENCODE_PERMISSION_DECISIONS = frozenset({"allow", "ask", "deny"})
 _OPENCODE_YOLO_PERMISSION = "allow"
+_GPD_OPENCODE_COMMAND_MARKER = "<!-- Managed by Get Physics Done (GPD). -->"
 _MANIFEST_OPENCODE_GENERATED_COMMAND_FILES_KEY = "opencode_generated_command_files"
 _MANIFEST_OPENCODE_MANAGED_CONFIG_KEY = "opencode_managed_config"
 _MANIFEST_OPENCODE_PERMISSION_RESTORE_KEY = "permission_restore"
@@ -249,7 +250,18 @@ def _render_opencode_command_markdown(content: str, *, path_prefix: str, bridge_
     """Render one canonical command markdown source into OpenCode command content."""
     if bridge_command:
         content = _rewrite_gpd_cli_invocations(content, bridge_command)
-    return convert_claude_to_opencode_frontmatter(content, path_prefix)
+    return _inject_opencode_command_marker(convert_claude_to_opencode_frontmatter(content, path_prefix))
+
+
+def _inject_opencode_command_marker(content: str) -> str:
+    """Insert the OpenCode flat-command ownership marker once."""
+    if _GPD_OPENCODE_COMMAND_MARKER in content:
+        return content
+    preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
+    marker = f"{_GPD_OPENCODE_COMMAND_MARKER}\n"
+    if not frontmatter:
+        return marker + content
+    return render_markdown_frontmatter(preamble, frontmatter, separator, marker + body)
 
 
 # ---------------------------------------------------------------------------
@@ -474,15 +486,29 @@ def _load_manifest_opencode_command_files(target_dir: Path) -> tuple[str, ...]:
     return tuple(dict.fromkeys(tracked))
 
 
-def _remove_all_opencode_flat_gpd_commands(command_dir: Path) -> int:
-    """Remove every file in OpenCode's reserved flat GPD command namespace."""
+def _opencode_flat_command_has_managed_marker(command_path: Path) -> bool:
+    """Return whether an OpenCode flat command file carries the GPD marker."""
+    try:
+        content = command_path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return _GPD_OPENCODE_COMMAND_MARKER in content
+
+
+def _remove_marker_backed_opencode_flat_gpd_commands(command_dir: Path) -> int:
+    """Remove only marker-backed files in OpenCode's flat GPD command namespace."""
     removed = 0
     try:
         entries = list(command_dir.iterdir())
     except OSError:
         return 0
     for entry in entries:
-        if entry.is_file() and entry.name.startswith("gpd-") and entry.suffix == ".md":
+        if (
+            entry.is_file()
+            and entry.name.startswith("gpd-")
+            and entry.suffix == ".md"
+            and _opencode_flat_command_has_managed_marker(entry)
+        ):
             entry.unlink()
             removed += 1
     return removed
@@ -706,7 +732,7 @@ def uninstall_opencode(
     command_dir = target_dir / "command"
     if command_dir.exists():
         if remove_untracked_managed_commands and not tracked_command_files:
-            counts["commands"] += _remove_all_opencode_flat_gpd_commands(command_dir)
+            counts["commands"] += _remove_marker_backed_opencode_flat_gpd_commands(command_dir)
         elif tracked_command_files:
             for name in tracked_command_files:
                 command_path = command_dir / name

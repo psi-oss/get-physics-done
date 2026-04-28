@@ -153,7 +153,7 @@ Use `protocol_bundle_context` from init JSON as additive review guidance.
 - If `selected_protocol_bundle_ids` is non-empty, use the bundle summary as a compact map of decisive artifacts, benchmark anchors, estimator caveats, or specialized comparisons the manuscript should surface.
 - Bundle guidance is additive only: it can sharpen missing-evidence checks, but it cannot invent claims, waive missing comparisons, or overrule the manuscript, `project_contract`, `GPD/comparisons/*-COMPARISON.md`, `${MANUSCRIPT_ROOT}/FIGURE_TRACKER.md`, or phase summary / verification evidence (`GPD/phases/*/*SUMMARY.md`, `GPD/phases/*/*-VERIFICATION.md`).
 - Reader-visible claims and surfaced evidence remain first-class; review-support artifacts are scaffolding, not substitutes for authoritative evidence required by the resolved review target or project contract.
-- Read `@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md` for the canonical failure-recovery and round-suffix conventions that keep this workflow fail-closed.
+- Read `{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md` for the canonical failure-recovery and round-suffix conventions that keep this workflow fail-closed.
 - If no bundle is selected, run the same review pipeline against the resolved review target plus any authoritative project-backed artifacts without any specialized overlay.
 </step>
 

@@ -15,6 +15,7 @@ PUBLICATION_ROUND_ARTIFACTS_INCLUDE = (
     "@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
 )
 PUBLICATION_REVIEW_RELIABILITY_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
+PUBLICATION_REVIEW_RELIABILITY_INLINE = "{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
 
 
 def _workflow_text(name: str) -> str:
@@ -160,10 +161,11 @@ def test_publication_review_workflows_reference_shared_manuscript_root_contract(
         assert PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE in workflow_text
         if workflow_name == "respond-to-referees.md":
             assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE in workflow_text
+            assert PUBLICATION_REVIEW_RELIABILITY_INLINE in workflow_text
         else:
             assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE not in workflow_text
             assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in workflow_text
-        assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE in workflow_text
+            assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE in workflow_text
 
 
 def test_verify_work_workflow_runs_centralized_review_preflight() -> None:

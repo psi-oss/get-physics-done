@@ -18,6 +18,7 @@ PUBLICATION_BOOTSTRAP_PREFLIGHT = REFERENCES_DIR / "publication" / "publication-
 PUBLICATION_PIPELINE_MODES_INCLUDE = (
     "@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md"
 )
+PUBLICATION_PIPELINE_MODES_INLINE = "{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md"
 PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE = (
     "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
 )
@@ -31,6 +32,7 @@ PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE = (
     "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
 )
 PUBLICATION_REVIEW_RELIABILITY_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
+PUBLICATION_REVIEW_RELIABILITY_INLINE = "{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
 OWNED_COMMANDS = (
     COMMANDS_DIR / "debug.md",
     COMMANDS_DIR / "research-phase.md",
@@ -199,7 +201,7 @@ def test_publication_commands_keep_shared_manuscript_root_preflight_out_of_wrapp
         assert text.count(PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE) == 0, path
         assert text.count(PUBLICATION_REVIEW_RELIABILITY_INCLUDE) == 0, path
         if path.name in {"write-paper.md", "peer-review.md"}:
-            assert PUBLICATION_PIPELINE_MODES_INCLUDE in text, path
+            assert PUBLICATION_PIPELINE_MODES_INLINE in text, path
             assert "embedded review/submission parity" not in text, path
             assert "current global `GPD/` / `GPD/review/` round-artifact layout" not in text, path
 
@@ -238,8 +240,10 @@ def test_publication_commands_keep_shared_manuscript_root_preflight_out_of_wrapp
             assert text.count(PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE) >= expected_response_handoff_counts[path.name], path
         else:
             assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE not in text, path
-        if path.name in {"peer-review.md", "respond-to-referees.md", "arxiv-submission.md"}:
+        if path.name == "arxiv-submission.md":
             assert text.count(PUBLICATION_REVIEW_RELIABILITY_INCLUDE) >= 1, path
+        elif path.name in {"peer-review.md", "respond-to-referees.md"}:
+            assert text.count(PUBLICATION_REVIEW_RELIABILITY_INLINE) >= 1, path
         else:
             assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE not in text, path
 

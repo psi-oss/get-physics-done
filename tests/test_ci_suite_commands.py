@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
+import tests.ci_sharding as ci_sharding
 from tests.ci_sharding import assert_ci_workflow_pytest_shard_policy, assert_tests_readme_documents_ci_shard_policy
 from tests.helpers.github_actions import load_github_actions_workflow
 
@@ -97,6 +100,87 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
     workflow = _workflow_data()
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert_ci_workflow_pytest_shard_policy(workflow, pyproject_text=pyproject)
+
+
+def test_ci_collection_cache_is_repo_and_category_scoped(tmp_path, monkeypatch) -> None:
+    calls: list[tuple[tuple[str, ...], Path]] = []
+
+    def _fake_checked_in_test_relpaths(*, repo_root: Path | None = None, category: str | None = None) -> tuple[str, ...]:
+        if category == "core":
+            return ("core/test_sample.py",)
+        return ("test_sample.py",)
+
+    def _fake_run(args: list[str], **kwargs: object) -> SimpleNamespace:
+        cwd = kwargs["cwd"]
+        assert isinstance(cwd, Path)
+        calls.append((tuple(args), cwd))
+        if "tests/core/test_sample.py" in args:
+            stdout = "tests/core/test_sample.py::test_core\n"
+        else:
+            stdout = "tests/test_sample.py::test_root\n"
+        return SimpleNamespace(stdout=stdout)
+
+    monkeypatch.setattr(ci_sharding, "checked_in_test_relpaths", _fake_checked_in_test_relpaths)
+    monkeypatch.setattr(ci_sharding.subprocess, "run", _fake_run)
+    ci_sharding._collected_test_inventory_items.cache_clear()
+    try:
+        first_root = ci_sharding.collected_test_inventory(repo_root=tmp_path, category="root")
+        second_root = ci_sharding.collected_test_inventory(repo_root=tmp_path, category="root")
+        core = ci_sharding.collected_test_inventory(repo_root=tmp_path, category="core")
+        other_root = ci_sharding.collected_test_inventory(repo_root=tmp_path / "other", category="root")
+    finally:
+        ci_sharding._collected_test_inventory_items.cache_clear()
+
+    assert first_root == second_root == {"test_sample.py": ("tests/test_sample.py::test_root",)}
+    assert core == {"core/test_sample.py": ("tests/core/test_sample.py::test_core",)}
+    assert other_root == first_root
+    assert calls == [
+        (
+            (
+                sys.executable,
+                "-m",
+                "pytest",
+                "-p",
+                "no:cacheprovider",
+                "tests/test_sample.py",
+                "--collect-only",
+                "-q",
+                "-n",
+                "0",
+            ),
+            tmp_path.resolve(),
+        ),
+        (
+            (
+                sys.executable,
+                "-m",
+                "pytest",
+                "-p",
+                "no:cacheprovider",
+                "tests/core/test_sample.py",
+                "--collect-only",
+                "-q",
+                "-n",
+                "0",
+            ),
+            tmp_path.resolve(),
+        ),
+        (
+            (
+                sys.executable,
+                "-m",
+                "pytest",
+                "-p",
+                "no:cacheprovider",
+                "tests/test_sample.py",
+                "--collect-only",
+                "-q",
+                "-n",
+                "0",
+            ),
+            (tmp_path / "other").resolve(),
+        ),
+    ]
 
 
 def test_ci_represents_documented_default_fast_suite_without_duplicate_full_suite_lane() -> None:

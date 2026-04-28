@@ -108,7 +108,7 @@ def _expand_braced_edge_endpoint(endpoint: str) -> tuple[str, ...]:
 
 
 def _edge_endpoint_matches(expected: str, rendered: str) -> bool:
-    if expected == rendered or expected in rendered:
+    if expected == rendered:
         return True
     return expected in _expand_braced_edge_endpoint(rendered)
 
@@ -120,8 +120,21 @@ def graph_has_edge(source: str, target: str, graph_text: str | None = None) -> b
     return False
 
 
+def graph_has_edge_containing(
+    source_fragment: str,
+    target_fragment: str,
+    graph_text: str | None = None,
+) -> bool:
+    for rendered_source, rendered_target in iter_graph_edge_specs(graph_text):
+        if source_fragment in rendered_source and target_fragment in rendered_target:
+            return True
+    return False
+
+
 def _is_excluded_path(path: Path) -> bool:
-    return any(part in EXCLUDED_GRAPH_DIRS for part in path.parts)
+    if not path.parts:
+        return False
+    return path.parts[0] in EXCLUDED_GRAPH_DIRS
 
 
 def _tracked_repo_files(repo_root: Path) -> list[Path] | None:

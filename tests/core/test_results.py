@@ -58,6 +58,13 @@ def test_result_add_duplicate_raises():
         result_add(state, result_id="R-01")
 
 
+def test_result_add_rejects_normalized_duplicate_id():
+    state: dict = {}
+    result_add(state, result_id="R-01")
+    with pytest.raises(DuplicateResultError):
+        result_add(state, result_id="r 01")
+
+
 def test_result_add_rejects_legacy_virtual_id_collision():
     state: dict = {"intermediate_results": ["markdown bullet"]}
 
@@ -279,6 +286,37 @@ def test_result_upsert_updates_existing_result_by_explicit_id():
     assert result.result.description == "Updated description"
     assert result.result.validity == "rest frame"
     assert len(state["intermediate_results"]) == 1
+
+
+def test_result_upsert_updates_existing_result_by_unique_normalized_id():
+    state: dict = {}
+    result_add(state, result_id="R-01", equation="E = mc^2", description="Old description", phase="1")
+
+    result = result_upsert(
+        state,
+        result_id="r 01",
+        description="Updated through normalized id",
+    )
+
+    assert result.action == "updated"
+    assert result.matched_by == "id"
+    assert result.result.id == "R-01"
+    assert result.result.description == "Updated through normalized id"
+    assert len(state["intermediate_results"]) == 1
+
+
+def test_result_upsert_rejects_ambiguous_normalized_id_without_adding():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "description": "first", "depends_on": []},
+            {"id": "R 01", "description": "second", "depends_on": []},
+        ]
+    }
+
+    with pytest.raises(ResultError, match="Multiple existing results match this result_id"):
+        result_upsert(state, result_id="r-01", description="new")
+
+    assert len(state["intermediate_results"]) == 2
 
 
 def test_result_upsert_reuses_unique_equation_match_when_preferred_id_is_new():
@@ -788,6 +826,30 @@ def test_result_verify_supports_full_contract_binding_set():
     assert listed[0].verification_records[0].forbidden_proxy_id == "fp-benchmark"
 
 
+def test_result_verify_resolves_unique_normalized_id_like_result_deps():
+    state: dict = {}
+    result_add(state, result_id="R-01")
+
+    result = result_verify(state, "r 01", verifier="auditor")
+
+    assert result.id == "R-01"
+    assert state["intermediate_results"][0]["verified"] is True
+
+
+def test_result_verify_rejects_ambiguous_normalized_id():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "verified": False, "verification_records": []},
+            {"id": "R 01", "verified": False, "verification_records": []},
+        ]
+    }
+
+    with pytest.raises(ResultNotFoundError):
+        result_verify(state, "r_01", verifier="auditor")
+
+    assert [result["verified"] for result in state["intermediate_results"]] == [False, False]
+
+
 def test_result_add_with_verification_records_sets_verified():
     state: dict = {}
     result = result_add(
@@ -931,6 +993,32 @@ def test_result_update_fields():
     assert "description" in fields
     assert result.equation == "new"
     assert result.description == "updated"
+
+
+def test_result_update_resolves_unique_normalized_id_like_result_deps():
+    state: dict = {}
+    result_add(state, result_id="R-01", equation="old")
+
+    fields, result = result_update(state, "r 01", equation="new")
+
+    assert fields == ["equation"]
+    assert result.id == "R-01"
+    assert result.equation == "new"
+    assert state["intermediate_results"][0]["equation"] == "new"
+
+
+def test_result_update_rejects_ambiguous_normalized_id_without_mutation():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "equation": "old-a", "verified": False, "verification_records": []},
+            {"id": "R 01", "equation": "old-b", "verified": False, "verification_records": []},
+        ]
+    }
+
+    with pytest.raises(ResultNotFoundError):
+        result_update(state, "r_01", equation="new")
+
+    assert [result["equation"] for result in state["intermediate_results"]] == ["old-a", "old-b"]
 
 
 def test_result_update_canonicalizes_dependencies_and_returns_deterministic_fields():

@@ -237,12 +237,38 @@ def _shared_runtime_facing_test_paths() -> tuple[Path, ...]:
 
 
 _SHARED_TEST_RUNTIME_SURFACE_PATHS = _shared_runtime_facing_test_paths()
+_ROOT_RUNTIME_SURFACE_TEST_NAME_TOKENS = ("runtime", "install", "registry", "update")
+_EXPLICIT_ROOT_RUNTIME_SURFACE_TESTS = {
+    "tests/test_cli_integration.py",
+}
+_STRICT_ROOT_RUNTIME_LITERAL_ALLOWLIST = {
+    "tests/test_install_utils_edge.py",
+}
+
+
+def _is_root_runtime_surface_test(path: Path) -> bool:
+    rel_path = path.relative_to(REPO_ROOT)
+    if len(rel_path.parts) != 2 or rel_path.parts[0] != "tests" or not rel_path.name.startswith("test_"):
+        return False
+    return (
+        rel_path.as_posix() in _EXPLICIT_ROOT_RUNTIME_SURFACE_TESTS
+        or any(token in rel_path.name for token in _ROOT_RUNTIME_SURFACE_TEST_NAME_TOKENS)
+    )
+
+
+_BOOTSTRAP_INSTALLER_TEST_PATH = REPO_ROOT / "tests/test_bootstrap_installer.py"
 _STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS = tuple(
     path
     for path in _SHARED_TEST_RUNTIME_SURFACE_PATHS
     if path.relative_to(REPO_ROOT).parts[:2] in {("tests", "core"), ("tests", "mcp")}
+    or (
+        _is_root_runtime_surface_test(path)
+        and path.relative_to(REPO_ROOT).as_posix() not in _STRICT_ROOT_RUNTIME_LITERAL_ALLOWLIST
+    )
 )
-_STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS = (*_STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS, REPO_ROOT / "tests/test_bootstrap_installer.py")
+_STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS = tuple(
+    dict.fromkeys((*_STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS, _BOOTSTRAP_INSTALLER_TEST_PATH))
+)
 _TEXT_SURFACE_SUFFIXES = {".json", ".md", ".py"}
 _SHARED_GENERIC_PROVIDER_MODEL_TEST_PATHS = (
     REPO_ROOT / "tests/core/test_health.py",
@@ -658,6 +684,26 @@ def test_runtime_public_command_prefixes_use_descriptor_public_surface(monkeypat
     assert set(prefixes) == {"/public:", "$public-"}
     assert "/adapter-only:" not in prefixes
     assert "$adapter-only-" not in prefixes
+
+
+def test_strict_runtime_literal_guard_covers_root_level_runtime_facing_tests() -> None:
+    strict_relpaths = {path.relative_to(REPO_ROOT).as_posix() for path in _STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS}
+    expected_root_relpaths = {
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in _SHARED_TEST_RUNTIME_SURFACE_PATHS
+        if _is_root_runtime_surface_test(path)
+    }
+
+    assert _STRICT_ROOT_RUNTIME_LITERAL_ALLOWLIST == {"tests/test_install_utils_edge.py"}
+    assert expected_root_relpaths - _STRICT_ROOT_RUNTIME_LITERAL_ALLOWLIST <= strict_relpaths
+    assert not (_STRICT_ROOT_RUNTIME_LITERAL_ALLOWLIST & strict_relpaths)
+    assert {
+        "tests/test_runtime_cli.py",
+        "tests/test_runtime_catalog_bootstrap_contract.py",
+        "tests/test_cli_integration.py",
+        "tests/test_registry.py",
+        "tests/test_update_workflow.py",
+    } <= strict_relpaths
 
 
 def _readme_optional_terminal_reference() -> str:

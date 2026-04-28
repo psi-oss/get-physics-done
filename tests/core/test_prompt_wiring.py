@@ -59,6 +59,7 @@ PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE = (
 PUBLICATION_ROUND_ARTIFACTS_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
 PUBLICATION_ROUND_ARTIFACTS_PATH = "{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
 PUBLICATION_REVIEW_RELIABILITY_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
+PUBLICATION_REVIEW_RELIABILITY_INLINE = "{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
 
 
 def _assert_contains_fragments(text: str, *fragments: str) -> None:
@@ -556,8 +557,10 @@ def test_commands_reference_same_stem_workflows() -> None:
     for command_path in sorted(COMMANDS_DIR.glob("*.md")):
         if command_path.stem not in workflow_stems:
             continue
-        expected = f"@{{GPD_INSTALL_DIR}}/workflows/{command_path.stem}.md"
-        assert expected in command_path.read_text(encoding="utf-8"), command_path
+        content = command_path.read_text(encoding="utf-8")
+        expected_standalone = f"@{{GPD_INSTALL_DIR}}/workflows/{command_path.stem}.md"
+        expected_inline = f"{{GPD_INSTALL_DIR}}/workflows/{command_path.stem}.md"
+        assert expected_standalone in content or expected_inline in content, command_path
 
 
 def test_commands_are_workflow_backed_or_explicitly_exempt() -> None:
@@ -916,32 +919,32 @@ def test_readme_command_context_taxonomy_surfaces_global_mode_and_project_aware_
     )
     assert "explicit current-workspace inputs" in project_aware_line
     for command_name in (
-        "gpd:compare-experiment",
-        "gpd:compare-results",
-        "gpd:discover",
-        "gpd:digest-knowledge",
-        "gpd:explain",
-        "gpd:parameter-sweep",
-        "gpd:review-knowledge",
-        "gpd:literature-review",
-        "gpd:peer-review",
-        "gpd:write-paper --intake intake/write-paper-authoring-input.json",
+        "compare-experiment",
+        "compare-results",
+        "discover",
+        "digest-knowledge",
+        "explain",
+        "parameter-sweep",
+        "review-knowledge",
+        "literature-review",
+        "peer-review",
+        "write-paper --intake intake/write-paper-authoring-input.json",
     ):
         assert command_name in project_aware_line
     assert "Project-aware commands stay rooted in the current workspace" in command_context
     assert "The relaxed technical-analysis lane lives here too" in command_context
     for command_name in (
-        "gpd:derive-equation",
-        "gpd:dimensional-analysis",
-        "gpd:limiting-cases",
-        "gpd:numerical-convergence",
-        "gpd:parameter-sweep",
-        "gpd:sensitivity-analysis",
+        "derive-equation",
+        "dimensional-analysis",
+        "limiting-cases",
+        "numerical-convergence",
+        "parameter-sweep",
+        "sensitivity-analysis",
     ):
         assert command_name in command_context
     assert "GPD/analysis/" in command_context
     assert "GPD/sweeps/" in command_context
-    assert "`gpd:graph` and `gpd:error-propagation` are not part of this relaxed current-workspace lane." in command_context
+    assert "`graph` and `error-propagation` are not part of this relaxed current-workspace lane." in command_context
     assert "gpd:peer-review" not in project_required_line
     assert "gpd:write-paper" not in project_required_line
     assert (
@@ -1178,7 +1181,7 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     assert "managed project manuscript lane such as `GPD/publication/{subject_slug}/manuscript`" in write_paper
     assert "GPD-owned review/response auxiliaries stay under `GPD/`" in write_paper
     assert "`paper/`, `manuscript/`, and `draft/`" in peer_review
-    assert "@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" in peer_review
+    assert "{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" in peer_review
     assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in publication_modes
     assert "current global `GPD/` / `GPD/review/` round-artifact layout" not in peer_review
     assert respond_command.argument_hint == "[--manuscript PATH] (--report PATH [--report PATH...] | paste)"
@@ -1687,9 +1690,10 @@ def test_planning_prompts_keep_contract_gate_in_light_mode_and_all_modes() -> No
     checker_agent = (AGENTS_DIR / "gpd-plan-checker.md").read_text(encoding="utf-8")
     workflow_text = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
 
-    assert "@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md" in planner_prompt
+    assert "{GPD_INSTALL_DIR}/templates/plan-contract-schema.md" in planner_prompt
     assert (
-        "Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical contract source." in planner_prompt
+        "Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical contract source."
+        in planner_prompt
     )
     assert "Treat `approach_policy` as execution policy only." in planner_prompt
     assert "Light mode changes body verbosity only." in planner_prompt
@@ -2303,7 +2307,7 @@ def test_stage4_templates_and_workflows_surface_contract_results_and_verdict_led
     assert "contract_results (required" not in summary_template
     assert "comparison_verdicts (required" not in summary_template
     assert (
-        "reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing"
+        "reload `{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing"
         in summary_template
     )
     assert "uncertainty_markers" in summary_template
@@ -2429,7 +2433,7 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
     assert "machine-readable surface limited to the schema-owned ledgers" in verification_template
     assert "verification-side `suggested_contract_checks`" in verification_template
     assert (
-        "Use `@{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract."
+        "Use `{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract."
         in research_verification
     )
     assert "status: gaps_found" in research_verification
@@ -2504,7 +2508,7 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
     )
     assert "emit `verdict: inconclusive` or `verdict: tension` instead of omitting the entry" in execute_plan
     assert (
-        "Immediately before writing frontmatter, re-open `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` and apply it literally."
+        "Immediately before writing frontmatter, re-open `{GPD_INSTALL_DIR}/templates/contract-results-schema.md` and apply it literally."
         in execute_plan
     )
     assert "contract_results" in verify_phase
@@ -2619,7 +2623,7 @@ def test_execute_phase_and_execute_plan_surface_required_reference_and_state_own
     execute_workflow = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
     execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
 
-    assert "@{GPD_INSTALL_DIR}/references/orchestration/artifact-surfacing.md" in execute_workflow
+    assert "{GPD_INSTALL_DIR}/references/orchestration/artifact-surfacing.md" in execute_workflow
     assert "{GPD_INSTALL_DIR}/references/execution/github-lifecycle.md" in execute_plan
     assert (
         "substitute the repository's actual default branch and remote names for `<default-branch>` and `<remote-name>`"
@@ -2648,7 +2652,7 @@ def test_verification_prompts_keep_suggested_contract_check_bindings_schema_tigh
     assert "acceptance-test-main" in research_verification
     assert "suggested_contract_checks" in verification_template
     assert (
-        "Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing"
+        "Reload `{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing"
         in verification_template
     )
     assert "proof-audit rules in the canonical schema" in verification_template
@@ -3323,7 +3327,7 @@ def test_publication_prompts_surface_strict_semantic_manuscript_gates() -> None:
         assert PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE in content
         if content is respond_workflow:
             assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE in content
-            assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE in content
+            assert PUBLICATION_REVIEW_RELIABILITY_INLINE in content
             assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE not in content
         else:
             assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE not in content
@@ -3439,7 +3443,7 @@ def test_publication_command_contexts_surface_schema_docs_before_generation() ->
     assert "templates/paper/referee-response.md" in respond_workflow
     assert bootstrap_preflight_include in respond_workflow
     assert response_handoff_include in respond_workflow
-    assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE in respond_workflow
+    assert PUBLICATION_REVIEW_RELIABILITY_INLINE in respond_workflow
     assert "bibliography_audit_clean" in respond_workflow_expanded
     assert "reproducibility_ready" in respond_workflow_expanded
     assert bootstrap_preflight_include in arxiv_workflow
@@ -3744,10 +3748,11 @@ def test_verification_and_agent_reference_prompts_expand_or_stage_required_refer
     assert "templates/contract-results-schema.md" in interactive_validation.loaded_authorities
     assert "Verification Independence" in verify_phase
     assert "# Contract Results Schema" in verify_phase
-    assert "Shared Research Philosophy and Protocols" in phase_researcher
-    assert "Agent Infrastructure Protocols" in phase_researcher
+    assert "# Shared Protocols" in phase_researcher
+    assert "# Shared Research Philosophy and Protocols" in phase_researcher
+    assert "# Agent Infrastructure Protocols" in phase_researcher
     assert "Shared Protocols" in planner
-    assert "Agent Infrastructure Protocols" in planner
+    assert "{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md" in planner
     assert "@ include not resolved:" not in verify_work.lower()
     assert "@ include not resolved:" not in verify_phase.lower()
     assert "@ include not resolved:" not in phase_researcher.lower()
@@ -3809,7 +3814,7 @@ def test_planner_and_summary_prompt_surfaces_expand_contract_schema_bodies() -> 
     assert "### `links[]`" in phase_prompt
     assert planner_prompt.count("## Standard Planning Template") == 1
     assert planner_prompt.count("## Revision Template") == 1
-    assert planner_prompt.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 1
+    assert planner_prompt.count("{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 1
     for token in (
         "project_contract_gate.authoritative",
         "project_contract_load_info.status",
@@ -4654,7 +4659,7 @@ def test_help_surfaces_distinguish_runtime_slash_commands_from_local_cli_subcomm
     assert "## Step 4: Single Command Detail Extract (--command <name>)" in help_command
 
     assert_help_workflow_runtime_reference_contract(help_workflow)
-    assert "gpd validate command-context gpd:<name>" in help_workflow
+    assert "gpd validate command-context <name>" in help_workflow
 
 
 def test_help_command_keeps_static_quick_start_while_workflow_owns_full_reference() -> None:

@@ -101,6 +101,60 @@ GPD_RETURN_BLOCK_RE = re.compile(r"```ya?ml\s*\n(gpd_return:\s*\n[\s\S]*?)```")
 """Fence matcher for the canonical ``gpd_return`` YAML block."""
 
 
+_RETURN_HANDOFF_TEXT_FIELDS = frozenset({"resume_file", "stopped_at", "last_result_id"})
+_RETURN_BOUNDED_SEGMENT_TEXT_FIELDS = frozenset(
+    {
+        "resume_file",
+        "phase",
+        "plan",
+        "segment_id",
+        "segment_status",
+        "checkpoint_reason",
+        "waiting_reason",
+        "blocked_reason",
+        "skeptical_requestioning_summary",
+        "weakest_unchecked_anchor",
+        "disconfirming_observation",
+        "transition_id",
+        "last_result_id",
+        "source_session_id",
+    }
+)
+_RETURN_BOUNDED_SEGMENT_BOOL_FIELDS = frozenset(
+    {
+        "waiting_for_review",
+        "first_result_gate_pending",
+        "pre_fanout_review_pending",
+        "pre_fanout_review_cleared",
+        "skeptical_requestioning_required",
+        "downstream_locked",
+    }
+)
+
+
+def _reject_non_string_continuation_fields(
+    value: Mapping[str, object],
+    *,
+    fields: frozenset[str],
+    label: str,
+) -> None:
+    for field_name in sorted(fields.intersection(value)):
+        field_value = value[field_name]
+        if field_value is not None and not isinstance(field_value, str):
+            raise ValueError(f"{label}.{field_name} must be a string or null")
+
+
+def _reject_non_bool_continuation_fields(
+    value: Mapping[str, object],
+    *,
+    fields: frozenset[str],
+    label: str,
+) -> None:
+    for field_name in sorted(fields.intersection(value)):
+        if type(value[field_name]) is not bool:
+            raise ValueError(f"{label}.{field_name} must be a boolean when provided")
+
+
 @dataclass(frozen=True)
 class GpdReturnStatusContract:
     """Status-specific top-level contract shape."""
@@ -121,6 +175,11 @@ class GpdReturnContinuationHandoff(ContinuationHandoff):
             if forbidden:
                 fields = ", ".join(forbidden)
                 raise ValueError(f"{fields} are applicator-owned handoff fields; omit them from child returns")
+            _reject_non_string_continuation_fields(
+                value,
+                fields=_RETURN_HANDOFF_TEXT_FIELDS,
+                label="continuation_update.handoff",
+            )
         return value
 
 
@@ -139,6 +198,16 @@ class GpdReturnContinuationBoundedSegment(ContinuationBoundedSegment):
                 raise ValueError(
                     f"{fields} are applicator-owned bounded_segment fields; omit them from child returns"
                 )
+            _reject_non_string_continuation_fields(
+                value,
+                fields=_RETURN_BOUNDED_SEGMENT_TEXT_FIELDS,
+                label="continuation_update.bounded_segment",
+            )
+            _reject_non_bool_continuation_fields(
+                value,
+                fields=_RETURN_BOUNDED_SEGMENT_BOOL_FIELDS,
+                label="continuation_update.bounded_segment",
+            )
         return value
 
 

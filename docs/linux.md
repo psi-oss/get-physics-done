@@ -43,7 +43,7 @@ You want:
 
 ## Install or update missing tools
 
-Linux distributions vary more than macOS or Windows, so use the section that matches your distribution, then rerun the version checks above.
+Linux distributions vary more than macOS or Windows, so use the section that matches your distribution, then rerun the version checks above. The package names below are not enough by themselves: do not continue unless `node --version` reports `v20` or newer. If your distro package installs an older `nodejs`, use the official Node.js package-manager guidance linked below instead.
 
 Ubuntu or Debian:
 
@@ -63,7 +63,7 @@ Other Linux distributions:
 - Use your distribution's normal package manager to install Node.js, Python 3, and Python virtual-environment support.
 - Then rerun the version checks above.
 
-After installing anything, open a new terminal and rerun the version checks.
+After installing anything, open a new terminal and rerun the version checks. Seeing `nodejs`, `npm`, and `npx` on your PATH is not sufficient unless the Node version is 20 or newer.
 
 ## Linux-specific notes
 

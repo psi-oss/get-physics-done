@@ -49,9 +49,17 @@ Local-only CLI passthrough filters: `--command`, `--phase`, and `--category`
 <process>
 Execute the included export-logs workflow end-to-end.
 
-## Step 1: Validate project
+## Step 1: Validate command context
 
-Confirm a GPD project exists and observability data is present.
+Run the raw prefixless command-context preflight before export:
+
+```bash
+CONTEXT=$(gpd --raw validate command-context export-logs "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```
 
 ## Step 2: Parse arguments
 
@@ -70,7 +78,7 @@ Display the export summary: files written, event counts, and output location.
 
 <success_criteria>
 
-- [ ] Project existence validated
+- [ ] Command-context preflight passed
 - [ ] Observability sessions discovered and read
 - [ ] Filters applied correctly (session, command, phase, last N)
 - [ ] Output files written in requested format

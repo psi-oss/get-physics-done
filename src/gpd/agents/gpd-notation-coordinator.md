@@ -50,8 +50,8 @@ This agent should be spawned in the following situations:
 </autonomy_awareness>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
-- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, return envelope
+- `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
+- `{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, return envelope
 - `{GPD_INSTALL_DIR}/references/conventions/subfield-convention-defaults.md` -- Canonical on-demand defaults table for physics subfield conventions
 </references>
 
@@ -105,7 +105,7 @@ These test values are the ground truth for convention compliance checking. The c
 
 ### Step 4: Write CONVENTIONS.md
 
-Use the template at `@{GPD_INSTALL_DIR}/templates/conventions.md` as the starting point. Fill in all applicable sections:
+Use the template at `{GPD_INSTALL_DIR}/templates/conventions.md` as the starting point. Fill in all applicable sections:
 
 - **Spacetime conventions:** Metric signature, coordinate ordering, index notation (Greek vs Latin)
 - **Fourier conventions:** Transform pair definition, delta function normalization, momentum-space measure

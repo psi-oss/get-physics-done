@@ -8,7 +8,7 @@ Template for `{patterns_root}/patterns-by-domain/{domain}/{category}-{slug}.md`,
 
 **Purpose:** Record a physics error pattern, convention pitfall, or recurring computational issue so that future projects can detect and prevent it before it causes problems.
 
-For how patterns are managed, read, and written, see `@{GPD_INSTALL_DIR}/references/shared/cross-project-patterns.md`.
+For how patterns are managed, read, and written, see `{GPD_INSTALL_DIR}/references/shared/cross-project-patterns.md`.
 
 ---
 

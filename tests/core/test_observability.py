@@ -309,6 +309,74 @@ def test_execution_events_write_current_execution_snapshot(tmp_path: Path, monke
     assert snapshot.downstream_locked is True
 
 
+def test_observe_event_keeps_recording_when_bounded_segment_state_projection_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+    resume_file = project / "GPD" / "phases" / "03-test" / ".continue-here.md"
+    resume_file.parent.mkdir(parents=True, exist_ok=True)
+    resume_file.write_text("# Continue here\n", encoding="utf-8")
+
+    import gpd.core.state as state_module
+    from gpd.core.observability import ensure_session, get_current_execution, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    def _fail_set(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("state set unavailable")
+
+    monkeypatch.setattr(state_module, "state_set_continuation_bounded_segment", _fail_set)
+
+    paused = observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="pause",
+        status="ok",
+        command="execute-phase",
+        phase="03",
+        plan="01",
+        session_id=session.session_id,
+        data={
+            "execution": {
+                "segment_id": "seg-best-effort",
+                "segment_status": "paused",
+                "resume_file": "GPD/phases/03-test/.continue-here.md",
+            }
+        },
+    )
+
+    assert paused.recorded is True
+    snapshot = get_current_execution(project)
+    assert snapshot is not None
+    assert snapshot.segment_id == "seg-best-effort"
+    assert snapshot.resume_file == "GPD/phases/03-test/.continue-here.md"
+
+    def _fail_clear(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("state clear unavailable")
+
+    monkeypatch.setattr(state_module, "state_clear_continuation_bounded_segment", _fail_clear)
+
+    finished = observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="finish",
+        status="ok",
+        command="execute-phase",
+        phase="03",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"segment_id": "seg-best-effort"}},
+    )
+
+    assert finished.recorded is True
+    assert get_current_execution(project) is None
+
+
 def test_segment_review_cadence_override_is_scoped_to_current_segment(
     tmp_path: Path, monkeypatch
 ) -> None:

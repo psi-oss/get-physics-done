@@ -197,7 +197,7 @@ If no `contract` is available in frontmatter:
 **For subfield-specific validation strategies, priority checks, and red flags, consult:**
 
 - `{GPD_INSTALL_DIR}/references/physics-subfields.md` -- load only when subfield context is needed
-- `@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` -- Universal checks: dimensional analysis, limiting cases, symmetry, conservation laws
+- `{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` -- Universal checks: dimensional analysis, limiting cases, symmetry, conservation laws
 - `{GPD_INSTALL_DIR}/references/verification/meta/verification-hierarchy-mapping.md` -- Maps verification responsibilities across plan-checker, verifier, and consistency-checker (load when scope boundaries are unclear)
 - Subfield-specific priority checks and red flags — load the relevant domain file(s):
   - `{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-qft.md` — QFT, gauge theory, scattering
@@ -329,7 +329,7 @@ Before finalizing VERIFICATION.md, scan it for computational oracle evidence. Th
 
 **Rationale:** The entire verification chain depends on the same LLM that produced the research. Without external computational validation, the verifier can only check self-consistency, not correctness. A single CAS evaluation catches errors that no amount of LLM reasoning can detect.
 
-See `@{GPD_INSTALL_DIR}/references/verification/core/computational-verification-templates.md` for copy-paste-ready templates.
+See `{GPD_INSTALL_DIR}/references/verification/core/computational-verification-templates.md` for copy-paste-ready templates.
 
 ## Create VERIFICATION.md
 

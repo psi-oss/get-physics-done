@@ -278,6 +278,18 @@ def test_runtime_cli_repair_command_projection_respects_env_overridden_global_ta
             "GPD runtime bridge mismatch",
         ),
         (
+            {
+                "runtime": next(
+                    item.runtime_name
+                    for item in iter_runtime_descriptors()
+                    if item.runtime_name != _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name
+                ),
+            },
+            None,
+            runtime_cli._BridgeFailureKind.RUNTIME_MISMATCH,
+            "GPD runtime bridge mismatch",
+        ),
+        (
             {"runtime": _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name, "install_scope": "local"},
             ("missing-artifact.txt",),
             runtime_cli._BridgeFailureKind.MISSING_INSTALL_ARTIFACTS,

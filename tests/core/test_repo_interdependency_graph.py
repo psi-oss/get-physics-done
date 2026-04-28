@@ -17,10 +17,12 @@ from scripts.repo_graph_contract import (
     SAME_STEM_COMMAND_WORKFLOW_START,
     SCOPE_END,
     SCOPE_START,
+    _is_excluded_path,
     build_contract,
     expected_scope_counts,
     extract_marked_block,
     graph_has_edge,
+    graph_has_edge_containing,
     live_repo_file_count,
     load_contract,
     parse_scope_count,
@@ -133,6 +135,21 @@ def test_graph_captures_current_ci_action_and_shard_edges() -> None:
     assert not graph_has_edge(".github/workflows/test.yml", "actions/setup-node@v5", graph)
 
 
+def test_graph_edge_matching_expands_braces_without_substring_matches() -> None:
+    graph = "\n".join(
+        (
+            "- `src/{alpha,beta}.py -> tests/{alpha,beta}.py`",
+            "- `src/long-runtime-name.py -> tests/long-runtime-name.py`",
+        )
+    )
+
+    assert graph_has_edge("src/alpha.py", "tests/beta.py", graph)
+    assert graph_has_edge("src/beta.py", "tests/alpha.py", graph)
+    assert not graph_has_edge("src/alpha.py", "tests/bet.py", graph)
+    assert not graph_has_edge("src/long-runtime.py", "tests/long-runtime.py", graph)
+    assert graph_has_edge_containing("long-runtime", "long-runtime", graph)
+
+
 def test_graph_captures_shared_mcp_descriptor_text_edges() -> None:
     graph = read_graph_text()
 
@@ -166,17 +183,17 @@ def test_graph_captures_workflow_and_schema_edges() -> None:
 
     assert graph_has_edge(
         "src/gpd/specs/workflows/execute-phase.md",
-        "src/gpd/specs/{references/orchestration/meta-orchestration.md,references/orchestration/artifact-surfacing.md,",
+        "src/gpd/specs/{references/orchestration/meta-orchestration.md,references/orchestration/artifact-surfacing.md,references/orchestration/checkpoints.md,references/verification/core/verification-core.md,templates/summary.md,templates/continuation-prompt.md,templates/paper/figure-tracker.md,templates/paper/experimental-comparison.md,templates/recovery-plan.md}",
         graph,
     )
     assert graph_has_edge(
         "src/gpd/specs/workflows/execute-phase.md",
-        "src/gpd/specs/{references/orchestration/meta-orchestration.md,references/orchestration/checkpoints.md,",
+        "src/gpd/specs/{references/orchestration/meta-orchestration.md,references/orchestration/checkpoints.md,references/orchestration/continuous-execution.md,references/verification/core/verification-core.md,templates/summary.md,templates/continuation-prompt.md,templates/paper/figure-tracker.md,templates/paper/experimental-comparison.md,templates/recovery-plan.md}",
         graph,
     )
     assert graph_has_edge(
         "src/gpd/specs/workflows/execute-plan.md",
-        "src/gpd/specs/{references/execution/git-integration.md,references/execution/github-lifecycle.md,",
+        "src/gpd/specs/{references/execution/git-integration.md,references/execution/github-lifecycle.md,references/execution/execute-plan-recovery.md,references/execution/execute-plan-validation.md,references/execution/execute-plan-checkpoints.md,references/protocols/reproducibility.md,references/execution/executor-index.md,references/orchestration/context-budget.md,references/orchestration/checkpoints.md,templates/summary.md}",
         graph,
     )
     assert graph_has_edge(
@@ -400,6 +417,15 @@ def test_live_repo_file_count_ignores_worktree_artifacts(tmp_path: Path) -> None
     )
 
     assert live_repo_file_count(tmp_root) == 0
+
+
+def test_graph_exclusions_apply_only_at_repo_root() -> None:
+    assert _is_excluded_path(Path("GPD/state.json"))
+    assert _is_excluded_path(Path("dist/wheel.whl"))
+    assert _is_excluded_path(Path(".codex/config.toml"))
+    assert not _is_excluded_path(Path("src/gpd/GPD/state.py"))
+    assert not _is_excluded_path(Path("src/gpd/dist/build.py"))
+    assert not _is_excluded_path(Path("docs/.codex/reference.md"))
 
 
 def test_graph_test_file_references_exist() -> None:

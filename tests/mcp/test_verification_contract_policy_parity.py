@@ -72,6 +72,10 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
     assert "schema_required_request_fields" in tools["suggest_contract_checks"].description
     assert "Nested object schemas are closed at every level" in VERIFICATION_CONTRACT_POLICY_TEXT
     assert "unknown top-level or nested keys" in VERIFICATION_CONTRACT_POLICY_TEXT
+    assert "contract-payload closed-enum case drift" in VERIFICATION_CONTRACT_POLICY_TEXT
+    assert "observed enum-like source values must match exactly" in VERIFICATION_CONTRACT_POLICY_TEXT
+    assert "Only contract-payload enum case drift is recoverable" in verification_contract_surface_summary_text()
+    assert "observed enums must match source evidence exactly" in verification_contract_surface_summary_text()
     assert "its absence is a blocker" in VERIFICATION_CONTRACT_POLICY_TEXT
     assert "missing `must_surface=true` is a non-blocking warning" in VERIFICATION_CONTRACT_POLICY_TEXT
     for field_name in VERIFICATION_BINDING_FIELD_NAMES:

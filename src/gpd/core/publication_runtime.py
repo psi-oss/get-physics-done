@@ -30,6 +30,7 @@ from gpd.core.peer_review_mode import (
 )
 from gpd.core.proof_review import (
     ProofReviewStatus,
+    manuscript_requires_theorem_bearing_review,
     publication_lineage_mode,
     publication_lineage_roots,
     resolve_manuscript_proof_review_status,
@@ -134,6 +135,7 @@ class PublicationReviewArtifacts:
     referee_report_md: Path | None = None
     referee_report_tex: Path | None = None
     proof_redteam: Path | None = None
+    proof_redteam_required: bool = False
     state: str = "missing"
     detail: str = ""
     missing_artifacts: tuple[str, ...] = ()
@@ -145,6 +147,7 @@ class PublicationReviewArtifacts:
             and self.referee_decision is not None
             and self.referee_report_md is not None
             and self.referee_report_tex is not None
+            and (not self.proof_redteam_required or self.proof_redteam is not None)
             and self.state == "complete"
         )
 
@@ -157,6 +160,7 @@ class PublicationReviewArtifacts:
             "referee_report_md": _relative_path(project_root, self.referee_report_md),
             "referee_report_tex": _relative_path(project_root, self.referee_report_tex),
             "proof_redteam": _relative_path(project_root, self.proof_redteam),
+            "proof_redteam_required": self.proof_redteam_required,
             "state": self.state,
             "detail": self.detail,
             "complete": self.complete,
@@ -512,11 +516,13 @@ def _review_artifact_state(
     referee_decision: Path | None,
     referee_report_md: Path | None,
     referee_report_tex: Path | None,
+    proof_redteam: Path | None,
     manuscript_entrypoint: Path | None,
     project_root: Path,
     round_number: int,
-) -> tuple[str, str, tuple[str, ...]]:
+) -> tuple[str, str, tuple[str, ...], bool]:
     missing: list[str] = []
+    proof_redteam_required = False
     ledger = None
     decision = None
     if review_ledger is None:
@@ -525,7 +531,7 @@ def _review_artifact_state(
         try:
             ledger = read_review_ledger(review_ledger)
         except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
-            return "invalid", f"review ledger could not be loaded: {exc}", ()
+            return "invalid", f"review ledger could not be loaded: {exc}", (), False
 
     if referee_decision is None:
         missing.append("referee_decision")
@@ -533,18 +539,23 @@ def _review_artifact_state(
         try:
             decision = read_referee_decision(referee_decision)
         except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
-            return "invalid", f"referee decision could not be loaded: {exc}", ()
+            return "invalid", f"referee decision could not be loaded: {exc}", (), False
 
     if referee_report_md is None:
         missing.append("referee_report_md")
     if referee_report_tex is None:
         missing.append("referee_report_tex")
+    if manuscript_entrypoint is not None:
+        proof_redteam_required = manuscript_requires_theorem_bearing_review(project_root, manuscript_entrypoint)
+        if proof_redteam_required and proof_redteam is None:
+            missing.append("proof_redteam")
 
     if ledger is not None and ledger.round != round_number:
         return (
             "invalid",
             f"review ledger round {ledger.round} does not match review artifact round {round_number}",
             (),
+            proof_redteam_required,
         )
 
     if manuscript_entrypoint is not None:
@@ -566,12 +577,13 @@ def _review_artifact_state(
                 "mismatched",
                 " or ".join(mismatched) + " does not match the resolved publication subject",
                 (),
+                proof_redteam_required,
             )
 
     if missing:
-        return "partial", f"missing review artifact(s): {', '.join(missing)}", tuple(missing)
+        return "partial", f"missing review artifact(s): {', '.join(missing)}", tuple(missing), proof_redteam_required
 
-    return "complete", "latest review round is complete for the active manuscript", ()
+    return "complete", "latest review round is complete for the active manuscript", (), proof_redteam_required
 
 
 def _publication_lineage_roots_for_subject(
@@ -769,11 +781,13 @@ def resolve_latest_publication_review_artifacts(
         )
         proof_redteam = review_dir / f"PROOF-REDTEAM{round_suffix}.md"
 
-        state, detail, missing_artifacts = _review_artifact_state(
+        existing_proof_redteam = proof_redteam if proof_redteam.exists() else None
+        state, detail, missing_artifacts, proof_redteam_required = _review_artifact_state(
             review_ledger=review_ledger,
             referee_decision=referee_decision,
             referee_report_md=referee_report_md,
             referee_report_tex=referee_report_tex,
+            proof_redteam=existing_proof_redteam,
             manuscript_entrypoint=resolved_manuscript,
             project_root=project_root,
             round_number=round_number,
@@ -788,7 +802,8 @@ def resolve_latest_publication_review_artifacts(
             referee_decision=referee_decision,
             referee_report_md=referee_report_md,
             referee_report_tex=referee_report_tex,
-            proof_redteam=proof_redteam if proof_redteam.exists() else None,
+            proof_redteam=existing_proof_redteam,
+            proof_redteam_required=proof_redteam_required,
             state=state,
             detail=detail,
             missing_artifacts=missing_artifacts,

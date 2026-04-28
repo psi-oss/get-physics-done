@@ -93,9 +93,9 @@ Read the current knowledge document and parse its frontmatter/body snapshot.
 
 Load the schema authorities before validation:
 
-- @{GPD_INSTALL_DIR}/templates/knowledge-schema.md
-- @{GPD_INSTALL_DIR}/templates/knowledge.md
-- @{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md
+- {GPD_INSTALL_DIR}/templates/knowledge-schema.md
+- {GPD_INSTALL_DIR}/templates/knowledge.md
+- {GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md
 
 Use the strict knowledge schema to validate:
 

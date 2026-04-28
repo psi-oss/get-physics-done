@@ -260,6 +260,22 @@ def test_runtime_catalog_schema_dataclass_keys_stay_in_sync() -> None:
     assert set(schema["manifest_metadata_list_value_kinds"]) == {"path_segment", "relpath"}
 
 
+def test_runtime_catalog_entries_omit_default_capability_values() -> None:
+    catalog_payload = json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8"))
+    schema = json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8"))
+    capability_defaults = schema["capability_defaults"]
+
+    redundant = []
+    for entry in catalog_payload:
+        runtime_name = entry["runtime_name"]
+        capabilities = entry["capabilities"]
+        for key, value in capabilities.items():
+            if capability_defaults.get(key) == value:
+                redundant.append(f"{runtime_name}.{key}")
+
+    assert redundant == []
+
+
 def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> None:
     catalog_payload = json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8"))
 
