@@ -275,7 +275,7 @@ def test_verify_work_context_uses_workflow_staging_init_field_source() -> None:
     } <= VERIFY_WORK_INIT_FIELDS
 
 
-def test_stage_manifests_are_prompt_used_cli_reachable_or_explicitly_metadata_only() -> None:
+def test_stage_manifests_are_prompt_used_or_cli_reachable() -> None:
     cli_text = (REPO_ROOT / "src" / "gpd" / "cli.py").read_text(encoding="utf-8")
 
     for manifest_path in sorted(WORKFLOW_STAGE_MANIFEST_DIR.glob(f"*{WORKFLOW_STAGE_MANIFEST_SUFFIX}")):
@@ -287,17 +287,9 @@ def test_stage_manifests_are_prompt_used_cli_reachable_or_explicitly_metadata_on
         prompt_uses_staged_init = f"gpd --raw init {init_command}" in workflow_text and "--stage" in workflow_text
         cli_init_reachable = f'@init_app.command("{workflow_id}")' in cli_text
 
-        if manifest.prompt_usage == "metadata_only":
-            assert workflow_id == "arxiv-submission"
-            assert "metadata-only for the prompt path today" in workflow_text
-            assert not prompt_uses_staged_init
-            assert not cli_init_reachable
-            continue
-
         assert manifest.prompt_usage == "staged_init"
         assert prompt_uses_staged_init or cli_init_reachable, (
-            f"{manifest_path.name} must be used by its prompt, reachable through gpd init, "
-            "or marked prompt_usage=metadata_only"
+            f"{manifest_path.name} must be used by its prompt or reachable through gpd init"
         )
 
 
@@ -1079,11 +1071,10 @@ def test_arxiv_submission_stage_manifest_path_is_reserved_for_staged_loading() -
     assert manifest_path == NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "arxiv-submission-stage-manifest.json"
 
 
-def test_arxiv_submission_stage_manifest_can_be_loaded_when_present() -> None:
+def test_arxiv_submission_stage_manifest_can_be_loaded() -> None:
     manifest_path = resolve_workflow_stage_manifest_path("arxiv-submission")
 
-    if not manifest_path.exists():
-        pytest.skip("arxiv-submission stage manifest has not landed yet")
+    assert manifest_path.exists()
 
     manifest = validate_workflow_stage_manifest_payload(
         json.loads(manifest_path.read_text(encoding="utf-8")),

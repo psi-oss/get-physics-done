@@ -1079,34 +1079,7 @@ gpd_return:
   duration_seconds: NNN
 ```
 
-If the workflow asks for execution handoff or plan continuity, extend the same top-level envelope with:
-
-```yaml
-gpd_return:
-  state_updates:
-    advance_plan: true
-    update_progress: true
-    record_metric:
-      phase: "{phase}"
-      plan: "{plan}"
-      duration: NNN
-      tasks: N
-      files: N
-  contract_updates:
-    claim_id: { ... }
-    deliverable_id: { ... }
-  decisions:
-    - summary: "{decision summary}"
-      phase: "{phase}"
-  blockers:
-    - text: "{blocker text}"
-  continuation_update:
-    handoff:
-      stopped_at: "Completed {phase}-{plan}-PLAN.md"
-      resume_file: null
-      last_result_id: null
-    bounded_segment: null
-```
+If the workflow asks for execution handoff or plan continuity, extend the same top-level envelope with the role-specific fields from `executor-completion.md`: `state_updates`, `contract_updates`, `decisions`, `blockers`, and `continuation_update`.
 
 `gpd apply-return-updates` records handoff timestamp/provenance; omit `recorded_at` and `recorded_by` from child returns.
 

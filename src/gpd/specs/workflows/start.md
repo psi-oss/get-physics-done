@@ -89,11 +89,13 @@ Other useful options, only if one of these is what you need:
 
 Recommended next steps depend on the recovered artifacts. Only list commands whose command-context preflight can pass for the detected state:
 
-When `roadmap_exists=true`, include:
-1. Inspect recovery state (recommended) - use `gpd:resume-work`.
+Build the visible numbered list contiguously after filtering by detected fields. Do not leave gaps when only one partial-state command is available.
 
-When `state_exists=true`, include:
-2. Reconcile state files - use `gpd:sync-state`.
+When `roadmap_exists=true`, include as the next numbered choice:
+- Inspect recovery state (recommended) - use `gpd:resume-work`.
+
+When `state_exists=true`, include as the next numbered choice:
+- Reconcile state files - use `gpd:sync-state`.
 
 Do not list `gpd:progress` for partial state; reserve it for initialized projects with `project_exists=true`.
 Do not offer `gpd:new-project` as a fresh start unless the researcher explicitly says they want to delete or move the existing `GPD/` artifacts first.
@@ -182,7 +184,7 @@ Route immediately into the real existing workflow for the chosen path.
 
 - Follow the installed `gpd:new-project` command contract directly, as if the researcher had run it.
 
-**If the researcher chooses `Take a guided tour first`:**
+**If the researcher chooses `Take a guided tour first` or `tour`:**
 
 - Follow the installed `gpd:tour` command contract directly, as if the researcher had run it.
 

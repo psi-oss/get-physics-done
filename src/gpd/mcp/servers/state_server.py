@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import WithJsonSchema
 
 from gpd.core.config import load_config
@@ -43,6 +44,23 @@ logger = configure_mcp_logging("gpd-state")
 mcp = FastMCP("gpd-state")
 
 AbsoluteProjectDirInput = Annotated[str, WithJsonSchema(ABSOLUTE_PROJECT_DIR_SCHEMA)]
+FixModeInput = Annotated[
+    bool,
+    WithJsonSchema(
+        {
+            "type": "boolean",
+            "default": False,
+            "description": "If true, attempt auto-fixes and allow the health check to modify project files.",
+        }
+    ),
+]
+
+_PROJECT_MUTATION_TOOL_ANNOTATIONS = ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=False,
+    idempotentHint=False,
+    openWorldHint=False,
+)
 
 
 def load_state_json(cwd: Path) -> dict | None:
@@ -139,7 +157,7 @@ def get_phase_info(project_dir: AbsoluteProjectDirInput, phase: str) -> dict:
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_PROJECT_MUTATION_TOOL_ANNOTATIONS)
 def advance_plan(project_dir: AbsoluteProjectDirInput) -> dict:
     """Advance the project state to the next plan.
 
@@ -210,8 +228,8 @@ def validate_state(project_dir: AbsoluteProjectDirInput) -> dict:
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
-def run_health_check(project_dir: AbsoluteProjectDirInput, fix: bool = False) -> dict:
+@mcp.tool(annotations=_PROJECT_MUTATION_TOOL_ANNOTATIONS)
+def run_health_check(project_dir: AbsoluteProjectDirInput, fix: FixModeInput = False) -> dict:
     """Run the full project health dashboard.
 
     Checks environment, project structure, storage-path policy, state validity,

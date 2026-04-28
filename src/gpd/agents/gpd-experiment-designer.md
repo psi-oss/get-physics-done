@@ -56,6 +56,9 @@ Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
 **On-demand references:**
 - `{GPD_INSTALL_DIR}/references/examples/ising-experiment-design-example.md` -- Worked example: complete Monte Carlo experiment design for 2D Ising phase diagram (load as a template for your first experiment design)
+- `{GPD_INSTALL_DIR}/references/protocols/monte-carlo.md` -- Monte Carlo thermalization, autocorrelation, sign-problem, and validation anti-patterns
+- `{GPD_INSTALL_DIR}/references/protocols/statistical-inference.md` -- Effective sample size, uncertainty, and statistical decision thresholds
+- `{GPD_INSTALL_DIR}/references/methods/approximation-selection.md` -- Method-selection caveats, including sign-problem and regime-boundary checks
 
 <design_flow>
 
@@ -414,67 +417,13 @@ Load that reference when you need a concrete template for target quantities, tem
 
 ## Anti-Patterns in Numerical Experiment Design
 
-These are common mistakes that produce results that look reasonable but are subtly wrong or misleading. Each anti-pattern includes the symptom, the root cause, and the fix.
+Do not restate the numerical-method cookbook inline. Use the on-demand references as the canonical source for detailed failure modes and remedies.
 
-### Anti-Pattern 1: Designing Experiments After the Fact
-
-**Symptom:** The parameter grid, system sizes, and error targets look suspiciously well-suited to producing the desired result. The experiment "confirms" an analytical prediction with exactly the right precision.
-
-**Root cause:** The experimenter ran the simulation first, saw the results, then designed the "experiment" to match. Parameters were chosen to avoid regions where the method struggles. Error bars were tuned by adjusting the number of samples until the result agreed with the target.
-
-**Why it is wrong:** This is fitting, not measurement. The experiment provides no independent evidence because the design was conditioned on the outcome. If the code had a compensating error, this procedure would "confirm" the wrong answer.
-
-**Fix:** Design the experiment BEFORE running it. Write EXPERIMENT-DESIGN.md first, return it to the orchestrator for commit, then execute. If the results require design changes (e.g., more points near an unexpected feature), document the change as a deviation and re-run with the updated design.
-
-### Anti-Pattern 2: Ignoring Autocorrelation
-
-**Symptom:** Error bars on Monte Carlo averages are suspiciously small --- sometimes 10-100x smaller than what other groups report for comparable simulations. Results appear very precise but fail to reproduce.
-
-**Root cause:** Treating N_total consecutive samples as N_total independent measurements. Near phase transitions, tau_auto can be 10^3 - 10^5 sweeps for local updates, so the actual number of independent samples is N_total / (2 * tau_auto), not N_total.
-
-**Why it is wrong:** The central limit theorem requires independent samples. Correlated samples produce an estimated error of sigma / sqrt(N_total) when the true error is sigma / sqrt(N_total / (2 * tau_auto)) --- smaller by a factor of sqrt(2 * tau_auto), which can be 100x near T_c.
-
-**Fix:** Always measure tau_auto via autocorrelation analysis or block averaging. Report the effective number of independent samples N_eff = N_total / (2 * tau_auto). Near T_c, either use cluster algorithms (which dramatically reduce tau_auto) or increase N_total to compensate.
-
-### Anti-Pattern 3: Grid Without Physics
-
-**Symptom:** A uniform grid of 100 temperatures from T = 0.1 to T = 10, with most points in boring regions where nothing happens, and 2-3 points spanning the entire phase transition.
-
-**Root cause:** The grid was designed for computational convenience (evenly spaced, round numbers) rather than based on the physical scales of the problem. The designer did not consider where the correlation length, response functions, or order parameter change rapidly.
-
-**Why it is wrong:** The transition may be entirely missed (insufficient resolution to detect the Binder crossing) or smeared out (no points between the ordered and disordered phases). Meanwhile, 80% of the compute budget is spent in regions where the observable changes by less than 0.1%.
-
-**Fix:** Identify the physical scales first (T_c, xi(T), tau_auto(T)). Then design the grid around those scales: log-spaced near critical points, coarse in asymptotic regions, with explicit validation points at known limits.
-
-### Anti-Pattern 4: Missing Convergence Study
-
-**Symptom:** A "production" simulation at a single system size, single timestep, or single basis set size, with results quoted to high precision. No evidence that the result is independent of these numerical parameters.
-
-**Root cause:** The experimenter assumed the numerical parameters were "good enough" without testing. The simulation was too expensive to run at multiple resolutions, so the convergence study was skipped.
-
-**Why it is wrong:** Without a convergence study, you do not know whether the result is converged. It might be dominated by finite-size effects, discretization errors, or truncation artifacts. A precise-looking number from an unconverged simulation is not a result --- it is a random number from an uncontrolled distribution.
-
-**Fix:** Budget at least 30% of total compute for convergence studies. Run at minimum 3 values of every numerical parameter. If you cannot afford the convergence study, you cannot afford to trust the result --- reduce the ambition of the experiment to match the available resources.
-
-### Anti-Pattern 5: Single-Seed Science
-
-**Symptom:** Results from a single random seed, reported without any check that they are reproducible. Particularly dangerous for Monte Carlo in frustrated systems or near first-order transitions where the simulation can get trapped.
-
-**Root cause:** Running multiple seeds "wastes" compute. One run "should be enough" if the statistics are sufficient.
-
-**Why it is wrong:** A single seed can get trapped in a metastable state (glassy systems, first-order transitions), encounter a rare fluctuation that biases the average, or trigger a subtle bug that depends on the random number sequence. Multiple seeds test for all of these.
-
-**Fix:** Run at least 3 independent seeds for every production point. At critical parameter values, run 5+. Agreement across seeds is a necessary (not sufficient) condition for correctness.
-
-### Anti-Pattern 6: Premature Production
-
-**Symptom:** Jump straight to the largest system size and longest run time without running pilots. When something goes wrong at L = 256, there is no small-system baseline to diagnose against.
-
-**Root cause:** Eagerness to get the "real" result. Pilots seem like wasted time.
-
-**Why it is wrong:** A pilot run at L = 8-16 takes seconds and catches: (a) code bugs (compare with exact diagonalization), (b) wrong scaling of observables, (c) thermalization issues, (d) algorithm failures. Discovering these at L = 256 after burning 100 CPU-hours is far more wasteful.
-
-**Fix:** Always run pilot at the smallest system size first. Validate against known results. Then scale up systematically, checking that each larger system is consistent with the smaller ones via finite-size scaling.
+- Pre-register the design before production runs; post-hoc grids are rationalization, not measurement.
+- For Monte Carlo, load `references/protocols/monte-carlo.md` before setting thermalization, autocorrelation, seed, or sign-problem rules.
+- For statistical thresholds, load `references/protocols/statistical-inference.md` before setting effective sample size, uncertainty, or decision criteria.
+- For method feasibility and regime boundaries, load `references/methods/approximation-selection.md` and the relevant subfield protocol.
+- For a concrete complete design shape, load `references/examples/ising-experiment-design-example.md`; do not copy its numbers unless the physics matches.
 
 </anti_patterns>
 
@@ -482,125 +431,14 @@ These are common mistakes that produce results that look reasonable but are subt
 
 ## Failed Experiment Recovery Protocol
 
-Experiments fail. The question is not whether they will fail but how quickly you detect the failure and how systematically you recover.
+Use the canonical method references for detailed recovery trees. Keep the local behavior compact:
 
-### Pilot Run Failures
-When a pilot run fails (non-convergent, crashes, produces NaN):
-1. Check input parameter ranges --- are they physically sensible?
-2. Verify initial conditions are consistent with the physics
-3. Reduce problem size by 10x and retry --- if this works, the issue is resource-related
-4. Check for known numerical instabilities in the method (e.g., explicit integrators with stiff systems)
-5. If all fail, return `gpd_return.status: blocked` with the specific failure mode
-
-### Scenario 1: Results Contradict Expectations
-
-**Symptom:** The simulation produces clean, converged results that are clearly wrong --- wrong sign, wrong scaling, wrong limit.
-
-**Decision tree:**
-
-```
-Is the code validated against a known exact case?
-  NO  --> Validate first. The contradiction is probably a bug.
-  YES --> Continue.
-
-Does the "wrong" result depend on system size?
-  YES, vanishes as L -> inf --> Finite-size artifact. Increase L.
-  YES, grows with L       --> Possible instability or wrong observable definition.
-  NO                      --> Possible real physics. Continue.
-
-Does the "wrong" result depend on the algorithm?
-  YES --> Algorithm artifact (e.g., Metropolis vs cluster give different dynamics).
-  NO  --> Possible real physics or fundamental model error.
-
-Is the model definition correct?
-  Check: Hamiltonian signs, coupling definitions, boundary conditions.
-  If error found --> Fix and re-run.
-  If all correct --> Document as UNEXPECTED RESULT with full evidence.
-```
-
-**Key principle:** A result that contradicts expectations is a bug until proven otherwise. The burden of proof for "new physics" in a well-studied system is extremely high.
-
-### Scenario 2: Convergence Fails at Specific Parameter Values
-
-**Symptom:** The simulation converges everywhere except at specific parameter values (typically near phase transitions, at strong coupling, or at boundaries).
-
-**Recovery protocol:**
-
-1. **Diagnose the convergence failure type:**
-   - Oscillating: possible sign problem, metastability, or algorithm trapped between states
-   - Monotonically growing: possible runaway instability
-   - Flat (not reaching equilibrium): autocorrelation time exceeds run length
-   - NaN/Inf: numerical overflow or division by zero
-
-2. **Apply the appropriate remedy:**
-   - Oscillating near T_c: switch to cluster algorithm, increase equilibration 10x
-   - Metastability at first-order transition: use parallel tempering or multicanonical sampling
-   - Autocorrelation too large: increase run length, or switch to an algorithm with smaller z
-   - Numerical overflow: rescale energies, use log-probability arithmetic
-
-3. **If remedies fail after 3 attempts:** Flag as convergence boundary. Report the parameter values where convergence fails and the boundary between converged and unconverged regions. This boundary itself is physically informative (it often coincides with a phase transition).
-
-### Scenario 3: Cost Exceeds Budget
-
-**Symptom:** After pilot runs, the extrapolated total cost exceeds the computational budget by more than 2x.
-
-**Triage protocol (ordered by impact):**
-
-| Action | Cost Reduction | Physics Impact |
-|--------|---------------|----------------|
-| Switch algorithm (e.g., Metropolis -> Wolff) | 10-1000x near T_c | None if implemented correctly |
-| Reduce L_max from 128 to 64 | 4-16x | Finite-size effects larger; quote as limitation |
-| Reduce N_temperatures from 22 to 12 | 2x | Coarser phase diagram; may miss features |
-| Reduce production from 50k to 20k flips | 2.5x | Larger error bars; still usable if >1000 ind. samples |
-| Drop wing regions, keep critical only | 1.5x | Lose validation against known limits |
-
-**Decision criteria:** Never sacrifice validation points. Never sacrifice convergence study. Reduce resolution and statistics first, algorithm improvements second.
-
-### Scenario 4: Sign Problem Appears
-
-**Symptom:** Monte Carlo sampling encounters a sign problem --- the integrand oscillates in sign, so the statistical error grows exponentially with system size or inverse temperature.
-
-**Indicators:**
-- Average sign <sign> drops below 0.1
-- Error bars grow exponentially with L or beta
-- Results become noisy and unreproducible at large L
-
-**Recovery options (in order of preference):**
-
-1. **Reformulate to avoid the sign problem:** Change basis, use a different decomposition (e.g., Majorana vs complex fermions), or apply a similarity transformation to make the weight positive.
-2. **Use a sign-problem-free method:** Tensor networks (DMRG, PEPS), exact diagonalization for small systems, or series expansion.
-3. **Constrained stochastic quantization:** Apply the complex Langevin method or Lefschetz thimble decomposition (but these have their own reliability issues).
-4. **Accept the sign problem:** Reduce system sizes until <sign> > 0.3, quote results as approximate with sign-problem error bars.
-5. **Return `gpd_return.status: blocked`:** If no method can produce reliable results in the required regime, document the sign-problem boundary and propose alternative approaches.
-
-### When to Escalate to gpd:debug
-
-When recovery attempts fail and the root cause is unclear, escalate to the debugger rather than continuing to adjust parameters blindly.
-
-**Escalation criteria (any one sufficient):**
-
-- **Recovery exhausted:** You have tried 3+ parameter adjustments or algorithm switches for the same failure, and the problem persists or shifts without resolving
-- **Systematic failure:** The same failure mode appears across multiple independent parameter sets, system sizes, or random seeds --- this indicates a structural problem, not a parameter problem
-- **Root cause unclear:** The failure is not obviously a convergence, grid resolution, or statistical issue. You cannot explain *why* the simulation fails, only that it does
-
-**How the debugger's cross-phase trace works:**
-
-The debugger maps dependency chains across phases (experiment design → execution → verification failure) and performs binary search across phase boundaries. It checks whether values consumed at phase boundaries match what was produced, catching convention drift, factor absorption, and equation reference errors. If the experiment design itself consumed a wrong value from a prior phase, the debugger traces backwards to the origin.
-
-**Preparing a good symptom report for gpd:debug:**
-
-When escalating, include these fields in the escalation message so the debugger can start investigating immediately:
-
-```markdown
-**Expected:** [What the simulation should produce --- known analytical value, expected scaling, benchmark from literature]
-**Actual:** [What was observed --- wrong magnitude, wrong scaling exponent, NaN, non-convergence]
-**Reproduction conditions:** [Exact parameters, system size, algorithm, seed that trigger the failure]
-**Parameter sensitivity:** [Which parameters affect the failure? Does it worsen/improve systematically with any parameter?]
-**What was tried:** [Recovery attempts already made and their outcomes --- prevents the debugger from re-investigating]
-**Relevant files:** [EXPERIMENT-DESIGN.md path, output data files, any diagnostic logs]
-```
-
-This maps directly to the debugger's Symptoms section (expected/actual/errors/reproduction/context), enabling it to skip symptom gathering and start investigating immediately with `symptoms_prefilled: true`.
+- If pilot runs fail, first check physical parameter ranges, initial conditions, reduced problem size, and known numerical instabilities.
+- If results contradict expectations, validate against an exact or benchmark case before treating the discrepancy as physics.
+- If convergence fails locally in parameter space, report the converged/unconverged boundary and the diagnostic used to classify it.
+- If projected cost exceeds budget, preserve validation points and convergence studies before reducing resolution or statistics.
+- If a sign problem or method boundary makes the required regime inaccessible, return `gpd_return.status: blocked` with the boundary and alternative methods.
+- Escalate to `gpd:debug` when three recovery attempts fail, the same failure appears across independent settings, or the root cause remains unclear. Include expected, actual, reproduction conditions, parameter sensitivity, attempted recoveries, and relevant files in `issues`/`next_actions`.
 
 ### Blocked Design Trigger Conditions
 
@@ -733,36 +571,13 @@ Use agent-infrastructure.md for the base context-pressure policy and `references
 
 <return_format>
 
-## Return Format
+## Return Content
 
-**NOTE:** The `gpd_return` envelope in `<structured_returns>` below is the canonical machine-parseable format. The markdown sections below describe the CONTENT of your return; always wrap the final output in the `gpd_return` YAML envelope.
+Use a compact markdown heading plus the `gpd_return` YAML envelope in `<structured_returns>`. The base fields come from agent-infrastructure.md. The role-specific field is `design_file`; it points to the EXPERIMENT-DESIGN.md artifact when one exists and must also appear in `files_written`.
 
-Return one of:
+For completed designs, summarize target-quantity count, control-parameter count, simulation-point count, cost estimate, convergence-study count, and key decisions in the markdown portion. Put warnings or feasibility concerns in `issues`.
 
-**EXPERIMENT DESIGN COMPLETE**
-```yaml
-status: completed
-design_file: [path to EXPERIMENT-DESIGN.md]
-summary:
-  target_quantities: [count]
-  control_parameters: [count]
-  total_simulation_points: [count]
-  estimated_total_cost: [time estimate]
-  convergence_studies: [count]
-key_decisions:
-  - [decision 1 with rationale]
-  - [decision 2 with rationale]
-warnings:
-  - [any concerns about feasibility, cost, or missing information]
-```
-
-**Design Blocked**
-```yaml
-status: blocked | failed
-reason: [what information is missing]
-needed_from: [which agent or user can provide it]
-partial_design: [path to partial EXPERIMENT-DESIGN.md if written]
-```
+For blocked or failed designs, set the base `status` accordingly, put missing information or failure cause in `issues`, put the needed owner/action in `next_actions`, and include any partial design artifact in `files_written`.
 
 </return_format>
 

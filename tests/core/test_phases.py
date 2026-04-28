@@ -1702,6 +1702,83 @@ def test_milestone_complete_empty_version(tmp_path: Path) -> None:
         milestone_complete(tmp_path, "")
 
 
+def test_milestone_complete_empty_cwd_fails_without_nested_artifacts(tmp_path: Path) -> None:
+    nested = tmp_path / "workspace" / "notes"
+    nested.mkdir(parents=True)
+
+    with pytest.raises(PhaseValidationError, match="ROADMAP.md required"):
+        milestone_complete(nested, "v1.0")
+
+    assert not (nested / "GPD").exists()
+
+
+def test_milestone_complete_rejects_project_with_no_phases(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(tmp_path, "# Roadmap\n\n## Milestone v1.0: Test\n")
+
+    with pytest.raises(PhaseValidationError, match="no phases"):
+        milestone_complete(tmp_path, "v1.0")
+
+    assert not (tmp_path / "GPD" / "milestones").exists()
+    assert not (tmp_path / "GPD" / "MILESTONES.md").exists()
+
+
+def test_milestone_complete_rolls_back_state_and_checkpoints_when_sync_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ## Milestone v1.0: Test
+
+        ### Phase 1: Setup
+        **Goal:** setup
+        """,
+    )
+    _seed_state_pair(tmp_path, current_phase="01", current_phase_name="Setup", total_phases=1, status="in_progress")
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "01-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "01-SUMMARY.md").write_text("---\none-liner: Finished setup\n---\n\n## Task 1\n", encoding="utf-8")
+    audit_file = tmp_path / "GPD" / "v1.0-MILESTONE-AUDIT.md"
+    audit_file.write_text("# Audit\n", encoding="utf-8")
+
+    state_md = tmp_path / "GPD" / "STATE.md"
+    state_json = tmp_path / "GPD" / "state.json"
+    before_state_md = state_md.read_text(encoding="utf-8")
+    before_state_json = state_json.read_text(encoding="utf-8")
+    before_audit = audit_file.read_text(encoding="utf-8")
+    checkpoint_index = tmp_path / "GPD" / "CHECKPOINTS.md"
+    checkpoint_index.write_text("before checkpoint index\n", encoding="utf-8")
+    checkpoint_dir = tmp_path / "GPD" / "phase-checkpoints"
+    checkpoint_dir.mkdir()
+    checkpoint_file = checkpoint_dir / "01-setup.md"
+    checkpoint_file.write_text("before checkpoint shelf\n", encoding="utf-8")
+
+    def _boom(_cwd: Path) -> None:
+        checkpoint_index.write_text("mutated checkpoint index\n", encoding="utf-8")
+        checkpoint_file.unlink()
+        (checkpoint_dir / "99-mutated.md").write_text("mutated checkpoint shelf\n", encoding="utf-8")
+        raise RuntimeError("checkpoint sync exploded")
+
+    monkeypatch.setattr(phases_module, "sync_phase_checkpoints", _boom)
+
+    with pytest.raises(RuntimeError, match="checkpoint sync exploded"):
+        milestone_complete(tmp_path, "v1.0", name="Test Milestone")
+
+    archive_dir = tmp_path / "GPD" / "milestones"
+    assert state_md.read_text(encoding="utf-8") == before_state_md
+    assert state_json.read_text(encoding="utf-8") == before_state_json
+    assert audit_file.read_text(encoding="utf-8") == before_audit
+    assert checkpoint_index.read_text(encoding="utf-8") == "before checkpoint index\n"
+    assert checkpoint_file.read_text(encoding="utf-8") == "before checkpoint shelf\n"
+    assert not (checkpoint_dir / "99-mutated.md").exists()
+    assert not (archive_dir / "v1.0-ROADMAP.md").exists()
+    assert not (archive_dir / "v1.0-MILESTONE-AUDIT.md").exists()
+    assert not (tmp_path / "GPD" / "MILESTONES.md").exists()
+
+
 def test_phase_remove_remaps_current_phase_state_after_renumbering(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     _create_roadmap(

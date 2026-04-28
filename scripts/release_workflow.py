@@ -143,18 +143,20 @@ def update_pyproject_text(pyproject_text: str, new_version: str) -> str:
 
 
 def update_package_json_text(package_json_text: str, new_version: str) -> str:
-    updated = _replace_once(
-        package_json_text,
-        r'("version":\s*")[^"]+(")',
-        rf"\g<1>{new_version}\g<2>",
-        description="package.json version",
-    )
-    return _replace_once(
-        updated,
-        r'("gpdPythonVersion":\s*")[^"]+(")',
-        rf"\g<1>{new_version}\g<2>",
-        description="package.json gpdPythonVersion",
-    )
+    try:
+        package_json = json.loads(package_json_text)
+    except json.JSONDecodeError as exc:
+        raise ReleaseError("Could not parse package.json.") from exc
+
+    if not isinstance(package_json, dict):
+        raise ReleaseError("package.json must contain a JSON object.")
+
+    for key in ("version", "gpdPythonVersion"):
+        if key not in package_json:
+            raise ReleaseError(f"Could not update package.json {key}.")
+        package_json[key] = new_version
+
+    return json.dumps(package_json, indent=2) + "\n"
 
 
 def update_citation_version_text(citation_text: str, new_version: str) -> str:

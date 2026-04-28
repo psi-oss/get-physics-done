@@ -414,6 +414,15 @@ def test_arxiv_descriptor_tracks_optional_dependency_surface() -> None:
 
     descriptor = build_public_descriptors()["gpd-arxiv"]
     assert descriptor["prerequisites"] == ["Install GPD before enabling built-in MCP servers."]
+    assert descriptor["capability_surface"] == "baseline_dynamic_upstream"
+    assert descriptor["dynamic_upstream_capabilities"] is True
+    assert descriptor["baseline_upstream_capabilities"] == [
+        "search_papers",
+        "download_paper",
+        "list_papers",
+        "read_paper",
+    ]
+    assert descriptor["local_capabilities"] == ["download_source"]
     assert descriptor["capabilities"][-1] == "download_source"
 
 

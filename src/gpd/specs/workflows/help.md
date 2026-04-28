@@ -246,20 +246,23 @@ One command takes you from idea to ready-for-investigation:
 - Research objectives definition with scoping
 - Roadmap creation with phase breakdown and success criteria
 
-Creates all `GPD/` artifacts:
+Full mode creates the main `GPD/` artifacts:
 
 - `PROJECT.md` — research question, theoretical framework, key parameters
 - `config.json` — workflow settings (`autonomy`, `research_mode`, `execution.review_cadence`, `planning.commit_docs`, agent toggles)
-- `research/` — literature survey (if selected)
+- `literature/` — literature survey (if selected)
 - `REQUIREMENTS.md` — scoped research requirements with REQ-IDs
 - `ROADMAP.md` — phases mapped to requirements
 - `STATE.md` — project memory
+- `CONVENTIONS.md` — notation conventions after roadmap approval
+
+All modes build a scoping contract before downstream artifacts. Blocking gaps get one targeted repair prompt, the contract must preserve decisive outputs, anchors, prior outputs, unresolved gaps, and stop/rethink triggers, and scope must be explicitly approved before requirements or roadmap generation.
 
 **Flags:**
 
-- `--minimal` — Skip deep questioning and literature survey. Creates project from a single description. Asks one question ("Describe your research project and phases"), then generates all `GPD/` artifacts with sensible defaults. Same file set as full mode, so all downstream commands work identically.
-- `--minimal @file.md` — Create project directly from a markdown file describing your research and phases. Parses research question, phase list, and key parameters from the file. No interactive questions asked.
-- `--auto` — Automatic mode with full depth. Expects research proposal via @ reference. Runs literature survey, requirements, and roadmap without interaction.
+- `--minimal` — Shortest setup path. Asks one structured intake question, repairs only blocking scoping gaps, requires scope approval, then creates the core startup set: `PROJECT.md`, `config.json`, `REQUIREMENTS.md`, `ROADMAP.md`, `STATE.md`, and `state.json`.
+- `--minimal @file.md` — File-backed minimal intake. Parses research question, decisive outputs, anchors, and work chunks from the file, but still repairs blocking gaps and asks for scoping approval before writing downstream artifacts.
+- `--auto` — Document-backed full-depth mode. Expects a research proposal via @ reference, compresses intake, asks for explicit scope approval, then follows the configured autonomy gates for literature, requirements, roadmap, and conventions.
 
 Usage: `gpd:new-project`
 Usage: `gpd:new-project --minimal`
@@ -1276,8 +1279,8 @@ gpd:execute-phase 1    # Execute all plans in phase
 **Fast project bootstrap (skip deep questioning):**
 
 ```
-gpd:new-project --minimal              # One question, then auto-generate everything
-gpd:new-project --minimal @plan.md     # Generate from existing research plan file
+gpd:new-project --minimal              # One structured intake plus scope approval
+gpd:new-project --minimal @plan.md     # Parse a plan file, then repair/approve scope
 ```
 
 **Leaving and returning after a break:**

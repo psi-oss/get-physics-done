@@ -312,6 +312,54 @@ def test_help_workflow_surfaces_start_as_first_run_router() -> None:
     assert_beginner_startup_routing_contract(quick_start_reference)
 
 
+def test_help_new_project_detail_describes_current_scope_gate_contract() -> None:
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+    new_project_detail = _extract_between(help_workflow, "**`gpd:new-project`**", "**`gpd:map-research`**")
+
+    for fragment in (
+        "All modes build a scoping contract before downstream artifacts.",
+        "Blocking gaps get one targeted repair prompt",
+        "scope must be explicitly approved",
+        "`--minimal @file.md`",
+        "still repairs blocking gaps and asks for scoping approval",
+        "`--auto`",
+        "follows the configured autonomy gates",
+    ):
+        assert fragment in new_project_detail
+
+    for stale_fragment in (
+        "Same file set as full mode",
+        "No interactive questions asked",
+        "without interaction",
+        "auto-generate everything",
+    ):
+        assert stale_fragment not in new_project_detail
+
+
+def test_new_project_minimal_prompt_documents_core_artifacts_not_full_mode_outputs() -> None:
+    command_text = (COMMANDS_DIR / "new-project.md").read_text(encoding="utf-8")
+    workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+
+    for content in (command_text, workflow_text):
+        assert "does not promise" in content
+        assert "GPD/CONVENTIONS.md" in content
+        assert "GPD/literature/" in content
+
+    minimal_success = _extract_between(
+        command_text,
+        "**Minimal mode success criteria (if `--minimal`):**",
+        "</success_criteria>",
+    )
+    assert "documented core startup set" in minimal_success
+    assert "Same directory structure and file set as full path" not in minimal_success
+    assert "CONVENTIONS.md` created" not in minimal_success
+    for stale_fragment in (
+        "Ask ONE question, then generate everything",
+        "generate everything from the response",
+    ):
+        assert stale_fragment not in workflow_text
+
+
 def test_prompt_docs_keep_wolfram_as_shared_capability_not_runtime_config_surface() -> None:
     help_command = (COMMANDS_DIR / "help.md").read_text(encoding="utf-8")
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")

@@ -193,6 +193,10 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
             "run_health_check",
             "get_config",
         ],
+        "mutating_capabilities": [
+            "advance_plan",
+            "run_health_check",
+        ],
         "registry_prefix": "gpd_state",
         "health_check": {
             "probe_kind": "expected_error",
@@ -228,6 +232,17 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
             "search_papers, download_paper, list_papers, and read_paper, forwards only tools exposed "
             "by the live upstream server, and adds GPD download_source for raw source archives."
         ),
+        "capability_surface": "baseline_dynamic_upstream",
+        "dynamic_upstream_capabilities": True,
+        "baseline_upstream_capabilities": [
+            "search_papers",
+            "download_paper",
+            "list_papers",
+            "read_paper",
+        ],
+        "local_capabilities": [
+            "download_source",
+        ],
         "capabilities": [
             "search_papers",
             "download_paper",
@@ -327,6 +342,15 @@ def build_public_descriptor(name: str) -> dict[str, object]:
         "prerequisites": list(metadata.get("prerequisites", [_PUBLIC_BOOTSTRAP_PREREQUISITE])),
         "health_check": dict(metadata["health_check"]) if isinstance(metadata["health_check"], dict) else {},
     }
+    for optional_key in (
+        "mutating_capabilities",
+        "capability_surface",
+        "dynamic_upstream_capabilities",
+        "baseline_upstream_capabilities",
+        "local_capabilities",
+    ):
+        if optional_key in metadata:
+            descriptor[optional_key] = deepcopy(metadata[optional_key])
     alternatives = _build_public_alternatives(name)
     if alternatives:
         descriptor["alternatives"] = alternatives

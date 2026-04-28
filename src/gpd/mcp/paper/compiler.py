@@ -32,6 +32,8 @@ from gpd.mcp.paper.bibliography import (
 from gpd.mcp.paper.figures import _prepare_figures_with_sources
 from gpd.mcp.paper.journal_map import get_journal_spec
 from gpd.mcp.paper.models import (
+    ArtifactManifest,
+    ArtifactRecord,
     FigureRef,
     JournalSpec,
     PaperConfig,
@@ -406,6 +408,46 @@ def _reject_external_manifest_sidecar(path: Path, output_dir: Path, *, label: st
             f"{label} must stay inside output_dir when emitting ARTIFACT-MANIFEST.json; "
             "external sidecars would make the portable manifest reference paths outside the paper package"
         )
+
+
+def _remove_failed_build_output(path: Path | None, output_dir: Path) -> None:
+    if path is None or not _path_is_under(path, output_dir):
+        return
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def _mark_artifact_manifest_failed(
+    manifest: ArtifactManifest | None,
+    *,
+    stage: str,
+    errors: list[str],
+) -> ArtifactManifest | None:
+    if manifest is None or not manifest.artifacts:
+        return manifest
+
+    anchor = manifest.artifacts[0]
+    displayed_errors = errors[:5]
+    error_summary = "; ".join(displayed_errors)
+    if len(errors) > len(displayed_errors):
+        error_summary = f"{error_summary}; ... {len(errors) - len(displayed_errors)} more"
+
+    failure_record = ArtifactRecord(
+        artifact_id=f"build-failure-{stage}",
+        category="audit",
+        path=anchor.path,
+        sha256=anchor.sha256,
+        produced_by=f"build_paper:{stage}",
+        metadata={
+            "build_success": False,
+            "failure_stage": stage,
+            "error_count": len(errors),
+            "errors": error_summary,
+        },
+    )
+    return manifest.model_copy(update={"artifacts": [*manifest.artifacts, failure_record]})
 
 
 def check_citation_bib_coherence(
@@ -1198,25 +1240,26 @@ async def build_paper(
             logger.warning("Citation coherence: %s", w)
         citation_warnings = coherence.warnings
 
-    if emit_artifact_manifest and not preserved_tex_differs_from_config:
-        manifest = build_artifact_manifest(
-            config,
-            output_dir,
-            tex_path=tex_path,
-            bib_path=bib_path,
-            bib_entry_source=bib_entry_source,
-            bibliography_audit_path=bibliography_audit_path,
-            bibliography_audit=bibliography_audit,
-            figure_source_pairs=figure_source_pairs,
-        )
-        if manifest_path is not None:
-            await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
-
     # 4. Check required TeX resources (blocking subprocess; run in thread to avoid stalling the loop)
     spec = get_journal_spec(config.journal)
     dependencies_available, dependency_errors = await asyncio.to_thread(check_journal_dependencies, spec)
     if not dependencies_available:
         errors.extend(dependency_errors)
+        await asyncio.to_thread(_remove_failed_build_output, output_dir / f"{output_stem}.pdf", output_dir)
+        if emit_artifact_manifest and not preserved_tex_differs_from_config:
+            manifest = build_artifact_manifest(
+                config,
+                output_dir,
+                tex_path=tex_path,
+                bib_path=bib_path,
+                bib_entry_source=bib_entry_source,
+                bibliography_audit_path=bibliography_audit_path,
+                bibliography_audit=bibliography_audit,
+                figure_source_pairs=figure_source_pairs,
+            )
+            manifest = _mark_artifact_manifest_failed(manifest, stage="dependency", errors=errors)
+            if manifest_path is not None:
+                await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
         return PaperOutput(
             tex_content=tex_content,
             bib_content=bib_content,
@@ -1226,7 +1269,7 @@ async def build_paper(
             bibliography_audit_path=bibliography_audit_path,
             bibliography_audit=bibliography_audit,
             reference_bibtex_keys=reference_bibtex_keys,
-            manifest_path=manifest_path,
+            manifest_path=manifest_path if manifest is not None else None,
             manifest=manifest,
             success=False,
             errors=errors,
@@ -1241,6 +1284,9 @@ async def build_paper(
 
     final_success = result.success and figures_prepared_successfully and not errors
     published_pdf_path = result.pdf_path if final_success else None
+    if not final_success:
+        await asyncio.to_thread(_remove_failed_build_output, result.pdf_path, output_dir)
+        await asyncio.to_thread(_remove_failed_build_output, output_dir / f"{output_stem}.pdf", output_dir)
 
     if emit_artifact_manifest and not preserved_tex_differs_from_config:
         manifest = build_artifact_manifest(
@@ -1254,6 +1300,12 @@ async def build_paper(
             figure_source_pairs=figure_source_pairs,
             pdf_path=published_pdf_path,
         )
+        if not final_success:
+            manifest = _mark_artifact_manifest_failed(
+                manifest,
+                stage="compile" if not result.success else "build",
+                errors=errors,
+            )
         if manifest_path is not None:
             await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
 
@@ -1266,7 +1318,7 @@ async def build_paper(
         bibliography_audit_path=bibliography_audit_path,
         bibliography_audit=bibliography_audit,
         reference_bibtex_keys=reference_bibtex_keys,
-        manifest_path=manifest_path,
+        manifest_path=manifest_path if manifest is not None else None,
         manifest=manifest,
         success=final_success,
         errors=errors,

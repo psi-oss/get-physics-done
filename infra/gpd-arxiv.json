@@ -25,6 +25,17 @@
     },
     "expect": "contains paper"
   },
+  "capability_surface": "baseline_dynamic_upstream",
+  "dynamic_upstream_capabilities": true,
+  "baseline_upstream_capabilities": [
+    "search_papers",
+    "download_paper",
+    "list_papers",
+    "read_paper"
+  ],
+  "local_capabilities": [
+    "download_source"
+  ],
   "alternatives": {
     "python_module": {
       "command": "${GPD_PYTHON}",

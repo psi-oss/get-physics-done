@@ -3072,6 +3072,24 @@ class TestInitNewMilestone:
         assert "planning_exists" not in ctx
         assert "roadmapper_model" not in ctx
 
+    def test_new_milestone_stage_resolves_ancestor_project_root_from_nested_workspace(
+        self, tmp_path: Path
+    ) -> None:
+        _setup_project(tmp_path)
+        _create_roadmap(tmp_path, "## Milestone v1.0: Setup Phase\n")
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+
+        ctx = init_new_milestone(nested, stage="milestone_bootstrap")
+
+        assert ctx["project_exists"] is True
+        assert ctx["roadmap_exists"] is True
+        assert ctx["state_exists"] is True
+        assert ctx["current_milestone"] == "v1.0"
+        assert not (nested / "GPD").exists()
+
     def test_does_not_bootstrap_manuscript_proof_review_manifest(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_roadmap(tmp_path, "## Milestone v1.0: Setup Phase\n")
@@ -4126,6 +4144,34 @@ class TestInitMilestoneOp:
         assert ctx["phase_count"] == 2
         assert ctx["completed_phases"] == 1
         assert ctx["all_phases_complete"] is False
+
+    def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_roadmap(
+            tmp_path,
+            """\
+            ## Milestone v1.0: Test
+
+            ### Phase 1: Setup
+            **Goal:** setup
+            """,
+        )
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        p1 = _create_phase_dir(tmp_path, "01-setup")
+        (p1 / "a-PLAN.md").write_text("plan", encoding="utf-8")
+        (p1 / "a-SUMMARY.md").write_text("summary", encoding="utf-8")
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+
+        ctx = init_milestone_op(nested)
+
+        assert ctx["init_root_policy"] == "project_scoped"
+        assert ctx["project_exists"] is True
+        assert ctx["roadmap_exists"] is True
+        assert ctx["phase_count"] == 1
+        assert ctx["completed_phases"] == 1
+        assert ctx["all_phases_complete"] is True
+        assert not (nested / "GPD").exists()
 
     def test_counts_phases(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

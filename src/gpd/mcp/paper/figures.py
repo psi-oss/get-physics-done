@@ -98,7 +98,7 @@ def normalize_figure(source: Path, output_dir: Path) -> Path:
         dest = _unique_dest(output_dir, source)
         if source.resolve() == dest.resolve():
             return dest
-        shutil.copy2(source, dest)
+        _copy_with_cleanup(source, dest)
         return dest
 
     if fmt in ("svg",):
@@ -112,11 +112,19 @@ def normalize_figure(source: Path, output_dir: Path) -> Path:
         dest = _unique_dest(output_dir, source)
         if source.resolve() == dest.resolve():
             return dest
-        shutil.copy2(source, dest)
+        _copy_with_cleanup(source, dest)
         logger.info("EPS file copied; epstopdf will handle conversion during compilation: %s", source.name)
         return dest
 
     raise ValueError(f"No conversion path for format: {fmt}")
+
+
+def _copy_with_cleanup(source: Path, dest: Path) -> None:
+    try:
+        shutil.copy2(source, dest)
+    except Exception:
+        _cleanup_failed_output(dest)
+        raise
 
 
 def _convert_svg(source: Path, output_dir: Path) -> Path:
@@ -174,8 +182,12 @@ def _convert_tiff(source: Path, output_dir: Path) -> Path:
         raise RuntimeError(f"TIFF conversion requires Pillow (pip install Pillow). Cannot convert: {source}") from None
 
     dest = _unique_dest(output_dir, Path(f"{source.stem}.png"))
-    with Image.open(source) as img:
-        img.save(dest, "PNG")
+    try:
+        with Image.open(source) as img:
+            img.save(dest, "PNG")
+    except Exception:
+        _cleanup_failed_output(dest)
+        raise
     return dest
 
 

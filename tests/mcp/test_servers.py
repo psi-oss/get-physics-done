@@ -311,6 +311,35 @@ class TestBuiltinServerDescriptors:
             "get_config",
         ]
         assert "emit_phase_event" not in descriptor["capabilities"]
+        assert descriptor["mutating_capabilities"] == [
+            "advance_plan",
+            "run_health_check",
+        ]
+        assert set(descriptor["mutating_capabilities"]) <= set(descriptor["capabilities"])
+
+    def test_state_mutating_tools_publish_mutation_metadata(self):
+        from gpd.mcp.servers.state_server import mcp
+
+        async def _load() -> dict[str, object]:
+            tools = await mcp.list_tools()
+            return {tool.name: tool for tool in tools}
+
+        tools = anyio.run(_load)
+        advance_plan = tools["advance_plan"]
+        run_health_check = tools["run_health_check"]
+
+        assert advance_plan.annotations is not None
+        assert advance_plan.annotations.readOnlyHint is False
+        assert advance_plan.annotations.idempotentHint is False
+        assert run_health_check.annotations is not None
+        assert run_health_check.annotations.readOnlyHint is False
+        assert run_health_check.annotations.idempotentHint is False
+        assert run_health_check.inputSchema["properties"]["fix"] == {
+            "default": False,
+            "description": "If true, attempt auto-fixes and allow the health check to modify project files.",
+            "title": "Fix",
+            "type": "boolean",
+        }
 
     def test_arxiv_public_descriptor_describes_baseline_and_live_upstream_forwarding(self):
         from gpd.mcp.builtin_servers import build_public_descriptors
@@ -320,6 +349,15 @@ class TestBuiltinServerDescriptors:
         assert "baseline upstream tools" in descriptor["description"]
         assert "forwards only tools exposed by the live upstream server" in descriptor["description"]
         assert "download_source" in descriptor["description"]
+        assert descriptor["capability_surface"] == "baseline_dynamic_upstream"
+        assert descriptor["dynamic_upstream_capabilities"] is True
+        assert descriptor["baseline_upstream_capabilities"] == [
+            "search_papers",
+            "download_paper",
+            "list_papers",
+            "read_paper",
+        ]
+        assert descriptor["local_capabilities"] == ["download_source"]
         assert descriptor["capabilities"] == [
             "search_papers",
             "download_paper",

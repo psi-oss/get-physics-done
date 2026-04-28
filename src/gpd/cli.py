@@ -1818,7 +1818,7 @@ def milestone_complete(
     """Archive a completed milestone."""
     from gpd.core.phases import milestone_complete
 
-    _output(milestone_complete(_get_cwd(), version, name=name))
+    _output(milestone_complete(_project_scoped_cwd(), version, name=name))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -6808,7 +6808,12 @@ def _resolve_review_preflight_publication_artifacts(manuscript: Path) -> Manuscr
     )
 
 
-def _validate_artifact_manifest_semantics(artifact_manifest: Path, manuscript: Path) -> tuple[bool, str]:
+def _validate_artifact_manifest_semantics(
+    artifact_manifest: Path,
+    manuscript: Path,
+    *,
+    require_freshness: bool = True,
+) -> tuple[bool, str]:
     """Validate artifact-manifest structure and manuscript freshness."""
     from gpd.mcp.paper.artifact_manifest import validate_artifact_manifest_freshness
     from gpd.mcp.paper.models import ArtifactManifest
@@ -6817,12 +6822,22 @@ def _validate_artifact_manifest_semantics(artifact_manifest: Path, manuscript: P
     try:
         artifact_manifest_payload = json.loads(artifact_manifest.read_text(encoding="utf-8"))
         artifact_manifest_model = ArtifactManifest.model_validate(artifact_manifest_payload)
-        artifact_manifest_freshness = validate_artifact_manifest_freshness(
-            artifact_manifest_model,
-            manuscript,
-        )
-        if not artifact_manifest_freshness.fresh:
-            return False, "artifact manifest is stale: " + artifact_manifest_freshness.detail
+        failed_build_artifacts = [
+            artifact
+            for artifact in artifact_manifest_model.artifacts
+            if isinstance(artifact.metadata, dict) and artifact.metadata.get("build_success") is False
+        ]
+        if failed_build_artifacts:
+            failed_artifact = failed_build_artifacts[0]
+            failure_stage = failed_artifact.metadata.get("failure_stage", "unknown")
+            return False, f"artifact manifest records failed paper build at {failure_stage} stage"
+        if require_freshness:
+            artifact_manifest_freshness = validate_artifact_manifest_freshness(
+                artifact_manifest_model,
+                manuscript,
+            )
+            if not artifact_manifest_freshness.fresh:
+                return False, "artifact manifest is stale: " + artifact_manifest_freshness.detail
     except OSError as exc:
         return False, f"could not read artifact manifest: {exc}"
     except UnicodeDecodeError as exc:
@@ -10399,8 +10414,22 @@ def _build_review_preflight(
                 )
                 if requested_review_check(check_name)
             }
+            publication_artifacts = _resolve_review_preflight_publication_artifacts(manuscript)
+            optional_external_artifact_manifest = (
+                "artifact_manifest" not in requested_publication_checks
+                and command.name == "gpd:peer-review"
+                and standalone_peer_review_mode
+                and publication_artifacts.artifact_manifest is not None
+            )
+            if optional_external_artifact_manifest:
+                artifact_manifest_passed, artifact_manifest_detail = _validate_artifact_manifest_semantics(
+                    publication_artifacts.artifact_manifest,
+                    manuscript,
+                    require_freshness=False,
+                )
+                if not artifact_manifest_passed:
+                    add_check("artifact_manifest", False, artifact_manifest_detail, blocking=True)
             if requested_publication_checks:
-                publication_artifacts = _resolve_review_preflight_publication_artifacts(manuscript)
                 artifact_manifest = publication_artifacts.artifact_manifest
                 bibliography_audit = publication_artifacts.bibliography_audit
                 reproducibility_manifest = publication_artifacts.reproducibility_manifest
@@ -10432,7 +10461,8 @@ def _build_review_preflight(
                         blocking=subject_preflight_policy.blocking(
                             "artifact_manifest",
                             missing=artifact_manifest_missing,
-                            default=not standalone_peer_review_mode,
+                            default=not standalone_peer_review_mode
+                            or (artifact_manifest is not None and not artifact_manifest_passed),
                         ),
                     )
 

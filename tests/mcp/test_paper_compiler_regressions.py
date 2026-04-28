@@ -41,12 +41,68 @@ async def test_build_paper_does_not_publish_stale_pdf_after_failed_rebuild(
 
     assert result.success is False
     assert result.pdf_path is None
+    assert not stale_pdf_path.exists()
     assert result.errors == ["latexmk exited with code 2"]
     assert result.manifest is not None
     assert all(artifact.category != "pdf" for artifact in result.manifest.artifacts)
+    assert any(
+        artifact.artifact_id == "build-failure-compile"
+        and artifact.metadata["build_success"] is False
+        and artifact.metadata["failure_stage"] == "compile"
+        for artifact in result.manifest.artifacts
+    )
     assert result.manifest_path is not None
     manifest_payload = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert all(artifact["category"] != "pdf" for artifact in manifest_payload["artifacts"])
+    assert any(
+        artifact["artifact_id"] == "build-failure-compile"
+        and artifact["metadata"]["build_success"] is False
+        and artifact["metadata"]["failure_stage"] == "compile"
+        for artifact in manifest_payload["artifacts"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_build_paper_removes_expected_pdf_when_failed_rebuild_returns_no_pdf_path(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir = tmp_path / "paper"
+    output_dir.mkdir()
+    stale_pdf_path = output_dir / "stale-rebuild.pdf"
+    stale_pdf_path.write_bytes(b"%PDF-old")
+    config = PaperConfig(
+        title="Stale Rebuild",
+        authors=[Author(name="A. Researcher")],
+        abstract="Abstract.",
+        sections=[Section(title="Intro", content="No citations here.")],
+        output_filename="stale-rebuild",
+    )
+
+    async def fake_compile(tex_path, output_dir, compiler="pdflatex"):
+        return CompilationResult(
+            success=False,
+            pdf_path=None,
+            error="pdflatex pass 1 exited with code 1",
+        )
+
+    monkeypatch.setattr("gpd.mcp.paper.compiler.check_journal_dependencies", lambda spec: (True, []))
+    monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", fake_compile)
+
+    result = await build_paper(config, output_dir)
+
+    assert result.success is False
+    assert result.pdf_path is None
+    assert not stale_pdf_path.exists()
+    assert result.errors == ["pdflatex pass 1 exited with code 1"]
+    assert result.manifest is not None
+    assert all(artifact.category != "pdf" for artifact in result.manifest.artifacts)
+    assert any(
+        artifact.artifact_id == "build-failure-compile"
+        and artifact.metadata["build_success"] is False
+        and artifact.metadata["failure_stage"] == "compile"
+        for artifact in result.manifest.artifacts
+    )
 
 
 @pytest.mark.asyncio
@@ -81,6 +137,7 @@ async def test_build_paper_does_not_publish_pdf_when_earlier_errors_exist_despit
 
     assert result.success is False
     assert result.pdf_path is None
+    assert not pdf_path.exists()
     assert result.errors == ["Figure preparation failed: missing.png"]
     assert result.manifest is not None
     assert all(artifact.category != "pdf" for artifact in result.manifest.artifacts)

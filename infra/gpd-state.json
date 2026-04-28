@@ -26,6 +26,10 @@
     "input": {},
     "expect": "returns a stable validation error envelope for missing required project_dir"
   },
+  "mutating_capabilities": [
+    "advance_plan",
+    "run_health_check"
+  ],
   "alternatives": {
     "python_module": {
       "command": "${GPD_PYTHON}",

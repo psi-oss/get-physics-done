@@ -1661,6 +1661,51 @@ class TestInitCommands:
         assert payload["phase_number"] == "01"
         assert str(payload["phase_dir"]).startswith("GPD/phases/01-")
 
+    def test_init_new_milestone_stage_resolves_ancestor_project_root_from_nested_workspace(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "init", "new-milestone", "--stage", "milestone_bootstrap"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["project_exists"] is True
+        assert payload["roadmap_exists"] is True
+        assert payload["state_exists"] is True
+        assert not (nested / "GPD").exists()
+
+    def test_init_milestone_op_resolves_ancestor_project_root_from_nested_workspace(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "init", "milestone-op"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["init_root_policy"] == "project_scoped"
+        assert payload["project_exists"] is True
+        assert payload["roadmap_exists"] is True
+        assert payload["state_exists"] is True
+        assert not (nested / "GPD").exists()
+
     def test_init_literature_review_resolves_ancestor_project_root_from_nested_workspace(
         self,
         gpd_project: Path,
@@ -2100,6 +2145,36 @@ class TestRoadmapCommands:
         assert get_phase_result.exit_code == 0, get_phase_result.output
         assert json.loads(get_phase_result.output) == {"cwd": str(project_root), "phase_num": "01"}
         assert seen["get_phase"] == (project_root, "01")
+
+
+class TestMilestoneCommands:
+    def test_milestone_complete_resolves_project_root_like_phase_commands(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+        project_root = gpd_project.resolve()
+        seen: dict[str, object] = {}
+
+        def _milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> dict[str, str | None]:
+            seen["cwd"] = cwd
+            return {"cwd": str(cwd), "version": version, "name": name}
+
+        monkeypatch.setattr("gpd.core.phases.milestone_complete", _milestone_complete)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "milestone", "complete", "v1.0", "--name", "Test"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output) == {"cwd": str(project_root), "version": "v1.0", "name": "Test"}
+        assert seen["cwd"] == project_root
+        assert not (nested / "GPD").exists()
 
 
 class TestReadOnlyCommandRouting:
@@ -5543,6 +5618,35 @@ class TestReviewValidationCommands:
         assert "artifact manifest is stale" in detail
         assert "manifest is missing manuscript_sha256" in detail
 
+    def test_review_preflight_peer_review_strict_rejects_failed_build_manifest(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        paper_dir = gpd_project / "paper"
+        manuscript = canonical_manuscript_path(gpd_project)
+        manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        failure_artifact = dict(manifest["artifacts"][0])
+        failure_artifact.update(
+            {
+                "artifact_id": "build-failure-compile",
+                "category": "audit",
+                "produced_by": "build_paper:compile",
+                "metadata": {
+                    "build_success": False,
+                    "failure_stage": "compile",
+                    "errors": "pdflatex exited with code 1",
+                },
+            }
+        )
+        manifest["artifacts"].append(failure_artifact)
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        passed, detail = cli_module._validate_artifact_manifest_semantics(manifest_path, manuscript)
+
+        assert passed is False
+        assert "artifact manifest records failed paper build at compile stage" in detail
+
     def test_review_preflight_peer_review_accepts_explicit_manuscript_path_outside_supported_roots(
         self,
         gpd_project: Path,
@@ -7309,6 +7413,70 @@ class TestReviewValidationCommands:
         ):
             if optional_check in checks:
                 assert checks[optional_check]["blocking"] is False
+
+    def test_review_preflight_peer_review_rejects_external_manifest_with_failed_build(
+        self, tmp_path: Path
+    ) -> None:
+        workspace = tmp_path / "standalone-review"
+        manuscript_root = workspace / "submission"
+        manuscript_root.mkdir(parents=True)
+        manuscript = manuscript_root / _CANONICAL_MANUSCRIPT_BASENAME
+        manuscript.write_text(
+            "\\documentclass{article}\n\\begin{document}\nStandalone directory manuscript.\n\\end{document}\n",
+            encoding="utf-8",
+        )
+        manuscript_sha256 = compute_sha256(manuscript)
+        (manuscript_root / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "paper_title": "Standalone directory review",
+                    "journal": "jhep",
+                    "created_at": "2026-03-10T00:00:00+00:00",
+                    "manuscript_sha256": manuscript_sha256,
+                    "manuscript_mtime_ns": manuscript.stat().st_mtime_ns,
+                    "artifacts": [
+                        {
+                            "artifact_id": "manuscript",
+                            "category": "tex",
+                            "path": _CANONICAL_MANUSCRIPT_BASENAME,
+                            "sha256": manuscript_sha256,
+                            "produced_by": "tests.test_cli_commands",
+                            "sources": [],
+                            "metadata": {"role": "manuscript"},
+                        },
+                        {
+                            "artifact_id": "build-failure-compile",
+                            "category": "audit",
+                            "path": "build-failure-compile.log",
+                            "sha256": manuscript_sha256,
+                            "produced_by": "build_paper:compile",
+                            "sources": [],
+                            "metadata": {
+                                "build_success": False,
+                                "failure_stage": "compile",
+                                "errors": "pdflatex exited with code 1",
+                            },
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "review-preflight", "peer-review", "submission", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is False
+        assert checks["artifact_manifest"]["passed"] is False
+        assert checks["artifact_manifest"]["blocking"] is True
+        assert "artifact manifest records failed paper build at compile stage" in checks["artifact_manifest"]["detail"]
 
     def test_review_preflight_peer_review_accepts_external_pdf_artifact_with_companion_text(
         self, tmp_path: Path

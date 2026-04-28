@@ -48,12 +48,12 @@ Check if `--minimal` flag is present in $ARGUMENTS.
 
 **If minimal mode:** After Step 1 (Setup), skip the entire standard flow (Steps 2-9) and execute the **Minimal Initialization Path** below instead.
 
-Minimal mode creates the SAME directory structure and file set as the full path -- just with less conversational overhead. It still must produce a scoping contract with decisive outputs, anchors, and explicit approval so downstream workflows (`gpd:plan-phase`, `gpd:execute-phase`, etc.) work identically.
+Minimal mode creates the core startup artifacts only: `GPD/PROJECT.md`, `GPD/config.json`, `GPD/REQUIREMENTS.md`, `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/state.json` with the approved `project_contract`. It does not promise optional literature-survey files or `GPD/CONVENTIONS.md`. It still must produce a scoping contract with decisive outputs, anchors, and explicit approval so downstream workflows (`gpd:plan-phase`, `gpd:execute-phase`, etc.) have authoritative scope.
 
 **Two variants:**
 
 1. `--minimal @file.md` — Input file provided. Parse it for research context.
-2. `--minimal` (no file) — Ask ONE question, then generate everything from the response.
+2. `--minimal` (no file) — Ask one structured intake question, repair blocking scoping gaps if needed, require scope approval, then create the documented core startup artifacts.
 
 ---
 
@@ -199,7 +199,7 @@ Load `{GPD_INSTALL_DIR}/templates/project.md` at this stage and populate `GPD/PR
 
 Populate only fields supported by extracted input. When information is missing, say that explicitly (`None confirmed yet`, `To be determined during Phase 1`, or `anchor not yet selected`) instead of inventing anchors, references, or phase structure. Preserve user-named observables, deliverables, prior outputs, stop/rethink conditions, and required references in wording the user would recognize.
 
-Keep requirements in `GPD/REQUIREMENTS.md`; `PROJECT.md` only mirrors the contract-critical anchors and readable project context. Keep notation and conventions as a pointer to `GPD/CONVENTIONS.md`, adding `GPD/NOTATION_GLOSSARY.md` later only if the project needs a dedicated symbol glossary.
+Keep requirements in `GPD/REQUIREMENTS.md`; `PROJECT.md` only mirrors the contract-critical anchors and readable project context. If no conventions file exists yet, say conventions are not established by minimal mode instead of implying `GPD/CONVENTIONS.md` was created. Add `GPD/NOTATION_GLOSSARY.md` later only if the project needs a dedicated symbol glossary.
 
 If the project may rely on Wolfram capability, distinguish a local Mathematica / Wolfram Language install from the shared optional Wolfram integration config. Add `--live-executable-probes` to `gpd doctor` if you also want cheap local executable probes such as `pdflatex --version`, `pdftotext -v`, or `wolframscript -version`, but that stays separate from the shared path enabled with `gpd integrations enable wolfram`, and it is still separate from `gpd validate plan-preflight <PLAN.md>` and from local install checks.
 
@@ -359,7 +359,8 @@ gpd commit "docs: initialize research project (minimal)" --files GPD/PROJECT.md 
 **[N] phases** | **[N] requirements** | Ready to investigate
 
 Note: Initialized with --minimal. Literature survey and deep scoping
-were skipped. Use gpd:settings to adjust workflow preferences.
+were skipped, and notation conventions were not established. Use
+gpd:settings to adjust workflow preferences.
 
 ---------------------------------------------------------------
 
@@ -1858,6 +1859,8 @@ Phases 2+ are stubbed on purpose — flesh each one out with `gpd:plan-phase N` 
 
 <output>
 
+**Full mode output:**
+
 - `GPD/PROJECT.md`
 - `GPD/config.json`
 - `GPD/literature/` (if literature survey selected)
@@ -1871,6 +1874,15 @@ Phases 2+ are stubbed on purpose — flesh each one out with `gpd:plan-phase N` 
 - `GPD/STATE.md`
 - `GPD/state.json` with `project_contract`
 - `GPD/CONVENTIONS.md` (established by gpd-notation-coordinator)
+
+**Minimal mode output:**
+
+- `GPD/PROJECT.md`
+- `GPD/config.json`
+- `GPD/REQUIREMENTS.md`
+- `GPD/ROADMAP.md`
+- `GPD/STATE.md`
+- `GPD/state.json` with `project_contract`
 
 </output>
 
@@ -1898,6 +1910,14 @@ Phases 2+ are stubbed on purpose — flesh each one out with `gpd:plan-phase N` 
 - [ ] CONVENTIONS.md created with subfield-appropriate conventions — **committed**
 - [ ] Convention lock populated via `gpd convention set`
 - [ ] User knows next step is `gpd:discuss-phase 1`
+
+**Minimal mode success criteria (if `--minimal`):**
+- [ ] `GPD/` created and the repo initialized
+- [ ] Structured intake captured the core question, decisive outputs, anchors, and known gaps
+- [ ] Scoping contract approved, validated, and persisted before artifact generation
+- [ ] `PROJECT.md`, `config.json`, `REQUIREMENTS.md`, `ROADMAP.md`, `STATE.md`, and `state.json` created and committed
+- [ ] No promise is made that `GPD/literature/` or `GPD/CONVENTIONS.md` exists
+- [ ] User offered "Discuss phase 1 now?"
 
 **Atomic commits:** Each phase commits its artifacts immediately. If context is lost, artifacts persist.
 

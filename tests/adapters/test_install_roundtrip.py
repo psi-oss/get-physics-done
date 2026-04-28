@@ -612,6 +612,26 @@ class TestCodexRoundtrip:
             assert "name:" in fm, f"{skill_dir.name} missing name field"
             assert "description:" in fm, f"{skill_dir.name} missing description field"
 
+    def test_generated_skills_stay_within_budget_and_basic_hygiene(self, installed: tuple[Path, Path]) -> None:
+        """Generated Codex skills stay bounded and have no unresolved install syntax."""
+        _, skills = installed
+        skill_paths = sorted(skills.glob("gpd-*/SKILL.md"))
+
+        assert skill_paths
+        for skill_md in skill_paths:
+            content = skill_md.read_text(encoding="utf-8")
+            line_count = len(content.splitlines())
+            char_count = len(content)
+
+            assert line_count <= 2_700, f"{skill_md.parent.name} has {line_count} lines"
+            assert char_count <= 145_000, f"{skill_md.parent.name} has {char_count} chars"
+            assert content.count("<codex_runtime_notes>") == 1, skill_md.parent.name
+            assert content.count("</codex_runtime_notes>") == 1, skill_md.parent.name
+            assert content.count("<!-- Managed by Get Physics Done (GPD). -->") == 1, skill_md.parent.name
+            assert "{GPD_INSTALL_DIR}" not in content, skill_md.parent.name
+            assert "@{GPD_INSTALL_DIR}" not in content, skill_md.parent.name
+            assert "/gpd:" not in content, skill_md.parent.name
+
     def test_command_count_matches_source(self, installed: tuple[Path, Path]) -> None:
         """Number of skills matches source command count."""
         _, skills = installed

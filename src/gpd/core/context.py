@@ -566,6 +566,7 @@ _NEW_MILESTONE_BASE_INIT_FIELDS = frozenset(
         "researcher_model",
         "synthesizer_model",
         "roadmapper_model",
+        "init_root_policy",
         "commit_docs",
         "autonomy",
         "research_mode",
@@ -3721,9 +3722,11 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
 
 def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for new milestone creation."""
-    config = load_config(cwd)
-    milestone = _try_get_milestone_info(cwd)
+    effective_cwd = _resolve_project_scoped_cwd(cwd)
+    config = load_config(effective_cwd)
+    milestone = _try_get_milestone_info(effective_cwd)
     base_result = {
+        "init_root_policy": InitRootPolicy.PROJECT_SCOPED.value,
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -3733,11 +3736,11 @@ def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
         "current_milestone": milestone["version"],
         "current_milestone_name": milestone["name"],
         # File existence
-        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
-        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
-        "state_exists": _state_exists(cwd),
+        "project_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "roadmap_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
+        "state_exists": _state_exists(effective_cwd),
         # Platform
-        "platform": _detect_platform(cwd),
+        "platform": _detect_platform(effective_cwd),
     }
 
     if stage is None:
@@ -3745,13 +3748,13 @@ def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
         result.update(
             {
                 # Models
-                "researcher_model": _resolve_model(cwd, "gpd-project-researcher", config),
-                "synthesizer_model": _resolve_model(cwd, "gpd-research-synthesizer", config),
-                "roadmapper_model": _resolve_model(cwd, "gpd-roadmapper", config),
+                "researcher_model": _resolve_model(effective_cwd, "gpd-project-researcher", config),
+                "synthesizer_model": _resolve_model(effective_cwd, "gpd-research-synthesizer", config),
+                "roadmapper_model": _resolve_model(effective_cwd, "gpd-roadmapper", config),
             }
         )
-        result.update(_build_reference_runtime_context(cwd))
-        result.update(_build_state_memory_runtime_context(cwd))
+        result.update(_build_reference_runtime_context(effective_cwd))
+        result.update(_build_state_memory_runtime_context(effective_cwd))
         return result
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -3770,27 +3773,27 @@ def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
 
     required_fields = set(stage_def.required_init_fields)
     staged_source = dict(base_result)
-    staged_source["researcher_model"] = _resolve_model(cwd, "gpd-project-researcher", config)
+    staged_source["researcher_model"] = _resolve_model(effective_cwd, "gpd-project-researcher", config)
     if "synthesizer_model" in required_fields:
-        staged_source["synthesizer_model"] = _resolve_model(cwd, "gpd-research-synthesizer", config)
+        staged_source["synthesizer_model"] = _resolve_model(effective_cwd, "gpd-research-synthesizer", config)
     if "roadmapper_model" in required_fields:
-        staged_source["roadmapper_model"] = _resolve_model(cwd, "gpd-roadmapper", config)
+        staged_source["roadmapper_model"] = _resolve_model(effective_cwd, "gpd-roadmapper", config)
 
     needs_full_reference_context = bool(required_fields & _NEW_MILESTONE_REFERENCE_RUNTIME_FIELDS)
     needs_contract_gate_context = bool(required_fields & _NEW_MILESTONE_CONTRACT_GATE_FIELDS)
 
     if needs_full_reference_context:
-        staged_source.update(_build_reference_runtime_context(cwd))
+        staged_source.update(_build_reference_runtime_context(effective_cwd))
     elif needs_contract_gate_context:
-        staged_source.update(_build_new_project_contract_runtime_context(cwd))
+        staged_source.update(_build_new_project_contract_runtime_context(effective_cwd))
 
     if required_fields & _NEW_MILESTONE_STATE_MEMORY_FIELDS:
-        staged_source.update(_build_state_memory_runtime_context(cwd))
+        staged_source.update(_build_state_memory_runtime_context(effective_cwd))
 
     if required_fields & _NEW_MILESTONE_FILE_CONTENT_FIELDS:
         staged_source.update(
             _build_new_milestone_file_context(
-                cwd,
+                effective_cwd,
                 include_project="project_content" in required_fields,
                 include_state="state_content" in required_fields,
                 include_milestones="milestones_content" in required_fields,
@@ -4702,14 +4705,15 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
 
 def init_milestone_op(cwd: Path) -> dict:
     """Assemble context for milestone operations (complete, archive, etc.)."""
-    config = load_config(cwd)
-    milestone = _try_get_milestone_info(cwd)
-    reference_runtime_context = _build_reference_runtime_context(cwd)
+    effective_cwd = _resolve_project_scoped_cwd(cwd)
+    config = load_config(effective_cwd)
+    milestone = _try_get_milestone_info(effective_cwd)
+    reference_runtime_context = _build_reference_runtime_context(effective_cwd)
 
-    milestone_snapshot = _milestone_completion_snapshot(cwd)
+    milestone_snapshot = _milestone_completion_snapshot(effective_cwd)
 
     # Check archived milestones
-    milestones_dir = cwd / PLANNING_DIR_NAME / MILESTONES_DIR_NAME
+    milestones_dir = effective_cwd / PLANNING_DIR_NAME / MILESTONES_DIR_NAME
     archived_milestones: list[str] = []
     try:
         archived_milestones = sorted(
@@ -4719,6 +4723,7 @@ def init_milestone_op(cwd: Path) -> dict:
         pass
 
     return {
+        "init_root_policy": InitRootPolicy.PROJECT_SCOPED.value,
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -4738,13 +4743,13 @@ def init_milestone_op(cwd: Path) -> dict:
         "archived_milestones": archived_milestones,
         "archive_count": len(archived_milestones),
         # File existence
-        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
-        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
-        "state_exists": _state_exists(cwd),
-        "milestones_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{MILESTONES_DIR_NAME}"),
-        "phases_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}"),
+        "project_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "roadmap_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
+        "state_exists": _state_exists(effective_cwd),
+        "milestones_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{MILESTONES_DIR_NAME}"),
+        "phases_dir_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}"),
         # Platform
-        "platform": _detect_platform(cwd),
+        "platform": _detect_platform(effective_cwd),
         **reference_runtime_context,
     }
 

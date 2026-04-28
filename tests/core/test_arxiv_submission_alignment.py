@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from gpd.core.workflow_staging import resolve_workflow_stage_manifest_path, validate_workflow_stage_manifest_payload
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -83,13 +81,11 @@ def test_arxiv_submission_workflow_resolves_manifest_based_manuscript_root_witho
     assert 'ls "${DIR}"/*.tex' not in workflow
 
 
-def test_arxiv_submission_stage_manifest_path_is_resolved_and_loadable_when_present() -> None:
+def test_arxiv_submission_stage_manifest_path_is_resolved_and_loadable() -> None:
     manifest_path = resolve_workflow_stage_manifest_path("arxiv-submission")
 
     assert manifest_path == WORKFLOWS_DIR / "arxiv-submission-stage-manifest.json"
-
-    if not manifest_path.exists():
-        pytest.skip("arxiv-submission stage manifest has not landed yet")
+    assert manifest_path.exists()
 
     manifest = validate_workflow_stage_manifest_payload(
         json.loads(manifest_path.read_text(encoding="utf-8")),

@@ -33,6 +33,7 @@ from gpd.core.constants import (
     PLANNING_DIR_NAME,
     REQUIREMENTS_FILENAME,
     RESEARCH_SUFFIX,
+    ROADMAP_FILENAME,
     STANDALONE_CONTEXT,
     STANDALONE_PLAN,
     STANDALONE_RESEARCH,
@@ -2634,6 +2635,10 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
     if not version:
         raise PhaseValidationError("version required for milestone complete (e.g., v1.0)")
 
+    layout = ProjectLayout(cwd)
+    if not layout.roadmap.exists():
+        raise PhaseValidationError(f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME} required for milestone complete")
+
     roadmap_path = _roadmap_path(cwd)
     req_path = _planning_path(cwd) / REQUIREMENTS_FILENAME
     milestones_path = _planning_path(cwd) / MILESTONES_FILENAME
@@ -2652,6 +2657,8 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
             accomplishments: list[str] = []
 
             completion_snapshot = _milestone_completion_snapshot(cwd)
+            if completion_snapshot.phase_count == 0:
+                raise PhaseValidationError("cannot complete milestone with no phases")
 
             for phase_number in completion_snapshot.phase_numbers:
                 phase_info = find_phase(cwd, phase_number)
@@ -2690,11 +2697,20 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
                     completion_snapshot.phase_count,
                 )
 
+            archive_dir_existed = archive_dir.exists()
             milestones_before = milestones_path.read_text(encoding="utf-8") if milestones_path.exists() else None
             roadmap_archive_path = archive_dir / f"{version}-ROADMAP.md"
             requirements_archive_path = archive_dir / f"{version}-REQUIREMENTS.md"
             archived_audit_path = archive_dir / f"{version}-MILESTONE-AUDIT.md"
             audit_file = _planning_path(cwd) / f"{version}-MILESTONE-AUDIT.md"
+            roadmap_archive_before = _snapshot_text_file(roadmap_archive_path)
+            requirements_archive_before = _snapshot_text_file(requirements_archive_path)
+            archived_audit_before = _snapshot_text_file(archived_audit_path)
+            audit_file_before = _snapshot_text_file(audit_file)
+            state_md_before = _snapshot_text_file(layout.state_md)
+            state_json_before = _snapshot_text_file(layout.state_json)
+            state_json_backup_before = _snapshot_text_file(layout.state_json_backup)
+            checkpoints_md_before, checkpoint_backup_root, checkpoint_backup_path = _snapshot_checkpoint_shelf(layout)
             archive_dir.mkdir(parents=True, exist_ok=True)
             try:
                 if roadmap_path.exists():
@@ -2759,21 +2775,25 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
                         version=version,
                     ),
                 )
+
+                # sync_phase_checkpoints() already handles malformed or unreadable
+                # summaries non-fatally. Let unexpected sync failures propagate
+                # after restoring the full milestone completion transaction.
+                sync_phase_checkpoints(cwd)
             except Exception:
                 _restore_text_file(milestones_path, milestones_before)
-                if archived_audit_path.exists() and not audit_file.exists():
-                    shutil.move(str(archived_audit_path), str(audit_file))
-                if roadmap_archive_path.exists():
-                    roadmap_archive_path.unlink()
-                if requirements_archive_path.exists():
-                    requirements_archive_path.unlink()
-                if archive_dir.exists() and not any(archive_dir.iterdir()):
+                _restore_text_file(roadmap_archive_path, roadmap_archive_before)
+                _restore_text_file(requirements_archive_path, requirements_archive_before)
+                _restore_text_file(archived_audit_path, archived_audit_before)
+                _restore_text_file(audit_file, audit_file_before)
+                _restore_checkpoint_shelf(layout, checkpoints_md_before, checkpoint_backup_path)
+                _restore_state_pair(layout, state_md_before, state_json_before, state_json_backup_before)
+                if not archive_dir_existed and archive_dir.exists() and not any(archive_dir.iterdir()):
                     archive_dir.rmdir()
                 raise
-
-            # sync_phase_checkpoints() already handles malformed or unreadable
-            # summaries non-fatally. Let unexpected sync failures propagate.
-            sync_phase_checkpoints(cwd)
+            finally:
+                if checkpoint_backup_root is not None and checkpoint_backup_root.exists():
+                    shutil.rmtree(checkpoint_backup_root, ignore_errors=True)
 
         return MilestoneCompleteResult(
             version=version,

@@ -419,8 +419,8 @@ class ContractMetadataRequest(_ContractRequestBase):
     expected_behavior: str | None = None
     source_reference_id: str | None = None
     declared_family: str | None = None
-    allowed_families: list[str] | None = None
-    forbidden_families: list[str] | None = None
+    allowed_families: list[str] = Field(default=None)
+    forbidden_families: list[str] = Field(default=None)
     theorem_parameter_symbols: list[str] | None = None
     hypothesis_ids: list[str] | None = None
     quantifiers: list[str] | None = None

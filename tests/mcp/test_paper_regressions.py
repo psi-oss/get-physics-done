@@ -456,6 +456,65 @@ def test_prepare_figures_returns_relative_paths(tmp_path) -> None:
     assert (output_dir / result[0].path).exists()
 
 
+def test_tiff_conversion_removes_partial_png_when_pillow_save_fails(tmp_path, monkeypatch) -> None:
+    from PIL import Image
+
+    from gpd.mcp.paper.figures import _convert_tiff
+
+    source = tmp_path / "input" / "figure.tiff"
+    source.parent.mkdir()
+    source.write_bytes(b"placeholder")
+    output_dir = tmp_path / "output"
+    partial_png = output_dir / "figure.png"
+
+    class FailingImage:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def save(self, dest, fmt):
+            assert fmt == "PNG"
+            dest = Path(dest)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(b"partial png")
+            raise OSError("simulated Pillow save failure")
+
+    def fake_open(path):
+        assert path == source
+        return FailingImage()
+
+    monkeypatch.setattr(Image, "open", fake_open)
+
+    with pytest.raises(OSError, match="simulated Pillow save failure"):
+        _convert_tiff(source, output_dir)
+
+    assert not partial_png.exists()
+
+
+def test_passthrough_conversion_removes_partial_copy_when_copy_fails(tmp_path, monkeypatch) -> None:
+    from gpd.mcp.paper.figures import normalize_figure
+
+    source = tmp_path / "input" / "figure.png"
+    source.parent.mkdir()
+    source.write_bytes(b"complete png")
+    output_dir = tmp_path / "output"
+    partial_png = output_dir / "figure.png"
+
+    def partial_copy(_source: Path, dest: Path) -> None:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(b"partial png")
+        raise OSError("simulated partial copy")
+
+    monkeypatch.setattr("gpd.mcp.paper.figures.shutil.copy2", partial_copy)
+
+    with pytest.raises(OSError, match="simulated partial copy"):
+        normalize_figure(source, output_dir)
+
+    assert not partial_png.exists()
+
+
 def test_render_paper_cleans_title_fences() -> None:
     from gpd.mcp.paper.models import PaperConfig, Section
     from gpd.mcp.paper.template_registry import render_paper

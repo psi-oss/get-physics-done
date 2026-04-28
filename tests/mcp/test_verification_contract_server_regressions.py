@@ -3282,6 +3282,14 @@ def test_run_contract_check_rejects_non_mapping_payloads(payload: object) -> Non
             },
             "metadata.allowed_families must be a list of strings",
         ),
+        (
+            {
+                "check_key": "contract.fit_family_mismatch",
+                "metadata": {"allowed_families": None},
+                "observed": {"selected_family": "power_law", "competing_family_checked": True},
+            },
+            "metadata.allowed_families must be a list of strings",
+        ),
     ],
 )
 def test_run_contract_check_rejects_malformed_binding_and_metadata_list_members(

@@ -519,6 +519,85 @@ async def test_build_paper_routes_sidecars_to_independent_output_paths(
 
 
 @pytest.mark.asyncio
+async def test_build_paper_marks_manifest_after_dependency_failure(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir = tmp_path / "paper"
+    config = PaperConfig(
+        title="Dependency Failure Paper",
+        authors=[Author(name="A. Researcher")],
+        abstract="Abstract.",
+        sections=[Section(title="Intro", content="No citations here.")],
+    )
+
+    async def fake_compile(*_args, **_kwargs):
+        raise AssertionError("compile_paper should not run when dependencies are missing")
+
+    monkeypatch.setattr(
+        "gpd.mcp.paper.compiler.check_journal_dependencies",
+        lambda spec: (False, ["missing revtex4-2.cls"]),
+    )
+    monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", fake_compile)
+
+    result = await build_paper(config, output_dir)
+
+    assert result.success is False
+    assert result.errors == ["missing revtex4-2.cls"]
+    assert result.manifest_path == output_dir / "ARTIFACT-MANIFEST.json"
+    assert result.manifest is not None
+    manifest_payload = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    artifact_ids = {artifact["artifact_id"] for artifact in manifest_payload["artifacts"]}
+    assert "pdf-dependency-failure-paper" not in artifact_ids
+    failure_artifact = next(
+        artifact
+        for artifact in manifest_payload["artifacts"]
+        if artifact["artifact_id"] == "build-failure-dependency"
+    )
+    assert failure_artifact["metadata"]["build_success"] is False
+    assert failure_artifact["metadata"]["failure_stage"] == "dependency"
+    assert "missing revtex4-2.cls" in failure_artifact["metadata"]["errors"]
+
+
+@pytest.mark.asyncio
+async def test_build_paper_marks_manifest_after_compile_failure(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir = tmp_path / "paper"
+    config = PaperConfig(
+        title="Compile Failure Paper",
+        authors=[Author(name="A. Researcher")],
+        abstract="Abstract.",
+        sections=[Section(title="Intro", content="No citations here.")],
+    )
+
+    async def fake_compile(tex_path, output_dir, compiler="pdflatex"):
+        return CompilationResult(success=False, error="pdflatex exited with code 1")
+
+    monkeypatch.setattr("gpd.mcp.paper.compiler.check_journal_dependencies", lambda spec: (True, []))
+    monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", fake_compile)
+
+    result = await build_paper(config, output_dir)
+
+    assert result.success is False
+    assert result.errors == ["pdflatex exited with code 1"]
+    assert result.manifest_path == output_dir / "ARTIFACT-MANIFEST.json"
+    assert result.manifest is not None
+    manifest_payload = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    artifact_ids = {artifact["artifact_id"] for artifact in manifest_payload["artifacts"]}
+    assert "pdf-compile-failure-paper" not in artifact_ids
+    failure_artifact = next(
+        artifact
+        for artifact in manifest_payload["artifacts"]
+        if artifact["artifact_id"] == "build-failure-compile"
+    )
+    assert failure_artifact["metadata"]["build_success"] is False
+    assert failure_artifact["metadata"]["failure_stage"] == "compile"
+    assert "pdflatex exited with code 1" in failure_artifact["metadata"]["errors"]
+
+
+@pytest.mark.asyncio
 async def test_build_paper_does_not_refresh_manifest_for_preserved_stale_tex(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,

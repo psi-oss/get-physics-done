@@ -20,6 +20,12 @@ def _extract_step(workflow: str, step_name: str) -> str:
     return workflow[start:end]
 
 
+def _extract_between(content: str, start_marker: str, end_marker: str) -> str:
+    start = content.index(start_marker) + len(start_marker)
+    end = content.index(end_marker, start)
+    return content[start:end]
+
+
 def _displayed_choice_labels(workflow: str) -> set[str]:
     offer_step = _extract_step(workflow, "offer_relevant_choices")
     labels: set[str] = set()
@@ -157,8 +163,16 @@ def test_start_workflow_routes_to_existing_entrypoints() -> None:
     assert "Read `{GPD_INSTALL_DIR}/workflows/help.md` with the file-read tool." not in workflow
     assert "Read `{GPD_INSTALL_DIR}/workflows/tour.md` with the file-read tool." not in workflow
     assert "Only list commands whose command-context preflight can pass for the detected state" in workflow
-    assert "When `roadmap_exists=true`, include:" in workflow
-    assert "When `state_exists=true`, include:" in workflow
+    assert "When `roadmap_exists=true`, include as the next numbered choice:" in workflow
+    assert "When `state_exists=true`, include as the next numbered choice:" in workflow
+    partial_state_choices = _extract_between(
+        workflow,
+        "**This folder has partial/recoverable GPD state**",
+        "**This folder already has GPD's folder summary",
+    )
+    assert "Build the visible numbered list contiguously after filtering" in partial_state_choices
+    assert "1. Inspect recovery state" not in partial_state_choices
+    assert "2. Reconcile state files" not in partial_state_choices
     assert "Do not list `gpd:progress` for partial state" in workflow
     assert "Review visible progress - use `gpd:progress`" not in workflow
 
@@ -174,3 +188,4 @@ def test_start_workflow_displayed_choice_labels_route_verbatim() -> None:
     assert "Do one small bounded task" in displayed_labels
     assert "Do one small bounded task" in routed_labels
     assert "Do a small bounded task" not in routed_labels
+    assert "tour" in routed_labels

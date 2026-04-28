@@ -338,6 +338,14 @@ def test_run_contract_check_accepts_nested_base_model_canonical_binding_lists() 
             },
             {"error": "metadata.allowed_families must not contain duplicate values", "schema_version": 1},
         ),
+        (
+            {
+                "check_key": "contract.fit_family_mismatch",
+                "metadata": {"allowed_families": None},
+                "observed": {"selected_family": "power_law", "competing_family_checked": True},
+            },
+            {"error": "metadata.allowed_families must be a list of strings", "schema_version": 1},
+        ),
     ],
 )
 def test_run_contract_check_rejects_empty_and_duplicate_string_lists(
@@ -348,6 +356,21 @@ def test_run_contract_check_rejects_empty_and_duplicate_string_lists(
 
     assert run_contract_check(request_payload) == expected_error
     assert _call_verification_tool("run_contract_check", {"request": request_payload}) == expected_error
+
+
+def test_contract_metadata_family_lists_are_optional_but_not_nullable() -> None:
+    from pydantic import ValidationError
+
+    from gpd.mcp.servers.verification_server import ContractMetadataRequest
+
+    schema = ContractMetadataRequest.model_json_schema()
+
+    assert schema["properties"]["allowed_families"]["type"] == "array"
+    assert schema["properties"]["forbidden_families"]["type"] == "array"
+    assert ContractMetadataRequest().allowed_families is None
+
+    with pytest.raises(ValidationError):
+        ContractMetadataRequest.model_validate({"allowed_families": None})
 
 
 def test_suggest_contract_checks_normalizes_whitespace_padded_active_checks() -> None:

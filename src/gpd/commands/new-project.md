@@ -14,16 +14,16 @@ allowed-tools:
 <context>
 **Flags:**
 - `--auto` — Automatic mode. Synthesizes a scoping contract from the supplied document, asks for one explicit scope approval, then runs research → requirements → roadmap with minimal follow-up interaction. Expects a research proposal document via @ reference.
-- `--minimal` — Fast staged-init mode. Uses one structured intake plus one scoping approval gate, then hands the roadmap and conventions to the staged post-scope agents with lean content. Scope, anchors, and decisive outputs are still required.
+- `--minimal` — Fast staged-init mode. Uses one structured intake plus one scoping approval gate, then creates the core project artifacts with lean content. Scope, anchors, and decisive outputs are still required.
 - `--minimal @file.md` — Create project directly from a markdown file describing your research and staged continuation path. Parses research question, anchors, and key work chunks from the file.
 </context>
 
 <objective>
-Initialize a new physics research project through one flow: questioning or structured intake → scoping contract approval → literature survey (optional) → requirements → staged roadmap/conventions handoff.
+Initialize a new physics research project through one flow: questioning or structured intake → scoping contract approval → literature survey (optional) → requirements → staged roadmap/conventions handoff when that mode creates them.
 
 If no project config exists yet, start with physics questioning, surface a preset choice before workflow preferences, and ask detailed config questions only after scope approval and before the first project-artifact commit.
 
-**Creates:**
+**Full mode creates:**
 
 - `GPD/PROJECT.md` — project context
 - `GPD/config.json` — workflow preferences
@@ -32,6 +32,9 @@ If no project config exists yet, start with physics questioning, surface a prese
 - `GPD/ROADMAP.md` — phase structure
 - `GPD/STATE.md` — project memory
 - `GPD/state.json` `project_contract` — authoritative machine-readable scoping contract
+- `GPD/CONVENTIONS.md` — notation conventions, established after the staged roadmap
+
+**Minimal mode creates only the core startup set:** `GPD/PROJECT.md`, `GPD/config.json`, `GPD/REQUIREMENTS.md`, `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/state.json` with the approved `project_contract`. It does not promise `GPD/literature/` or `GPD/CONVENTIONS.md`.
 
 **After this command:** Run `gpd:discuss-phase 1` to clarify the first phase before planning.
 </objective>
@@ -63,12 +66,14 @@ Check `$ARGUMENTS` for flags:
 - **`--minimal`** → Fast staged-init with scope approval
 - **`--minimal @file.md`** → Minimal mode with input file
 
-**If `--minimal` detected:** After Setup, route to the **minimal staged initialization path**. It keeps intake to one response, still requires a scoping contract with decisive outputs and anchors, and then hands roadmap and conventions creation to the staged post-scope agents instead of building them directly in the main context.
+**If `--minimal` detected:** After Setup, route to the **minimal staged initialization path**. It keeps intake to one response, still requires a scoping contract with decisive outputs and anchors, and creates the lean core artifact set without promising literature or convention files.
 
 **If `--auto` detected:** After Setup, synthesize context from the provided document, repair blocking gaps only, present the scoping contract for approval, then run research → requirements → roadmap with smart defaults.
 </process>
 
 <output>
+
+**Full mode output:**
 
 - `GPD/PROJECT.md`
 - `GPD/config.json`
@@ -81,7 +86,17 @@ Check `$ARGUMENTS` for flags:
 - `GPD/REQUIREMENTS.md`
 - `GPD/ROADMAP.md`
 - `GPD/STATE.md`
+- `GPD/state.json` `project_contract`
 - `GPD/CONVENTIONS.md` (established by gpd-notation-coordinator)
+
+**Minimal mode output:**
+
+- `GPD/PROJECT.md`
+- `GPD/config.json`
+- `GPD/REQUIREMENTS.md`
+- `GPD/ROADMAP.md`
+- `GPD/STATE.md`
+- `GPD/state.json` `project_contract`
 
 </output>
 
@@ -113,7 +128,7 @@ Check `$ARGUMENTS` for flags:
 - [ ] `STATE.md` initialized and committed
 - [ ] `config.json` created with defaults and committed
 - [ ] All files committed in one commit: `docs: initialize research project (minimal)`
-- [ ] Same directory structure and file set as full path
+- [ ] Minimal output is limited to the documented core startup set; no literature or conventions artifact is promised
 - [ ] User offered "Discuss phase 1 now?"
 
 </success_criteria>
