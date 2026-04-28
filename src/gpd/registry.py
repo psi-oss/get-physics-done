@@ -81,9 +81,7 @@ _INTERACTIVE_SPAWN_CONTRACT_BLOCK_RE = re.compile(
     r"^[ \t]*<spawn_contract_interactive>[ \t]*$\n(?P<body>.*?)^[ \t]*</spawn_contract_interactive>[ \t]*$",
     re.DOTALL | re.MULTILINE,
 )
-_LEGACY_PLACEHOLDER_LIST_ITEM_RE = re.compile(
-    r"^(?P<prefix>[ \t]*-[ \t]+)(?P<value>\{[^}\n]+\}[^#\n]*?)(?P<suffix>[ \t]*(?:#.*)?)$"
-)
+_UNQUOTED_PLACEHOLDER_PATH_LIST_ITEM_RE = re.compile(r"^[ \t]*-[ \t]+\{[^}\n]+\}/[^#\n]*(?:#.*)?$")
 _SPAWN_CONTRACT_WRITE_SCOPE_MODES = ("scoped_write", "direct")
 _INTERACTIVE_SPAWN_CONTRACT_WRITE_SCOPE_MODES = ("no_write",)
 _INTERACTIVE_SPAWN_CONTRACT_SHARED_STATE_POLICIES = ("none",)
@@ -2135,20 +2133,8 @@ def _parse_spawn_contract_block(block: str, *, owner_name: str) -> dict[str, obj
         block,
         owner_name=owner_name,
         contract_label="spawn-contract",
-        allow_legacy_placeholder_list_items=True,
     )
-    _normalize_legacy_empty_spawn_contract_lists(parsed)
     return _validate_spawn_contract(parsed, owner_name=owner_name)
-
-
-def _normalize_legacy_empty_spawn_contract_lists(contract: dict[str, object]) -> None:
-    """Normalize old blank normal-contract list fields to explicit empty lists."""
-
-    raw_write_scope = contract.get("write_scope")
-    if isinstance(raw_write_scope, dict) and "allowed_paths" in raw_write_scope and raw_write_scope["allowed_paths"] is None:
-        raw_write_scope["allowed_paths"] = []
-    if "expected_artifacts" in contract and contract["expected_artifacts"] is None:
-        contract["expected_artifacts"] = []
 
 
 def _load_spawn_contract_mapping(
@@ -2156,46 +2142,29 @@ def _load_spawn_contract_mapping(
     *,
     owner_name: str,
     contract_label: str,
-    allow_legacy_placeholder_list_items: bool = False,
 ) -> dict[str, object]:
-    """Parse one spawn-contract YAML mapping, with a narrow legacy path-list shim."""
+    """Parse one spawn-contract YAML mapping."""
 
+    _reject_unquoted_placeholder_path_list_items(block, owner_name=owner_name, contract_label=contract_label)
     try:
         parsed = load_strict_yaml(block)
     except yaml.YAMLError as exc:
-        if not allow_legacy_placeholder_list_items:
-            raise ValueError(f"{contract_label} for {owner_name}: malformed YAML: {exc}") from exc
-        normalized_block = _quote_legacy_placeholder_list_items(block)
-        if normalized_block == block:
-            raise ValueError(f"{contract_label} for {owner_name}: malformed YAML: {exc}") from exc
-        try:
-            parsed = load_strict_yaml(normalized_block)
-        except yaml.YAMLError as normalized_exc:
-            raise ValueError(f"{contract_label} for {owner_name}: malformed YAML: {normalized_exc}") from normalized_exc
+        raise ValueError(f"{contract_label} for {owner_name}: malformed YAML: {exc}") from exc
 
     if not isinstance(parsed, dict):
         raise ValueError(f"{contract_label} for {owner_name}: block must parse to a mapping")
     return dict(parsed)
 
 
-def _quote_legacy_placeholder_list_items(block: str) -> str:
-    """Quote legacy list items like ``- {phase_dir}/file.md`` before strict YAML parsing."""
+def _reject_unquoted_placeholder_path_list_items(block: str, *, owner_name: str, contract_label: str) -> None:
+    """Reject YAML list items such as ``- {phase_dir}/file.md`` before parsing."""
 
-    normalized_lines: list[str] = []
-    changed = False
-    for line in block.splitlines():
-        match = _LEGACY_PLACEHOLDER_LIST_ITEM_RE.match(line)
-        if match is None:
-            normalized_lines.append(line)
-            continue
-        value = match.group("value").strip()
-        if "/" not in value:
-            normalized_lines.append(line)
-            continue
-        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-        normalized_lines.append(f'{match.group("prefix")}"{escaped}"{match.group("suffix")}')
-        changed = True
-    return "\n".join(normalized_lines) if changed else block
+    for line_number, line in enumerate(block.splitlines(), start=1):
+        if _UNQUOTED_PLACEHOLDER_PATH_LIST_ITEM_RE.match(line):
+            raise ValueError(
+                f"{contract_label} for {owner_name}: unquoted placeholder path list item at line {line_number}; "
+                "quote placeholder paths such as \"{phase_dir}/file.md\""
+            )
 
 
 def _load_command_staged_loading(path: Path, *, allowed_tools: list[str]) -> WorkflowStageManifest | None:

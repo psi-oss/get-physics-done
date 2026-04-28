@@ -23,6 +23,7 @@ from scripts.repo_graph_contract import (
     extract_marked_block,
     graph_has_edge,
     graph_has_edge_containing,
+    iter_runtime_descriptors,
     live_repo_file_count,
     load_contract,
     parse_scope_count,
@@ -432,12 +433,16 @@ def test_live_repo_file_count_ignores_worktree_artifacts(tmp_path: Path) -> None
 
 
 def test_graph_exclusions_apply_only_at_repo_root() -> None:
+    runtime_config_dirs = {descriptor.config_dir_name for descriptor in iter_runtime_descriptors()}
+
     assert _is_excluded_path(Path("GPD/state.json"))
     assert _is_excluded_path(Path("dist/wheel.whl"))
-    assert _is_excluded_path(Path(".codex/config.toml"))
     assert not _is_excluded_path(Path("src/gpd/GPD/state.py"))
     assert not _is_excluded_path(Path("src/gpd/dist/build.py"))
-    assert not _is_excluded_path(Path("docs/.codex/reference.md"))
+    assert runtime_config_dirs <= set(EXCLUDED_GRAPH_DIRS)
+    for config_dir_name in runtime_config_dirs:
+        assert _is_excluded_path(Path(config_dir_name) / "config.toml")
+        assert not _is_excluded_path(Path("docs") / config_dir_name / "reference.md")
 
 
 def test_graph_test_file_references_exist() -> None:

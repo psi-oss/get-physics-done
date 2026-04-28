@@ -1524,9 +1524,9 @@ Write to: {phase_dir}/{phase_number}-VERIFICATION.md
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - {phase_dir}/{phase_number}-VERIFICATION.md
+    - "{phase_dir}/{phase_number}-VERIFICATION.md"
 expected_artifacts:
-  - {phase_dir}/{phase_number}-VERIFICATION.md
+  - "{phase_dir}/{phase_number}-VERIFICATION.md"
 shared_state_policy: return_only
 </spawn_contract>
 
@@ -1781,9 +1781,9 @@ task(prompt="First, read {GPD_AGENTS_DIR}/gpd-consistency-checker.md for your ro
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - {phase_dir}/CONSISTENCY-CHECK.md
+    - "{phase_dir}/CONSISTENCY-CHECK.md"
 expected_artifacts:
-  - {phase_dir}/CONSISTENCY-CHECK.md
+  - "{phase_dir}/CONSISTENCY-CHECK.md"
 shared_state_policy: return_only
 </spawn_contract>
 

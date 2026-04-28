@@ -436,16 +436,22 @@ class TestParseSpawnContracts:
     ) -> str:
         allowed = allowed_paths if allowed_paths is not None else (output,)
         expected = expected_artifacts if expected_artifacts is not None else (output,)
-        allowed_lines = "".join(f"    - {path}\n" for path in allowed)
-        expected_lines = "".join(f"  - {path}\n" for path in expected)
+        allowed_block = (
+            "  allowed_paths: []\n"
+            if not allowed
+            else "  allowed_paths:\n" + "".join(f"    - {path}\n" for path in allowed)
+        )
+        expected_block = (
+            "expected_artifacts: []\n"
+            if not expected
+            else "expected_artifacts:\n" + "".join(f"  - {path}\n" for path in expected)
+        )
         return (
             "<spawn_contract>\n"
             "write_scope:\n"
             f"  mode: {mode}\n"
-            "  allowed_paths:\n"
-            f"{allowed_lines}"
-            "expected_artifacts:\n"
-            f"{expected_lines}"
+            f"{allowed_block}"
+            f"{expected_block}"
             f"shared_state_policy: {shared_state_policy}\n"
             "</spawn_contract>"
         )

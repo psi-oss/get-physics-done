@@ -128,7 +128,7 @@ jobs:
 
       - name: Run installer and runtime compatibility tests
         run: |
-          uv run pytest -q \
+          uv run pytest -n 0 -q \
             tests/test_metadata_consistency.py::test_python_floor_is_consistent_across_install_surfaces \
             tests/test_runtime_catalog_bootstrap_contract.py \
             tests/test_runtime_install_smoke.py \

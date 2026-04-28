@@ -175,9 +175,9 @@ Add this contract inside the spawned prompt when adapting it:
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - {phase_dir}/{phase_number}-RESEARCH.md
+    - "{phase_dir}/{phase_number}-RESEARCH.md"
 expected_artifacts:
-  - {phase_dir}/{phase_number}-RESEARCH.md
+  - "{phase_dir}/{phase_number}-RESEARCH.md"
 shared_state_policy: return_only
 </spawn_contract>
 ```
@@ -215,9 +215,9 @@ Read that file before continuing so you inherit the prior research state instead
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - {phase_dir}/{phase_number}-RESEARCH.md
+    - "{phase_dir}/{phase_number}-RESEARCH.md"
 expected_artifacts:
-  - {phase_dir}/{phase_number}-RESEARCH.md
+  - "{phase_dir}/{phase_number}-RESEARCH.md"
 shared_state_policy: return_only
 </spawn_contract>
 ```

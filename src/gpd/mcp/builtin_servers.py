@@ -78,6 +78,9 @@ _BUILTIN_SERVERS: dict[str, _ServerDef] = {
 }
 
 _PUBLIC_BOOTSTRAP_PREREQUISITE = "Install GPD before enabling built-in MCP servers."
+_ARXIV_EXTRA_PREREQUISITE = (
+    "Install GPD with the `arxiv` Python extra in the same environment before enabling gpd-arxiv."
+)
 _ENTRY_POINT_NOTES = _PYTHON_LAUNCH_NOTES
 _ARXIV_UPSTREAM_CAPABILITIES = list(UPSTREAM_CORE_TOOL_NAMES)
 _ARXIV_LOCAL_CAPABILITIES = [DOWNLOAD_SOURCE_TOOL_NAME]
@@ -242,6 +245,10 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         "local_capabilities": _ARXIV_LOCAL_CAPABILITIES,
         "capabilities": _ARXIV_CAPABILITIES,
         "registry_prefix": "gpd_arxiv",
+        "prerequisites": [
+            _PUBLIC_BOOTSTRAP_PREREQUISITE,
+            _ARXIV_EXTRA_PREREQUISITE,
+        ],
         "health_check": {
             "probe_kind": "network_required",
             "tool": "search_papers",

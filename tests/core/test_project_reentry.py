@@ -7,6 +7,7 @@ import pytest
 
 from gpd.core.constants import ProjectLayout
 from gpd.core.project_reentry import resolve_project_reentry
+from gpd.core.recent_projects import recent_projects_index_path
 from gpd.core.state import default_state_dict
 
 
@@ -272,6 +273,24 @@ def test_resolve_project_reentry_default_scan_prefers_unique_recent_over_backup_
     assert resolution.candidates[0].source == "recent_project"
     assert resolution.candidates[0].auto_selectable is True
     assert len(resolution.candidates) == 1
+
+
+def test_resolve_project_reentry_ignores_malformed_recent_project_index_with_diagnostic(tmp_path: Path) -> None:
+    workspace = _make_gpd_workspace(tmp_path / "workspace")
+    data_root = tmp_path / "data"
+    index_path = recent_projects_index_path(data_root)
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text("{ not-json", encoding="utf-8")
+
+    resolution = resolve_project_reentry(workspace, data_root=data_root)
+
+    assert resolution.mode == "no-recovery"
+    assert resolution.source is None
+    assert resolution.project_root is None
+    assert resolution.candidates == []
+    assert len(resolution.diagnostics) == 1
+    assert "recent-project index ignored" in resolution.diagnostics[0]
+    assert "Malformed recent-project index" in resolution.diagnostics[0]
 
 
 def test_resolve_project_reentry_skips_recent_project_scan_for_recoverable_current_workspace(

@@ -408,9 +408,9 @@ Write to: {phase_dir}/{phase_number}-RESEARCH.md
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - {phase_dir}/{phase_number}-RESEARCH.md
+    - "{phase_dir}/{phase_number}-RESEARCH.md"
 expected_artifacts:
-  - {phase_dir}/{phase_number}-RESEARCH.md
+  - "{phase_dir}/{phase_number}-RESEARCH.md"
 shared_state_policy: return_only
 </spawn_contract>
 ```
@@ -480,9 +480,9 @@ If this phase belongs to a hypothesis branch, include the hypothesis constraint 
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - {phase_dir}/{phase_number}-RESEARCH.md
+    - "{phase_dir}/{phase_number}-RESEARCH.md"
 expected_artifacts:
-  - {phase_dir}/{phase_number}-RESEARCH.md
+  - "{phase_dir}/{phase_number}-RESEARCH.md"
 shared_state_policy: return_only
 </spawn_contract>
 ```

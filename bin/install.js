@@ -2584,6 +2584,43 @@ function parseTargetDirArg(args) {
   return value;
 }
 
+function validateBootstrapArgs(args) {
+  const allowedFlags = new Set([
+    "--all",
+    "--force-statusline",
+    "--global",
+    "--help",
+    "--local",
+    "--reinstall",
+    "--uninstall",
+    "--upgrade",
+    "-g",
+    "-h",
+    "-l",
+    ...documentedRuntimeFlags(),
+  ]);
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--target-dir") {
+      index += 1;
+      continue;
+    }
+    if (typeof arg === "string" && arg.startsWith("--target-dir=")) {
+      continue;
+    }
+    if (allowedFlags.has(arg)) {
+      continue;
+    }
+
+    const label = typeof arg === "string" && arg.startsWith("-")
+      ? "Unknown bootstrap option"
+      : "Unexpected bootstrap argument";
+    error(`${label}: ${arg}. Run npx -y get-physics-done --help for usage.`);
+    process.exit(1);
+  }
+}
+
 function runtimeTokenFlagMap() {
   const mapping = new Map();
   for (const runtime of ALL_RUNTIMES) {
@@ -2851,6 +2888,7 @@ async function main() {
   const reinstallManagedPackage = args.includes("--reinstall");
   const upgradeManagedPackage = args.includes("--upgrade");
   const targetDir = parseTargetDirArg(args);
+  validateBootstrapArgs(args);
   const parsedRuntimes = parseSelectedRuntimes(args);
 
   printBanner();

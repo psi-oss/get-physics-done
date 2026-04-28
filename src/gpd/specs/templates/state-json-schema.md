@@ -290,9 +290,34 @@ Verifying, Verified, Complete, Blocked, Ready to plan, Milestone complete
   "handoff": {
     "recorded_at": "2026-03-15T14:30:00.000Z",
     "stopped_at": "Phase 3, Plan 2, work item 4: MC thermalization",
-    "resume_file": "GPD/phases/03-analysis/.continue-here.md"
+    "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+    "last_result_id": "res-20260315-mc-thermalization",
+    "recorded_by": "state_record_session"
   },
-  "bounded_segment": null,
+  "bounded_segment": {
+    "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+    "phase": "03",
+    "plan": "02",
+    "segment_id": "seg-03-02-first-result",
+    "segment_status": "paused",
+    "checkpoint_reason": "first_result",
+    "waiting_reason": "human review of first load-bearing result",
+    "blocked_reason": null,
+    "waiting_for_review": true,
+    "first_result_gate_pending": true,
+    "pre_fanout_review_pending": false,
+    "pre_fanout_review_cleared": false,
+    "skeptical_requestioning_required": false,
+    "downstream_locked": true,
+    "skeptical_requestioning_summary": null,
+    "weakest_unchecked_anchor": null,
+    "disconfirming_observation": null,
+    "transition_id": "txn-03-02-first-result",
+    "last_result_id": "res-20260315-mc-thermalization",
+    "updated_at": "2026-03-15T14:30:00.000Z",
+    "source_session_id": "session-20260315",
+    "recorded_by": "execute_phase"
+  },
   "machine": {
     "recorded_at": "2026-03-15T14:30:00.000Z",
     "hostname": "builder-01",
@@ -303,17 +328,46 @@ Verifying, Verified, Complete, Blocked, Ready to plan, Milestone complete
 
 **Written by:** `gpd state record-session` and the public state persistence path used by `gpd state update`, `gpd state patch`, and related state commands
 
-`continuation` is the durable canonical continuation payload in `state.json`. It is JSON-only and does not render as a separate markdown section. The STATE.md ``## Session Continuity`` block is a human-readable rendering of `continuation.handoff` plus `continuation.machine`; parsing STATE.md projects that block back into canonical continuation.
+`continuation` is the durable canonical continuation payload in `state.json`. It is JSON-only and does not render as a separate markdown section. The STATE.md ``## Session Continuity`` block is a human-readable rendering of `continuation.handoff` plus `continuation.machine`. Normal STATE.md saves render from canonical JSON and ignore edited mirror fields; parser/recovery fallback may project the mirror block back into canonical continuation when JSON is unavailable.
 
 `continuation.handoff` is the canonical handoff block:
 
 | Field | Type | Meaning |
 |-------|------|---------|
-| `recorded_at` | `string \| null` | Timestamp of the recorded handoff |
-| `stopped_at` | `string \| null` | Human-readable stop location |
 | `resume_file` | `string \| null` | Project-relative handoff artifact when available |
+| `stopped_at` | `string \| null` | Human-readable stop location |
+| `last_result_id` | `string \| null` | Canonical result ID that should anchor reruns or recovery when available |
+| `recorded_at` | `string \| null` | Timestamp of the recorded handoff |
+| `recorded_by` | `string \| null` | State path or workflow that recorded the handoff |
 
 `state.json.continuation.bounded_segment` is the durable authoritative bounded-segment state stored in `state.json`. When present, it is the canonical bounded-segment resume source. The live execution head is derived from execution lineage and may be written to `GPD/observability/current-execution.json` for live status, but that status file does not replace the persisted canonical state. `gpd --raw resume` emits one canonical continuation view from `state.json.continuation`, execution lineage, and current handoff artifacts.
+
+`continuation.bounded_segment` stores exactly the canonical bounded-segment model fields:
+
+| Field | Type | Default | Meaning |
+|-------|------|---------|---------|
+| `resume_file` | `string \| null` | `null` | Project-relative handoff artifact or resume pointer for the bounded segment |
+| `phase` | `string \| null` | `null` | Normalized phase identifier |
+| `plan` | `string \| null` | `null` | Normalized plan identifier |
+| `segment_id` | `string \| null` | `null` | Stable bounded-segment identifier |
+| `segment_status` | `string \| null` | `null` | Current segment status, such as paused, blocked, or superseded |
+| `checkpoint_reason` | `string \| null` | `null` | Reason the bounded segment stopped |
+| `waiting_reason` | `string \| null` | `null` | Human-readable item the segment is waiting on |
+| `blocked_reason` | `string \| null` | `null` | Blocking reason when the segment cannot proceed |
+| `waiting_for_review` | `boolean` | `false` | Whether review is currently required |
+| `first_result_gate_pending` | `boolean` | `false` | Whether the first load-bearing result gate is still pending |
+| `pre_fanout_review_pending` | `boolean` | `false` | Whether pre-fanout review is still pending |
+| `pre_fanout_review_cleared` | `boolean` | `false` | Whether pre-fanout review was accepted while fanout unlock may still be outstanding |
+| `skeptical_requestioning_required` | `boolean` | `false` | Whether skeptical re-questioning must be carried into the continuation |
+| `downstream_locked` | `boolean` | `false` | Whether downstream dependent work remains locked |
+| `skeptical_requestioning_summary` | `string \| null` | `null` | Summary of the skeptical challenge that must survive resume |
+| `weakest_unchecked_anchor` | `string \| null` | `null` | Weakest unchecked assumption or result anchor |
+| `disconfirming_observation` | `string \| null` | `null` | Fastest observation that could disconfirm the current path |
+| `transition_id` | `string \| null` | `null` | Transition/event identifier that produced this bounded state |
+| `last_result_id` | `string \| null` | `null` | Canonical result ID attached to this bounded segment |
+| `updated_at` | `string \| null` | `null` | Timestamp when this bounded segment was recorded or refreshed |
+| `source_session_id` | `string \| null` | `null` | Session identifier that produced the bounded segment |
+| `recorded_by` | `string \| null` | `null` | State path or workflow that recorded the bounded segment |
 
 `continuation.machine` is the canonical recorded machine state:
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import posixpath
 import re
 import shutil
 import subprocess
@@ -46,6 +47,10 @@ _BOOTSTRAP_JSON_ASSETS = (
     "src/gpd/adapters/runtime_catalog_schema.json",
     "src/gpd/core/public_surface_contract.json",
     "src/gpd/core/public_surface_contract_schema.json",
+)
+_PUBLIC_BOOTSTRAP_PREREQUISITE = "Install GPD before enabling built-in MCP servers."
+_ARXIV_EXTRA_PREREQUISITE = (
+    "Install GPD with the `arxiv` Python extra in the same environment before enabling gpd-arxiv."
 )
 _EXPECTED_OPTIONAL_DEPENDENCIES = {
     "paper": ["cairosvg>=2.7.0", "pypdf>=5.0"],
@@ -109,7 +114,7 @@ def _python_release_version(repo_root: Path) -> str:
     return pyproject_version
 
 
-def _uv_lock_project_version(repo_root: Path) -> str:
+def _uv_lock_editable_package(repo_root: Path) -> dict[str, object]:
     lock = tomllib.loads((repo_root / "uv.lock").read_text(encoding="utf-8"))
     packages = lock.get("package", [])
     assert isinstance(packages, list)
@@ -117,8 +122,12 @@ def _uv_lock_project_version(repo_root: Path) -> str:
         if not isinstance(package, dict):
             continue
         if package.get("name") == "get-physics-done" and package.get("source") == {"editable": "."}:
-            return str(package["version"])
+            return package
     raise AssertionError("uv.lock is missing the editable get-physics-done package entry")
+
+
+def _uv_lock_project_version(repo_root: Path) -> str:
+    return str(_uv_lock_editable_package(repo_root)["version"])
 
 
 def _npm_pack_dry_run(repo_root: Path, work_dir: Path) -> dict[str, object]:
@@ -163,6 +172,21 @@ def _packaged_file_paths(pack: dict[str, object]) -> set[str]:
         assert isinstance(path, str)
         paths.add(path)
     return paths
+
+
+def _readme_relative_file_links(readme: str) -> set[str]:
+    links: set[str] = set()
+    for match in re.finditer(r"(?:\[[^\]\n]+\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)|href=\"([^\"]+)\")", readme):
+        target = (match.group(1) or match.group(2) or "").strip()
+        if not target or target.startswith(("#", "http://", "https://", "mailto:", "tel:")):
+            continue
+        target = target.split("#", 1)[0].split("?", 1)[0]
+        if not target:
+            continue
+        normalized = posixpath.normpath(target)
+        if normalized != ".":
+            links.add(normalized)
+    return links
 
 
 def _source_wheel_package_data_paths(src_gpd: Path) -> set[str]:
@@ -318,6 +342,12 @@ def _normalized_requirement_name(requirement: str) -> str:
             continue
         break
     return "".join(normalized).lower().replace("_", "-")
+
+
+def _dependency_label(requirement: str) -> str:
+    match = re.match(r"([A-Za-z0-9_.-]+)(?:\[.*?\])?", requirement.strip())
+    assert match is not None, requirement
+    return match.group(1)
 
 
 def _normalized_dependency_names(requirements: list[str]) -> set[str]:
@@ -499,10 +529,31 @@ def test_pull_request_template_points_to_current_ci_and_pre_commit_validation() 
 
     assert "uv run pytest -v" not in template
     assert "ruff check src/ tests/" not in template
-    assert "uv run pytest -q <targets>" in template
+    assert "uv run pytest -n 0 -q <targets>" in template
     assert "GitHub Actions PR checks" in template
     assert "uv run ruff check ." in template
     assert "pre-commit run --all-files" in template
+
+
+def test_targeted_release_and_pr_pytest_commands_disable_xdist() -> None:
+    repo_root = _repo_root()
+    command_sources = (
+        ".github/pull_request_template.md",
+        ".github/workflows/release.yml",
+        ".github/workflows/publish-release.yml",
+    )
+
+    offenders: list[str] = []
+    for relpath in command_sources:
+        text = (repo_root / relpath).read_text(encoding="utf-8")
+        for command in re.findall(r"uv run pytest[^\n`]*", text):
+            if "tests/" not in command and "<targets>" not in command:
+                continue
+            parts = command.split()
+            if "-n" not in parts or parts[parts.index("-n") + 1 : parts.index("-n") + 2] != ["0"]:
+                offenders.append(f"{relpath}: {command.strip()}")
+
+    assert offenders == []
 
 
 def test_public_bootstrap_package_exposes_npx_installer() -> None:
@@ -638,7 +689,7 @@ def test_prepare_release_workflow_creates_release_pr_without_publishing() -> Non
     assert "uv sync --dev --frozen" in workflow
     assert "scripts/release_workflow.py prepare" in workflow
     assert "uv lock" in workflow
-    assert "uv run pytest tests/test_release_consistency.py -v" in workflow
+    assert "uv run pytest -n 0 tests/test_release_consistency.py -v" in workflow
     assert "uv build --out-dir dist" in workflow
     assert "npm pack --dry-run --json" in workflow
     assert "gh pr create" in workflow
@@ -884,7 +935,7 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
         "Run stamped release validation"
     )
     assert workflow.index("Run stamped release validation") < workflow.index("Publish to npm")
-    assert "uv run pytest tests/test_release_consistency.py -v" in workflow
+    assert "uv run pytest -n 0 tests/test_release_consistency.py -v" in workflow
     assert (
         'rm -rf dist\n          npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack-publish.json'
         in workflow
@@ -1018,7 +1069,51 @@ def test_public_runtime_dependency_surface_stays_curated() -> None:
     optional = project.get("optional-dependencies", {})
 
     assert _normalized_dependency_names(dependencies) == _expected_runtime_dependency_names()
+    assert "mcp>=1.27.0" in dependencies
+    assert not any(item.startswith("mcp[") for item in dependencies)
     assert optional == _EXPECTED_OPTIONAL_DEPENDENCIES
+
+
+def test_uv_lock_tracks_runtime_dependency_extras() -> None:
+    repo_root = _repo_root()
+    lock_package = _uv_lock_editable_package(repo_root)
+    dependencies = lock_package.get("dependencies")
+    metadata = lock_package.get("metadata")
+
+    assert isinstance(dependencies, list)
+    assert isinstance(metadata, dict)
+    requires_dist = metadata.get("requires-dist")
+    assert isinstance(requires_dist, list)
+
+    assert [item for item in dependencies if isinstance(item, dict) and item.get("name") == "mcp"] == [
+        {"name": "mcp"}
+    ]
+    assert [item for item in requires_dist if isinstance(item, dict) and item.get("name") == "mcp"] == [
+        {"name": "mcp", "specifier": ">=1.27.0"}
+    ]
+
+
+def test_dependency_graph_docs_track_pyproject_dependency_labels() -> None:
+    repo_root = _repo_root()
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+    project = pyproject["project"]
+    readme = (repo_root / "tests" / "README.md").read_text(encoding="utf-8")
+    match = re.search(r"- `pyproject\.toml -> external Python packages \{([^}]+)\}`", readme)
+    assert match is not None
+
+    graph_labels = {item.strip() for item in match.group(1).split(",")}
+    expected_labels = {_dependency_label(requirement) for requirement in project["dependencies"]}
+    expected_labels.update(
+        _dependency_label(requirement)
+        for requirements in project.get("optional-dependencies", {}).values()
+        for requirement in requirements
+    )
+    expected_labels.update(_dependency_label(requirement) for requirement in pyproject["dependency-groups"]["dev"])
+    expected_labels.update(_dependency_label(requirement) for requirement in pyproject["build-system"]["requires"])
+
+    assert graph_labels == expected_labels
+    assert "mcp" in graph_labels
+    assert "mcp[cli]" not in graph_labels
 
 
 def test_public_python_classifiers_cover_supported_compatibility_minors() -> None:
@@ -1092,7 +1187,6 @@ def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
     from gpd.mcp.builtin_servers import build_public_descriptors
 
     repo_root = _repo_root()
-    expected = "Install GPD before enabling built-in MCP servers."
     stale_markers = (
         "packages/gpd",
         "uv pip install -e",
@@ -1103,7 +1197,7 @@ def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
 
     for path in sorted((repo_root / "infra").glob("gpd-*.json")):
         content = path.read_text(encoding="utf-8")
-        assert expected in content, f"{path.name} should reference the public prerequisite flow"
+        assert _PUBLIC_BOOTSTRAP_PREREQUISITE in content, f"{path.name} should reference the public prerequisite flow"
         for marker in stale_markers:
             assert marker not in content, f"{path.name} should not mention {marker!r}"
         assert json.loads(content) == expected_descriptors[path.stem]
@@ -1541,6 +1635,12 @@ def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:
         "package.json",
         *_BOOTSTRAP_JSON_ASSETS,
     }
+    readme_links = _readme_relative_file_links((repo_root / "README.md").read_text(encoding="utf-8"))
+    missing_readme_links = sorted(readme_links - packed_paths)
+    assert not missing_readme_links, (
+        "README local links must either be absolute or ship in the npm package:\n"
+        + "\n".join(f"- {path}" for path in missing_readme_links)
+    )
     assert (tmp_path / "npm-cache").is_dir()
 
     if existed_before:

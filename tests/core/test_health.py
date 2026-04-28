@@ -733,6 +733,18 @@ class TestCheckProjectStructure:
         result = check_project_structure(tmp_path)
         assert result.status == CheckStatus.OK
 
+    @pytest.mark.parametrize("name", ["PROJECT.md", "ROADMAP.md"])
+    def test_warns_when_root_planning_copy_diverges_from_canonical(self, tmp_path: Path, name: str) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        (cwd / name).write_text(f"# Stale root {name}\n", encoding="utf-8")
+
+        result = check_project_structure(cwd)
+
+        assert result.status == CheckStatus.WARN
+        assert result.issues == []
+        assert result.details["divergent_root_planning_files"] == [name]
+        assert any(f"{name} exists at both project root and GPD/ but contents differ" in warning for warning in result.warnings)
+
     def test_warns_for_legacy_gpd_project_markers_without_failing_canonical_structure(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
         legacy = cwd / ".gpd"

@@ -198,8 +198,8 @@ def test_root_readme_start_here_links_to_docs_onboarding_hub() -> None:
     _assert_fragments(
         start_here,
         (
-            "[Beginner Onboarding Hub](./docs/README.md)",
-            "If you are new to terminals, start with the [Beginner Onboarding Hub](./docs/README.md).",
+            "[Beginner Onboarding Hub](https://github.com/psi-oss/get-physics-done/blob/main/docs/README.md)",
+            "If you are new to terminals, start with the [Beginner Onboarding Hub](https://github.com/psi-oss/get-physics-done/blob/main/docs/README.md).",
             "Use the hub as the single beginner path",
             "There are two places you type commands:",
             "In your normal system terminal:",

@@ -49,17 +49,17 @@ UV_CACHE_DIR="$(mktemp -d)" UV_NO_CONFIG=1 UV_PYTHON_DOWNLOADS=never uv build
 npm_config_cache="$(mktemp -d)" npm pack --dry-run --json
 pre-commit run --all-files
 python scripts/sync_repo_graph_contract.py --check
-uv run pytest tests/test_metadata_consistency.py -v
-uv run pytest tests/test_release_consistency.py -v
-uv run pytest tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v
-uv run pytest tests/core/test_cli.py -v
+uv run pytest -n 0 tests/test_metadata_consistency.py -v
+uv run pytest -n 0 tests/test_release_consistency.py -v
+uv run pytest -n 0 tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v
+uv run pytest -n 0 tests/core/test_cli.py -v
 uv run pytest tests/ -q
 ```
 
 If the repo graph check reports generated-artifact drift, repair it separately with
 `python scripts/sync_repo_graph_contract.py`, then review and commit the generated changes.
 
-`uv run pytest tests/ -q` is the fast local full checked-in suite. GitHub Actions runs the same suite as category-named shards resolved by `tests/ci_sharding.py`; each shard runs `uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"` with a 180 second per-shard budget.
+Focused single-file and small targeted checks use `-n 0` so they do not pay xdist startup cost from the global default. `uv run pytest tests/ -q` is the fast local full checked-in suite. GitHub Actions runs the same suite as category-named shards resolved by `tests/ci_sharding.py`; each shard runs `uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"` with a 180 second per-shard budget.
 
 Cross-runtime release checks:
 

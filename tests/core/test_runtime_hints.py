@@ -11,7 +11,7 @@ from gpd.adapters import get_adapter, list_runtimes
 from gpd.adapters.runtime_catalog import get_runtime_descriptor
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, ProjectLayout
 from gpd.core.costs import UsageRecord, _profile_tier_mix, usage_ledger_path
-from gpd.core.recent_projects import record_recent_project
+from gpd.core.recent_projects import recent_projects_index_path, record_recent_project
 from gpd.core.resume_surface import RESUME_BACKEND_ONLY_FIELDS
 from gpd.core.runtime_command_surfaces import format_active_runtime_command
 from gpd.core.runtime_hints import (
@@ -499,6 +499,29 @@ def test_build_runtime_hint_payload_handles_absent_execution_snapshot(tmp_path: 
     assert any("resume-work" in action for action in payload.next_actions)
     assert any("suggest-next" in action for action in payload.next_actions)
     assert any("base runtime-readiness" in action for action in payload.next_actions)
+
+
+def test_build_runtime_hint_payload_degrades_when_recent_project_index_is_malformed(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    data_root = tmp_path / "data"
+    index_path = recent_projects_index_path(data_root)
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text("{ not-json", encoding="utf-8")
+
+    payload = build_runtime_hint_payload(
+        workspace,
+        data_root=data_root,
+        include_cost=False,
+        include_workflow_presets=False,
+    )
+
+    assert payload.recovery["recent_projects"] == []
+    project_reentry = payload.recovery["project_reentry"]
+    assert project_reentry["mode"] == "no-recovery"
+    assert len(project_reentry["diagnostics"]) == 1
+    assert "Malformed recent-project index" in project_reentry["diagnostics"][0]
+    assert payload.orientation["project_reentry_mode"] == "no-recovery"
 
 
 def test_build_runtime_hint_payload_auto_selects_unique_recoverable_recent_project(tmp_path: Path) -> None:

@@ -14,7 +14,8 @@
   ],
   "registry_prefix": "gpd_arxiv",
   "prerequisites": [
-    "Install GPD before enabling built-in MCP servers."
+    "Install GPD before enabling built-in MCP servers.",
+    "Install GPD with the `arxiv` Python extra in the same environment before enabling gpd-arxiv."
   ],
   "health_check": {
     "probe_kind": "network_required",

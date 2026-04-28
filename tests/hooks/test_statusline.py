@@ -538,6 +538,8 @@ class TestReadPosition:
         assert _read_position(str(tmp_path)) == ""
 
     def test_nested_workspace_walks_up_to_project_root(self, tmp_path: Path) -> None:
+        from gpd.core.state import generate_state_markdown
+
         project = tmp_path / "project"
         planning = project / "GPD"
         planning.mkdir(parents=True)
@@ -545,6 +547,7 @@ class TestReadPosition:
         nested.mkdir(parents=True)
         state = {"position": {"current_phase": 4, "total_phases": 9}}
         (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        (planning / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
         assert _read_position(str(nested)) == "P4/9"
         assert _statusline_project_root(str(nested)) == project.resolve(strict=False)
         assert not (nested / "GPD" / "GPD").exists()
@@ -553,6 +556,8 @@ class TestReadPosition:
         self,
         tmp_path: Path,
     ) -> None:
+        from gpd.core.state import generate_state_markdown
+
         project = tmp_path / "project"
         planning = project / "GPD"
         planning.mkdir(parents=True)
@@ -561,6 +566,7 @@ class TestReadPosition:
         (nested / "GPD").mkdir()
         state = {"position": {"current_phase": 8, "total_phases": 12}}
         (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        (planning / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
 
         with patch("gpd.hooks.statusline.peek_state_json") as mock_peek:
             mock_peek.return_value = (state, [], "state.json")
@@ -584,7 +590,23 @@ class TestReadPosition:
 
         assert _statusline_project_root(str(workspace)) is None
 
+    def test_state_json_only_ancestor_does_not_capture_statusline_root(self, tmp_path: Path) -> None:
+        project = tmp_path / "project"
+        planning = project / "GPD"
+        planning.mkdir(parents=True)
+        workspace = project / "scratch" / "workspace"
+        workspace.mkdir(parents=True)
+        (planning / "state.json").write_text(
+            json.dumps({"position": {"current_phase": 2, "total_phases": 5}}),
+            encoding="utf-8",
+        )
+
+        assert _statusline_project_root(str(workspace)) is None
+        assert _read_position(str(workspace)) == ""
+
     def test_tilde_workspace_expands_before_project_root_lookup(self, tmp_path: Path) -> None:
+        from gpd.core.state import generate_state_markdown
+
         home = tmp_path / "home"
         project = home / "project"
         planning = project / "GPD"
@@ -593,6 +615,7 @@ class TestReadPosition:
         nested.mkdir(parents=True)
         state = {"position": {"current_phase": 7, "total_phases": 8}}
         (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        (planning / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
 
         with patch.dict(os.environ, {"HOME": str(home), "USERPROFILE": str(home)}):
             assert _read_position("~/project/src") == "P7/8"

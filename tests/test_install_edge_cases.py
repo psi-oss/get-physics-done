@@ -458,27 +458,6 @@ class TestNonGpdFilesPreserved:
         written = json.loads(settings_path.read_text(encoding="utf-8"))
         assert written["statusLine"]["command"] == desired_command
 
-    def test_codex_notify_reinstall_preserves_original_notify_backup_for_uninstall(self, tmp_path: Path) -> None:
-        from gpd.adapters.codex import _configure_config_toml, _remove_gpd_notify_config
-
-        target = tmp_path / ".codex"
-        target.mkdir()
-        config_toml = target / "config.toml"
-        config_toml.write_text('notify = ["toolctl", "/path/to/my-tool"]\n', encoding="utf-8")
-
-        _configure_config_toml(target, is_global=False)
-        _configure_config_toml(target, is_global=False)
-
-        reinstalled = config_toml.read_text(encoding="utf-8")
-        assert reinstalled.count("# GPD original notify:") == 1
-        assert '# GPD original notify: ["toolctl", "/path/to/my-tool"]' in reinstalled
-        assert "gpd-codex-notify-wrapper-v1" in reinstalled
-
-        cleaned = _remove_gpd_notify_config(reinstalled, target_dir=target)
-        assert 'notify = ["toolctl", "/path/to/my-tool"]' in cleaned
-        assert "gpd-codex-notify-wrapper-v1" not in cleaned
-
-
 # =========================================================================
 # 4. Cross-runtime manifest ownership refusal
 # =========================================================================
@@ -806,11 +785,11 @@ class TestLongPathNames:
 class TestHomeUnset:
     """When HOME is unset, adapters with env var overrides should still work."""
 
-    def test_claude_config_dir_env_overrides_home(self, tmp_path: Path) -> None:
-        """CLAUDE_CONFIG_DIR should be used instead of Path.home()."""
+    def test_primary_runtime_config_dir_env_overrides_home(self, tmp_path: Path) -> None:
+        """Runtime config env vars should be used instead of Path.home()."""
         adapter = get_adapter(PRIMARY_RUNTIME)
         global_config = adapter.runtime_descriptor.global_config
-        custom_dir = tmp_path / "custom-claude"
+        custom_dir = tmp_path / "custom-primary-runtime"
         custom_dir.mkdir()
 
         env_var = global_config.env_dir_var or global_config.env_var or global_config.env_file_var
@@ -819,10 +798,10 @@ class TestHomeUnset:
         with patch.dict(os.environ, {env_var: env_value}):
             assert adapter.global_config_dir == custom_dir
 
-    def test_codex_config_dir_env_overrides_home(self, tmp_path: Path) -> None:
+    def test_manifest_file_prefix_runtime_config_dir_env_overrides_home(self, tmp_path: Path) -> None:
         adapter = get_adapter(runtime_with_manifest_file_prefix("skills/"))
         global_config = adapter.runtime_descriptor.global_config
-        custom_dir = tmp_path / "custom-codex"
+        custom_dir = tmp_path / "custom-manifest-prefix-runtime"
         custom_dir.mkdir()
 
         env_var = global_config.env_dir_var or global_config.env_var or global_config.env_file_var

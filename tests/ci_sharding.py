@@ -18,6 +18,8 @@ CI_CATEGORY_SHARD_COUNTS = {
 CI_FULL_SUITE_SHARD_BUDGET_SECONDS = 180
 CI_PYTEST_SHARD_RESOLUTION_TIMEOUT_MINUTES = 3
 CI_PYTEST_SHARD_TIMEOUT_MINUTES = 10
+CI_GIT_INVENTORY_TIMEOUT_SECONDS = 30
+CI_PYTEST_COLLECTION_TIMEOUT_SECONDS = 150
 CI_SHARD_WEIGHT_SPREAD_TOLERANCE = 0.2
 
 # Observed GitHub Actions timings on 2026-04-07 showed that these files are the
@@ -193,6 +195,11 @@ def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pypro
     pytest_steps = workflow_job_steps(workflow, "pytest")
     pytest_step_names = [str(step.get("name", "")) for step in pytest_steps]
     pytest_run_steps = {str(step.get("name", "")): str(step.get("run", "")) for step in pytest_steps if "run" in step}
+    python_compatibility_run_steps = {
+        str(step.get("name", "")): str(step.get("run", ""))
+        for step in workflow_job_steps(workflow, "python-compatibility")
+        if "run" in step
+    }
     matrix_include = pytest_matrix_include(workflow)
     pytest_job = _workflow_job(workflow, "pytest")
     strategy = pytest_job["strategy"]
@@ -213,6 +220,7 @@ def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pypro
     resolve_targets_command = pytest_run_steps["Resolve pytest shard targets"]
     pytest_shard_command = pytest_run_steps["Run pytest shard"]
     assert resolve_targets_step["timeout-minutes"] == CI_PYTEST_SHARD_RESOLUTION_TIMEOUT_MINUTES
+    assert CI_PYTEST_COLLECTION_TIMEOUT_SECONDS < CI_PYTEST_SHARD_RESOLUTION_TIMEOUT_MINUTES * 60
     assert "from tests.ci_sharding import write_ci_shard_targets_file" in resolve_targets_command
     assert "import time" in resolve_targets_command
     assert "started_at = time.perf_counter()" in resolve_targets_command
@@ -251,6 +259,7 @@ def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pypro
     assert node_step["with"]["node-version"] == "20"
     assert 'addopts = "-n auto --dist=worksteal"' in pyproject_text
     assert "pytest-xdist>=3.8.0" in pyproject_text
+    assert "uv run pytest -n 0 -q" in python_compatibility_run_steps["Run installer and runtime compatibility tests"]
 
 
 def assert_tests_readme_documents_ci_shard_policy(tests_readme: str) -> None:
@@ -262,9 +271,15 @@ def assert_tests_readme_documents_ci_shard_policy(tests_readme: str) -> None:
     assert "The 180 second full-suite shard budget is enforced per CI pytest shard" in tests_readme
     assert "10 minute job timeout remains the outer failure boundary" in tests_readme
     assert "Shard target resolution has its own 3 minute timeout and logs elapsed seconds" in tests_readme
+    assert "git inventory calls have a 30 second timeout" in tests_readme
+    assert "collect-only subprocess has a 150 second timeout" in tests_readme
     assert "Shard target resolution collects only the requested category" in tests_readme
     assert "In-process repeated resolutions reuse the same immutable collection result" in tests_readme
     assert "CI matrix jobs stay isolated and do not share collection state across jobs" in tests_readme
+    assert (
+        "uv run pytest -n 0 tests/test_runtime_abstraction_boundaries.py "
+        "tests/core/test_contract_schema_prompt_parity.py"
+    ) in tests_readme
     assert "advisory full-suite wall-clock target" not in tests_readme
     assert "GitHub Actions workflow runs that same full suite as category-named runtime-informed shards" in tests_readme
     assert (
@@ -285,8 +300,13 @@ def assert_contributing_documents_current_pytest_commands(contributing: str) -> 
     assert "python scripts/sync_repo_graph_contract.py --check" in contributing
     assert "If the repo graph check reports generated-artifact drift" in contributing
     assert "`python scripts/sync_repo_graph_contract.py`" in contributing
+    assert "uv run pytest -n 0 tests/test_metadata_consistency.py -v" in contributing
+    assert "uv run pytest -n 0 tests/test_release_consistency.py -v" in contributing
+    assert "uv run pytest -n 0 tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v" in contributing
+    assert "uv run pytest -n 0 tests/core/test_cli.py -v" in contributing
     assert "uv run pytest tests/ -q" in contributing
     assert "`uv run pytest tests/ -q` is the fast local full checked-in suite" in contributing
+    assert "Focused single-file and small targeted checks use `-n 0`" in contributing
     assert "tests/ci_sharding.py" in contributing
     assert 'uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"' in contributing
     assert "180 second per-shard budget" in contributing
@@ -331,6 +351,7 @@ def _git_test_relpaths(repo_root: Path, *ls_files_args: str) -> tuple[str, ...]:
         check=True,
         text=True,
         capture_output=True,
+        timeout=CI_GIT_INVENTORY_TIMEOUT_SECONDS,
     )
     return _test_relpaths_from_git_lines(tuple(proc.stdout.splitlines()))
 
@@ -356,6 +377,7 @@ def untracked_non_ignored_test_relpaths(
         check=True,
         text=True,
         capture_output=True,
+        timeout=CI_GIT_INVENTORY_TIMEOUT_SECONDS,
     )
     return _test_python_relpaths_from_git_lines(tuple(proc.stdout.splitlines()))
 
@@ -402,6 +424,7 @@ def _collected_test_inventory_items(
         check=True,
         text=True,
         capture_output=True,
+        timeout=CI_PYTEST_COLLECTION_TIMEOUT_SECONDS,
     )
 
     inventory: dict[str, list[str]] = {}

@@ -13,10 +13,12 @@ import pytest
 
 from gpd.adapters.codex import (
     CodexAdapter,
+    _configure_config_toml,
     _convert_codex_tool_name,
     _convert_to_codex_skill,
     _inject_codex_command_runtime_note,
     _normalize_codex_questioning,
+    _remove_gpd_notify_config,
     _tracked_codex_generated_skill_dirs,
 )
 from gpd.adapters.install_utils import (
@@ -1977,8 +1979,6 @@ class TestNotifyConfiguration:
         adapter: CodexAdapter,
         tmp_path: Path,
     ) -> None:
-        from gpd.adapters.codex import _configure_config_toml
-
         target = tmp_path / ".codex"
         target.mkdir()
         (target / "hooks").mkdir()
@@ -2008,13 +2008,29 @@ class TestNotifyConfiguration:
         assert "notify.py" not in cleaned
         assert "GPD original notify" not in cleaned
 
+    def test_notify_reinstall_preserves_original_backup_for_uninstall(self, tmp_path: Path) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        config_toml = target / "config.toml"
+        config_toml.write_text('notify = ["toolctl", "/path/to/my-tool"]\n', encoding="utf-8")
+
+        _configure_config_toml(target, is_global=False)
+        _configure_config_toml(target, is_global=False)
+
+        reinstalled = config_toml.read_text(encoding="utf-8")
+        assert reinstalled.count("# GPD original notify:") == 1
+        assert '# GPD original notify: ["toolctl", "/path/to/my-tool"]' in reinstalled
+        assert "gpd-codex-notify-wrapper-v1" in reinstalled
+
+        cleaned = _remove_gpd_notify_config(reinstalled, target_dir=target)
+        assert 'notify = ["toolctl", "/path/to/my-tool"]' in cleaned
+        assert "gpd-codex-notify-wrapper-v1" not in cleaned
+
     def test_wraps_custom_notify_py_and_restores_it_on_uninstall(
         self,
         adapter: CodexAdapter,
         tmp_path: Path,
     ) -> None:
-        from gpd.adapters.codex import _configure_config_toml
-
         target = tmp_path / ".codex"
         target.mkdir()
         (target / "hooks").mkdir()
@@ -2106,8 +2122,6 @@ class TestNotifyConfiguration:
         adapter: CodexAdapter,
         tmp_path: Path,
     ) -> None:
-        from gpd.adapters.codex import _configure_config_toml
-
         target = tmp_path / ".codex"
         target.mkdir()
         (target / "hooks").mkdir()

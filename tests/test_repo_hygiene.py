@@ -274,7 +274,7 @@ def test_readme_focused_smoke_command_references_existing_tests() -> None:
     match = re.search(r"focused smoke pass, run `uv run pytest (?P<paths>.*?) -q`", readme)
     assert match is not None
 
-    for path in match.group("paths").split():
+    for path in re.findall(r"tests/[^\s`]+\.py", match.group("paths")):
         assert (REPO_ROOT / path).is_file(), f"stale tests/README.md smoke reference: {path}"
 
 

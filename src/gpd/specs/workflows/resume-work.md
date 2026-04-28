@@ -353,7 +353,7 @@ Present complete research project status to user:
     Task: [task description from agent-history.json]
     Interrupted: [timestamp]
 
-    Resume with: task tool (resume parameter with agent ID)
+    Continue with: a fresh handoff built from the interrupted-agent record, or the canonical bounded segment if one has been recorded
 
 [If pending todos exist:]
 [N] pending todos -- gpd:check-todos to review
@@ -387,7 +387,7 @@ Based on project state, determine the most logical next action:
 -> Option: Inspect the live gate state without claiming the bounded segment is directly resumable
 
 **If interrupted agent exists:**
--> Primary: Resume interrupted agent (Task tool with resume parameter)
+-> Primary: Recreate the interrupted work as a fresh handoff, or continue the canonical bounded segment when one exists
 -> Option: Start fresh (abandon agent work)
 
 **If `continuity_handoff_file` exists and `execution_resumable` is false and no interrupted agent exists:**

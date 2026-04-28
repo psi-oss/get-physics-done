@@ -8,6 +8,8 @@ Template for spawning a fresh gpd-executor agent to continue plan execution afte
 
 Persisted bounded-segment fields: `resume_file`, `phase`, `plan`, `segment_id`, `segment_status`, `checkpoint_reason`, `waiting_reason`, `blocked_reason`, `waiting_for_review`, `first_result_gate_pending`, `pre_fanout_review_pending`, `pre_fanout_review_cleared`, `skeptical_requestioning_required`, `downstream_locked`, `skeptical_requestioning_summary`, `weakest_unchecked_anchor`, `disconfirming_observation`, `transition_id`, `last_result_id`, `updated_at`, `source_session_id`, `recorded_by`.
 
+Recorded handoff fields: `resume_file`, `stopped_at`, `last_result_id`, `recorded_at`, `recorded_by`.
+
 If the checkpoint payload names expected artifacts, verify them on disk before continuing; returned text alone is not enough.
 
 Referenced by `workflows/execute-phase.md` checkpoint_handling step.

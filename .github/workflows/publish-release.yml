@@ -125,7 +125,7 @@ jobs:
 
       - name: Run release validation suite
         run: |
-          uv run pytest tests/test_release_consistency.py -v
+          uv run pytest -n 0 tests/test_release_consistency.py -v
           rm -rf dist
           npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack.json
 
@@ -251,7 +251,7 @@ jobs:
 
       - name: Run stamped release validation
         run: |
-          uv run pytest tests/test_release_consistency.py -v
+          uv run pytest -n 0 tests/test_release_consistency.py -v
           rm -rf dist
           npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack-publish.json
 

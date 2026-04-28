@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Literal, get_args, get_origin
 
@@ -46,6 +47,7 @@ from gpd.contracts import (
     VerificationEvidence,
 )
 from gpd.core import project_contract_schema
+from gpd.core.continuation import ContinuationBoundedSegment, ContinuationHandoff
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SPECS_DIR = REPO_ROOT / "src/gpd/specs"
@@ -175,6 +177,16 @@ def _choice_line(field_name: str, values: tuple[str, ...]) -> str:
     return f"{field_name}: {' | '.join(values)}"
 
 
+def _section(text: str, start_marker: str, end_marker: str) -> str:
+    start = text.index(start_marker)
+    end = text.index(end_marker, start)
+    return text[start:end]
+
+
+def _markdown_table_fields(text: str) -> list[str]:
+    return re.findall(r"^\| `([^`]+)` \|", text, flags=re.MULTILINE)
+
+
 def test_plan_contract_schema_surfaces_canonical_research_contract_fields() -> None:
     raw_plan_schema = _read(TEMPLATES_DIR / "plan-contract-schema.md")
     plan_schema = _expanded(TEMPLATES_DIR / "plan-contract-schema.md")
@@ -288,6 +300,35 @@ def test_project_and_state_contract_schemas_surface_full_closed_research_vocabul
         schema_text = _expanded(TEMPLATES_DIR / schema_name)
         for line in expected_lines:
             assert line in schema_text, f"{schema_name} is missing canonical enum line: {line}"
+
+
+def test_continuation_schema_docs_surface_canonical_model_fields() -> None:
+    state_schema = _read(TEMPLATES_DIR / "state-json-schema.md")
+    continuation_prompt = _read(TEMPLATES_DIR / "continuation-prompt.md")
+
+    handoff_section = _section(
+        state_schema,
+        "`continuation.handoff` is the canonical handoff block:",
+        "`state.json.continuation.bounded_segment` is the durable authoritative bounded-segment state",
+    )
+    bounded_segment_section = _section(
+        state_schema,
+        "`continuation.bounded_segment` stores exactly the canonical bounded-segment model fields:",
+        "`continuation.machine` is the canonical recorded machine state:",
+    )
+
+    handoff_fields = list(ContinuationHandoff.model_fields)
+    bounded_segment_fields = list(ContinuationBoundedSegment.model_fields)
+
+    assert _markdown_table_fields(handoff_section) == handoff_fields
+    assert _markdown_table_fields(bounded_segment_section) == bounded_segment_fields
+    assert "Recorded handoff fields: " + ", ".join(f"`{field}`" for field in handoff_fields) in continuation_prompt
+    assert (
+        "Persisted bounded-segment fields: " + ", ".join(f"`{field}`" for field in bounded_segment_fields)
+        in continuation_prompt
+    )
+    assert "Normal STATE.md saves render from canonical JSON and ignore edited mirror fields" in state_schema
+    assert "parser/recovery fallback may project the mirror block back into canonical continuation" in state_schema
 
 
 def test_project_contract_schema_case_recovery_uses_canonical_proof_hypothesis_categories() -> None:

@@ -11,6 +11,7 @@ from gpd.core.root_resolution import (
     normalize_workspace_hint,
     resolve_project_root,
     resolve_project_roots,
+    resolve_state_json_root,
 )
 
 
@@ -150,6 +151,50 @@ def test_resolve_project_roots_ignores_unverified_bare_ancestor_gpd_for_workspac
     assert resolution.confidence == RootResolutionConfidence.LOW
     assert resolution.has_project_layout is False
     assert resolution.walk_up_steps == 0
+
+
+def test_resolve_project_roots_does_not_verify_state_json_only_ancestor(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "parent" / "workspace"
+    gpd_dir = tmp_path / "GPD"
+    gpd_dir.mkdir()
+    (gpd_dir / "state.json").write_text("{}\n", encoding="utf-8")
+    workspace.mkdir(parents=True)
+
+    resolution = resolve_project_roots(workspace)
+
+    assert resolution is not None
+    assert resolution.project_root == workspace.resolve(strict=False)
+    assert resolution.basis == RootResolutionBasis.WORKSPACE
+    assert resolution.confidence == RootResolutionConfidence.LOW
+    assert resolution.has_project_layout is False
+    assert resolution.walk_up_steps == 0
+    assert resolve_project_root(workspace, require_layout=True) is None
+    assert resolve_state_json_root(workspace) is None
+
+
+def test_resolve_state_json_root_accepts_current_workspace_state_json(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    gpd_dir = workspace / "GPD"
+    gpd_dir.mkdir(parents=True)
+    (gpd_dir / "state.json").write_text("{}\n", encoding="utf-8")
+
+    assert resolve_project_root(workspace, require_layout=True) is None
+    assert resolve_state_json_root(workspace) == workspace.resolve(strict=False)
+
+
+def test_resolve_state_json_root_accepts_ancestor_only_when_state_mirror_exists(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    workspace = project / "workspace" / "notes"
+    workspace.mkdir(parents=True)
+    gpd_dir = project / "GPD"
+    gpd_dir.mkdir()
+    (gpd_dir / "state.json").write_text("{}\n", encoding="utf-8")
+    (gpd_dir / "STATE.md").write_text("# State\n", encoding="utf-8")
+
+    assert resolve_project_root(workspace, require_layout=True) is None
+    assert resolve_state_json_root(workspace) == project.resolve(strict=False)
 
 
 def test_resolve_project_roots_prefers_explicit_fallback_over_empty_workspace_gpd(tmp_path: Path) -> None:

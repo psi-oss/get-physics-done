@@ -18,7 +18,6 @@ from pathlib import Path
 
 from gpd.core.constants import (
     REQUIRED_PLANNING_DIRS,
-    REQUIRED_PLANNING_FILES,
     ProjectLayout,
 )
 
@@ -30,6 +29,7 @@ __all__ = [
     "normalize_workspace_hint",
     "resolve_project_root",
     "resolve_project_roots",
+    "resolve_state_json_root",
 ]
 
 
@@ -96,6 +96,18 @@ def normalize_workspace_hint(value: Path | str | None) -> Path | None:
         return expanded
 
 
+def _has_directory_content(path: Path) -> bool:
+    try:
+        return path.is_dir() and any(path.iterdir())
+    except OSError:
+        return False
+
+
+def _is_vcs_boundary(path: Path) -> bool:
+    """Return whether walking above *path* would cross into a different checkout."""
+    return (path / ".git").exists() or (path / ".hg").exists()
+
+
 def _walk_project_root(
     candidate: Path | None,
     *,
@@ -106,18 +118,8 @@ def _walk_project_root(
     if candidate is None:
         return None, 0, False
 
-    best_partial: tuple[int, Path] | None = None
     best_bare: tuple[int, Path] | None = None
-
-    def _has_directory_content(path: Path) -> bool:
-        try:
-            return path.is_dir() and any(path.iterdir())
-        except OSError:
-            return False
-
-    def _is_vcs_boundary(path: Path) -> bool:
-        """Return whether walking above *path* would cross into a different checkout."""
-        return (path / ".git").exists() or (path / ".hg").exists()
+    best_partial: tuple[int, Path] | None = None
 
     search_roots = (candidate, *candidate.parents) if allow_ancestor_walk else (candidate,)
     for steps, path in enumerate(search_roots):
@@ -127,10 +129,10 @@ def _walk_project_root(
                 break
             continue
 
-        strong_marker_count = sum(1 for name in REQUIRED_PLANNING_FILES if (layout.gpd / name).exists())
-        strong_marker_count += 1 if layout.agent_id_file.exists() else 0
-        strong_marker_count += sum(1 for name in REQUIRED_PLANNING_DIRS if _has_directory_content(layout.gpd / name))
-        strong_marker_count += sum(
+        non_state_marker_count = sum(1 for path in (layout.project_md, layout.roadmap) if path.exists())
+        non_state_marker_count += 1 if layout.agent_id_file.exists() else 0
+        non_state_marker_count += sum(1 for name in REQUIRED_PLANNING_DIRS if _has_directory_content(layout.gpd / name))
+        non_state_marker_count += sum(
             1
             for path in (
                 layout.research_map_dir,
@@ -144,14 +146,12 @@ def _walk_project_root(
             if _has_directory_content(path)
         )
         has_state_marker = layout.state_json.exists() or layout.state_md.exists()
-        has_identity_marker = layout.project_md.exists() or layout.roadmap.exists()
-        if (has_state_marker and has_identity_marker) or strong_marker_count >= 2:
+        has_non_state_marker = non_state_marker_count > 0
+        if (has_state_marker and has_non_state_marker) or non_state_marker_count >= 2:
             return path, steps, True
         has_partial_anchor = (
-            layout.project_md.exists()
-            or layout.roadmap.exists()
-            or layout.state_json.exists()
-            or layout.agent_id_file.exists()
+            has_state_marker
+            or has_non_state_marker
             or any(_has_directory_content(layout.gpd / name) for name in REQUIRED_PLANNING_DIRS)
             or any(
                 _has_directory_content(candidate)
@@ -166,7 +166,7 @@ def _walk_project_root(
                 )
             )
         )
-        if has_partial_anchor and (steps > 0 or layout.agent_id_file.exists()) and (
+        if has_partial_anchor and has_non_state_marker and (steps > 0 or layout.agent_id_file.exists()) and (
             best_partial is None or steps < best_partial[0]
         ):
             best_partial = (steps, path)
@@ -180,6 +180,30 @@ def _walk_project_root(
     if best_bare is not None:
         return best_bare[1], best_bare[0], False
     return None, 0, False
+
+
+def resolve_state_json_root(
+    workspace: Path | str | None = None,
+    *,
+    policy: RootResolutionPolicy = RootResolutionPolicy.PROJECT_SCOPED,
+) -> Path | None:
+    """Return a state-file root without promoting it to a verified project root."""
+
+    workspace_root = normalize_workspace_hint(workspace)
+    if workspace_root is None:
+        return None
+    if ProjectLayout(workspace_root).state_json.exists():
+        return workspace_root
+    if policy == RootResolutionPolicy.WORKSPACE_LOCKED:
+        return None
+
+    for path in workspace_root.parents:
+        layout = ProjectLayout(path)
+        if layout.state_json.exists() and layout.state_md.exists():
+            return path
+        if _is_vcs_boundary(path):
+            break
+    return None
 
 
 def resolve_project_roots(

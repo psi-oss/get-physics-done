@@ -303,6 +303,8 @@ _SHARED_HOOK_PAYLOAD_POLICY_CONSUMER_PATHS = (
 _RUNTIME_ADAPTER_IMPLEMENTATION_PATHS = tuple(
     REPO_ROOT / f"src/gpd/adapters/{adapter.__class__.__module__.rsplit('.', 1)[-1]}.py" for adapter in iter_adapters()
 )
+_RUNTIME_ADAPTER_MODULE_NAMES = frozenset(adapter.__class__.__module__ for adapter in iter_adapters())
+_ADAPTER_PRIVATE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
 _RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 
 
@@ -361,6 +363,22 @@ def _is_allowed_shared_python_runtime_file(rel_path: Path) -> bool:
 def _format_failures(matches: list[tuple[Path, int, str]]) -> str:
     lines = [f"{path}:{line_no}: {snippet}" for path, line_no, snippet in matches]
     return "\n".join(lines)
+
+
+def _non_adapter_test_python_paths() -> tuple[Path, ...]:
+    paths: list[Path] = []
+    for path in sorted((REPO_ROOT / "tests").rglob("*.py")):
+        rel_path = path.relative_to(REPO_ROOT)
+        if rel_path == Path("tests/test_runtime_abstraction_boundaries.py"):
+            continue
+        if rel_path.parts[:2] == ("tests", "adapters"):
+            continue
+        paths.append(path)
+    return tuple(paths)
+
+
+def _is_allowed_adapter_private_import(rel_path: Path, module_name: str, symbol_name: str) -> bool:
+    return (rel_path.as_posix(), module_name, symbol_name) in _ADAPTER_PRIVATE_IMPORT_ALLOWLIST
 
 
 def _scan_paths_for_pattern(paths: tuple[Path, ...], pattern: re.Pattern[str]) -> list[tuple[Path, int, str]]:
@@ -610,6 +628,84 @@ def test_runtime_adapters_use_shared_shell_fence_language_constant() -> None:
 
     assert leaks == [], (
         "Runtime adapters should use DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES from install_utils:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+def test_non_adapter_tests_do_not_import_runtime_adapter_private_symbols() -> None:
+    runtime_adapter_modules = _RUNTIME_ADAPTER_MODULE_NAMES
+    runtime_adapter_module_by_leaf = {
+        module_name.rsplit(".", 1)[-1]: module_name for module_name in runtime_adapter_modules
+    }
+    private_path_pattern = re.compile(
+        r"\b(?P<module>"
+        + "|".join(re.escape(module_name) for module_name in sorted(runtime_adapter_modules))
+        + r")\.(?P<symbol>_[A-Za-z][A-Za-z0-9_]*)"
+    )
+    leaks: list[tuple[Path, int, str]] = []
+
+    for path in _non_adapter_test_python_paths():
+        rel_path = path.relative_to(REPO_ROOT)
+        content = path.read_text(encoding="utf-8")
+        tree = ast.parse(content, filename=str(path))
+        adapter_module_aliases: dict[str, str] = {}
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name in runtime_adapter_modules:
+                        adapter_module_aliases[alias.asname or alias.name.rsplit(".", 1)[-1]] = alias.name
+            elif isinstance(node, ast.ImportFrom):
+                if node.module in runtime_adapter_modules:
+                    for alias in node.names:
+                        symbol_name = alias.name
+                        if symbol_name == "*" or symbol_name.startswith("_"):
+                            if not _is_allowed_adapter_private_import(rel_path, node.module, symbol_name):
+                                leaks.append(
+                                    (
+                                        rel_path,
+                                        node.lineno,
+                                        f"imports private runtime adapter symbol {node.module}.{symbol_name}",
+                                    )
+                                )
+                elif node.module == "gpd.adapters":
+                    for alias in node.names:
+                        module_name = runtime_adapter_module_by_leaf.get(alias.name)
+                        if module_name is not None:
+                            adapter_module_aliases[alias.asname or alias.name] = module_name
+
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Attribute)
+                and node.attr.startswith("_")
+                and isinstance(node.value, ast.Name)
+                and node.value.id in adapter_module_aliases
+                and not _is_allowed_adapter_private_import(rel_path, adapter_module_aliases[node.value.id], node.attr)
+            ):
+                leaks.append(
+                    (
+                        rel_path,
+                        node.lineno,
+                        f"accesses private runtime adapter symbol {adapter_module_aliases[node.value.id]}.{node.attr}",
+                    )
+                )
+            elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+                for match in private_path_pattern.finditer(node.value):
+                    module_name = match.group("module")
+                    symbol_name = match.group("symbol")
+                    if _is_allowed_adapter_private_import(rel_path, module_name, symbol_name):
+                        continue
+                    leaks.append(
+                        (
+                            rel_path,
+                            node.lineno,
+                            f"references private runtime adapter symbol {module_name}.{symbol_name}",
+                        )
+                    )
+
+    assert leaks == [], (
+        "Non-adapter tests should exercise runtime adapter internals only through tests/adapters "
+        "or public adapter APIs:\n"
         f"{_format_failures(leaks)}"
     )
 

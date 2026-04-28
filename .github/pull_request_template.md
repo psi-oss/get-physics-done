@@ -12,7 +12,7 @@
 
 ## Checklist
 
-- [ ] Tests pass (targeted `uv run pytest -q <targets>` locally or GitHub Actions PR checks)
+- [ ] Tests pass (targeted `uv run pytest -n 0 -q <targets>` locally or GitHub Actions PR checks)
 - [ ] Lint / pre-commit clean (`uv run ruff check .` or `pre-commit run --all-files`)
 - [ ] No secrets or credentials in the diff
 - [ ] User-facing docs updated (if behavior or install flow changed)

@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
+from gpd.adapters import get_adapter
 from gpd.adapters.install_utils import (
     _inject_command_visibility_sections_from_frontmatter,
     _is_hook_command_for_script,
@@ -68,9 +69,6 @@ _DOLLAR_TEMPLATE_DESCRIPTOR = next(
 )
 _FLAT_COMMAND_DESCRIPTOR = next(
     descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.managed_install_surface.flat_command_globs
-)
-_XDG_CONFIG_DESCRIPTOR = next(
-    descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.global_config.strategy == "xdg_app"
 )
 _DOLLAR_TEMPLATE_RUNTIMES = tuple(
     descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if descriptor.agent_prompt_uses_dollar_templates
@@ -1226,7 +1224,7 @@ class TestCopyWithPathReplacement:
         sh_content = (dest / "script.sh").read_text(encoding="utf-8")
         assert "echo ok" in sh_content
 
-    def test_codex_slash_command_conversion(self, tmp_path: Path) -> None:
+    def test_dollar_command_runtime_converts_slash_commands_to_public_prefix(self, tmp_path: Path) -> None:
         """Dollar-command runtimes should convert slash commands to their public prefix."""
         src = tmp_path / "src"
         src.mkdir()
@@ -1251,8 +1249,9 @@ class TestCopyWithPathReplacement:
         assert "Use Bash to run it." in result
         assert 'Use AskUserQuestion([{"label": "Yes"}])' in result
 
-    def test_opencode_runtime_translates_shared_markdown_content(self, tmp_path: Path) -> None:
+    def test_flat_command_runtime_translates_shared_markdown_content(self, tmp_path: Path) -> None:
         """Shared content copied for flat-command runtimes should adapt commands and tool names."""
+        adapter = get_adapter(_FLAT_COMMAND_DESCRIPTOR.runtime_name)
         src = tmp_path / "src"
         src.mkdir()
         (src / "workflow.md").write_text(
@@ -1267,10 +1266,10 @@ class TestCopyWithPathReplacement:
         copy_with_path_replacement(src, dest, "/custom/", _FLAT_COMMAND_DESCRIPTOR.runtime_name)
 
         content = (dest / "workflow.md").read_text(encoding="utf-8")
-        assert 'question([{"label": "Yes"}])' in content
-        assert 'task(prompt="Run it")' in content
-        assert "websearch then webfetch" in content
-        assert "/gpd-plan-phase 3" in content
+        assert f'{adapter.translate_tool_name("AskUserQuestion")}([{{"label": "Yes"}}])' in content
+        assert f'{adapter.translate_tool_name("Task")}(prompt="Run it")' in content
+        assert f'{adapter.translate_tool_name("WebSearch")} then {adapter.translate_tool_name("WebFetch")}' in content
+        assert f"{adapter.public_command_surface_prefix}plan-phase 3" in content
         assert "ask_user(" not in content
         assert "web_search" not in content
         assert "/gpd:" not in content
@@ -1570,20 +1569,6 @@ class TestInstallBackupSafety:
         meta = json.loads((config_dir / "gpd-local-patches" / "backup-meta.json").read_text(encoding="utf-8"))
         assert "../../outside-secret.txt" not in meta["files"]
         assert "hooks/statusline.py" in meta["files"]
-
-    def test_opencode_manifest_does_not_claim_uninstalled_hook_files(self, tmp_path: Path) -> None:
-        from gpd.adapters.opencode import write_manifest as write_opencode_manifest
-
-        config_dir = tmp_path / _XDG_CONFIG_DESCRIPTOR.config_dir_name
-        (config_dir / "get-physics-done").mkdir(parents=True)
-        (config_dir / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
-        (config_dir / "hooks").mkdir()
-        (config_dir / "hooks" / "notify.py").write_text("print('hook')\n", encoding="utf-8")
-
-        manifest = write_opencode_manifest(config_dir, "1.0.0")
-
-        assert "get-physics-done/VERSION" in manifest["files"]
-        assert "hooks/notify.py" not in manifest["files"]
 
     def test_pre_install_cleanup_replaces_existing_patches_with_fallback_snapshot_when_manifest_is_malformed(
         self, tmp_path: Path

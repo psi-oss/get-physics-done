@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from gpd.core.constants import ProjectLayout
 from gpd.core.continuation import normalize_continuation_reference
 from gpd.core.recent_projects import (
+    RecentProjectsError,
     _strict_bool_value,
     classify_recent_project_recovery,
     list_recent_projects,
@@ -85,6 +86,7 @@ class ProjectReentryResolution(BaseModel):
     has_current_workspace_candidate: bool = False
     has_recoverable_current_workspace: bool = False
     recoverable_candidates_count: int = 0
+    diagnostics: list[str] = Field(default_factory=list)
     candidates: list[ProjectReentryCandidate] = Field(default_factory=list)
 
     @property
@@ -407,8 +409,16 @@ def resolve_project_reentry(
         candidates.append(current_candidate)
         seen_roots.add(current_candidate.project_root)
 
+    diagnostics: list[str] = []
     if recent_rows is None:
-        recent_project_rows = [] if _current_workspace_is_verified(current_candidate) else list_recent_projects(data_root)
+        if _current_workspace_is_verified(current_candidate):
+            recent_project_rows = []
+        else:
+            try:
+                recent_project_rows = list_recent_projects(data_root)
+            except RecentProjectsError as exc:
+                diagnostics.append(f"recent-project index ignored: {exc}")
+                recent_project_rows = []
     else:
         recent_project_rows = list(recent_rows)
     for row in recent_project_rows:
@@ -472,5 +482,6 @@ def resolve_project_reentry(
         has_current_workspace_candidate=current_candidate is not None,
         has_recoverable_current_workspace=bool(current_candidate and current_candidate.recoverable),
         recoverable_candidates_count=sum(1 for candidate in normalized_candidates if candidate.recoverable),
+        diagnostics=diagnostics,
         candidates=normalized_candidates,
     )

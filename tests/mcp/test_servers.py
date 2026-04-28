@@ -278,10 +278,14 @@ class TestBuiltinServerDescriptors:
         expected = ["Install GPD before enabling built-in MCP servers."]
 
         for name, descriptor in descriptors.items():
-            assert descriptor["prerequisites"] == expected, name
-            prerequisite = descriptor["prerequisites"][0].lower()
-            assert "npx" not in prerequisite, name
-            assert "get-physics-done" not in prerequisite, name
+            prerequisites = descriptor["prerequisites"]
+            assert prerequisites[:1] == expected, name
+            if name != "gpd-arxiv":
+                assert prerequisites == expected, name
+            for prerequisite in prerequisites:
+                prerequisite = prerequisite.lower()
+                assert "npx" not in prerequisite, name
+                assert "get-physics-done" not in prerequisite, name
 
     def test_public_descriptor_python_module_alternative_uses_versioned_launcher_label(self):
         from gpd.mcp.builtin_servers import build_public_descriptors

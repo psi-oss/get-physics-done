@@ -103,7 +103,11 @@ from gpd.core.resume_surface import (
     resume_origin_for_handoff,
     resume_origin_for_interrupted_agent,
 )
-from gpd.core.root_resolution import RootResolutionPolicy, resolve_project_root, resolve_project_roots
+from gpd.core.root_resolution import (
+    RootResolutionPolicy,
+    resolve_project_roots,
+    resolve_state_json_root,
+)
 from gpd.core.state import _current_machine_identity, _finalize_project_contract_gate
 from gpd.core.state import peek_state_json as _peek_state_json
 from gpd.core.utils import (
@@ -865,8 +869,16 @@ def _resolve_cwd_for_root_policy(cwd: Path, *, policy: RootResolutionPolicy) -> 
     """Resolve *cwd* according to one explicit root policy."""
 
     requested_cwd = cwd.expanduser().resolve(strict=False)
-    resolved = resolve_project_root(requested_cwd, require_layout=True, policy=policy)
-    return resolved if resolved is not None else requested_cwd
+    resolution = resolve_project_roots(requested_cwd, policy=policy)
+    if resolution is None:
+        return requested_cwd
+    if resolution.has_project_layout:
+        return resolution.project_root
+    if policy == RootResolutionPolicy.PROJECT_SCOPED:
+        state_root = resolve_state_json_root(requested_cwd, policy=policy)
+        if state_root is not None:
+            return state_root
+    return requested_cwd
 
 
 def _structured_state_objects(value: object) -> list[dict[str, object]]:
@@ -1023,6 +1035,8 @@ def _resolve_reentry_context(
         ),
         "project_reentry_candidates": [candidate.model_dump(mode="json") for candidate in resolution.candidates],
     }
+    if resolution.diagnostics:
+        metadata["project_reentry_diagnostics"] = list(resolution.diagnostics)
     return effective_cwd, metadata
 
 
@@ -4139,6 +4153,8 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
         # Platform
         "platform": _detect_platform(effective_cwd),
     }
+    if reentry_metadata.get("project_reentry_diagnostics"):
+        base_result["project_reentry_diagnostics"] = reentry_metadata["project_reentry_diagnostics"]
     execution_public = {
         key: value
         for key, value in execution_context.items()
@@ -5066,6 +5082,8 @@ def init_progress(
                 "project_reentry_candidates": reentry_metadata["project_reentry_candidates"],
             }
         )
+        if reentry_metadata.get("project_reentry_diagnostics"):
+            result["project_reentry_diagnostics"] = reentry_metadata["project_reentry_diagnostics"]
     include_reference_artifact_content = "references" in includes
     include_protocol_context = "protocols" in includes
     result.update(

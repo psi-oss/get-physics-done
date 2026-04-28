@@ -40,3 +40,12 @@ def test_resume_work_command_stays_thin_and_only_eagerly_loads_the_workflow() ->
     assert metrics.expanded_char_count > workflow.expanded_char_count
     assert metrics.expanded_line_count < workflow.expanded_line_count + 80
     assert metrics.expanded_char_count < workflow.expanded_char_count + 5000
+
+
+def test_resume_work_uses_adapter_neutral_handoff_language_for_recovery() -> None:
+    workflow_text = (WORKFLOWS_DIR / "resume-work.md").read_text(encoding="utf-8")
+
+    assert "Task tool with resume parameter" not in workflow_text
+    assert "task tool (resume parameter with agent ID)" not in workflow_text
+    assert "fresh handoff built from the interrupted-agent record" in workflow_text
+    assert "continue the canonical bounded segment when one exists" in workflow_text

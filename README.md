@@ -60,14 +60,14 @@ normal system terminal, then come back here.
 
 - Windows: Install Node.js LTS with `winget` (includes `npm` and `npx`): `winget install OpenJS.NodeJS.LTS`
 - macOS: Install Node.js with Homebrew (includes `npm` and `npx`): `brew install node`
-- Linux: follow the [Linux guide](./docs/linux.md). Distribution `nodejs` / `npm` packages are useful only if `node --version` reports `v20` or newer.
+- Linux: follow the [Linux guide](https://github.com/psi-oss/get-physics-done/blob/main/docs/linux.md). Distribution `nodejs` / `npm` packages are useful only if `node --version` reports `v20` or newer.
 
 </details>
 
 <details>
 <summary><strong>New to terminals?</strong></summary>
 
-If you are new to terminals, start with the [Beginner Onboarding Hub](./docs/README.md).
+If you are new to terminals, start with the [Beginner Onboarding Hub](https://github.com/psi-oss/get-physics-done/blob/main/docs/README.md).
 Use the hub as the single beginner path. It keeps the OS guides, runtime guides,
 and post-install checklist in one place, while this README keeps the reference
 tables and advanced surfaces.
@@ -101,7 +101,7 @@ We welcome contributions and feedback via GitHub issues or pull requests; if GPD
 
 ## Quick Start
 
-If you already know your runtime and are comfortable in a terminal, use this as the fast path. If not, go back to [Start Here](#start-here) and use the [Beginner Onboarding Hub](./docs/README.md) instead.
+If you already know your runtime and are comfortable in a terminal, use this as the fast path. If not, go back to [Start Here](#start-here) and use the [Beginner Onboarding Hub](https://github.com/psi-oss/get-physics-done/blob/main/docs/README.md) instead.
 
 Canonical post-install order, shown as command names without runtime prefixes:
 

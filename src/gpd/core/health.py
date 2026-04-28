@@ -197,6 +197,16 @@ def _legacy_gpd_project_markers(cwd: Path) -> list[str]:
     return markers
 
 
+def _planning_files_diverge(canonical_path: Path, root_path: Path) -> bool | None:
+    """Return whether two planning files differ, or ``None`` when either cannot be read."""
+
+    canonical_content = safe_read_file(canonical_path)
+    root_content = safe_read_file(root_path)
+    if canonical_content is None or root_content is None:
+        return None
+    return canonical_content != root_content
+
+
 def check_project_structure(cwd: Path) -> HealthCheck:
     """Check that required GPD/ files and directories exist."""
     project_root = resolve_project_root(cwd, require_layout=True) or cwd.expanduser().resolve(strict=False)
@@ -220,10 +230,19 @@ def check_project_structure(cwd: Path) -> HealthCheck:
         if full.exists():
             details[name] = "present"
             if name in _ROOT_MIGRATABLE_FILES and root_path.exists():
-                warnings.append(
-                    f"{name} exists at both project root and {PLANNING_DIR_NAME}/ "
-                    f"— the root copy is unused. Consider removing ./{name}."
-                )
+                if _planning_files_diverge(full, root_path) is True:
+                    divergent_files = details.setdefault("divergent_root_planning_files", [])
+                    if isinstance(divergent_files, list):
+                        divergent_files.append(name)
+                    warnings.append(
+                        f"{name} exists at both project root and {PLANNING_DIR_NAME}/ but contents differ. "
+                        f"{PLANNING_DIR_NAME}/{name} is canonical; reconcile or remove ./{name}."
+                    )
+                else:
+                    warnings.append(
+                        f"{name} exists at both project root and {PLANNING_DIR_NAME}/ "
+                        f"— the root copy is unused. Consider removing ./{name}."
+                    )
         elif name in _ROOT_MIGRATABLE_FILES and root_path.exists():
             details[name] = "present (at project root)"
             warnings.append(

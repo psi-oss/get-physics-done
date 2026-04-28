@@ -2027,6 +2027,28 @@ def test_bootstrap_uninstall_rejects_all_with_explicit_runtime_token_before_pyth
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+@pytest.mark.parametrize(
+    ("installer_args", "expected_error"),
+    (
+        ([_CODEX_INSTALL_FLAG, "--local", "--bogus"], "Unknown bootstrap option: --bogus."),
+        (["install", _CODEX_RUNTIME_NAME, "bogus", "--local"], "Unexpected bootstrap argument: bogus."),
+    ),
+)
+def test_bootstrap_rejects_unknown_or_unconsumed_argument_before_python(
+    tmp_path: Path,
+    installer_args: list[str],
+    expected_error: str,
+) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(tmp_path, installer_args=installer_args)
+
+    assert result.returncode == 1
+    assert expected_error in result.stderr
+    assert "Run npx -y get-physics-done --help for usage." in result.stderr
+    assert not log_path.exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
 def test_bootstrap_help_uses_catalog_driven_example_runtimes() -> None:
     node_path = shutil.which("node")
     assert node_path is not None

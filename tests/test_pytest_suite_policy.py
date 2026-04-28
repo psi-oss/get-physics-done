@@ -388,6 +388,7 @@ def test_ci_collection_ignores_caller_pytest_addopts_and_disables_cache_writes(
         captured["args"] = args
         captured["env"] = kwargs["env"]
         captured["cwd"] = kwargs["cwd"]
+        captured["timeout"] = kwargs["timeout"]
         return SimpleNamespace(stdout="tests/test_sample.py::test_ok\n")
 
     monkeypatch.setenv("PYTEST_ADDOPTS", "-k no_tests --cache-clear")
@@ -417,6 +418,43 @@ def test_ci_collection_ignores_caller_pytest_addopts_and_disables_cache_writes(
         "0",
     ]
     assert captured["cwd"] == tmp_path.resolve()
+    assert captured["timeout"] == ci_sharding.CI_PYTEST_COLLECTION_TIMEOUT_SECONDS
+
+
+def test_checked_in_test_inventory_git_call_has_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_run(args: list[str], **kwargs: object) -> SimpleNamespace:
+        captured["args"] = args
+        captured["timeout"] = kwargs["timeout"]
+        return SimpleNamespace(stdout="tests/test_sample.py\n")
+
+    monkeypatch.setattr(ci_sharding.subprocess, "run", _fake_run)
+
+    assert ci_sharding.checked_in_test_relpaths(repo_root=tmp_path) == ("test_sample.py",)
+    assert captured["args"][:3] == ["git", "ls-files", "--full-name"]
+    assert captured["timeout"] == ci_sharding.CI_GIT_INVENTORY_TIMEOUT_SECONDS
+
+
+def test_untracked_test_inventory_git_call_has_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_run(args: list[str], **kwargs: object) -> SimpleNamespace:
+        captured["args"] = args
+        captured["timeout"] = kwargs["timeout"]
+        return SimpleNamespace(stdout="tests/test_sample.py\n")
+
+    monkeypatch.setattr(ci_sharding.subprocess, "run", _fake_run)
+
+    assert untracked_non_ignored_test_relpaths(repo_root=tmp_path) == ("test_sample.py",)
+    assert captured["args"][:4] == ["git", "ls-files", "--full-name", "--others"]
+    assert captured["timeout"] == ci_sharding.CI_GIT_INVENTORY_TIMEOUT_SECONDS
 
 
 def test_ci_shard_target_resolution_collects_only_requested_category(
@@ -428,6 +466,7 @@ def test_ci_shard_target_resolution_collects_only_requested_category(
     def _fake_run(args: list[str], **kwargs: object) -> SimpleNamespace:
         captured["args"] = args
         captured["cwd"] = kwargs["cwd"]
+        captured["timeout"] = kwargs["timeout"]
         return SimpleNamespace(
             stdout="\n".join(f"tests/core/test_sample.py::test_{index}" for index in range(5)) + "\n"
         )
@@ -458,6 +497,7 @@ def test_ci_shard_target_resolution_collects_only_requested_category(
         "0",
     ]
     assert captured["cwd"] == tmp_path.resolve()
+    assert captured["timeout"] == ci_sharding.CI_PYTEST_COLLECTION_TIMEOUT_SECONDS
     assert targets == ("tests/core/test_sample.py",)
 
 

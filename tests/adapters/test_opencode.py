@@ -16,6 +16,7 @@ from gpd.adapters.opencode import (
     convert_tool_name,
     copy_agents_as_agent_files,
     copy_flattened_commands,
+    write_manifest,
 )
 from tests.adapters.review_contract_test_utils import (
     assert_review_contract_prompt_surface,
@@ -249,8 +250,6 @@ class TestCopyFlattenedCommands:
         assert (dest / "gpd-user-keep.md").exists()
 
     def test_write_manifest_scans_flat_commands_by_default(self, tmp_path: Path) -> None:
-        from gpd.adapters.opencode import write_manifest
-
         target = tmp_path / ".opencode"
         command_dir = target / "command"
         command_dir.mkdir(parents=True)
@@ -263,6 +262,18 @@ class TestCopyFlattenedCommands:
         assert "command/gpd-help.md" in manifest["files"]
         assert "command/user.md" not in manifest["files"]
         assert manifest["opencode_generated_command_files"] == ["gpd-help.md"]
+
+    def test_write_manifest_does_not_claim_uninstalled_hook_files(self, tmp_path: Path) -> None:
+        target = tmp_path / ".opencode"
+        (target / "get-physics-done").mkdir(parents=True)
+        (target / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
+        (target / "hooks").mkdir()
+        (target / "hooks" / "notify.py").write_text("print('hook')\n", encoding="utf-8")
+
+        manifest = write_manifest(target, "1.0.0")
+
+        assert "get-physics-done/VERSION" in manifest["files"]
+        assert "hooks/notify.py" not in manifest["files"]
 
     def test_nonexistent_src_returns_zero(self, tmp_path: Path) -> None:
         dest = tmp_path / "command"

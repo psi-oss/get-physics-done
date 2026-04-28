@@ -106,7 +106,7 @@ jobs:
 
       - name: Run release validation suite
         run: |
-          uv run pytest tests/test_release_consistency.py -v
+          uv run pytest -n 0 tests/test_release_consistency.py -v
           rm -rf dist
           UV_CACHE_DIR="$(mktemp -d)"
           export UV_CACHE_DIR

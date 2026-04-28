@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
+
+import pytest
 
 from gpd.registry import _parse_spawn_contracts
 
@@ -25,6 +28,11 @@ EXPECTED_RAW_WORKFLOW_COUNTS = {
     "plan-phase.md": 2,
     "research-phase.md": 2,
 }
+SPAWN_CONTRACT_BLOCK_RE = re.compile(
+    r"^[ \t]*<spawn_contract>[ \t]*$\n(?P<body>.*?)^[ \t]*</spawn_contract>[ \t]*$",
+    re.DOTALL | re.MULTILINE,
+)
+UNQUOTED_PLACEHOLDER_PATH_LIST_ITEM_RE = re.compile(r"^[ \t]*-[ \t]+\{[^}\n]+\}/", re.MULTILINE)
 
 
 def _read(path: Path) -> str:
@@ -99,9 +107,10 @@ shared_state_policy: return_only
     ]
 
 
-def test_spawn_contract_parser_preserves_legacy_placeholder_path_items() -> None:
-    contracts = _extract_spawn_contracts(
-        """
+def test_spawn_contract_parser_rejects_unquoted_placeholder_path_items() -> None:
+    with pytest.raises(ValueError, match="unquoted placeholder path list item"):
+        _extract_spawn_contracts(
+            """
 <spawn_contract>
 write_scope:
   mode: scoped_write
@@ -112,10 +121,40 @@ expected_artifacts:
 shared_state_policy: return_only
 </spawn_contract>
 """
-    )
+        )
 
-    assert contracts[0]["write_scope"]["allowed_paths"] == ["{phase_dir}/{phase_number}-RESEARCH.md"]
-    assert contracts[0]["expected_artifacts"] == ["{phase_dir}/{phase_number}-RESEARCH.md"]
+
+@pytest.mark.parametrize("field_path", ["write_scope.allowed_paths", "expected_artifacts"])
+def test_spawn_contract_parser_rejects_blank_list_fields(field_path: str) -> None:
+    allowed_paths = """
+  allowed_paths:
+"""
+    expected_artifacts = "expected_artifacts: [GPD/review/result.md]"
+    if field_path == "expected_artifacts":
+        allowed_paths = "  allowed_paths: [GPD/review/result.md]\n"
+        expected_artifacts = "expected_artifacts:"
+
+    with pytest.raises(ValueError, match=rf"{re.escape(field_path)} must be a list"):
+        _extract_spawn_contracts(
+            f"""
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+{allowed_paths}{expected_artifacts}
+shared_state_policy: return_only
+</spawn_contract>
+"""
+        )
+
+
+def test_spawn_contract_source_blocks_quote_placeholder_path_items() -> None:
+    offenders: list[str] = []
+    for path in WORKFLOWS_DIR.glob("*.md"):
+        for block_index, match in enumerate(SPAWN_CONTRACT_BLOCK_RE.finditer(_read(path)), start=1):
+            if UNQUOTED_PLACEHOLDER_PATH_LIST_ITEM_RE.search(match.group("body")):
+                offenders.append(f"{path.name} block {block_index}")
+
+    assert offenders == []
 
 
 def test_spawn_contract_source_blocks_preserve_distinct_handoff_sites() -> None:
