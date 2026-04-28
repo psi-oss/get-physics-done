@@ -363,7 +363,7 @@ were skipped. Use gpd:settings to adjust workflow preferences.
 
 ---------------------------------------------------------------
 
-## >> Next Up
+## > Next Up
 
 **Phase 1: [Phase Name]** — [Goal from ROADMAP.md]
 
@@ -1626,7 +1626,7 @@ Use ask_user:
   Shallow mode: keep Phase 1 fully detailed (Goal, Depends on, Requirements, Contract Coverage, 2-5 Success Criteria, placeholder plans) and Phases 2+ as compact stubs only (title + one-line Goal + objective IDs + compact contract/anchor/proxy labels + `**Plans:** 0 plans` + a single `- [ ] TBD (run plan-phase N to break down)` entry). Do not promote Phases 2+ to full detail during revision unless the user's feedback explicitly requests it.
 
   Update the roadmap based on feedback. Edit files in place.
-  Return ROADMAP REVISED with changes made.
+  Return `gpd_return.status: completed` with changes made and fresh `gpd_return.files_written` entries for updated roadmap artifacts.
   </revision>
   ", subagent_type="gpd-roadmapper", model="{roadmapper_model}", readonly=false, description="Revise roadmap")
   ```
@@ -1728,7 +1728,7 @@ Interactive mode: Return `status: checkpoint` with the suggested conventions, ra
 If mode=`auto`:
 1. Create: GPD/CONVENTIONS.md (full convention reference)
 2. Lock conventions via: gpd convention set
-3. Return CONVENTIONS ESTABLISHED with summary
+3. Return `gpd_return.status: completed` with a convention summary
 
 If mode=`interactive`:
 1. Return a checkpoint proposal only
@@ -1768,7 +1768,7 @@ shared_state_policy: none
   1. the original project context,
   2. the proposal returned by the first handoff,
   3. the user-approved / user-overridden convention values,
-  4. instructions to write `GPD/CONVENTIONS.md`, run `gpd convention set` for each approved category, and return `CONVENTIONS ESTABLISHED`.
+  4. instructions to write `GPD/CONVENTIONS.md`, run `gpd convention set` for each approved category, and return `gpd_return.status: completed`.
   Treat that continuation handoff as the normal success path for `autonomy=supervised`, not as an error.
 
 **If the notation-coordinator agent fails to spawn or returns an error:** Use a deterministic fallback instead of hardcoded defaults:
@@ -1786,7 +1786,7 @@ shared_state_policy: none
 
 6. Note that full convention establishment was skipped. The user can run `gpd:validate-conventions`; the fallback lock must match the values written into `GPD/CONVENTIONS.md`.
 
-- **`CONVENTIONS ESTABLISHED`:** Display confirmation with convention summary. Commit CONVENTIONS.md:
+- **Conventions established:** Display confirmation with convention summary. Commit CONVENTIONS.md:
 
   ```bash
   PRE_CHECK=$(gpd pre-commit-check --files GPD/CONVENTIONS.md 2>&1) || true
@@ -1835,7 +1835,7 @@ Present completion with next steps:
 
 ---------------------------------------------------------------
 
-## >> Next Up
+## > Next Up
 
 **Phase 1: [Phase Name]** — [Goal from ROADMAP.md]
 

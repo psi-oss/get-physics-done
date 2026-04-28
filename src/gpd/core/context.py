@@ -2437,7 +2437,11 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
     session_stopped_at = getattr(handoff, "stopped_at", None) if has_active_resume_target else None
     execution_resume_file_source = None
     if resume_projection.active_resume_source == ContinuationResumeSource.BOUNDED_SEGMENT:
-        execution_resume_file_source = "current_execution"
+        execution_resume_file_source = (
+            "current_execution"
+            if resume_projection.source == ContinuationSource.DERIVED_EXECUTION
+            else "continuation.bounded_segment"
+        )
     elif resume_projection.active_resume_source == ContinuationResumeSource.HANDOFF:
         execution_resume_file_source = "handoff_resume_file"
 
@@ -4885,7 +4889,7 @@ def init_progress(
         result["has_work_in_progress"] = True
     execution_resume_file = result.get("execution_resume_file")
     if (
-        result.get("execution_resume_file_source") == "handoff_resume_file"
+        result.get("execution_resume_file_source") in {"handoff_resume_file", "continuation.bounded_segment"}
         and isinstance(execution_resume_file, str)
         and execution_resume_file.strip()
     ):

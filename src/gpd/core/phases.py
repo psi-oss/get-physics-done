@@ -226,6 +226,40 @@ def _restore_text_file(path: Path, previous_content: str | None) -> None:
     atomic_write(path, previous_content)
 
 
+def _snapshot_text_file(path: Path) -> str | None:
+    """Return the current text file content, or None when the file is absent."""
+    return path.read_text(encoding="utf-8") if path.exists() else None
+
+
+def _restore_state_pair(
+    layout: ProjectLayout,
+    state_md_before: str | None,
+    state_json_before: str | None,
+    state_json_backup_before: str | None,
+) -> None:
+    """Restore canonical state files captured before a phase lifecycle mutation."""
+    _restore_text_file(layout.state_md, state_md_before)
+    _restore_text_file(layout.state_json, state_json_before)
+    _restore_text_file(layout.state_json_backup, state_json_backup_before)
+
+
+def _snapshot_checkpoint_shelf(layout: ProjectLayout) -> tuple[str | None, Path | None, Path | None]:
+    """Snapshot generated checkpoint index and shelf files for rollback."""
+    checkpoints_md_before = _snapshot_text_file(layout.checkpoints_md)
+    checkpoint_backup_root, checkpoint_backup_path = _backup_directory_tree(layout.phase_checkpoints_dir)
+    return checkpoints_md_before, checkpoint_backup_root, checkpoint_backup_path
+
+
+def _restore_checkpoint_shelf(
+    layout: ProjectLayout,
+    checkpoints_md_before: str | None,
+    checkpoint_backup_path: Path | None,
+) -> None:
+    """Restore generated checkpoint index and shelf files captured before sync."""
+    _restore_text_file(layout.checkpoints_md, checkpoints_md_before)
+    _restore_directory_tree(layout.phase_checkpoints_dir, checkpoint_backup_path)
+
+
 def _backup_directory_tree(path: Path) -> tuple[Path | None, Path | None]:
     """Copy *path* to a temporary backup tree for rollback."""
     if not path.exists():
@@ -2216,6 +2250,7 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
             None,
         )
 
+        state_updated = False
         renamed_dirs: list[RenameEntry] = []
         renamed_files: list[RenameEntry] = []
 
@@ -2240,8 +2275,22 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
 
             phases_backup_root: Path | None = None
             phases_backup_path: Path | None = None
+            state_md_before: str | None = None
+            state_json_before: str | None = None
+            state_json_backup_before: str | None = None
+            checkpoints_md_before: str | None = None
+            checkpoint_backup_root: Path | None = None
+            checkpoint_backup_path: Path | None = None
+            state_snapshot_captured = False
             try:
                 phases_backup_root, phases_backup_path = _backup_directory_tree(phases_dir)
+                state_md_before = _snapshot_text_file(layout.state_md)
+                state_json_before = _snapshot_text_file(layout.state_json)
+                state_json_backup_before = _snapshot_text_file(layout.state_json_backup)
+                checkpoints_md_before, checkpoint_backup_root, checkpoint_backup_path = _snapshot_checkpoint_shelf(
+                    layout
+                )
+                state_snapshot_captured = True
 
                 # Step 1: Update ROADMAP.md
                 roadmap_content = roadmap_before
@@ -2280,13 +2329,20 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
                         updated_roadmap=updated_roadmap,
                     ),
                 )
+
+                sync_phase_checkpoints(cwd)
             except Exception:
                 atomic_write(roadmap_path, roadmap_before)
                 _restore_directory_tree(phases_dir, phases_backup_path)
+                _restore_checkpoint_shelf(layout, checkpoints_md_before, checkpoint_backup_path)
+                if state_snapshot_captured:
+                    _restore_state_pair(layout, state_md_before, state_json_before, state_json_backup_before)
                 raise
             finally:
                 if phases_backup_root is not None and phases_backup_root.exists():
                     shutil.rmtree(phases_backup_root, ignore_errors=True)
+                if checkpoint_backup_root is not None and checkpoint_backup_root.exists():
+                    shutil.rmtree(checkpoint_backup_root, ignore_errors=True)
 
         result = PhaseRemoveResult(
             removed=target_phase,
@@ -2297,7 +2353,6 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
             state_updated=state_updated,
         )
 
-    sync_phase_checkpoints(cwd)
     return result
 
 
@@ -2471,6 +2526,7 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
     _validate_phase_number(phase_num)
 
     roadmap_path = _roadmap_path(cwd)
+    layout = ProjectLayout(cwd)
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
     next_phase_num: str | None = None
@@ -2496,19 +2552,24 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
 
             # Update ROADMAP.md
             roadmap_before = roadmap_path.read_text(encoding="utf-8") if roadmap_path.exists() else None
-            if roadmap_path.exists():
-                roadmap_content = roadmap_before or ""
-                roadmap_content = _mark_roadmap_phase_complete(roadmap_content, phase_num, today)
-                roadmap_content = _update_roadmap_phase_table_status(roadmap_content, phase_num, today)
-                roadmap_content = _update_roadmap_phase_plan_count(
-                    roadmap_content,
-                    phase_num,
-                    summary_count,
-                    plan_count,
-                )
-                atomic_write(roadmap_path, roadmap_content)
+            state_md_before = _snapshot_text_file(layout.state_md)
+            state_json_before = _snapshot_text_file(layout.state_json)
+            state_json_backup_before = _snapshot_text_file(layout.state_json_backup)
+            checkpoints_md_before, checkpoint_backup_root, checkpoint_backup_path = _snapshot_checkpoint_shelf(layout)
 
             try:
+                if roadmap_path.exists():
+                    roadmap_content = roadmap_before or ""
+                    roadmap_content = _mark_roadmap_phase_complete(roadmap_content, phase_num, today)
+                    roadmap_content = _update_roadmap_phase_table_status(roadmap_content, phase_num, today)
+                    roadmap_content = _update_roadmap_phase_plan_count(
+                        roadmap_content,
+                        phase_num,
+                        summary_count,
+                        plan_count,
+                    )
+                    atomic_write(roadmap_path, roadmap_content)
+
                 # Find next phase from ROADMAP, even if no directory exists yet.
                 next_phase = _get_next_roadmap_phase(cwd, phase_num)
                 if next_phase is not None:
@@ -2529,15 +2590,19 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
                         is_last_phase=is_last_phase,
                     ),
                 )
-            except Exception:
-                if roadmap_before is not None:
-                    atomic_write(roadmap_path, roadmap_before)
-                raise
 
-            # sync_phase_checkpoints() already degrades gracefully for malformed
-            # or unreadable summaries. Let unexpected render/write failures
-            # surface here instead of silently completing the lifecycle step.
-            sync_phase_checkpoints(cwd)
+                # sync_phase_checkpoints() already degrades gracefully for malformed
+                # or unreadable summaries. Let unexpected render/write failures
+                # surface here instead of silently completing the lifecycle step.
+                sync_phase_checkpoints(cwd)
+            except Exception:
+                _restore_text_file(roadmap_path, roadmap_before)
+                _restore_checkpoint_shelf(layout, checkpoints_md_before, checkpoint_backup_path)
+                _restore_state_pair(layout, state_md_before, state_json_before, state_json_backup_before)
+                raise
+            finally:
+                if checkpoint_backup_root is not None and checkpoint_backup_root.exists():
+                    shutil.rmtree(checkpoint_backup_root, ignore_errors=True)
 
         return PhaseCompleteResult(
             completed_phase=phase_num,

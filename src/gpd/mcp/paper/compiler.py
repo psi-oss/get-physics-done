@@ -1198,7 +1198,7 @@ async def build_paper(
             logger.warning("Citation coherence: %s", w)
         citation_warnings = coherence.warnings
 
-    if not preserved_tex_differs_from_config or not emit_artifact_manifest:
+    if emit_artifact_manifest and not preserved_tex_differs_from_config:
         manifest = build_artifact_manifest(
             config,
             output_dir,
@@ -1209,7 +1209,7 @@ async def build_paper(
             bibliography_audit=bibliography_audit,
             figure_source_pairs=figure_source_pairs,
         )
-        if emit_artifact_manifest and manifest_path is not None:
+        if manifest_path is not None:
             await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
 
     # 4. Check required TeX resources (blocking subprocess; run in thread to avoid stalling the loop)
@@ -1242,7 +1242,7 @@ async def build_paper(
     final_success = result.success and figures_prepared_successfully and not errors
     published_pdf_path = result.pdf_path if final_success else None
 
-    if not preserved_tex_differs_from_config or not emit_artifact_manifest:
+    if emit_artifact_manifest and not preserved_tex_differs_from_config:
         manifest = build_artifact_manifest(
             config,
             output_dir,
@@ -1254,7 +1254,7 @@ async def build_paper(
             figure_source_pairs=figure_source_pairs,
             pdf_path=published_pdf_path,
         )
-        if emit_artifact_manifest and manifest_path is not None:
+        if manifest_path is not None:
             await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
 
     return PaperOutput(

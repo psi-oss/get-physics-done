@@ -404,7 +404,7 @@ VERIFICATION.md exists with gaps (diagnosed issues like failing limiting cases o
 ```
 ---
 
-## !! Validation Gaps Found
+## Validation Gaps Found
 
 **{phase}-VERIFICATION.md** has {N} gaps requiring fixes.
 
@@ -432,7 +432,7 @@ Gap-closure plans were created by `gpd:plan-phase --gaps` but have not been exec
 ```
 ---
 
-## !! Gap-Closure Plans Ready
+## Gap-Closure Plans Ready
 
 **{GAP_PLANS_UNEXECUTED} gap-closure plan(s)** exist but have not been executed.
 

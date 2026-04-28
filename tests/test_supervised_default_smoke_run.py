@@ -32,7 +32,7 @@ def test_new_project_emits_shallow_roadmap_and_standard_next_up_order() -> None:
 
     assert "<shallow_mode>true</shallow_mode>" in new_project
 
-    standard_next_up = _section_from_last_marker(new_project, "## >> Next Up")
+    standard_next_up = _section_from_last_marker(new_project, "## > Next Up")
     plan_idx = standard_next_up.index("`gpd:plan-phase 1`")
     discuss_idx = standard_next_up.index("`gpd:discuss-phase 1`")
     assert plan_idx < discuss_idx

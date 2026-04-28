@@ -85,6 +85,29 @@ def _setup_project(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def _artifact_manifest_payload(manuscript: Path, *, title: str = "Curvature Flow Bounds") -> dict[str, object]:
+    digest = compute_sha256(manuscript)
+    return {
+        "version": 1,
+        "paper_title": title,
+        "journal": "jhep",
+        "created_at": "2026-04-02T00:00:00+00:00",
+        "manuscript_sha256": digest,
+        "manuscript_mtime_ns": manuscript.stat().st_mtime_ns,
+        "artifacts": [
+            {
+                "artifact_id": "main-tex",
+                "category": "tex",
+                "path": manuscript.name,
+                "sha256": digest,
+                "produced_by": "test",
+                "sources": [],
+                "metadata": {},
+            }
+        ],
+    }
+
+
 def _create_phase_dir(tmp_path: Path, name: str) -> Path:
     """Create a phase directory and return its path."""
     phase_dir = tmp_path / "GPD" / "phases" / name
@@ -2324,30 +2347,13 @@ class TestInitNewProject:
     def test_detects_topic_stem_manuscript_entrypoint_without_main_tex(self, tmp_path: Path) -> None:
         manuscript_dir = tmp_path / "paper"
         manuscript_dir.mkdir()
-        (manuscript_dir / "curvature_flow_bounds.tex").write_text(
+        manuscript = manuscript_dir / "curvature_flow_bounds.tex"
+        manuscript.write_text(
             "\\documentclass{article}\\begin{document}Hi\\end{document}\n",
             encoding="utf-8",
         )
         (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-            json.dumps(
-                {
-                    "version": 1,
-                    "paper_title": "Curvature Flow Bounds",
-                    "journal": "jhep",
-                    "created_at": "2026-04-02T00:00:00+00:00",
-                    "artifacts": [
-                        {
-                            "artifact_id": "tex-paper",
-                            "category": "tex",
-                            "path": "curvature_flow_bounds.tex",
-                            "sha256": "0" * 64,
-                            "produced_by": "test",
-                            "sources": [],
-                            "metadata": {},
-                        }
-                    ],
-                }
-            ),
+            json.dumps(_artifact_manifest_payload(manuscript)),
             encoding="utf-8",
         )
 
@@ -2777,31 +2783,13 @@ class TestInitNewProject:
         _write_project_contract_state(tmp_path)
         manuscript_dir = tmp_path / "paper"
         manuscript_dir.mkdir()
-        (manuscript_dir / "main.tex").write_text(
+        manuscript = manuscript_dir / "main.tex"
+        manuscript.write_text(
             "\\documentclass{article}\\begin{document}Draft manuscript.\\end{document}\n",
             encoding="utf-8",
         )
         (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-            json.dumps(
-                {
-                    "version": 1,
-                    "paper_title": "Curvature Flow Bounds",
-                    "journal": "jhep",
-                    "created_at": "2026-04-02T00:00:00+00:00",
-                    "artifacts": [
-                        {
-                            "artifact_id": "main-tex",
-                            "category": "tex",
-                            "path": "main.tex",
-                            "sha256": "0" * 64,
-                            "produced_by": "test",
-                            "sources": [],
-                            "metadata": {},
-                        }
-                    ],
-                }
-            )
-            + "\n",
+            json.dumps(_artifact_manifest_payload(manuscript)) + "\n",
             encoding="utf-8",
         )
 
@@ -2829,31 +2817,13 @@ class TestInitNewProject:
         _write_project_contract_state(tmp_path)
         manuscript_dir = tmp_path / "GPD" / "publication" / "curvature-flow-bounds" / "manuscript"
         manuscript_dir.mkdir(parents=True)
-        (manuscript_dir / "main.tex").write_text(
+        manuscript = manuscript_dir / "main.tex"
+        manuscript.write_text(
             "\\documentclass{article}\\begin{document}Draft manuscript.\\end{document}\n",
             encoding="utf-8",
         )
         (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-            json.dumps(
-                {
-                    "version": 1,
-                    "paper_title": "Curvature Flow Bounds",
-                    "journal": "jhep",
-                    "created_at": "2026-04-02T00:00:00+00:00",
-                    "artifacts": [
-                        {
-                            "artifact_id": "main-tex",
-                            "category": "tex",
-                            "path": "main.tex",
-                            "sha256": "0" * 64,
-                            "produced_by": "test",
-                            "sources": [],
-                            "metadata": {},
-                        }
-                    ],
-                }
-            )
-            + "\n",
+            json.dumps(_artifact_manifest_payload(manuscript)) + "\n",
             encoding="utf-8",
         )
         (manuscript_dir / "BIBLIOGRAPHY-AUDIT.json").write_text("{}\n", encoding="utf-8")
@@ -2884,31 +2854,13 @@ class TestInitNewProject:
         intake_dir = manuscript_dir.parent / "intake"
         intake_dir.mkdir(parents=True)
         (intake_dir / "write-paper-authoring-input.json").write_text('{"schema_version": 1}\n', encoding="utf-8")
-        (manuscript_dir / "main.tex").write_text(
+        manuscript = manuscript_dir / "main.tex"
+        manuscript.write_text(
             "\\documentclass{article}\\begin{document}External lane draft.\\end{document}\n",
             encoding="utf-8",
         )
         (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-            json.dumps(
-                {
-                    "version": 1,
-                    "paper_title": "External Lane",
-                    "journal": "jhep",
-                    "created_at": "2026-04-02T00:00:00+00:00",
-                    "artifacts": [
-                        {
-                            "artifact_id": "main-tex",
-                            "category": "tex",
-                            "path": "main.tex",
-                            "sha256": "0" * 64,
-                            "produced_by": "test",
-                            "sources": [],
-                            "metadata": {},
-                        }
-                    ],
-                }
-            )
-            + "\n",
+            json.dumps(_artifact_manifest_payload(manuscript, title="External Lane")) + "\n",
             encoding="utf-8",
         )
 
@@ -2945,31 +2897,13 @@ class TestInitNewProject:
         _write_project_contract_state(tmp_path)
         manuscript_dir = tmp_path / "paper"
         manuscript_dir.mkdir()
-        (manuscript_dir / "main.tex").write_text(
+        manuscript = manuscript_dir / "main.tex"
+        manuscript.write_text(
             "\\documentclass{article}\\begin{document}Draft manuscript.\\end{document}\n",
             encoding="utf-8",
         )
         (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-            json.dumps(
-                {
-                    "version": 1,
-                    "paper_title": "Curvature Flow Bounds",
-                    "journal": "jhep",
-                    "created_at": "2026-04-02T00:00:00+00:00",
-                    "artifacts": [
-                        {
-                            "artifact_id": "main-tex",
-                            "category": "tex",
-                            "path": "main.tex",
-                            "sha256": "0" * 64,
-                            "produced_by": "test",
-                            "sources": [],
-                            "metadata": {},
-                        }
-                    ],
-                }
-            )
-            + "\n",
+            json.dumps(_artifact_manifest_payload(manuscript)) + "\n",
             encoding="utf-8",
         )
 
@@ -4714,6 +4648,32 @@ class TestInitProgress:
         assert ctx["current_execution"] is None
         assert ctx["execution_resume_file_source"] == "handoff_resume_file"
         assert ctx["execution_resume_file"] == resume_file
+        assert ctx["has_work_in_progress"] is True
+
+    def test_progress_labels_canonical_bounded_segment_resume_source(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        from gpd.core.state import default_state_dict
+
+        resume_file = "GPD/phases/02-analysis/.continue-here.md"
+        resume_path = tmp_path / resume_file
+        resume_path.parent.mkdir(parents=True, exist_ok=True)
+        resume_path.write_text("resume\n", encoding="utf-8")
+        state = default_state_dict()
+        state["continuation"]["bounded_segment"] = {
+            "resume_file": resume_file,
+            "phase": "02",
+            "plan": "01",
+            "segment_id": "seg-canonical",
+            "segment_status": "paused",
+        }
+        (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        ctx = init_progress(tmp_path)
+
+        assert ctx["current_execution"] is None
+        assert ctx["execution_resume_file_source"] == "continuation.bounded_segment"
+        assert ctx["execution_resume_file"] == resume_file
+        assert ctx["execution_resumable"] is True
         assert ctx["has_work_in_progress"] is True
 
     def test_progress_normalizes_absolute_live_execution_resume_file(self, tmp_path: Path) -> None:

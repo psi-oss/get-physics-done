@@ -195,3 +195,19 @@ def test_public_templates_do_not_expose_internal_verify_phase_wording() -> None:
     assert "verify-phase" not in state_machine
     assert "Verified by the phase verification workflow after execution" in roadmap
     assert "**Automated verification:**" in state_machine
+
+
+def test_prompt_markdown_does_not_route_on_stale_prose_return_markers() -> None:
+    stale_return_pattern = re.compile(r"\breturn\s+`?(?:##\s*)?[A-Z][A-Z0-9 _-]{4,}`?\b")
+
+    offenders: list[str] = []
+    for root in (COMMANDS_DIR, AGENTS_DIR, WORKFLOWS_DIR, TEMPLATES_DIR):
+        for path in sorted(root.rglob("*.md")):
+            for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+                if not stale_return_pattern.search(line):
+                    continue
+                if "gpd_return.status" in line or "presentation only" in line:
+                    continue
+                offenders.append(f"{path.relative_to(REPO_ROOT)}:{line_number}:{line}")
+
+    assert offenders == []

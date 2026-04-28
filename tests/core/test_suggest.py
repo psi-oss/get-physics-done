@@ -126,6 +126,7 @@ def _write_active_manuscript_entrypoint(
     manuscript_root.mkdir(parents=True, exist_ok=True)
     entrypoint = manuscript_root / f"{CANONICAL_MANUSCRIPT_STEM}{suffix}"
     entrypoint.write_text(body, encoding="utf-8")
+    entrypoint_sha256 = compute_sha256(entrypoint)
     (manuscript_root / "ARTIFACT-MANIFEST.json").write_text(
         json.dumps(
             {
@@ -133,12 +134,14 @@ def _write_active_manuscript_entrypoint(
                 "paper_title": "Curvature Flow Bounds",
                 "journal": "jhep",
                 "created_at": "2026-03-10T00:00:00+00:00",
+                "manuscript_sha256": entrypoint_sha256,
+                "manuscript_mtime_ns": entrypoint.stat().st_mtime_ns,
                 "artifacts": [
                     {
                         "artifact_id": "manuscript",
                         "category": "tex",
                         "path": entrypoint.name,
-                        "sha256": compute_sha256(entrypoint),
+                        "sha256": entrypoint_sha256,
                         "produced_by": "tests.core.test_suggest",
                         "sources": [],
                         "metadata": {"role": "manuscript"},

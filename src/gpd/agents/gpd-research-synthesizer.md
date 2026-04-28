@@ -511,7 +511,7 @@ done
 ```
 
 **If a file is missing or empty:**
-- DO NOT synthesize without it. Return SYNTHESIS BLOCKED with the missing file listed.
+- DO NOT synthesize without it. Return `gpd_return.status: blocked` with the missing file listed.
 - The orchestrator will re-run the failed researcher or provide the file.
 
 **If a file is suspiciously short** (< 20 lines):
@@ -587,7 +587,7 @@ For each research file, verify:
 - [ ] File contains substantive content (not just headers with empty sections)
 - [ ] Confidence levels are stated (HIGH/MEDIUM/LOW markers present)
 
-If any file fails quality check, report in SYNTHESIS BLOCKED return. Do not synthesize incomplete inputs.
+If any file fails quality check, return `gpd_return.status: blocked`. Do not synthesize incomplete inputs.
 
 Parse each file to extract:
 
@@ -950,7 +950,7 @@ SUMMARY.md written. Orchestrator can commit all research files and proceed to re
 When unable to proceed:
 
 ```markdown
-## SYNTHESIS BLOCKED
+## Synthesis Blocked
 
 **Blocked by:** [issue]
 
@@ -975,7 +975,7 @@ This agent writes only `GPD/literature/SUMMARY.md`; `files_written` must list on
 
 ```yaml
 gpd_return:
-  # Mapping: SYNTHESIS COMPLETE → completed, SYNTHESIS BLOCKED → blocked
+  # Map complete synthesis to completed, blocked synthesis to blocked.
   # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
   # files_written must include GPD/literature/SUMMARY.md when a draft or final summary was written.
 ```

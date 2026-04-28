@@ -358,7 +358,9 @@ def test_ingest_manuscript_reference_status_accepts_an_explicit_publication_subj
     _bootstrap_project(tmp_path)
     manuscript_dir = tmp_path / "manuscript"
     manuscript_dir.mkdir()
-    (manuscript_dir / "main.tex").write_text("\\documentclass{article}\n", encoding="utf-8")
+    manuscript = manuscript_dir / "main.tex"
+    manuscript.write_text("\\documentclass{article}\n", encoding="utf-8")
+    manuscript_sha256 = hashlib.sha256(manuscript.read_bytes()).hexdigest()
     (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
         json.dumps(
             {
@@ -366,12 +368,14 @@ def test_ingest_manuscript_reference_status_accepts_an_explicit_publication_subj
                 "paper_title": "Curvature Flow Bounds",
                 "journal": "prl",
                 "created_at": "2026-04-02T00:00:00+00:00",
+                "manuscript_sha256": manuscript_sha256,
+                "manuscript_mtime_ns": manuscript.stat().st_mtime_ns,
                 "artifacts": [
                     {
                         "artifact_id": "tex-paper",
                         "category": "tex",
                         "path": "main.tex",
-                        "sha256": "0" * 64,
+                        "sha256": manuscript_sha256,
                         "produced_by": "test",
                         "sources": [],
                         "metadata": {},

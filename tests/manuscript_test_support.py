@@ -42,6 +42,7 @@ def _write_artifact_manifest(
 ) -> None:
     paper_dir = manuscript.parent
     bibliography_path = paper_dir / "BIBLIOGRAPHY-AUDIT.json"
+    manuscript_sha256 = compute_sha256(manuscript)
     (paper_dir / "ARTIFACT-MANIFEST.json").write_text(
         json.dumps(
             {
@@ -49,12 +50,14 @@ def _write_artifact_manifest(
                 "paper_title": title,
                 "journal": "jhep",
                 "created_at": _CREATED_AT,
+                "manuscript_sha256": manuscript_sha256,
+                "manuscript_mtime_ns": manuscript.stat().st_mtime_ns,
                 "artifacts": [
                     {
                         "artifact_id": "manuscript-tex",
                         "category": "tex",
                         "path": f"{stem}.tex",
-                        "sha256": compute_sha256(manuscript),
+                        "sha256": manuscript_sha256,
                         "produced_by": "tests.manuscript_test_support",
                         "sources": [],
                         "metadata": {"role": "manuscript"},

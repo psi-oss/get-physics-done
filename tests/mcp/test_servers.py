@@ -435,6 +435,8 @@ class TestBuiltinServerDescriptors:
         descriptor = build_public_descriptors()["gpd-skills"]
 
         assert descriptor["description"] == SKILLS_SERVER_DESCRIPTION
+        assert "missing evidence or artifacts" in descriptor["description"]
+        assert "never fabricate fallback outputs" in descriptor["description"]
 
 
 class TestMcpServerRunner:

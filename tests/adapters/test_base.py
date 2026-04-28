@@ -401,6 +401,27 @@ class TestAdapterConformance:
         adapter = get_adapter(runtime)
         assert adapter.help_command == expected
 
+    def test_public_command_prefix_fails_closed_without_descriptor_public_surface(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        class SyntheticAdapter(RuntimeAdapter):
+            @property
+            def runtime_name(self) -> str:
+                return "synthetic"
+
+        monkeypatch.setattr(
+            "gpd.adapters.base.get_runtime_descriptor",
+            lambda runtime: SimpleNamespace(
+                runtime_name=runtime,
+                command_prefix="/adapter-only:",
+                public_command_surface_prefix="",
+            ),
+        )
+
+        with pytest.raises(ValueError, match="missing a public command surface prefix"):
+            SyntheticAdapter().format_command("help")
+
     @pytest.mark.parametrize("runtime", RUNTIME_NAMES)
     def test_config_dir_name_starts_with_dot(self, runtime: str) -> None:
         adapter = get_adapter(runtime)

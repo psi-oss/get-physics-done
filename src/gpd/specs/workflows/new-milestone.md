@@ -674,7 +674,7 @@ gpd commit "docs: create milestone v[X.Y] roadmap ([N] phases)" --files GPD/ROAD
 
 **[N] phases** | **[X] objectives** | Ready to investigate
 
-## >> Next Up
+## > Next Up
 
 **Phase [N]: [Phase Name]** — [Goal]
 

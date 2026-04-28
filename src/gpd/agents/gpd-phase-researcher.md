@@ -485,7 +485,7 @@ Research complete. Planner can now create PLAN.md files.
 
 ### Immediate Block Conditions
 
-Block the research and return RESEARCH BLOCKED immediately if:
+Block the research with `gpd_return.status: blocked` immediately if:
 - The only known computational method has a **fermion sign problem** with no known workaround for this parameter regime
 - The computation requires resources **clearly beyond** what a single-session agent can provide (e.g., months of HPC time)
 - The problem is **known to be undecidable** or have no closed-form solution in the requested regime

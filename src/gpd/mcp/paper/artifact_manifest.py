@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -17,6 +18,75 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(8192), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactManifestFreshness:
+    """Freshness check result for one manifest/manuscript snapshot pair."""
+
+    fresh: bool
+    detail: str
+    actual_sha256: str | None = None
+    actual_mtime_ns: int | None = None
+
+
+def validate_artifact_manifest_freshness(
+    manifest: ArtifactManifest,
+    manuscript_path: Path,
+) -> ArtifactManifestFreshness:
+    """Validate that a manifest still describes the active manuscript file.
+
+    ``manuscript_sha256`` is the authoritative freshness field. The mtime is
+    recorded for diagnostics, but a matching digest remains fresh even if file
+    metadata changed without a content edit. Manifests without a top-level
+    manuscript digest are stale because freshness cannot be verified.
+    """
+
+    try:
+        stat = manuscript_path.stat()
+    except OSError as exc:
+        return ArtifactManifestFreshness(
+            fresh=False,
+            detail=f"could not read active manuscript snapshot: {exc}",
+        )
+
+    actual_mtime_ns = stat.st_mtime_ns
+    try:
+        actual_sha256 = _sha256(manuscript_path)
+    except OSError as exc:
+        return ArtifactManifestFreshness(
+            fresh=False,
+            detail=f"could not hash active manuscript snapshot: {exc}",
+            actual_mtime_ns=actual_mtime_ns,
+        )
+    expected_sha256 = manifest.manuscript_sha256
+    if expected_sha256 is None:
+        return ArtifactManifestFreshness(
+            fresh=False,
+            detail="manifest is missing manuscript_sha256; freshness cannot be verified",
+            actual_sha256=actual_sha256,
+            actual_mtime_ns=actual_mtime_ns,
+        )
+    if expected_sha256 != actual_sha256:
+        return ArtifactManifestFreshness(
+            fresh=False,
+            detail="manuscript_sha256 does not match the active manuscript snapshot",
+            actual_sha256=actual_sha256,
+            actual_mtime_ns=actual_mtime_ns,
+        )
+    if manifest.manuscript_mtime_ns is not None and manifest.manuscript_mtime_ns != actual_mtime_ns:
+        return ArtifactManifestFreshness(
+            fresh=True,
+            detail="manuscript_sha256 matches; manuscript_mtime_ns differs",
+            actual_sha256=actual_sha256,
+            actual_mtime_ns=actual_mtime_ns,
+        )
+    return ArtifactManifestFreshness(
+        fresh=True,
+        detail="manuscript snapshot matches artifact manifest",
+        actual_sha256=actual_sha256,
+        actual_mtime_ns=actual_mtime_ns,
+    )
 
 
 def _display_path(path: Path, output_dir: Path) -> str:

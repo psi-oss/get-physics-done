@@ -280,6 +280,9 @@ def assert_tests_readme_documents_ci_shard_policy(tests_readme: str) -> None:
 
 
 def assert_contributing_documents_current_pytest_commands(contributing: str) -> None:
+    assert "python scripts/sync_repo_graph_contract.py --check" in contributing
+    assert "If the repo graph check reports generated-artifact drift" in contributing
+    assert "`python scripts/sync_repo_graph_contract.py`" in contributing
     assert "uv run pytest tests/ -q" in contributing
     assert "`uv run pytest tests/ -q` is the fast local full checked-in suite" in contributing
     assert "tests/ci_sharding.py" in contributing

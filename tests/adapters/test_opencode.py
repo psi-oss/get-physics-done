@@ -1168,6 +1168,68 @@ class TestUninstall:
         assert mcp_servers == {"custom-server": {"type": "local", "command": ["node", "custom.js"]}}
         assert any("GPD MCP servers" in item for item in result["removed"])
 
+    def test_uninstall_preserves_non_utf8_opencode_json(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+        config_path = target / "opencode.json"
+        config_path.write_bytes(b'\xff\xfe{"permission": {"read": {}}}')
+        before = config_path.read_bytes()
+
+        result = adapter.uninstall(target)
+
+        assert config_path.read_bytes() == before
+        assert not (target / "get-physics-done").exists()
+        assert not (target / MANIFEST_NAME).exists()
+        assert "opencode.json permissions" not in result["removed"]
+
+    def test_uninstall_preserves_malformed_opencode_json_syntax(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+        adapter.sync_runtime_permissions(target, autonomy="yolo")
+        config_path = target / "opencode.json"
+        config_path.write_text('{"permission": [\n', encoding="utf-8")
+        before = config_path.read_bytes()
+
+        result = adapter.uninstall(target)
+
+        assert config_path.read_bytes() == before
+        assert not (target / "get-physics-done").exists()
+        assert not (target / MANIFEST_NAME).exists()
+        assert "opencode.json permissions" not in result["removed"]
+
+    def test_uninstall_preserves_structurally_invalid_opencode_json_after_yolo_sync(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+        adapter.sync_runtime_permissions(target, autonomy="yolo")
+        config_path = target / "opencode.json"
+        config_path.write_text('{"permission": []}\n', encoding="utf-8")
+        before = config_path.read_bytes()
+
+        result = adapter.uninstall(target)
+
+        assert config_path.read_bytes() == before
+        assert not (target / "get-physics-done").exists()
+        assert not (target / MANIFEST_NAME).exists()
+        assert "opencode.json permissions" not in result["removed"]
+
     def test_uninstall_removes_commands(self, adapter: OpenCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".opencode"
         target.mkdir()

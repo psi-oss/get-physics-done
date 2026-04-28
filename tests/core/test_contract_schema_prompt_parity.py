@@ -9,14 +9,17 @@ from gpd.adapters.install_utils import expand_at_includes
 from gpd.contracts import (
     CONTRACT_ACCEPTANCE_AUTOMATION_VALUES,
     CONTRACT_ACCEPTANCE_TEST_KIND_VALUES,
+    CONTRACT_CLAIM_KIND_VALUES,
     CONTRACT_DELIVERABLE_KIND_VALUES,
     CONTRACT_LINK_RELATION_VALUES,
     CONTRACT_OBSERVABLE_KIND_VALUES,
+    CONTRACT_REFERENCE_ACTION_VALUES,
     CONTRACT_REFERENCE_KIND_VALUES,
     CONTRACT_REFERENCE_ROLE_VALUES,
     PROOF_AUDIT_COUNTEREXAMPLE_STATUS_VALUES,
     PROOF_AUDIT_QUANTIFIER_STATUS_VALUES,
     PROOF_AUDIT_SCOPE_STATUS_VALUES,
+    PROOF_HYPOTHESIS_CATEGORY_VALUES,
     ComparisonVerdict,
     ContractAcceptanceTest,
     ContractApproachPolicy,
@@ -42,6 +45,7 @@ from gpd.contracts import (
     SuggestedContractCheck,
     VerificationEvidence,
 )
+from gpd.core import project_contract_schema
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SPECS_DIR = REPO_ROOT / "src/gpd/specs"
@@ -284,6 +288,37 @@ def test_project_and_state_contract_schemas_surface_full_closed_research_vocabul
         schema_text = _expanded(TEMPLATES_DIR / schema_name)
         for line in expected_lines:
             assert line in schema_text, f"{schema_name} is missing canonical enum line: {line}"
+
+
+def test_project_contract_schema_case_recovery_uses_canonical_proof_hypothesis_categories() -> None:
+    matching_choices = [
+        choices
+        for pattern, choices in project_contract_schema._LITERAL_CASE_DRIFT_FIELD_PATTERNS
+        if pattern.pattern == r"^claims\.\d+\.hypotheses\.\d+\.category$"
+    ]
+
+    assert matching_choices == [PROOF_HYPOTHESIS_CATEGORY_VALUES]
+
+
+def test_project_contract_model_literals_use_exported_enum_constants() -> None:
+    assert _ordered_literal_tokens(ContractObservable.model_fields["kind"].annotation) == CONTRACT_OBSERVABLE_KIND_VALUES
+    assert _ordered_literal_tokens(ContractClaim.model_fields["claim_kind"].annotation) == CONTRACT_CLAIM_KIND_VALUES
+    assert _ordered_literal_tokens(ContractDeliverable.model_fields["kind"].annotation) == CONTRACT_DELIVERABLE_KIND_VALUES
+    assert (
+        _ordered_literal_tokens(ContractAcceptanceTest.model_fields["kind"].annotation)
+        == CONTRACT_ACCEPTANCE_TEST_KIND_VALUES
+    )
+    assert (
+        _ordered_literal_tokens(ContractAcceptanceTest.model_fields["automation"].annotation)
+        == CONTRACT_ACCEPTANCE_AUTOMATION_VALUES
+    )
+    assert _ordered_literal_tokens(ContractReference.model_fields["kind"].annotation) == CONTRACT_REFERENCE_KIND_VALUES
+    assert _ordered_literal_tokens(ContractReference.model_fields["role"].annotation) == CONTRACT_REFERENCE_ROLE_VALUES
+    assert (
+        _ordered_literal_tokens(ContractReference.model_fields["required_actions"].annotation)
+        == CONTRACT_REFERENCE_ACTION_VALUES
+    )
+    assert _ordered_literal_tokens(ContractLink.model_fields["relation"].annotation) == CONTRACT_LINK_RELATION_VALUES
 
 
 def test_contract_results_schema_and_expanded_prompts_surface_full_proof_audit_status_vocabularies() -> None:

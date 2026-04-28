@@ -57,6 +57,7 @@ __all__ = [
     "PROJECT_CONTRACT_MAPPING_LIST_FIELDS",
     "PROJECT_CONTRACT_TOP_LEVEL_LIST_FIELDS",
     "PROJECT_CONTRACT_COLLECTION_LIST_FIELDS",
+    "PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS",
     "ContractScope",
     "ContractContextIntake",
     "ContractApproachPolicy",
@@ -727,6 +728,10 @@ PROJECT_CONTRACT_COLLECTION_LIST_FIELDS: dict[str, tuple[str, ...]] = {
     "references": ("aliases", "applies_to", "carry_forward_to", "required_actions"),
     "links": ("verified_by",),
 }
+PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("claims", "parameters"): ("aliases",),
+    ("claims", "hypotheses"): ("symbols",),
+}
 
 
 def _collect_project_contract_list_member_errors(data: object) -> list[str]:
@@ -770,33 +775,27 @@ def _collect_project_contract_list_member_errors(data: object) -> list[str]:
         for index, item in enumerate(raw_collection):
             if isinstance(item, dict):
                 _check_mapping_lists(item, path_prefix=f"{collection_name}.{index}", field_names=field_names)
-                if collection_name == "claims":
-                    parameters = item.get("parameters")
-                    if isinstance(parameters, list):
-                        for param_index, parameter in enumerate(parameters):
-                            if isinstance(parameter, dict) and isinstance(parameter.get("aliases"), str):
-                                if not _blank_string(parameter["aliases"]):
-                                    errors.append(
-                                        f"{collection_name}.{index}.parameters.{param_index}.aliases must be a list, not str"
-                                    )
-                            if isinstance(parameter, dict) and "aliases" in parameter:
-                                _check_string_list(
-                                    parameter["aliases"],
-                                    path=f"{collection_name}.{index}.parameters.{param_index}.aliases",
-                                )
-                    hypotheses = item.get("hypotheses")
-                    if isinstance(hypotheses, list):
-                        for hypothesis_index, hypothesis in enumerate(hypotheses):
-                            if isinstance(hypothesis, dict) and isinstance(hypothesis.get("symbols"), str):
-                                if not _blank_string(hypothesis["symbols"]):
-                                    errors.append(
-                                        f"{collection_name}.{index}.hypotheses.{hypothesis_index}.symbols must be a list, not str"
-                                    )
-                            if isinstance(hypothesis, dict) and "symbols" in hypothesis:
-                                _check_string_list(
-                                    hypothesis["symbols"],
-                                    path=f"{collection_name}.{index}.hypotheses.{hypothesis_index}.symbols",
-                                )
+                for (parent_collection_name, nested_collection_name), nested_field_names in (
+                    PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS.items()
+                ):
+                    if collection_name != parent_collection_name:
+                        continue
+                    nested_collection = item.get(nested_collection_name)
+                    if not isinstance(nested_collection, list):
+                        continue
+                    for nested_index, nested_item in enumerate(nested_collection):
+                        if not isinstance(nested_item, dict):
+                            continue
+                        for nested_field_name in nested_field_names:
+                            path = (
+                                f"{collection_name}.{index}."
+                                f"{nested_collection_name}.{nested_index}.{nested_field_name}"
+                            )
+                            if isinstance(nested_item.get(nested_field_name), str):
+                                if not _blank_string(nested_item[nested_field_name]):
+                                    errors.append(f"{path} must be a list, not str")
+                            if nested_field_name in nested_item:
+                                _check_string_list(nested_item[nested_field_name], path=path)
 
     for section_name, field_names in PROJECT_CONTRACT_MAPPING_LIST_FIELDS.items():
         _check_mapping_lists(data.get(section_name), path_prefix=section_name, field_names=field_names)
@@ -820,16 +819,21 @@ def _collect_strict_nested_proof_list_scalar_drift_errors(data: object) -> list[
     for claim_index, claim in enumerate(claims):
         if not isinstance(claim, dict):
             continue
-        parameters = claim.get("parameters")
-        if isinstance(parameters, list):
-            for param_index, parameter in enumerate(parameters):
-                if isinstance(parameter, dict) and isinstance(parameter.get("aliases"), str) and not parameter["aliases"].strip():
-                    errors.append(f"claims.{claim_index}.parameters.{param_index}.aliases must be a list, not str")
-        hypotheses = claim.get("hypotheses")
-        if isinstance(hypotheses, list):
-            for hypothesis_index, hypothesis in enumerate(hypotheses):
-                if isinstance(hypothesis, dict) and isinstance(hypothesis.get("symbols"), str) and not hypothesis["symbols"].strip():
-                    errors.append(f"claims.{claim_index}.hypotheses.{hypothesis_index}.symbols must be a list, not str")
+        for (parent_collection_name, nested_collection_name), field_names in (
+            PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS.items()
+        ):
+            if parent_collection_name != "claims":
+                continue
+            nested_collection = claim.get(nested_collection_name)
+            if not isinstance(nested_collection, list):
+                continue
+            for nested_index, nested_item in enumerate(nested_collection):
+                if not isinstance(nested_item, dict):
+                    continue
+                for field_name in field_names:
+                    value = nested_item.get(field_name)
+                    if isinstance(value, str) and not value.strip():
+                        errors.append(f"claims.{claim_index}.{nested_collection_name}.{nested_index}.{field_name} must be a list, not str")
 
     return errors
 
@@ -1486,7 +1490,7 @@ class ContractProofAudit(BaseModel):
 
 
 ContractEvidenceStatus = Literal["passed", "partial", "failed", "blocked", "not_attempted"]
-ContractReferenceAction = Literal["read", "use", "compare", "cite", "avoid"]
+ContractReferenceAction = Literal[*CONTRACT_REFERENCE_ACTION_VALUES]
 PROOF_ACCEPTANCE_TEST_KINDS: tuple[str, ...] = (
     "proof_hypothesis_coverage",
     "proof_parameter_coverage",
@@ -1903,7 +1907,7 @@ class ContractObservable(BaseModel):
 
     id: str
     name: str
-    kind: Literal["scalar", "curve", "map", "classification", "proof_obligation", "other"] = "other"
+    kind: Literal[*CONTRACT_OBSERVABLE_KIND_VALUES] = "other"
     definition: str
     regime: str | None = None
     units: str | None = None
@@ -1931,7 +1935,7 @@ class ContractClaim(BaseModel):
 
     id: str
     statement: str
-    claim_kind: Literal["theorem", "lemma", "corollary", "proposition", "result", "claim", "other"] = "other"
+    claim_kind: Literal[*CONTRACT_CLAIM_KIND_VALUES] = "other"
     observables: list[str] = Field(default_factory=list)
     deliverables: list[str] = Field(default_factory=list)
     acceptance_tests: list[str] = Field(default_factory=list)
@@ -1972,7 +1976,7 @@ class ContractDeliverable(BaseModel):
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     id: str
-    kind: Literal["figure", "table", "dataset", "data", "derivation", "code", "note", "report", "other"] = "other"
+    kind: Literal[*CONTRACT_DELIVERABLE_KIND_VALUES] = "other"
     path: str | None = None
     description: str
     must_contain: list[str] = Field(default_factory=list)
@@ -2005,32 +2009,11 @@ class ContractAcceptanceTest(BaseModel):
 
     id: str
     subject: str
-    kind: Literal[
-        "existence",
-        "schema",
-        "benchmark",
-        "consistency",
-        "cross_method",
-        "limiting_case",
-        "symmetry",
-        "dimensional_analysis",
-        "convergence",
-        "oracle",
-        "proxy",
-        "reproducibility",
-        "proof_hypothesis_coverage",
-        "proof_parameter_coverage",
-        "proof_quantifier_domain",
-        "claim_to_proof_alignment",
-        "lemma_dependency_closure",
-        "counterexample_search",
-        "human_review",
-        "other",
-    ] = "other"
+    kind: Literal[*CONTRACT_ACCEPTANCE_TEST_KIND_VALUES] = "other"
     procedure: str
     pass_condition: str
     evidence_required: list[str] = Field(default_factory=list)
-    automation: Literal["automated", "hybrid", "human"] = "hybrid"
+    automation: Literal[*CONTRACT_ACCEPTANCE_AUTOMATION_VALUES] = "hybrid"
 
     @field_validator("id", "subject", "procedure", "pass_condition", mode="before")
     @classmethod
@@ -2059,10 +2042,10 @@ class ContractReference(BaseModel):
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     id: str
-    kind: Literal["paper", "dataset", "prior_artifact", "spec", "user_anchor", "other"] = "other"
+    kind: Literal[*CONTRACT_REFERENCE_KIND_VALUES] = "other"
     locator: str
     aliases: list[str] = Field(default_factory=list)
-    role: Literal["definition", "benchmark", "method", "must_consider", "background", "other"] = "other"
+    role: Literal[*CONTRACT_REFERENCE_ROLE_VALUES] = "other"
     why_it_matters: str
     applies_to: list[str] = Field(default_factory=list)
     carry_forward_to: list[str] = Field(default_factory=list)
@@ -2122,18 +2105,7 @@ class ContractLink(BaseModel):
     id: str
     source: str
     target: str
-    relation: Literal[
-        "supports",
-        "computes",
-        "visualizes",
-        "benchmarks",
-        "depends_on",
-        "evaluated_by",
-        "proves",
-        "uses_hypothesis",
-        "depends_on_lemma",
-        "other",
-    ] = "other"
+    relation: Literal[*CONTRACT_LINK_RELATION_VALUES] = "other"
     verified_by: list[str] = Field(default_factory=list)
 
     @field_validator("id", "source", "target", mode="before")

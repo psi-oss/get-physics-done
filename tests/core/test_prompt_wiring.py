@@ -1831,7 +1831,7 @@ def test_roadmap_template_and_workflows_surface_phase_contract_coverage() -> Non
         new_milestone_roadmapper
     )
     assert "Intermediate Results" in state_template
-    assert "return `## ROADMAP BLOCKED`" in roadmapper_agent
+    assert "stop with `gpd_return.status: blocked`" in roadmapper_agent
     assert (
         "Treat `context_intake.must_read_refs`, `must_include_prior_outputs`, "
         "`user_asserted_anchors`, `known_good_baselines`, and `crucial_inputs` "
@@ -3664,7 +3664,7 @@ def test_peer_review_spawned_stage_prompts_require_typed_child_returns() -> None
     peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
 
     assert "<step name=\"child_return_contract\">" in peer_review
-    assert "Human-readable `STAGE X COMPLETE` / `REVIEW COMPLETE` text is presentation only" in peer_review
+    assert "Human-readable completion labels are presentation only" in peer_review
     assert "status: completed | checkpoint | blocked | failed" in peer_review
     for stage_name in (
         "reader",
@@ -4964,7 +4964,7 @@ def test_new_milestone_keeps_full_roadmap_detail_shallow_mode_false() -> None:
 def test_new_project_next_up_recommends_plan_phase_1_primary() -> None:
     new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
     # The standard-mode Next Up block is the final occurrence; the first is the --minimal path.
-    next_up_block = new_project[new_project.rindex("## >> Next Up"):]
+    next_up_block = new_project[new_project.rindex("## > Next Up"):]
     # plan-phase 1 should appear before discuss-phase 1 in that block.
     plan_idx = next_up_block.index("`gpd:plan-phase 1`")
     discuss_idx = next_up_block.index("`gpd:discuss-phase 1`")

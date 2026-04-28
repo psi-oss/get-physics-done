@@ -570,7 +570,7 @@ Created: GPD/phases/${PADDED_PHASE}-${SLUG}/${PADDED_PHASE}-CONTEXT.md
 
 ---
 
-## >> Next Up
+## > Next Up
 
 **Phase ${PHASE}: [Name]** -- [Goal from ROADMAP.md]
 

@@ -342,6 +342,8 @@ def gpd_project(tmp_path: Path) -> Path:
                 "paper_title": "Test",
                 "journal": "prl",
                 "created_at": "2026-03-10T00:00:00+00:00",
+                "manuscript_sha256": compute_sha256(manuscript),
+                "manuscript_mtime_ns": manuscript.stat().st_mtime_ns,
                 "artifacts": [
                     {
                         "artifact_id": "manuscript",
@@ -428,6 +430,49 @@ def _invoke(*args: str, expect_ok: bool = True) -> None:
     result = runner.invoke(app, list(args), catch_exceptions=False)
     if expect_ok:
         assert result.exit_code == 0, f"gpd {' '.join(args)} failed:\n{result.output}"
+
+
+def _refresh_artifact_manifest_for_manuscript(
+    project_root: Path,
+    manuscript: Path | None = None,
+) -> None:
+    """Keep the publication manifest fresh after tests rewrite the active manuscript."""
+    manuscript = manuscript or canonical_manuscript_path(project_root)
+    manifest_path = manuscript.parent / "ARTIFACT-MANIFEST.json"
+    manifest = (
+        json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest_path.exists()
+        else {
+            "version": 1,
+            "paper_title": "Test",
+            "journal": "prl",
+            "created_at": "2026-03-10T00:00:00+00:00",
+            "artifacts": [],
+        }
+    )
+    manuscript_sha256 = compute_sha256(manuscript)
+    manifest["manuscript_sha256"] = manuscript_sha256
+    manifest["manuscript_mtime_ns"] = manuscript.stat().st_mtime_ns
+    tex_artifacts = [
+        artifact
+        for artifact in manifest.get("artifacts", [])
+        if isinstance(artifact, dict) and artifact.get("category") == "tex"
+    ]
+    if not tex_artifacts:
+        tex_artifacts = [
+            {
+                "artifact_id": "manuscript",
+                "category": "tex",
+                "produced_by": "tests.test_cli_commands",
+                "sources": [],
+                "metadata": {"role": "manuscript"},
+            }
+        ]
+        manifest.setdefault("artifacts", []).extend(tex_artifacts)
+    for artifact in tex_artifacts:
+        artifact["path"] = manuscript.name
+        artifact["sha256"] = manuscript_sha256
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 
 def _manuscript_entrypoint_path(
@@ -920,6 +965,8 @@ def _write_secondary_manuscript_root(project_root: Path, *, root_name: str = "ma
                 "paper_title": "Curvature Flow Bounds",
                 "journal": "prl",
                 "created_at": "2026-03-10T00:00:00+00:00",
+                "manuscript_sha256": compute_sha256(manuscript),
+                "manuscript_mtime_ns": manuscript.stat().st_mtime_ns,
                 "artifacts": [
                     {
                         "artifact_id": f"manuscript-{root_name}",
@@ -972,6 +1019,8 @@ def _write_managed_publication_manuscript(
                 "paper_title": "Managed Manuscript",
                 "journal": "prl",
                 "created_at": "2026-03-10T00:00:00+00:00",
+                "manuscript_sha256": compute_sha256(manuscript),
+                "manuscript_mtime_ns": manuscript.stat().st_mtime_ns,
                 "artifacts": [
                     {
                         "artifact_id": "managed-manuscript",
@@ -3517,6 +3566,7 @@ class TestReviewValidationCommands:
             "\\documentclass{article}\n\\begin{document}\nDraft.\n\\end{document}\n",
             encoding="utf-8",
         )
+        _refresh_artifact_manifest_for_manuscript(tmp_path, manuscript)
         command = SimpleNamespace(
             name="gpd:custom-review",
             requires={"files": ["paper/*.tex"]},
@@ -4605,6 +4655,7 @@ class TestReviewValidationCommands:
             "\\end{document}\n",
             encoding="utf-8",
         )
+        _refresh_artifact_manifest_for_manuscript(gpd_project)
 
         result = runner.invoke(
             app,
@@ -4638,6 +4689,7 @@ class TestReviewValidationCommands:
             "\\begin{proof}The proof is omitted.\\end{proof}\n",
             encoding="utf-8",
         )
+        _refresh_artifact_manifest_for_manuscript(gpd_project, manuscript_path)
 
         result = runner.invoke(
             app,
@@ -4673,6 +4725,7 @@ class TestReviewValidationCommands:
             "\\documentclass{article}\n\\begin{document}\nRevised theorem statement.\n\\end{document}\n",
             encoding="utf-8",
         )
+        _refresh_artifact_manifest_for_manuscript(gpd_project, manuscript)
 
         result = runner.invoke(
             app,
@@ -4750,6 +4803,7 @@ class TestReviewValidationCommands:
             "\\documentclass{article}\n\\begin{document}\nPeer review should refresh this proof.\n\\end{document}\n",
             encoding="utf-8",
         )
+        _refresh_artifact_manifest_for_manuscript(gpd_project, manuscript)
 
         result = runner.invoke(
             app,
@@ -4863,7 +4917,9 @@ class TestReviewValidationCommands:
     def test_review_preflight_write_paper_strict_recognizes_markdown_resume_directory(self, gpd_project: Path) -> None:
         paper_dir = gpd_project / "paper"
         (paper_dir / _CANONICAL_MANUSCRIPT_BASENAME).unlink()
-        (paper_dir / _CANONICAL_MARKDOWN_BASENAME).write_text("# Markdown manuscript\n", encoding="utf-8")
+        markdown_manuscript = paper_dir / _CANONICAL_MARKDOWN_BASENAME
+        markdown_manuscript.write_text("# Markdown manuscript\n", encoding="utf-8")
+        _refresh_artifact_manifest_for_manuscript(gpd_project, markdown_manuscript)
 
         result = runner.invoke(
             app,
@@ -4891,7 +4947,8 @@ class TestReviewValidationCommands:
 
         resume_dir = gpd_project / resume_dir_name
         resume_dir.mkdir()
-        (resume_dir / _CANONICAL_MANUSCRIPT_BASENAME).write_text(
+        resume_manuscript = resume_dir / _CANONICAL_MANUSCRIPT_BASENAME
+        resume_manuscript.write_text(
             "\\documentclass{article}\n\\begin{document}\nResume manuscript.\n\\end{document}\n",
             encoding="utf-8",
         )
@@ -4904,6 +4961,14 @@ class TestReviewValidationCommands:
             (resume_dir / artifact_name).write_text(
                 (paper_dir / artifact_name).read_text(encoding="utf-8"), encoding="utf-8"
             )
+        manifest = json.loads((resume_dir / "ARTIFACT-MANIFEST.json").read_text(encoding="utf-8"))
+        manifest["manuscript_sha256"] = compute_sha256(resume_manuscript)
+        manifest["manuscript_mtime_ns"] = resume_manuscript.stat().st_mtime_ns
+        for artifact in manifest.get("artifacts", []):
+            if isinstance(artifact, dict) and artifact.get("category") == "tex":
+                artifact["sha256"] = compute_sha256(resume_manuscript)
+                artifact["path"] = _CANONICAL_MANUSCRIPT_BASENAME
+        (resume_dir / "ARTIFACT-MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
         result = runner.invoke(
             app,
@@ -5113,7 +5178,9 @@ class TestReviewValidationCommands:
     def test_review_preflight_peer_review_without_subject_accepts_markdown_entrypoint(self, gpd_project: Path) -> None:
         paper_dir = gpd_project / "paper"
         (paper_dir / _CANONICAL_MANUSCRIPT_BASENAME).unlink()
-        (paper_dir / _CANONICAL_MARKDOWN_BASENAME).write_text("# Markdown manuscript\n", encoding="utf-8")
+        markdown_manuscript = paper_dir / _CANONICAL_MARKDOWN_BASENAME
+        markdown_manuscript.write_text("# Markdown manuscript\n", encoding="utf-8")
+        _refresh_artifact_manifest_for_manuscript(gpd_project, markdown_manuscript)
 
         result = runner.invoke(
             app,
@@ -5440,6 +5507,41 @@ class TestReviewValidationCommands:
         assert checks["artifact_manifest"]["passed"] is False
         assert "artifact manifest is invalid" in checks["artifact_manifest"]["detail"]
         assert "artifact_manifest.paper_title" in checks["artifact_manifest"]["detail"]
+
+    def test_review_preflight_peer_review_strict_rejects_stale_artifact_manifest_checksum(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        paper_dir = gpd_project / "paper"
+        manuscript = canonical_manuscript_path(gpd_project)
+        manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["manuscript_sha256"] = "0" * 64
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        passed, detail = cli_module._validate_artifact_manifest_semantics(manifest_path, manuscript)
+
+        assert passed is False
+        assert "artifact manifest is stale" in detail
+        assert "manuscript_sha256 does not match the active manuscript snapshot" in detail
+
+    def test_review_preflight_peer_review_strict_rejects_artifact_manifest_without_manuscript_checksum(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        paper_dir = gpd_project / "paper"
+        manuscript = canonical_manuscript_path(gpd_project)
+        manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest.pop("manuscript_sha256", None)
+        manifest.pop("manuscript_mtime_ns", None)
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        passed, detail = cli_module._validate_artifact_manifest_semantics(manifest_path, manuscript)
+
+        assert passed is False
+        assert "artifact manifest is stale" in detail
+        assert "manifest is missing manuscript_sha256" in detail
 
     def test_review_preflight_peer_review_accepts_explicit_manuscript_path_outside_supported_roots(
         self,
@@ -6055,7 +6157,8 @@ class TestReviewValidationCommands:
             proof_bearing=False,
             write_proof_redteam=False,
         )
-        _manuscript_entrypoint_path(gpd_project).write_text(
+        manuscript = _manuscript_entrypoint_path(gpd_project)
+        manuscript.write_text(
             "\\documentclass{article}\n"
             "\\begin{document}\n"
             "\\begin{lemma}For every r_0 > 0, the orbit intersects the target annulus.\\end{lemma}\n"
@@ -6063,6 +6166,14 @@ class TestReviewValidationCommands:
             "\\end{document}\n",
             encoding="utf-8",
         )
+        manifest_path = manuscript.parent / "ARTIFACT-MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["manuscript_sha256"] = compute_sha256(manuscript)
+        manifest["manuscript_mtime_ns"] = manuscript.stat().st_mtime_ns
+        for artifact in manifest.get("artifacts", []):
+            if isinstance(artifact, dict) and artifact.get("category") == "tex":
+                artifact["sha256"] = compute_sha256(manuscript)
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
         result = runner.invoke(
             app,
@@ -6161,6 +6272,7 @@ class TestReviewValidationCommands:
             "\\documentclass{article}\n\\begin{document}\nEdited after review.\n\\end{document}\n",
             encoding="utf-8",
         )
+        _refresh_artifact_manifest_for_manuscript(gpd_project, manuscript_path)
 
         result = runner.invoke(
             app,
@@ -7151,6 +7263,8 @@ class TestReviewValidationCommands:
                     "paper_title": "Standalone directory review",
                     "journal": "jhep",
                     "created_at": "2026-03-10T00:00:00+00:00",
+                    "manuscript_sha256": compute_sha256(manuscript),
+                    "manuscript_mtime_ns": manuscript.stat().st_mtime_ns,
                     "artifacts": [
                         {
                             "artifact_id": "manuscript",

@@ -24,6 +24,35 @@ def _sha256_text(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
+def _artifact_manifest_payload(
+    manuscript_path: Path,
+    *,
+    title: str,
+    journal: str = "jhep",
+    artifact_id: str = "tex-paper",
+) -> dict[str, object]:
+    digest = hashlib.sha256(manuscript_path.read_bytes()).hexdigest()
+    return {
+        "version": 1,
+        "paper_title": title,
+        "journal": journal,
+        "created_at": "2026-03-13T00:00:00+00:00",
+        "manuscript_sha256": digest,
+        "manuscript_mtime_ns": manuscript_path.stat().st_mtime_ns,
+        "artifacts": [
+            {
+                "artifact_id": artifact_id,
+                "category": "tex",
+                "path": manuscript_path.name,
+                "sha256": digest,
+                "produced_by": "test",
+                "sources": [],
+                "metadata": {},
+            }
+        ],
+    }
+
+
 def _full_convention_lock() -> dict[str, str]:
     return {
         "metric_signature": "mostly-plus",
@@ -119,8 +148,9 @@ Body.
 
 
 def test_build_paper_quality_input_reads_contract_and_comparison_artifacts(tmp_path: Path) -> None:
+    manuscript = tmp_path / "paper" / "benchmark_paper.tex"
     _write(
-        tmp_path / "paper" / "benchmark_paper.tex",
+        manuscript,
         r"""
 \documentclass{article}
 \begin{document}
@@ -137,25 +167,7 @@ The benchmark was recovered within tolerance.
     )
     _write(
         tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Benchmark Paper",
-                "journal": "jhep",
-                "created_at": "2026-03-13T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "benchmark_paper.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript, title="Benchmark Paper")),
     )
     _write(
         tmp_path / "paper" / "BIBLIOGRAPHY-AUDIT.json",
@@ -435,8 +447,9 @@ Done.
 
 
 def test_build_paper_quality_input_recurses_into_nested_manuscript_files(tmp_path: Path) -> None:
+    manuscript = tmp_path / "paper" / "topic_specific_stem.tex"
     _write(
-        tmp_path / "paper" / "topic_specific_stem.tex",
+        manuscript,
         r"""
 \documentclass{article}
 \begin{document}
@@ -468,25 +481,7 @@ TODO finalize the nested conclusion.
     )
     _write(
         tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Recursive Manuscript",
-                "journal": "generic",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "topic_specific_stem.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript, title="Recursive Manuscript", journal="generic")),
     )
     _write(
         tmp_path / "paper" / "BIBLIOGRAPHY-AUDIT.json",
@@ -1268,8 +1263,9 @@ Done.
 
 
 def test_build_paper_quality_input_accepts_an_explicit_publication_subject(tmp_path: Path) -> None:
+    manuscript = tmp_path / "draft" / "main.tex"
     _write(
-        tmp_path / "draft" / "main.tex",
+        manuscript,
         r"""
 \documentclass{article}
 \begin{document}
@@ -1286,25 +1282,7 @@ Done.
     )
     _write(
         tmp_path / "draft" / "ARTIFACT-MANIFEST.json",
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Explicit Subject Title",
-                "journal": "jhep",
-                "created_at": "2026-03-13T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "main-tex",
-                        "category": "tex",
-                        "path": "main.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "paper-compiler",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript, title="Explicit Subject Title", artifact_id="main-tex")),
     )
     _write(
         tmp_path / "draft" / "PAPER-CONFIG.json",
@@ -1504,8 +1482,9 @@ Done.
 
 
 def test_build_paper_quality_input_collects_comparison_verdicts_from_active_manuscript_root(tmp_path: Path) -> None:
+    manuscript = tmp_path / "manuscript" / "curvature_flow_bounds.tex"
     _write(
-        tmp_path / "manuscript" / "curvature_flow_bounds.tex",
+        manuscript,
         "\\documentclass{article}\\begin{document}\\begin{abstract}A.\\end{abstract}\\section{Introduction}Intro.\\section{Conclusion}Done.\\end{document}\n",
     )
     _write(
@@ -1514,25 +1493,7 @@ def test_build_paper_quality_input_collects_comparison_verdicts_from_active_manu
     )
     _write(
         tmp_path / "manuscript" / "ARTIFACT-MANIFEST.json",
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Curvature Flow Bounds",
-                "journal": "jhep",
-                "created_at": "2026-03-13T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "curvature_flow_bounds.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript, title="Curvature Flow Bounds")),
     )
     _write(
         tmp_path / "manuscript" / "BIBLIOGRAPHY-AUDIT.json",

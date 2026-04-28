@@ -788,9 +788,8 @@ def uninstall_opencode(
     oc_config_dir_mcp = config_dir
     oc_config_path_mcp = oc_config_dir_mcp / "opencode.json"
     if oc_config_path_mcp.exists():
-        try:
-            oc_mcp = parse_jsonc(oc_config_path_mcp.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+        oc_mcp, oc_config_parse_error = _read_opencode_config_state(oc_config_dir_mcp)
+        if oc_config_parse_error is not None:
             oc_mcp = None
         if isinstance(oc_mcp, dict) and isinstance(oc_mcp.get("mcp"), dict):
             gpd_keys = [k for k in oc_mcp["mcp"] if k in _managed_mcp_server_keys()]
@@ -806,12 +805,8 @@ def uninstall_opencode(
     oc_config_dir = config_dir
     oc_config_path = oc_config_dir / "opencode.json"
     if oc_config_path.exists():
-        try:
-            oc_config = parse_jsonc(oc_config_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            oc_config = None
-        if not isinstance(oc_config, dict):
-            oc_config = None
+        oc_config, config_parse_error = _read_opencode_config_state(oc_config_dir)
+        config_parse_failed = config_parse_error is not None
         modified = False
 
         restore_state = (
@@ -819,7 +814,7 @@ def uninstall_opencode(
             if isinstance(runtime_permission_state, dict) and runtime_permission_state.get("mode") == "yolo"
             else None
         )
-        if isinstance(restore_state, dict):
+        if isinstance(restore_state, dict) and not config_parse_failed:
             if oc_config is None:
                 oc_config = {}
             if restore_state.get("had_permission"):

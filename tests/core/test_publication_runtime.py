@@ -10,6 +10,7 @@ from gpd.core.publication_rounds import (
 )
 from gpd.core.publication_runtime import publication_runtime_snapshot_context, resolve_publication_runtime_snapshot
 from gpd.core.referee_policy import RefereeDecisionInput
+from gpd.core.reproducibility import compute_sha256
 from gpd.mcp.paper.models import ReviewConfidence, ReviewLedger, ReviewRecommendation
 from gpd.mcp.paper.review_artifacts import write_referee_decision, write_review_ledger
 
@@ -83,6 +84,8 @@ def _write_response_pair(
 
 
 def _write_artifact_manifest(manuscript_root: Path, entrypoint_name: str) -> None:
+    entrypoint = manuscript_root / entrypoint_name
+    entrypoint_sha256 = compute_sha256(entrypoint)
     _write(
         manuscript_root / "ARTIFACT-MANIFEST.json",
         json.dumps(
@@ -91,12 +94,14 @@ def _write_artifact_manifest(manuscript_root: Path, entrypoint_name: str) -> Non
                 "paper_title": "Main Paper",
                 "journal": "prl",
                 "created_at": "2026-04-02T00:00:00+00:00",
+                "manuscript_sha256": entrypoint_sha256,
+                "manuscript_mtime_ns": entrypoint.stat().st_mtime_ns,
                 "artifacts": [
                     {
                         "artifact_id": "tex-paper",
                         "category": "tex",
                         "path": entrypoint_name,
-                        "sha256": "0" * 64,
+                        "sha256": entrypoint_sha256,
                         "produced_by": "test",
                         "sources": [],
                         "metadata": {},

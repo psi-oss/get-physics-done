@@ -344,7 +344,7 @@ Use one short sentence that names each stage's job, for example:
 <step name="child_return_contract">
 **Peer-review child return contract:**
 
-Every spawned review child must return a typed `gpd_return` envelope with `status: completed | checkpoint | blocked | failed`, `files_written` naming only artifacts that genuinely landed on disk in that child run, `issues`, `next_actions`, and `peer_review_stage`. Human-readable `STAGE X COMPLETE` / `REVIEW COMPLETE` text is presentation only and does not satisfy the handoff without the typed envelope.
+Every spawned review child must return a typed `gpd_return` envelope with `status: completed | checkpoint | blocked | failed`, `files_written` naming only artifacts that genuinely landed on disk in that child run, `issues`, `next_actions`, and `peer_review_stage`. Human-readable completion labels are presentation only and do not satisfy the handoff without the typed envelope.
 
 Panel-stage artifacts use {GPD_INSTALL_DIR}/references/publication/peer-review-panel.md. Final adjudication uses {GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md and {GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md. Load these only in panel or final-adjudication stages.
 </step>
@@ -870,7 +870,7 @@ Write `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` and the matching `${
 Treat the referee report files as required final-stage artifacts. If either report file is missing after adjudication, the stage is incomplete even if the JSON validators passed.
 Also write `${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md` when applicable.
 
-Use the child return contract with `peer_review_stage: referee`; `files_written` naming only Stage 6-owned artifacts written in this run. Optional prose may say REVIEW COMPLETE with recommendation, confidence, issue counts, and whether prior major concerns are resolved.",
+Use the child return contract with `peer_review_stage: referee`; `files_written` naming only Stage 6-owned artifacts written in this run. Optional prose may summarize the recommendation, confidence, issue counts, and whether prior major concerns are resolved.",
   description="Peer review stage 6: final adjudication"
 )
 ```

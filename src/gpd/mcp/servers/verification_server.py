@@ -35,6 +35,7 @@ from gpd.contracts import (
     CONTRACT_UNCERTAINTY_MARKER_FIELD_NAMES,
     PROJECT_CONTRACT_COLLECTION_LIST_FIELDS,
     PROJECT_CONTRACT_MAPPING_LIST_FIELDS,
+    PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS,
     PROOF_ACCEPTANCE_TEST_KINDS,
     PROOF_AUDIT_COUNTEREXAMPLE_STATUS_VALUES,
     PROOF_AUDIT_QUANTIFIER_STATUS_VALUES,
@@ -779,7 +780,7 @@ _CONTRACT_SCOPE_INPUT_SCHEMA["description"] = (
     "does not infer it."
 )
 _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA: dict[str, object] = _object_schema(
-    {field_name: _contract_string_list_schema(min_items=1) for field_name in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES},
+    {field_name: _contract_string_list_schema() for field_name in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES},
     additional_properties=False,
 )
 _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA["minProperties"] = 1
@@ -787,8 +788,9 @@ _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA["anyOf"] = [
     {"required": [field_name]} for field_name in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES
 ]
 _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA["description"] = (
-    "`context_intake` is required and must stay non-empty. Use it to surface anchors, prior outputs, baselines, "
-    "gaps, or other user-stated inputs the model must still see when later contract-aware tools validate the work."
+    "`context_intake` is required and must stay explicit. Use it to surface anchors, prior outputs, baselines, "
+    "gaps, or other user-stated inputs the model must still see when later contract-aware tools validate the work. "
+    "Early contracts may carry empty arrays while the concrete guidance is still being recovered."
 )
 _CONTRACT_APPROACH_POLICY_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {field_name: _contract_string_list_schema() for field_name in CONTRACT_APPROACH_POLICY_FIELD_NAMES},
@@ -3456,13 +3458,15 @@ def _recoverable_collection_list_shape_error(error: str, *, contract_raw: dict[s
     if len(tokens) == 5:
         collection_name, index, nested_collection_name, nested_index, field_name = tokens
         if (
-            collection_name,
-            nested_collection_name,
-            field_name,
-        ) not in {
-            ("claims", "parameters", "aliases"),
-            ("claims", "hypotheses", "symbols"),
-        }:
+            not isinstance(collection_name, str)
+            or not isinstance(nested_collection_name, str)
+            or not isinstance(field_name, str)
+            or field_name
+            not in PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS.get(
+                (collection_name, nested_collection_name),
+                (),
+            )
+        ):
             return False
         return isinstance(index, int) and isinstance(nested_index, int)
 
@@ -3523,7 +3527,10 @@ def _validate_contract_integrity(
     errors: list[str] = []
     if "context_intake" not in contract_raw:
         errors.append("missing context_intake")
-    elif not contract_has_explicit_context_intake(contract, project_root=project_root):
+    elif not _contract_raw_has_explicit_empty_context_intake(contract_raw) and not contract_has_explicit_context_intake(
+        contract,
+        project_root=project_root,
+    ):
         errors.append("context_intake must not be empty")
     for error in collect_plan_contract_integrity_errors(contract, project_root=project_root):
         if error not in errors:
@@ -3531,6 +3538,17 @@ def _validate_contract_integrity(
     if not errors:
         return None
     return _contract_payload_error(errors)
+
+
+def _contract_raw_has_explicit_empty_context_intake(contract_raw: dict[str, object]) -> bool:
+    """Return true for early contracts that explicitly declare empty context-intake arrays."""
+    context_intake = contract_raw.get("context_intake")
+    if not isinstance(context_intake, dict) or not context_intake:
+        return False
+    return all(
+        key in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES and isinstance(value, list) and not value
+        for key, value in context_intake.items()
+    )
 
 
 def _parse_contract_payload(

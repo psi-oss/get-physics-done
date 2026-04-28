@@ -156,6 +156,59 @@ def test_build_artifact_manifest_captures_manuscript_freshness_fields(tmp_path) 
     assert manifest.manuscript_mtime_ns == tex_path.stat().st_mtime_ns
 
 
+def test_artifact_manifest_freshness_validation_rejects_edited_manuscript(tmp_path) -> None:
+    from gpd.mcp.paper.artifact_manifest import build_artifact_manifest, validate_artifact_manifest_freshness
+    from gpd.mcp.paper.models import Author, PaperConfig, Section
+
+    tex_path = tmp_path / "paper.tex"
+    tex_path.write_text("\\documentclass{article}\\begin{document}Original.\\end{document}", encoding="utf-8")
+    config = PaperConfig(
+        title="Fresh Manifest",
+        authors=[Author(name="Test Author", affiliation="Test Univ")],
+        abstract="Abstract text.",
+        sections=[Section(title="Intro", content="Content")],
+        journal="jhep",
+    )
+    manifest = build_artifact_manifest(config, tmp_path, tex_path=tex_path)
+    tex_path.write_text("\\documentclass{article}\\begin{document}Edited.\\end{document}", encoding="utf-8")
+
+    freshness = validate_artifact_manifest_freshness(manifest, tex_path)
+
+    assert freshness.fresh is False
+    assert freshness.actual_sha256 == hashlib.sha256(tex_path.read_bytes()).hexdigest()
+    assert freshness.detail == "manuscript_sha256 does not match the active manuscript snapshot"
+
+
+def test_artifact_manifest_freshness_validation_rejects_missing_manuscript_sha256(tmp_path) -> None:
+    from gpd.mcp.paper.artifact_manifest import validate_artifact_manifest_freshness
+    from gpd.mcp.paper.models import ArtifactManifest
+
+    tex_path = tmp_path / "paper.tex"
+    tex_path.write_text("\\documentclass{article}\\begin{document}Current.\\end{document}", encoding="utf-8")
+    manifest = ArtifactManifest.model_validate(
+        {
+            "version": 1,
+            "paper_title": "Legacy Manifest",
+            "journal": "jhep",
+            "created_at": "2026-04-04T12:00:00+00:00",
+            "artifacts": [
+                {
+                    "artifact_id": "tex-paper",
+                    "category": "tex",
+                    "path": "paper.tex",
+                    "sha256": hashlib.sha256(b"stale").hexdigest(),
+                    "produced_by": "test",
+                }
+            ],
+        }
+    )
+
+    freshness = validate_artifact_manifest_freshness(manifest, tex_path)
+
+    assert freshness.fresh is False
+    assert freshness.detail == "manifest is missing manuscript_sha256; freshness cannot be verified"
+
+
 def test_artifact_manifest_models_reject_extra_fields_and_invalid_sha256() -> None:
     from gpd.mcp.paper.models import ArtifactManifest
 

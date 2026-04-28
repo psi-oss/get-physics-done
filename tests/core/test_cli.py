@@ -55,6 +55,7 @@ from gpd.core.public_surface_contract import (
     local_cli_validate_command_context_command,
 )
 from gpd.core.recent_projects import record_recent_project
+from gpd.core.reproducibility import compute_sha256
 from gpd.core.resume_surface import RESUME_BACKEND_ONLY_FIELDS
 from gpd.core.state import default_state_dict, generate_state_markdown, save_state_json, save_state_markdown
 from tests.latex_test_support import toolchain_capability as _toolchain_capability
@@ -119,6 +120,36 @@ def _make_checkout(tmp_path: Path, version: str = "9.9.9") -> Path:
     for subdir in ("commands", "agents", "hooks", "specs"):
         (gpd_root / subdir).mkdir(parents=True, exist_ok=True)
     return repo_root
+
+
+def _artifact_manifest_payload(
+    manuscript: Path,
+    *,
+    title: str = "Curvature Flow Bounds",
+    journal: str = "prl",
+    artifact_id: str = "tex-paper",
+    artifact_path: str | None = None,
+) -> dict[str, object]:
+    digest = compute_sha256(manuscript)
+    return {
+        "version": 1,
+        "paper_title": title,
+        "journal": journal,
+        "created_at": "2026-04-02T00:00:00+00:00",
+        "manuscript_sha256": digest,
+        "manuscript_mtime_ns": manuscript.stat().st_mtime_ns,
+        "artifacts": [
+            {
+                "artifact_id": artifact_id,
+                "category": "tex",
+                "path": artifact_path or manuscript.name,
+                "sha256": digest,
+                "produced_by": "test",
+                "sources": [],
+                "metadata": {},
+            }
+        ],
+    }
 
 
 def _write_managed_publication_manuscript(
@@ -6905,21 +6936,12 @@ def test_validate_paper_quality_from_project_rejects_ambiguous_manuscript_roots(
         )
         (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
             json.dumps(
-                {
-                    "version": 1,
-                    "paper_title": f"{root_name.title()} Manuscript",
-                    "journal": "jhep",
-                    "created_at": "2026-04-03T00:00:00Z",
-                    "artifacts": [
-                        {
-                            "artifact_id": f"{root_name}-manuscript",
-                            "category": "tex",
-                            "path": f"{stem}.tex",
-                            "sha256": "0" * 64,
-                            "produced_by": "test",
-                        }
-                    ],
-                }
+                _artifact_manifest_payload(
+                    manuscript_dir / f"{stem}.tex",
+                    title=f"{root_name.title()} Manuscript",
+                    journal="jhep",
+                    artifact_id=f"{root_name}-manuscript",
+                )
             ),
             encoding="utf-8",
         )
@@ -7493,25 +7515,7 @@ def test_review_preflight_arxiv_submission_rejects_review_ledger_round_mismatch(
     manuscript = paper_dir / "main.tex"
     manuscript.write_text("\\documentclass{article}\\begin{document}Paper\\end{document}\n", encoding="utf-8")
     (paper_dir / "ARTIFACT-MANIFEST.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Round Mismatch",
-                "journal": "prl",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "main.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript, title="Round Mismatch")),
         encoding="utf-8",
     )
     review_dir = tmp_path / "GPD" / "review"
@@ -7591,25 +7595,7 @@ def test_resolve_review_preflight_manuscript_directory_uses_manifest_declared_en
     manuscript = manuscript_dir / "curvature_flow_bounds.tex"
     manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
     (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Curvature Flow Bounds",
-                "journal": "prl",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "curvature_flow_bounds.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript)),
         encoding="utf-8",
     )
 
@@ -7631,25 +7617,7 @@ def test_resolve_review_preflight_manuscript_reports_ambiguous_project_state(tmp
         manuscript = manuscript_dir / "curvature_flow_bounds.tex"
         manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
         (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-            json.dumps(
-                {
-                    "version": 1,
-                    "paper_title": "Curvature Flow Bounds",
-                    "journal": "prl",
-                    "created_at": "2026-04-02T00:00:00+00:00",
-                    "artifacts": [
-                        {
-                            "artifact_id": f"tex-{root_name}",
-                            "category": "tex",
-                            "path": "curvature_flow_bounds.tex",
-                            "sha256": "0" * 64,
-                            "produced_by": "test",
-                            "sources": [],
-                            "metadata": {},
-                        }
-                    ],
-                }
-            ),
+            json.dumps(_artifact_manifest_payload(manuscript, artifact_id=f"tex-{root_name}")),
             encoding="utf-8",
         )
 
@@ -7673,25 +7641,7 @@ def test_resolve_review_preflight_manuscript_explicit_supported_root_bypasses_pr
         manuscript = root / "curvature_flow_bounds.tex"
         manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
         (root / "ARTIFACT-MANIFEST.json").write_text(
-            json.dumps(
-                {
-                    "version": 1,
-                    "paper_title": "Curvature Flow Bounds",
-                    "journal": "prl",
-                    "created_at": "2026-04-02T00:00:00+00:00",
-                    "artifacts": [
-                        {
-                            "artifact_id": f"tex-{root_name}",
-                            "category": "tex",
-                            "path": "curvature_flow_bounds.tex",
-                            "sha256": "0" * 64,
-                            "produced_by": "test",
-                            "sources": [],
-                            "metadata": {},
-                        }
-                    ],
-                }
-            ),
+            json.dumps(_artifact_manifest_payload(manuscript, artifact_id=f"tex-{root_name}")),
             encoding="utf-8",
         )
 
@@ -7715,25 +7665,7 @@ def test_resolve_review_preflight_manuscript_explicit_supported_file_requires_ma
     manuscript = manuscript_dir / "curvature_flow_bounds.tex"
     manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
     (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Curvature Flow Bounds",
-                "journal": "prl",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "curvature_flow_bounds.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript)),
         encoding="utf-8",
     )
     (manuscript_dir / "PAPER-CONFIG.json").write_text(
@@ -7770,25 +7702,7 @@ def test_resolve_review_preflight_manuscript_uses_workspace_cwd_for_relative_tar
     manuscript_dir.mkdir()
     manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
     (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Curvature Flow Bounds",
-                "journal": "prl",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "curvature_flow_bounds.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript)),
         encoding="utf-8",
     )
 
@@ -7814,25 +7728,7 @@ def test_resolve_review_preflight_manuscript_nested_supported_directory_resolves
     manuscript = sections_dir / "curvature_flow_bounds.tex"
     manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
     (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Curvature Flow Bounds",
-                "journal": "prl",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "sections/curvature_flow_bounds.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript, artifact_path="sections/curvature_flow_bounds.tex")),
         encoding="utf-8",
     )
 
@@ -7857,25 +7753,7 @@ def test_resolve_review_preflight_manuscript_rejects_nested_supported_directory_
     manuscript = manuscript_dir / "main.tex"
     manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
     (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Curvature Flow Bounds",
-                "journal": "prl",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "main.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript)),
         encoding="utf-8",
     )
 
@@ -7914,25 +7792,7 @@ def test_resolve_review_preflight_manuscript_reports_inconsistent_project_state(
     manuscript = manuscript_dir / "curvature_flow_bounds.tex"
     manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
     (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Curvature Flow Bounds",
-                "journal": "prl",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "curvature_flow_bounds.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript)),
         encoding="utf-8",
     )
     (manuscript_dir / "PAPER-CONFIG.json").write_text(

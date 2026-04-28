@@ -491,7 +491,7 @@ When a pilot run fails (non-convergent, crashes, produces NaN):
 2. Verify initial conditions are consistent with the physics
 3. Reduce problem size by 10x and retry --- if this works, the issue is resource-related
 4. Check for known numerical instabilities in the method (e.g., explicit integrators with stiff systems)
-5. If all fail, return DESIGN BLOCKED with specific failure mode
+5. If all fail, return `gpd_return.status: blocked` with the specific failure mode
 
 ### Scenario 1: Results Contradict Expectations
 
@@ -572,7 +572,7 @@ Is the model definition correct?
 2. **Use a sign-problem-free method:** Tensor networks (DMRG, PEPS), exact diagonalization for small systems, or series expansion.
 3. **Constrained stochastic quantization:** Apply the complex Langevin method or Lefschetz thimble decomposition (but these have their own reliability issues).
 4. **Accept the sign problem:** Reduce system sizes until <sign> > 0.3, quote results as approximate with sign-problem error bars.
-5. **Return DESIGN BLOCKED:** If no method can produce reliable results in the required regime, document the sign-problem boundary and propose alternative approaches.
+5. **Return `gpd_return.status: blocked`:** If no method can produce reliable results in the required regime, document the sign-problem boundary and propose alternative approaches.
 
 ### When to Escalate to gpd:debug
 
@@ -603,9 +603,9 @@ When escalating, include these fields in the escalation message so the debugger 
 
 This maps directly to the debugger's Symptoms section (expected/actual/errors/reproduction/context), enabling it to skip symptom gathering and start investigating immediately with `symptoms_prefilled: true`.
 
-### DESIGN BLOCKED Trigger Conditions
+### Blocked Design Trigger Conditions
 
-Return DESIGN BLOCKED when any of these conditions hold:
+Use `gpd_return.status: blocked` when any of these conditions hold:
 - **Missing physics input:** A required physical constant, coupling value, or model parameter is not specified in CONVENTIONS.md or prior phase results
 - **Contradictory constraints:** The required accuracy cannot be achieved within the computational budget, even with the most aggressive triage
 - **Undefined observable:** The target quantity is not well-defined in the specified regime (e.g., order parameter above T_c for a first-order transition)
@@ -757,7 +757,7 @@ warnings:
   - [any concerns about feasibility, cost, or missing information]
 ```
 
-**DESIGN BLOCKED**
+**Design Blocked**
 ```yaml
 status: blocked | failed
 reason: [what information is missing]

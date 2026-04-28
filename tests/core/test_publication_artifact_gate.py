@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
 from gpd.core.manuscript_artifacts import resolve_current_manuscript_artifacts
 from gpd.core.publication_review_paths import manuscript_matches_review_artifact_path, review_artifact_round
+from gpd.core.reproducibility import compute_sha256
 
 
 def _write(path: Path, content: str = "") -> None:
@@ -13,13 +15,33 @@ def _write(path: Path, content: str = "") -> None:
 
 
 def test_publication_artifact_resolution_uses_the_active_manuscript_root_only(tmp_path: Path) -> None:
-    _write(tmp_path / "paper" / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+    manuscript = tmp_path / "paper" / "curvature_flow_bounds.tex"
+    _write(manuscript, "\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+    manuscript_sha256 = compute_sha256(manuscript)
     _write(
         tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
-        """
-        {"version": 1, "paper_title": "Curvature Flow Bounds", "journal": "prl", "created_at": "2026-04-02T00:00:00+00:00", "artifacts": [{"artifact_id": "tex-paper", "category": "tex", "path": "curvature_flow_bounds.tex", "sha256": "%s", "produced_by": "test", "sources": [], "metadata": {}}]}
-        """
-        % ("0" * 64),
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Curvature Flow Bounds",
+                "journal": "prl",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "manuscript_sha256": manuscript_sha256,
+                "manuscript_mtime_ns": manuscript.stat().st_mtime_ns,
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-paper",
+                        "category": "tex",
+                        "path": "curvature_flow_bounds.tex",
+                        "sha256": manuscript_sha256,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        )
+        + "\n",
     )
     _write(tmp_path / "paper" / "BIBLIOGRAPHY-AUDIT.json", "{}\n")
     _write(tmp_path / "paper" / "reproducibility-manifest.json", "{}\n")

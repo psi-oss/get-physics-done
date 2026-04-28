@@ -580,8 +580,8 @@ task(
 
 **If the experiment designer agent fails to spawn or returns an error:** Experiment design is optional supplementary context for the planner. Proceed without it — the planner will work with RESEARCH.md and CONTEXT.md. Note that experiment design was skipped.
 
-- **`EXPERIMENT DESIGN COMPLETE`:** Verify EXPERIMENT-DESIGN.md exists, display confirmation, continue to step 6
-- **`DESIGN BLOCKED`:** Display blocker, offer: 1) Provide context, 2) Skip experiment design, 3) Abort
+- **`gpd_return.status: completed`:** Verify EXPERIMENT-DESIGN.md exists, display confirmation, continue to step 6
+- **`gpd_return.status: blocked` or `failed`:** Display blocker, offer: 1) Provide context, 2) Skip experiment design, 3) Abort
 
 **If EXPERIMENT-DESIGN.md created:** The planner stage payload already carries this as `experiment_design_content`. Keep it in the stage-local payload rather than re-reading it from disk.
 
@@ -959,7 +959,7 @@ Verification: {Passed | Partial (N approved, M revised) | Passed with override |
 
 ---
 
-## >> Next Up
+## > Next Up
 
 **Execute Phase {X}** -- run all {N} plans
 

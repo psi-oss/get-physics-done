@@ -252,7 +252,7 @@ Treat `project_contract` as approved milestone scope only when `project_contract
 
 Write `GPD/v{milestone_version}-MILESTONE-REFEREE-REPORT.md` and the matching `GPD/v{milestone_version}-MILESTONE-REFEREE-REPORT.tex` companion.
 
-Return REVIEW COMPLETE with recommendation and issue counts."
+Return `gpd_return.status: completed` with recommendation and issue counts."
 )
 ```
 

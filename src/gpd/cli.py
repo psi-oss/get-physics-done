@@ -6750,6 +6750,34 @@ def _resolve_review_preflight_publication_artifacts(manuscript: Path) -> Manuscr
     )
 
 
+def _validate_artifact_manifest_semantics(artifact_manifest: Path, manuscript: Path) -> tuple[bool, str]:
+    """Validate artifact-manifest structure and manuscript freshness."""
+    from gpd.mcp.paper.artifact_manifest import validate_artifact_manifest_freshness
+    from gpd.mcp.paper.models import ArtifactManifest
+
+    detail = f"{_format_display_path(artifact_manifest)} present"
+    try:
+        artifact_manifest_payload = json.loads(artifact_manifest.read_text(encoding="utf-8"))
+        artifact_manifest_model = ArtifactManifest.model_validate(artifact_manifest_payload)
+        artifact_manifest_freshness = validate_artifact_manifest_freshness(
+            artifact_manifest_model,
+            manuscript,
+        )
+        if not artifact_manifest_freshness.fresh:
+            return False, "artifact manifest is stale: " + artifact_manifest_freshness.detail
+    except OSError as exc:
+        return False, f"could not read artifact manifest: {exc}"
+    except UnicodeDecodeError as exc:
+        return False, f"artifact manifest is not valid UTF-8: {exc}"
+    except json.JSONDecodeError as exc:
+        return False, f"could not parse artifact manifest: {exc}"
+    except PydanticValidationError as exc:
+        return False, "artifact manifest is invalid: " + "; ".join(
+            _format_pydantic_schema_error(error, root_label="artifact_manifest") for error in exc.errors()[:3]
+        )
+    return True, detail
+
+
 def _validate_bibliography_audit_semantics(bibliography_audit: Path) -> tuple[bool, str]:
     """Validate bibliography-audit structure and publication semantics."""
     from gpd.mcp.paper.bibliography import BibliographyAudit
@@ -10335,27 +10363,10 @@ def _build_review_preflight(
                         or subject_preflight_policy.passes_when_missing("artifact_manifest")
                     )
                     if artifact_manifest is not None:
-                        artifact_manifest_detail = f"{_format_display_path(artifact_manifest)} present"
-                        from gpd.mcp.paper.models import ArtifactManifest
-
-                        try:
-                            artifact_manifest_payload = json.loads(artifact_manifest.read_text(encoding="utf-8"))
-                            ArtifactManifest.model_validate(artifact_manifest_payload)
-                        except OSError as exc:
-                            artifact_manifest_passed = False
-                            artifact_manifest_detail = f"could not read artifact manifest: {exc}"
-                        except UnicodeDecodeError as exc:
-                            artifact_manifest_passed = False
-                            artifact_manifest_detail = f"artifact manifest is not valid UTF-8: {exc}"
-                        except json.JSONDecodeError as exc:
-                            artifact_manifest_passed = False
-                            artifact_manifest_detail = f"could not parse artifact manifest: {exc}"
-                        except PydanticValidationError as exc:
-                            artifact_manifest_passed = False
-                            artifact_manifest_detail = "artifact manifest is invalid: " + "; ".join(
-                                _format_pydantic_schema_error(error, root_label="artifact_manifest")
-                                for error in exc.errors()[:3]
-                            )
+                        artifact_manifest_passed, artifact_manifest_detail = _validate_artifact_manifest_semantics(
+                            artifact_manifest,
+                            manuscript,
+                        )
                     add_check(
                         "artifact_manifest",
                         artifact_manifest_passed,

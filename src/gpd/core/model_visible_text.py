@@ -137,7 +137,7 @@ def command_visibility_note() -> str:
         "`agent` when present must match a built-in canonical agent label exactly; use the active YAML value below.",
         "`project_reentry_capable` must be `true` or `false` and may be `true` only when `context_mode` is `project-required`.",
         "Any user-visible completion, checkpoint, blocked return, failed return, retry gate, or stop that expects later "
-        "action must end with a concrete `## > Next Up` or `## >> Next Up` section. Include copy-pasteable GPD "
+        "action must end with a concrete `## > Next Up` section. Include copy-pasteable GPD "
         "commands when they exist and `gpd:suggest-next` for project-backed recovery.",
     )
 

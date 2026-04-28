@@ -68,7 +68,7 @@ def test_get_skill_command_allowed_tools_are_defensive_copies() -> None:
     assert command.allowed_tools == ["file_read", "shell", "shell"]
 
 
-def test_get_skill_loading_hint_uses_shared_behavioral_guardrail_text() -> None:
+def test_get_skill_loading_hint_stays_focused_on_skill_loading() -> None:
     from gpd.mcp.descriptor_text import SKILL_BEHAVIORAL_GUARDRAIL_HINT
     from gpd.mcp.servers.skills_server import get_skill
 
@@ -99,7 +99,49 @@ def test_get_skill_loading_hint_uses_shared_behavioral_guardrail_text() -> None:
     ):
         result = get_skill("gpd-help")
 
-    assert SKILL_BEHAVIORAL_GUARDRAIL_HINT in result["loading_hint"]
+    assert result["loading_hint"] == (
+        "Treat `content` as the wrapper/context surface. It already embeds the model-visible "
+        "`Command Requirements` section. Follow that section for command-specific constraints."
+    )
+    assert SKILL_BEHAVIORAL_GUARDRAIL_HINT not in result["loading_hint"]
+    assert "missing evidence" not in result["loading_hint"]
+    assert "never fabricate" not in result["loading_hint"]
+
+
+def test_get_skill_index_surfaces_shared_behavioral_guardrail_once() -> None:
+    from gpd.mcp.descriptor_text import SKILL_BEHAVIORAL_GUARDRAIL_HINT
+    from gpd.mcp.servers.skills_server import get_skill_index
+
+    skill = SkillDef(
+        name="gpd-help",
+        description="Help.",
+        content="Command body.",
+        category="help",
+        path="/tmp/gpd-help.md",
+        source_kind="command",
+        registry_name="help",
+    )
+    command = CommandDef(
+        name="gpd:help",
+        description="Help.",
+        argument_hint="",
+        agent=None,
+        requires={},
+        allowed_tools=["file_read"],
+        content="Command body.",
+        path="/tmp/gpd-help.md",
+        source="commands",
+    )
+
+    with (
+        patch("gpd.mcp.servers.skills_server._load_skill_index", return_value=[skill]),
+        patch("gpd.mcp.servers.skills_server.content_registry.get_command", return_value=command),
+    ):
+        result = get_skill_index()
+
+    assert result["index_text"].count(SKILL_BEHAVIORAL_GUARDRAIL_HINT) == 1
+    assert result["index_text"].count("missing evidence") == 1
+    assert result["index_text"].count("never fabricate") == 1
 
 
 def test_get_skill_command_surfaces_agent_metadata() -> None:

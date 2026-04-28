@@ -23,7 +23,9 @@ from gpd.contracts import (
     CONTRACT_REFERENCE_ROLE_VALUES,
     PROJECT_CONTRACT_COLLECTION_LIST_FIELDS,
     PROJECT_CONTRACT_MAPPING_LIST_FIELDS,
+    PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS,
     PROJECT_CONTRACT_TOP_LEVEL_LIST_FIELDS,
+    PROOF_HYPOTHESIS_CATEGORY_VALUES,
     ContractAcceptanceTest,
     ContractApproachPolicy,
     ContractClaim,
@@ -548,18 +550,20 @@ def _normalize_blank_list_fields(contract: dict[str, object]) -> None:
             for field_name in field_names:
                 if field_name in item and _blank_string(item[field_name]):
                     item[field_name] = []
-            if collection_name != "claims":
-                continue
-            parameters = item.get("parameters")
-            if isinstance(parameters, list):
-                for parameter in parameters:
-                    if isinstance(parameter, dict) and _blank_string(parameter.get("aliases")):
-                        parameter["aliases"] = []
-            hypotheses = item.get("hypotheses")
-            if isinstance(hypotheses, list):
-                for hypothesis in hypotheses:
-                    if isinstance(hypothesis, dict) and _blank_string(hypothesis.get("symbols")):
-                        hypothesis["symbols"] = []
+            for (parent_collection_name, nested_collection_name), nested_field_names in (
+                PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS.items()
+            ):
+                if collection_name != parent_collection_name:
+                    continue
+                nested_collection = item.get(nested_collection_name)
+                if not isinstance(nested_collection, list):
+                    continue
+                for nested_item in nested_collection:
+                    if not isinstance(nested_item, dict):
+                        continue
+                    for nested_field_name in nested_field_names:
+                        if _blank_string(nested_item.get(nested_field_name)):
+                            nested_item[nested_field_name] = []
 
 
 def _collect_blank_list_normalization_findings(
@@ -607,36 +611,26 @@ def _collect_blank_list_normalization_findings(
                 if isinstance(raw_value, str) and not raw_value.strip() and isinstance(normalized_value, list):
                     _record(f"{collection_name}.{index}.{field_name}")
 
-            if collection_name != "claims":
-                continue
-
-            raw_parameters = raw_item.get("parameters")
-            normalized_parameters = normalized_item.get("parameters")
-            if isinstance(raw_parameters, list) and isinstance(normalized_parameters, list):
-                for parameter_index, raw_parameter in enumerate(raw_parameters):
-                    if not isinstance(raw_parameter, dict) or parameter_index >= len(normalized_parameters):
+            for (parent_collection_name, nested_collection_name), nested_field_names in (
+                PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS.items()
+            ):
+                if collection_name != parent_collection_name:
+                    continue
+                raw_nested_collection = raw_item.get(nested_collection_name)
+                normalized_nested_collection = normalized_item.get(nested_collection_name)
+                if not isinstance(raw_nested_collection, list) or not isinstance(normalized_nested_collection, list):
+                    continue
+                for nested_index, raw_nested_item in enumerate(raw_nested_collection):
+                    if not isinstance(raw_nested_item, dict) or nested_index >= len(normalized_nested_collection):
                         continue
-                    normalized_parameter = normalized_parameters[parameter_index]
-                    if not isinstance(normalized_parameter, dict):
+                    normalized_nested_item = normalized_nested_collection[nested_index]
+                    if not isinstance(normalized_nested_item, dict):
                         continue
-                    raw_value = raw_parameter.get("aliases")
-                    normalized_value = normalized_parameter.get("aliases")
-                    if isinstance(raw_value, str) and not raw_value.strip() and isinstance(normalized_value, list):
-                        _record(f"claims.{index}.parameters.{parameter_index}.aliases")
-
-            raw_hypotheses = raw_item.get("hypotheses")
-            normalized_hypotheses = normalized_item.get("hypotheses")
-            if isinstance(raw_hypotheses, list) and isinstance(normalized_hypotheses, list):
-                for hypothesis_index, raw_hypothesis in enumerate(raw_hypotheses):
-                    if not isinstance(raw_hypothesis, dict) or hypothesis_index >= len(normalized_hypotheses):
-                        continue
-                    normalized_hypothesis = normalized_hypotheses[hypothesis_index]
-                    if not isinstance(normalized_hypothesis, dict):
-                        continue
-                    raw_value = raw_hypothesis.get("symbols")
-                    normalized_value = normalized_hypothesis.get("symbols")
-                    if isinstance(raw_value, str) and not raw_value.strip() and isinstance(normalized_value, list):
-                        _record(f"claims.{index}.hypotheses.{hypothesis_index}.symbols")
+                    for nested_field_name in nested_field_names:
+                        raw_value = raw_nested_item.get(nested_field_name)
+                        normalized_value = normalized_nested_item.get(nested_field_name)
+                        if isinstance(raw_value, str) and not raw_value.strip() and isinstance(normalized_value, list):
+                            _record(f"{collection_name}.{index}.{nested_collection_name}.{nested_index}.{nested_field_name}")
 
     return findings
 
@@ -870,7 +864,7 @@ _LITERAL_CASE_DRIFT_FIELD_PATTERNS: tuple[tuple[re.Pattern[str], tuple[str, ...]
     (re.compile(r"^claims\.\d+\.claim_kind$"), CONTRACT_CLAIM_KIND_VALUES),
     (
         re.compile(r"^claims\.\d+\.hypotheses\.\d+\.category$"),
-        ("assumption", "precondition", "regime", "definition", "lemma", "other"),
+        PROOF_HYPOTHESIS_CATEGORY_VALUES,
     ),
     (re.compile(r"^deliverables\.\d+\.kind$"), CONTRACT_DELIVERABLE_KIND_VALUES),
     (re.compile(r"^acceptance_tests\.\d+\.kind$"), CONTRACT_ACCEPTANCE_TEST_KIND_VALUES),

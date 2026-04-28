@@ -50,6 +50,7 @@ from gpd.adapters.tool_names import (
     reference_translation_map,
     translate_for_runtime,
 )
+from gpd.command_labels import validated_public_command_prefix
 
 if TYPE_CHECKING:
     from gpd.registry import AgentDef
@@ -238,7 +239,7 @@ class RuntimeAdapter(abc.ABC):
     @property
     def public_command_surface_prefix(self) -> str:
         """Public runtime command prefix used on shared surfaces."""
-        return self.runtime_descriptor.public_command_surface_prefix or self.command_prefix
+        return validated_public_command_prefix(self.runtime_descriptor)
 
     @property
     def tool_alias_map(self) -> Mapping[str, str]:

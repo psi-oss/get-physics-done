@@ -786,6 +786,69 @@ def test_phase_remove_rolls_back_roadmap_and_phase_tree_when_atomic_state_save_f
     assert sorted(d.name for d in (tmp_path / "GPD" / "phases").iterdir() if d.is_dir()) == before_dirs
 
 
+def test_phase_remove_rolls_back_when_checkpoint_sync_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1: First
+        **Goal:** first
+
+        ### Phase 2: Second
+        **Goal:** second
+
+        ### Phase 3: Third
+        **Goal:** third
+        """,
+    )
+    _seed_state_pair(tmp_path, current_phase="02", current_phase_name="Second", total_phases=3, status="in_progress")
+    first_dir = _create_phase_dir(tmp_path, "01-first")
+    (first_dir / "01-01-PLAN.md").write_text("plan", encoding="utf-8")
+    second_dir = _create_phase_dir(tmp_path, "02-second")
+    (second_dir / "02-01-PLAN.md").write_text("plan", encoding="utf-8")
+    third_dir = _create_phase_dir(tmp_path, "03-third")
+    (third_dir / "03-01-PLAN.md").write_text("plan", encoding="utf-8")
+
+    before_roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+    before_md = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
+    before_json = (tmp_path / "GPD" / "state.json").read_text(encoding="utf-8")
+    (tmp_path / "GPD" / "state.json.bak").write_text(before_json, encoding="utf-8")
+    before_json_backup = (tmp_path / "GPD" / "state.json.bak").read_text(encoding="utf-8")
+    checkpoint_index = tmp_path / "GPD" / "CHECKPOINTS.md"
+    checkpoint_index.write_text("before checkpoint index\n", encoding="utf-8")
+    checkpoint_dir = tmp_path / "GPD" / "phase-checkpoints"
+    checkpoint_dir.mkdir()
+    checkpoint_file = checkpoint_dir / "01-first.md"
+    checkpoint_file.write_text("before checkpoint shelf\n", encoding="utf-8")
+    before_checkpoint_index = checkpoint_index.read_text(encoding="utf-8")
+    before_checkpoint_file = checkpoint_file.read_text(encoding="utf-8")
+    before_dirs = sorted(d.name for d in (tmp_path / "GPD" / "phases").iterdir() if d.is_dir())
+
+    def _boom(_cwd: Path) -> None:
+        checkpoint_index.write_text("mutated checkpoint index\n", encoding="utf-8")
+        checkpoint_file.unlink()
+        (checkpoint_dir / "99-mutated.md").write_text("mutated checkpoint shelf\n", encoding="utf-8")
+        (tmp_path / "GPD" / "state.json.bak").write_text('{"position": {"current_phase": "99"}}', encoding="utf-8")
+        raise RuntimeError("checkpoint sync exploded")
+
+    monkeypatch.setattr(phases_module, "sync_phase_checkpoints", _boom)
+
+    with pytest.raises(RuntimeError, match="checkpoint sync exploded"):
+        phase_remove(tmp_path, "2")
+
+    assert (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8") == before_roadmap
+    assert (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8") == before_md
+    assert (tmp_path / "GPD" / "state.json").read_text(encoding="utf-8") == before_json
+    assert (tmp_path / "GPD" / "state.json.bak").read_text(encoding="utf-8") == before_json_backup
+    assert checkpoint_index.read_text(encoding="utf-8") == before_checkpoint_index
+    assert checkpoint_file.read_text(encoding="utf-8") == before_checkpoint_file
+    assert not (checkpoint_dir / "99-mutated.md").exists()
+    assert sorted(d.name for d in (tmp_path / "GPD" / "phases").iterdir() if d.is_dir()) == before_dirs
+
+
 def test_phase_complete_uses_canonical_state_lock_and_locked_writer(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -857,6 +920,63 @@ def test_phase_complete_rolls_back_roadmap_when_atomic_state_save_fails(
         phase_complete(tmp_path, "1")
 
     assert (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8") == before_roadmap
+
+
+def test_phase_complete_rolls_back_when_checkpoint_sync_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1: Setup
+        **Goal:** setup
+        **Plans:** 1 plans
+
+        ### Phase 2: Build
+        **Goal:** build
+        """,
+    )
+    _seed_state_pair(tmp_path, current_phase="01", current_phase_name="Setup", total_phases=2, status="in_progress")
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "a-SUMMARY.md").write_text("done", encoding="utf-8")
+    _create_phase_dir(tmp_path, "02-build")
+
+    before_roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+    before_md = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
+    before_json = (tmp_path / "GPD" / "state.json").read_text(encoding="utf-8")
+    (tmp_path / "GPD" / "state.json.bak").write_text(before_json, encoding="utf-8")
+    before_json_backup = (tmp_path / "GPD" / "state.json.bak").read_text(encoding="utf-8")
+    checkpoint_index = tmp_path / "GPD" / "CHECKPOINTS.md"
+    checkpoint_index.write_text("before checkpoint index\n", encoding="utf-8")
+    checkpoint_dir = tmp_path / "GPD" / "phase-checkpoints"
+    checkpoint_dir.mkdir()
+    checkpoint_file = checkpoint_dir / "01-setup.md"
+    checkpoint_file.write_text("before checkpoint shelf\n", encoding="utf-8")
+    before_checkpoint_index = checkpoint_index.read_text(encoding="utf-8")
+    before_checkpoint_file = checkpoint_file.read_text(encoding="utf-8")
+
+    def _boom(_cwd: Path) -> None:
+        checkpoint_index.write_text("mutated checkpoint index\n", encoding="utf-8")
+        checkpoint_file.unlink()
+        (checkpoint_dir / "99-mutated.md").write_text("mutated checkpoint shelf\n", encoding="utf-8")
+        (tmp_path / "GPD" / "state.json.bak").write_text('{"position": {"current_phase": "99"}}', encoding="utf-8")
+        raise RuntimeError("checkpoint sync exploded")
+
+    monkeypatch.setattr(phases_module, "sync_phase_checkpoints", _boom)
+
+    with pytest.raises(RuntimeError, match="checkpoint sync exploded"):
+        phase_complete(tmp_path, "1")
+
+    assert (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8") == before_roadmap
+    assert (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8") == before_md
+    assert (tmp_path / "GPD" / "state.json").read_text(encoding="utf-8") == before_json
+    assert (tmp_path / "GPD" / "state.json.bak").read_text(encoding="utf-8") == before_json_backup
+    assert checkpoint_index.read_text(encoding="utf-8") == before_checkpoint_index
+    assert checkpoint_file.read_text(encoding="utf-8") == before_checkpoint_file
+    assert not (checkpoint_dir / "99-mutated.md").exists()
 
 
 def test_milestone_complete_uses_canonical_state_lock_and_locked_writer(

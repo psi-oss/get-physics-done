@@ -618,7 +618,7 @@ Orchestrator provides:
 
 Parse and confirm understanding before proceeding. The freshness contract is the markdown trio: if ROADMAP.md, STATE.md, and REQUIREMENTS.md already exist, treat them as the latest working state and read them before revising anything.
 
-If the approved project contract is missing, or it lacks decisive outputs / deliverables plus anchor guidance, return `## ROADMAP BLOCKED`. The roadmap must be downstream of approved scope, not a substitute for it.
+If the approved project contract is missing, or it lacks decisive outputs / deliverables plus anchor guidance, stop with `gpd_return.status: blocked`. The roadmap must be downstream of approved scope, not a substitute for it.
 
 ## Step 2: Extract Research Objectives
 
@@ -734,7 +734,7 @@ If orchestrator provides revision feedback:
 - The orchestrator presents that feedback as a fresh continuation handoff rather than a same-run wait
 - Update files in place (use `file_edit`, not rewrite from scratch)
 - Re-validate coverage
-- Return `## ROADMAP REVISED` with changes made
+- Return `gpd_return.status: completed` with changes made and the updated files in `gpd_return.files_written`
 
 </execution_flow>
 
@@ -747,7 +747,7 @@ The roadmap is a living document. Re-invoke the roadmapper when:
 **Automatic triggers (detected by execute-phase orchestrator):**
 - Executor returns Rule 4 (Methodological) deviation
 - Verification finds > 50% of contract-critical claims / deliverables / anchors failing
-- A computation proves infeasible (detected by DESIGN BLOCKED returns)
+- A computation proves infeasible (detected by experiment-designer `gpd_return.status: blocked` returns)
 
 **Manual triggers (user-initiated):**
 - `gpd:add-phase`, `gpd:insert-phase`, `gpd:remove-phase`
@@ -838,7 +838,7 @@ WARNING: Issues found during creation:
 After incorporating user feedback and updating files:
 
 ```markdown
-## ROADMAP REVISED
+## Roadmap Revised
 
 **Changes made:**
 

@@ -147,6 +147,27 @@ def test_run_contract_check_schema_allows_empty_proof_arrays_on_generic_claims()
     assert _schema_error_messages(schema, {"request": request}) == []
 
 
+def test_contract_check_schema_allows_empty_context_intake_arrays_for_early_contracts() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    contract = _load_project_contract_fixture()
+    for field_name in tuple(contract["context_intake"]):
+        contract["context_intake"][field_name] = []
+
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "binding": {"claim_ids": ["claim-benchmark"]},
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+
+    assert _schema_error_messages(_run_contract_check_input_schema(), {"request": request}) == []
+    assert _schema_error_messages(_suggest_contract_checks_input_schema(), {"contract": contract}) == []
+    assert "error" not in suggest_contract_checks(contract)
+    assert run_contract_check(request)["status"] in {"pass", "fail", "warning"}
+
+
 def test_contract_check_schemas_require_non_empty_scope_in_scope() -> None:
     contract = _load_project_contract_fixture()
     contract["scope"]["in_scope"] = []
@@ -1483,6 +1504,66 @@ def test_contract_tools_surface_recoverable_enum_case_drift() -> None:
     assert expected_finding in run_result["contract_salvage_findings"]
     assert suggest_result["contract_salvaged"] is True
     assert expected_finding in suggest_result["contract_salvage_findings"]
+
+
+def test_project_contract_salvage_recovers_proof_hypothesis_category_case_drift() -> None:
+    from gpd.contracts import parse_project_contract_data_salvage
+
+    contract = _load_project_contract_fixture()
+    contract["claims"][0].update(
+        {
+            "claim_kind": "theorem",
+            "deliverables": ["deliv-figure", "deliv-proof"],
+            "acceptance_tests": ["test-benchmark", "test-proof"],
+            "parameters": [
+                {
+                    "symbol": "k",
+                    "domain_or_type": "benchmark index",
+                    "aliases": [],
+                    "required_in_proof": True,
+                }
+            ],
+            "hypotheses": [
+                {
+                    "id": "hyp-main",
+                    "text": "The benchmark convention is fixed.",
+                    "symbols": ["k"],
+                    "category": "Lemma",
+                    "required_in_proof": True,
+                }
+            ],
+            "conclusion_clauses": [{"id": "conclusion-main", "text": "The benchmark is recovered."}],
+            "proof_deliverables": ["deliv-proof"],
+        }
+    )
+    contract["deliverables"].append(
+        {
+            "id": "deliv-proof",
+            "kind": "derivation",
+            "path": "proof.md",
+            "description": "Proof artifact",
+            "must_contain": [],
+        }
+    )
+    contract["acceptance_tests"].append(
+        {
+            "id": "test-proof",
+            "subject": "claim-benchmark",
+            "kind": "claim_to_proof_alignment",
+            "procedure": "Check the proof fields.",
+            "pass_condition": "All proof fields are covered.",
+            "evidence_required": ["deliv-proof"],
+            "automation": "human",
+        }
+    )
+
+    result = parse_project_contract_data_salvage(contract)
+
+    assert result.contract is not None
+    assert result.contract.claims[0].hypotheses[0].category == "lemma"
+    assert result.recoverable_errors == [
+        "claims.0.hypotheses.0.category must use exact canonical value: lemma"
+    ]
 
 
 def test_contract_tools_preserve_non_string_list_member_parse_error() -> None:

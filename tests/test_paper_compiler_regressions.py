@@ -564,6 +564,71 @@ async def test_build_paper_does_not_refresh_manifest_for_preserved_stale_tex(
 
 
 @pytest.mark.asyncio
+async def test_build_paper_does_not_return_in_memory_manifest_for_preserved_stale_tex_when_sidecars_disabled(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir = tmp_path / "paper"
+    output_dir.mkdir()
+    config = PaperConfig(
+        title="Stale Manifest Paper",
+        authors=[Author(name="A. Researcher")],
+        abstract="Abstract.",
+        sections=[Section(title="Intro", content="Fresh config content.")],
+    )
+    tex_path = output_dir / f"{derive_output_filename(config)}.tex"
+    tex_path.write_text(
+        "\\documentclass{article}\n\\begin{document}\nPreserved manual content.\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    pdf_path = output_dir / f"{derive_output_filename(config)}.pdf"
+
+    async def fake_compile(tex_path, output_dir, compiler="pdflatex"):
+        pdf_path.write_bytes(b"%PDF-fake")
+        return CompilationResult(success=True, pdf_path=pdf_path)
+
+    monkeypatch.setattr("gpd.mcp.paper.compiler.check_journal_dependencies", lambda spec: (True, []))
+    monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", fake_compile)
+
+    result = await build_paper(config, output_dir, emit_artifact_manifest=False)
+
+    assert result.success is True
+    assert result.manifest_path is None
+    assert result.manifest is None
+    assert not (output_dir / "ARTIFACT-MANIFEST.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_build_paper_does_not_return_in_memory_manifest_when_sidecars_disabled(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir = tmp_path / "paper"
+    output_dir.mkdir()
+    config = PaperConfig(
+        title="Minimal Paper",
+        authors=[Author(name="A. Researcher")],
+        abstract="Abstract.",
+        sections=[Section(title="Intro", content="Fresh content.")],
+    )
+    pdf_path = output_dir / f"{derive_output_filename(config)}.pdf"
+
+    async def fake_compile(tex_path, output_dir, compiler="pdflatex"):
+        pdf_path.write_bytes(b"%PDF-fake")
+        return CompilationResult(success=True, pdf_path=pdf_path)
+
+    monkeypatch.setattr("gpd.mcp.paper.compiler.check_journal_dependencies", lambda spec: (True, []))
+    monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", fake_compile)
+
+    result = await build_paper(config, output_dir, emit_artifact_manifest=False)
+
+    assert result.success is True
+    assert result.manifest_path is None
+    assert result.manifest is None
+    assert not (output_dir / "ARTIFACT-MANIFEST.json").exists()
+
+
+@pytest.mark.asyncio
 async def test_build_paper_rejects_external_sidecar_root_when_emitting_manifest(tmp_path) -> None:
     config = PaperConfig(
         title="External Sidecars",

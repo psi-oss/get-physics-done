@@ -208,14 +208,14 @@ def _skill_loading_hint(
     if source_kind == "command":
         return (
             f"{dependency_hint} It already embeds the model-visible `Command Requirements` section. "
-            f"{SKILL_BEHAVIORAL_GUARDRAIL_HINT}"
+            "Follow that section for command-specific constraints."
         )
     if source_kind == "agent":
         return (
             f"{dependency_hint} It already embeds the model-visible `Agent Requirements` section. "
-            f"{SKILL_BEHAVIORAL_GUARDRAIL_HINT}"
+            "Follow that section for agent-specific constraints."
         )
-    return f"{dependency_hint} {SKILL_BEHAVIORAL_GUARDRAIL_HINT}"
+    return dependency_hint
 
 
 def _skill_review_contract_payload(
