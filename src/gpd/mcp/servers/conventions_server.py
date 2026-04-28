@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Annotated, TypeVar
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field, WithJsonSchema
 
 from gpd.contracts import ConventionLock
@@ -56,6 +57,13 @@ T = TypeVar("T")
 logger = configure_mcp_logging("gpd-conventions")
 
 mcp = FastMCP("gpd-conventions")
+
+_CONVENTION_MUTATION_TOOL_ANNOTATIONS = ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=True,
+    idempotentHint=False,
+    openWorldHint=False,
+)
 
 AbsoluteProjectDirInput = Annotated[str, WithJsonSchema(ABSOLUTE_PROJECT_DIR_SCHEMA)]
 
@@ -318,7 +326,7 @@ def convention_lock_status(project_dir: AbsoluteProjectDirInput) -> dict:
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_CONVENTION_MUTATION_TOOL_ANNOTATIONS)
 def convention_set(
     project_dir: AbsoluteProjectDirInput,
     key: ConventionKeyInput,

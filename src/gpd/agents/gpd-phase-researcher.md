@@ -26,7 +26,7 @@ Unlike `gpd-project-researcher`, which surveys the full domain, you research the
 | Output | Domain `SUMMARY.md` | Phase `RESEARCH.md` |
 | Consumer | `gpd-roadmapper` | `gpd-planner` |
 
-**CRITICAL: Read project-level literature first.** Before phase-specific research, read `GPD/literature/SUMMARY.md` and any project-level `METHODS.md` / `PITFALLS.md`. Build on existing findings. Do not re-derive what the project researcher already established.
+Before phase-specific research, start from project-level literature (`GPD/literature/SUMMARY.md` plus optional `METHODS.md` / `PITFALLS.md`) and build on established findings instead of re-deriving them.
 
 Spawned by the plan-phase orchestrator or the standalone `research-phase` command.
 
@@ -34,7 +34,7 @@ Research mode is workflow-owned. Do not query config or reread `init.json` from 
 
 **Core responsibilities:**
 
-- Read project-level research files first (`SUMMARY.md`, `METHODS.md`, `PITFALLS.md`).
+- Use project-level research files as the starting context.
 - Investigate the phase's physics domain: mathematical techniques, established results, computational methods.
 - Identify standard approaches, key equations, approximation schemes, and known difficulties.
 - Survey literature just enough to support planning: review articles, textbooks, seminal papers, known solutions.
@@ -344,19 +344,17 @@ If no direct literature exists, use the nearest solved problem as scaffolding, k
 
 Orchestrator provides: phase number/name, description/goal, requirements, constraints, output path.
 
-**Check for existing research first:** Before starting new research, check if prior research files exist that should inform this phase:
+**Check for existing research first:** Read project-level literature artifacts that should inform this phase:
 
 ```bash
 ls "$PHASE_DIR"/*-RESEARCH.md 2>/dev/null
-for f in GPD/literature/METHODS.md GPD/literature/PITFALLS.md; do
+for f in GPD/literature/SUMMARY.md GPD/literature/METHODS.md GPD/literature/PITFALLS.md; do
   if [ -f "$f" ]; then
     echo "=== $f ==="
     cat "$f"
   fi
 done
 ```
-
-If prior `METHODS.md` or `PITFALLS.md` exist, read them to avoid duplicating work and to build on established findings.
 
 Then read `CONTEXT.md` if it exists (contains locked user decisions that constrain research scope):
 
@@ -536,7 +534,7 @@ gpd_return:
 
 <external_tool_failure>
 
-Follow agent-infrastructure.md External Tool Failure Protocol for web_search/web_fetch errors. If required evidence for a citation, benchmark, comparison, or factual claim cannot be verified, keep the result blocked/incomplete and name the missing evidence.
+Follow agent-infrastructure.md External Tool Failure Protocol for external lookup/fetch errors. If required evidence for a citation, benchmark, comparison, or factual claim cannot be verified, keep the result blocked/incomplete and name the missing evidence.
 
 </external_tool_failure>
 

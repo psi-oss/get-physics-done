@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field, WithJsonSchema
 
 from gpd.core.errors import PatternError
@@ -38,6 +39,19 @@ from gpd.mcp.servers import (
 logger = configure_mcp_logging("gpd-patterns")
 
 mcp = FastMCP("gpd-patterns")
+
+_PATTERN_MUTATION_TOOL_ANNOTATIONS = ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=False,
+    idempotentHint=False,
+    openWorldHint=False,
+)
+_PATTERN_SEED_TOOL_ANNOTATIONS = ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=False,
+)
 
 # Explicit override for tests or embedded callers. When unset, resolve the root
 # for each request so env changes do not leak across long-lived server processes.
@@ -136,7 +150,7 @@ def lookup_pattern(
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_PATTERN_MUTATION_TOOL_ANNOTATIONS)
 def add_pattern(
     domain: PatternDomainInput,
     title: PatternTitleInput,
@@ -185,7 +199,7 @@ def add_pattern(
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_PATTERN_MUTATION_TOOL_ANNOTATIONS)
 def promote_pattern(pattern_id: str) -> dict:
     """Promote a pattern's confidence level.
 
@@ -205,7 +219,7 @@ def promote_pattern(pattern_id: str) -> dict:
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_PATTERN_SEED_TOOL_ANNOTATIONS)
 def seed_patterns() -> dict:
     """Initialize the pattern library with canonical physics patterns.
 

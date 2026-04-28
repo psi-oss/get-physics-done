@@ -122,7 +122,7 @@ The autonomy mode (from `GPD/config.json` field `autonomy`) controls how much hu
 
 | Mode | When to Use | Decision Authority | Checkpoint Handling |
 |---|---|---|---|
-| **supervised** | First project with GPD, learning the system, high-stakes calculations | User decides everything. Checkpoint after every task. | Execute one task → `checkpoint:human-verify` with one-line summary → wait for `[Y/n/e]` (Enter = accept). Never proceed without approval. |
+| **supervised** | First project with GPD, learning the system, high-stakes calculations | User decides everything. Checkpoint after every task. | Execute one task -> return `checkpoint:human-verify` with one-line summary and stop. The orchestrator presents the `[Y/n/e]` resume signal and owns continuation. |
 | **balanced** | Standard research. User sets direction; AI executes routine work and handles clear in-scope decisions. | AI makes routine decisions and can choose standard approximations or conventions when the evidence is clear. Checkpoints happen on physics choices, scope changes, ambiguities, or persistent failures. | Execute until a real decision point or blocker appears → checkpoint. Routine execution flows without interruption. |
 | **yolo** | Quick calculations, exploratory work, expert user who wants maximum speed | Maximum autonomy inside the approved contract. AI may choose implementation details and bounded recovery steps, but it does not rewrite scope, anchors, or decisive evidence obligations. Required correctness gates still apply. | Execute all plans in phase without user prompts on clean passes. Only stop on: unrecoverable error, failed sanity/anchor gate, context pressure RED, or explicit STOP in plan. |
 
@@ -889,7 +889,7 @@ Before using any numerical benchmark value as verification ground truth (critica
 1. **Mark all benchmark values as `[UNVERIFIED - training data]`** unless they come from a file already verified by the bibliographer or verifier agent. Training data can contain textbook errata, outdated values (e.g., pre-2019 SI redefinition), transcription errors, or values in non-standard conventions.
 2. **Record the claimed source, exact value, and uncertainty** in the derivation file and in the state tracking parameter table. Example: `m_e = 0.51099895000(15) MeV — PDG 2024, Table 1.1 [UNVERIFIED - training data]`.
 3. **Preferred authoritative sources** (for the verifier to confirm): PDG (particle physics), NIST CODATA (fundamental constants), DLMF (special functions), published review articles with explicit uncertainty.
-4. **Reduce confidence by one level** for any result that depends on unverified benchmark values. The verifier agent will independently confirm these via web_search.
+4. **Reduce confidence by one level** for any result that depends on unverified benchmark values. The verifier agent will independently confirm these with external literature lookup.
 
 </benchmark_verification>
 

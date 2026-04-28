@@ -21,6 +21,7 @@ from gpd.adapters.runtime_catalog import (
     get_shared_install_metadata,
     iter_runtime_descriptors,
     resolve_global_config_dir,
+    resolve_global_config_dir_candidates,
 )
 from gpd.adapters.runtime_catalog import (
     normalize_runtime_name as catalog_normalize_runtime_name,
@@ -187,7 +188,11 @@ def _write_install_manifest(config_dir: Path, *, install_scope: str) -> None:
                 break
     explicit_target = manifest.get("explicit_target")
     if not isinstance(explicit_target, bool) and runtime is not None:
-        explicit_target = config_dir.name != get_adapter(runtime).config_dir_name
+        if install_scope == SCOPE_GLOBAL:
+            descriptor = _RUNTIME_BY_NAME[runtime]
+            explicit_target = not any(config_dir.resolve(strict=False) == candidate for candidate in resolve_global_config_dir_candidates(descriptor))
+        else:
+            explicit_target = config_dir.name != get_adapter(runtime).config_dir_name
     manifest["install_scope"] = install_scope
     if runtime is not None:
         manifest["runtime"] = runtime

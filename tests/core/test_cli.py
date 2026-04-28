@@ -1954,6 +1954,7 @@ def test_read_only_state_progress_and_suggest_resolve_ancestor_without_migration
     nested_cwd.mkdir(parents=True)
     (project_root / "GPD").mkdir()
     (project_root / "GPD" / "STATE.md").write_text("# State\n", encoding="utf-8")
+    (project_root / "GPD" / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
     (nested_cwd / "PROJECT.md").write_text("# Nested note\n", encoding="utf-8")
     monkeypatch.setattr(
         cli_module,
@@ -3077,7 +3078,7 @@ def test_view_command_is_not_exposed():
 # ─── state subcommands ──────────────────────────────────────────────────────
 
 
-@patch("gpd.core.state.state_load")
+@patch("gpd.core.state.state_load_readonly")
 def test_state_load(mock_load):
     mock_result = MagicMock()
     mock_result.model_dump.return_value = {"position": {"current_phase": "42"}}
@@ -3087,7 +3088,7 @@ def test_state_load(mock_load):
     mock_load.assert_called_once()
 
 
-@patch("gpd.core.state.state_load")
+@patch("gpd.core.state.state_load_readonly")
 def test_state_load_uses_ancestor_project_root_from_nested_cwd(mock_load, tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "workspace" / "nested"
@@ -3104,7 +3105,7 @@ def test_state_load_uses_ancestor_project_root_from_nested_cwd(mock_load, tmp_pa
     mock_load.assert_called_once_with(project_root.resolve())
 
 
-@patch("gpd.core.state.state_get")
+@patch("gpd.core.state.state_get_readonly")
 def test_state_get_section(mock_get):
     mock_result = MagicMock()
     mock_result.model_dump.return_value = {"section": "position", "data": {}}
@@ -3175,7 +3176,7 @@ def test_state_get_include_rejects_positional_section(tmp_path: Path) -> None:
     assert "state get accepts either a positional section or --include, not both" in payload["error"]
 
 
-@patch("gpd.core.state.state_get")
+@patch("gpd.core.state.state_get_readonly")
 def test_state_active_hypothesis(mock_get):
     mock_result = MagicMock()
     mock_result.value = "**Branch:** hypothesis/alt-method\n**Description:** investigate a fallback"
@@ -3194,7 +3195,7 @@ def test_state_active_hypothesis(mock_get):
     }
 
 
-@patch("gpd.core.state.state_get")
+@patch("gpd.core.state.state_get_readonly")
 def test_state_active_hypothesis_missing_section(mock_get):
     mock_result = MagicMock()
     mock_result.value = None
@@ -3374,6 +3375,7 @@ def test_state_validate_uses_read_only_ancestor_root_without_migration(
     (project_root / "GPD").mkdir(parents=True)
     nested_cwd.mkdir(parents=True)
     (project_root / "GPD" / "STATE.md").write_text("# State\n", encoding="utf-8")
+    (project_root / "GPD" / "ROADMAP.md").write_text("# Canonical roadmap\n", encoding="utf-8")
     for filename in ("PROJECT.md", "ROADMAP.md"):
         (project_root / filename).write_text(f"# Root {filename}\n", encoding="utf-8")
     monkeypatch.setattr(
@@ -3391,7 +3393,7 @@ def test_state_validate_uses_read_only_ancestor_root_without_migration(
     assert result.exit_code == 0, result.output
     mock_validate.assert_called_once_with(project_root.resolve(), recover_intent=False, acquire_lock=False)
     assert not (project_root / "GPD" / "PROJECT.md").exists()
-    assert not (project_root / "GPD" / "ROADMAP.md").exists()
+    assert (project_root / "GPD" / "ROADMAP.md").read_text(encoding="utf-8") == "# Canonical roadmap\n"
 
 
 def test_read_only_marker_backed_project_scoped_cwd_ignores_bare_ancestor_gpd_dir(tmp_path: Path) -> None:
@@ -3629,7 +3631,7 @@ def test_validate_phase_artifacts_does_not_swallow_programmer_errors(tmp_path: P
 # ─── raw output ─────────────────────────────────────────────────────────────
 
 
-@patch("gpd.core.state.state_load")
+@patch("gpd.core.state.state_load_readonly")
 def test_raw_json_output(mock_load):
     mock_load.return_value = {"position": {"current_phase": "42"}}
     result = runner.invoke(app, ["--raw", "state", "load"])
@@ -3853,7 +3855,30 @@ def test_validate_command_context_global_and_projectless_do_not_migrate_root_pla
         )
         assert result.exit_code == 0, result.output
 
-    assert not (workspace / "GPD").exists()
+
+def test_validate_command_context_project_required_does_not_migrate_root_planning_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    (workspace / "GPD").mkdir(parents=True)
+    (workspace / "PROJECT.md").write_text("# Root project note\n", encoding="utf-8")
+    (workspace / "ROADMAP.md").write_text("# Root roadmap note\n", encoding="utf-8")
+    monkeypatch.setattr(
+        cli_module,
+        "_migrate_planning_files",
+        lambda _cwd: (_ for _ in ()).throw(AssertionError("command-context preflight must be read-only")),
+    )
+
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(workspace), "validate", "command-context", "research-phase", "1"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 1, result.output
+    assert not (workspace / "GPD" / "PROJECT.md").exists()
+    assert not (workspace / "GPD" / "ROADMAP.md").exists()
 
 
 def test_validate_command_context_sync_state_accepts_partial_state_workspace(tmp_path: Path) -> None:

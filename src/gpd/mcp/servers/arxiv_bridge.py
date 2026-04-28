@@ -15,6 +15,7 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 from mcp.server.lowlevel import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
+from mcp.types import ToolAnnotations
 
 from gpd.core.arxiv_source_download import (
     default_arxiv_source_storage_path,
@@ -33,6 +34,12 @@ DOWNLOAD_SOURCE_TOOL_NAME = "download_source"
 # Static descriptor fallback. Runtime forwarding is gated by the live upstream
 # tool list whenever the upstream server can provide one.
 ADVERTISED_TOOL_NAMES = (*UPSTREAM_CORE_TOOL_NAMES, DOWNLOAD_SOURCE_TOOL_NAME)
+_DOWNLOAD_SOURCE_TOOL_ANNOTATIONS = ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=True,
+    idempotentHint=False,
+    openWorldHint=True,
+)
 
 _DOWNLOAD_SOURCE_SCHEMA: dict[str, object] = {
     "type": "object",
@@ -60,6 +67,7 @@ _DOWNLOAD_SOURCE_TOOL = types.Tool(
         "Returns the saved path and metadata for the downloaded archive."
     ),
     inputSchema=_DOWNLOAD_SOURCE_SCHEMA,
+    annotations=_DOWNLOAD_SOURCE_TOOL_ANNOTATIONS,
 )
 
 
@@ -146,10 +154,11 @@ class ArxivBridge:
         names = {tool.name for tool in tools if tool.name != DOWNLOAD_SOURCE_TOOL_NAME}
         if reset or self._upstream_tool_names is None:
             self._upstream_tool_names = names
+            self._upstream_tool_names_complete = complete
         else:
             self._upstream_tool_names.update(names)
-        if complete:
-            self._upstream_tool_names_complete = True
+            if complete:
+                self._upstream_tool_names_complete = True
 
     async def _live_upstream_tool_names(self) -> set[str]:
         if self._upstream_tool_names is not None and self._upstream_tool_names_complete:

@@ -16,6 +16,7 @@ import sys
 from copy import deepcopy
 
 from gpd.mcp.descriptor_text import SKILLS_SERVER_DESCRIPTION
+from gpd.mcp.servers.arxiv_bridge import ADVERTISED_TOOL_NAMES, DOWNLOAD_SOURCE_TOOL_NAME, UPSTREAM_CORE_TOOL_NAMES
 from gpd.mcp.verification_contract_policy import verification_server_description
 
 logger = logging.getLogger(__name__)
@@ -78,6 +79,9 @@ _BUILTIN_SERVERS: dict[str, _ServerDef] = {
 
 _PUBLIC_BOOTSTRAP_PREREQUISITE = "Install GPD before enabling built-in MCP servers."
 _ENTRY_POINT_NOTES = _PYTHON_LAUNCH_NOTES
+_ARXIV_UPSTREAM_CAPABILITIES = list(UPSTREAM_CORE_TOOL_NAMES)
+_ARXIV_LOCAL_CAPABILITIES = [DOWNLOAD_SOURCE_TOOL_NAME]
+_ARXIV_CAPABILITIES = list(ADVERTISED_TOOL_NAMES)
 
 _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
     "gpd-conventions": {
@@ -229,27 +233,14 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
     "gpd-arxiv": {
         "description": (
             "Optional arXiv bridge for arxiv-mcp-server. Advertises the baseline upstream tools "
-            "search_papers, download_paper, list_papers, and read_paper, forwards only tools exposed "
-            "by the live upstream server, and adds GPD download_source for raw source archives."
+            f"{', '.join(_ARXIV_UPSTREAM_CAPABILITIES)}, forwards only tools exposed "
+            f"by the live upstream server, and adds GPD {DOWNLOAD_SOURCE_TOOL_NAME} for raw source archives."
         ),
         "capability_surface": "baseline_dynamic_upstream",
         "dynamic_upstream_capabilities": True,
-        "baseline_upstream_capabilities": [
-            "search_papers",
-            "download_paper",
-            "list_papers",
-            "read_paper",
-        ],
-        "local_capabilities": [
-            "download_source",
-        ],
-        "capabilities": [
-            "search_papers",
-            "download_paper",
-            "list_papers",
-            "read_paper",
-            "download_source",
-        ],
+        "baseline_upstream_capabilities": _ARXIV_UPSTREAM_CAPABILITIES,
+        "local_capabilities": _ARXIV_LOCAL_CAPABILITIES,
+        "capabilities": _ARXIV_CAPABILITIES,
         "registry_prefix": "gpd_arxiv",
         "health_check": {
             "probe_kind": "network_required",

@@ -139,8 +139,10 @@ __all__ = [
     "state_compact",
     "state_extract_field",
     "state_get",
+    "state_get_readonly",
     "state_has_field",
     "state_load",
+    "state_load_readonly",
     "state_patch",
     "state_record_contract_alignment",
     "state_record_metric",
@@ -815,6 +817,7 @@ def _load_raw_project_contract_payload(cwd: Path) -> tuple[Path, object] | None:
         cwd,
         recover_intent=False,
         surface_blocked_project_contract=True,
+        acquire_lock=False,
     )
     if state_source == "state.json":
         source_path = layout.state_json
@@ -972,6 +975,7 @@ def _load_project_contract_for_runtime_context(cwd: Path) -> tuple[ResearchContr
         cwd,
         recover_intent=False,
         surface_blocked_project_contract=True,
+        acquire_lock=False,
     )
     default_source = _project_contract_source_path(cwd, layout.state_json)
     if not isinstance(state, dict):
@@ -4177,16 +4181,68 @@ def state_load(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
     )
 
 
-@instrument_gpd_function("state.get")
-def state_get(cwd: Path, section: str | None = None) -> StateGetResult:
-    """Get full STATE.md content or a specific field/section."""
-    md_path = _state_md_path(cwd)
-    with _state_lock(cwd):
-        _recover_intent_locked(cwd)
-        content = _load_or_rebuild_state_markdown_locked(cwd)
-        if content is None:
-            raise StateError(f"STATE.md not found at {md_path}. Run 'gpd init' to create the project state file.")
+@instrument_gpd_function("state.load_readonly")
+def state_load_readonly(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
+    """Load full state metadata without recovery writes or lockfile creation."""
+    preloaded_project_contract, preloaded_project_contract_load_info = _load_project_contract_for_runtime_context(cwd)
+    state_obj, load_integrity_issues, state_source = peek_state_json(
+        cwd,
+        integrity_mode=integrity_mode,
+        recover_intent=False,
+        surface_blocked_project_contract=True,
+        acquire_lock=False,
+    )
+    validation = state_validate(
+        cwd,
+        integrity_mode=integrity_mode,
+        recover_intent=False,
+        acquire_lock=False,
+        surface_blocked_project_contract=True,
+    )
+    combined_issues: list[str] = []
+    for issue in [*load_integrity_issues, *validation.issues]:
+        if issue not in combined_issues:
+            combined_issues.append(issue)
+    integrity_issues = list(combined_issues)
+    if integrity_mode == "standard" and validation.warnings:
+        for warning in validation.warnings:
+            if warning not in integrity_issues:
+                integrity_issues.append(warning)
+    integrity_status = _integrity_status_from(
+        combined_issues if integrity_mode == "review" else validation.issues,
+        [*load_integrity_issues, *validation.warnings] if integrity_mode == "standard" else validation.warnings,
+        integrity_mode,
+    )
 
+    layout = ProjectLayout(cwd)
+    state_raw = safe_read_file(layout.state_md) or ""
+    project_contract_load_info, project_contract_validation, project_contract_gate = (
+        _project_contract_runtime_payload_for_state(
+            cwd,
+            state_obj=state_obj,
+            state_source=state_source,
+            preloaded_contract=preloaded_project_contract,
+            preloaded_load_info=preloaded_project_contract_load_info,
+        )
+    )
+
+    return StateLoadResult(
+        state=state_obj or {},
+        state_raw=state_raw,
+        state_exists=state_obj is not None,
+        roadmap_exists=layout.roadmap.exists(),
+        config_exists=layout.config_json.exists(),
+        integrity_mode=integrity_mode,
+        integrity_status=integrity_status,
+        integrity_issues=integrity_issues,
+        state_source=state_source,
+        project_contract_load_info=project_contract_load_info,
+        project_contract_validation=project_contract_validation,
+        project_contract_gate=project_contract_gate,
+    )
+
+
+def _state_get_from_content(cwd: Path, section: str | None, content: str) -> StateGetResult:
     if not section:
         return StateGetResult(content=content)
 
@@ -4218,6 +4274,30 @@ def state_get(cwd: Path, section: str | None = None) -> StateGetResult:
         return StateGetResult(value=section_match.group(1).strip(), section_name=section)
 
     return StateGetResult(error=f'Section or field "{section}" not found')
+
+
+@instrument_gpd_function("state.get")
+def state_get(cwd: Path, section: str | None = None) -> StateGetResult:
+    """Get full STATE.md content or a specific field/section."""
+    md_path = _state_md_path(cwd)
+    with _state_lock(cwd):
+        _recover_intent_locked(cwd)
+        content = _load_or_rebuild_state_markdown_locked(cwd)
+        if content is None:
+            raise StateError(f"STATE.md not found at {md_path}. Run 'gpd init' to create the project state file.")
+
+    return _state_get_from_content(cwd, section, content)
+
+
+@instrument_gpd_function("state.get_readonly")
+def state_get_readonly(cwd: Path, section: str | None = None) -> StateGetResult:
+    """Get STATE.md content without recovery writes or lockfile creation."""
+    md_path = _state_md_path(cwd)
+    content = safe_read_file(md_path)
+    if content is None:
+        raise StateError(f"STATE.md not found at {md_path}. Run 'gpd init' to create the project state file.")
+
+    return _state_get_from_content(cwd, section, content)
 
 
 @instrument_gpd_function("state.update")
@@ -5224,7 +5304,7 @@ def state_record_contract_alignment(
 @instrument_gpd_function("state.snapshot")
 def state_snapshot(cwd: Path) -> StateSnapshotResult:
     """Fast snapshot of state for progress/routing commands."""
-    state_obj, _issues, _state_source = peek_state_json(cwd, recover_intent=False)
+    state_obj, _issues, _state_source = peek_state_json(cwd, recover_intent=False, acquire_lock=False)
     if state_obj is None:
         return StateSnapshotResult(error="STATE.md not found")
 

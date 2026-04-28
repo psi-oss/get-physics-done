@@ -395,6 +395,7 @@ def test_public_mcp_descriptor_entry_point_alternatives_match_pyproject_scripts(
 
 def test_arxiv_descriptor_tracks_optional_dependency_surface() -> None:
     from gpd.mcp.builtin_servers import build_public_descriptors
+    from gpd.mcp.servers.arxiv_bridge import ADVERTISED_TOOL_NAMES, DOWNLOAD_SOURCE_TOOL_NAME, UPSTREAM_CORE_TOOL_NAMES
 
     project = tomllib.loads(_read("pyproject.toml"))["project"]
     dependencies: list[str] = project["dependencies"]
@@ -416,13 +417,9 @@ def test_arxiv_descriptor_tracks_optional_dependency_surface() -> None:
     assert descriptor["prerequisites"] == ["Install GPD before enabling built-in MCP servers."]
     assert descriptor["capability_surface"] == "baseline_dynamic_upstream"
     assert descriptor["dynamic_upstream_capabilities"] is True
-    assert descriptor["baseline_upstream_capabilities"] == [
-        "search_papers",
-        "download_paper",
-        "list_papers",
-        "read_paper",
-    ]
-    assert descriptor["local_capabilities"] == ["download_source"]
+    assert descriptor["baseline_upstream_capabilities"] == list(UPSTREAM_CORE_TOOL_NAMES)
+    assert descriptor["local_capabilities"] == [DOWNLOAD_SOURCE_TOOL_NAME]
+    assert descriptor["capabilities"] == list(ADVERTISED_TOOL_NAMES)
     assert descriptor["capabilities"][-1] == "download_source"
 
 

@@ -8,10 +8,10 @@ from types import SimpleNamespace
 import tests.ci_sharding as ci_sharding
 from tests.ci_sharding import assert_ci_workflow_pytest_shard_policy, assert_tests_readme_documents_ci_shard_policy
 from tests.helpers.github_actions import load_github_actions_workflow
+from tests.helpers.release import assert_run_step_uses_isolated_uv_build_env, assert_setup_uv_step_pins_expected_version
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
-EXPECTED_UV_SETUP_VERSION = "0.9.12"
 
 
 def _workflow_paths() -> list[Path]:
@@ -227,8 +227,9 @@ def test_ci_workflow_runs_lightweight_python_compatibility_matrix() -> None:
     assert step_by_name["Set up Python"]["with"]["python-version"] == "${{ matrix.python-version }}"
     assert step_by_name["Set up Node.js"]["uses"] == "actions/setup-node@v6"
     assert step_by_name["Set up Node.js"]["with"]["node-version"] == "20"
-    assert step_by_name["Set up uv"]["uses"] == "astral-sh/setup-uv@v7"
-    assert step_by_name["Set up uv"]["with"] == {"version": EXPECTED_UV_SETUP_VERSION}
+    assert_setup_uv_step_pins_expected_version(
+        step_by_name["Set up uv"], context="test.yml python-compatibility Set up uv"
+    )
     assert step_by_name["Install dependencies"]["run"] == "uv sync --dev --frozen"
 
     import_smoke = step_by_name["Import package surfaces"]["run"]
@@ -250,7 +251,10 @@ def test_ci_workflow_runs_lightweight_python_compatibility_matrix() -> None:
     assert "test_bootstrap_prefers_versioned_python_when_generic_alias_is_newer" in targeted_tests
     assert "test_bootstrap_recreates_managed_env_when_selected_minor_changes" in targeted_tests
     assert "uv run pytest -q tests/" not in targeted_tests
-    assert step_by_name["Build wheel"]["run"] == "uv build --wheel --out-dir dist/compat-${{ matrix.python-version }}"
+    assert_run_step_uses_isolated_uv_build_env(
+        step_by_name["Build wheel"], context="test.yml python-compatibility Build wheel"
+    )
+    assert "uv build --wheel --out-dir dist/compat-${{ matrix.python-version }}" in step_by_name["Build wheel"]["run"]
 
 
 def test_ci_workflow_uses_current_action_versions() -> None:
@@ -276,7 +280,7 @@ def test_github_workflows_pin_setup_uv_tool_version() -> None:
         setup_uv_step_count += len(setup_uv_steps)
 
         for step in setup_uv_steps:
-            assert step.get("with") == {"version": EXPECTED_UV_SETUP_VERSION}, path.name
+            assert_setup_uv_step_pins_expected_version(step, context=path.name)
 
     assert setup_uv_step_count > 0
 

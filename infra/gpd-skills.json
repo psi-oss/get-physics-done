@@ -1,6 +1,6 @@
 {
   "name": "gpd-skills",
-  "description": "GPD skill discovery and routing. Tools for listing, retrieving, auto-routing, and indexing GPD workflow skills for runtime context assembly. Treat missing evidence or artifacts as missing, blocked, failed, or inconclusive; never fabricate fallback outputs.",
+  "description": "GPD skill discovery and routing. Tools for listing, retrieving, auto-routing, and indexing GPD workflow skills for runtime context assembly.",
   "transport": "stdio",
   "command": "gpd-mcp-skills",
   "args": [],

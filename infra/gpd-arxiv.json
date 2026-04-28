@@ -1,6 +1,6 @@
 {
   "name": "gpd-arxiv",
-  "description": "Optional arXiv bridge for arxiv-mcp-server. Advertises the baseline upstream tools search_papers, download_paper, list_papers, and read_paper, forwards only tools exposed by the live upstream server, and adds GPD download_source for raw source archives.",
+  "description": "Optional arXiv bridge for arxiv-mcp-server. Advertises the baseline upstream tools search_papers, download_paper, list_papers, read_paper, forwards only tools exposed by the live upstream server, and adds GPD download_source for raw source archives.",
   "transport": "stdio",
   "command": "gpd-mcp-arxiv",
   "args": [],

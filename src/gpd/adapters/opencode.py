@@ -43,6 +43,7 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     write_manifest as _shared_write_manifest,
 )
+from gpd.adapters.runtime_catalog import get_manifest_metadata_list_policy_key
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.mcp import managed_integrations as _managed_integrations
 
@@ -95,7 +96,6 @@ _GPD_BARE_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9_./$-])gpd:([a-z0-9-]+)\b")
 _OPENCODE_PERMISSION_DECISIONS = frozenset({"allow", "ask", "deny"})
 _OPENCODE_YOLO_PERMISSION = "allow"
 _GPD_OPENCODE_COMMAND_MARKER = "<!-- Managed by Get Physics Done (GPD). -->"
-_MANIFEST_OPENCODE_GENERATED_COMMAND_FILES_KEY = "opencode_generated_command_files"
 _MANIFEST_OPENCODE_MANAGED_CONFIG_KEY = "opencode_managed_config"
 _MANIFEST_OPENCODE_PERMISSION_RESTORE_KEY = "permission_restore"
 
@@ -116,6 +116,16 @@ def get_opencode_global_dir(explicit_dir: str | None = None) -> Path:
     5. ~/.config/opencode when XDG_CONFIG_HOME is unset
     """
     return Path(get_global_dir("opencode", explicit_dir))
+
+
+def _manifest_opencode_generated_command_files_key() -> str:
+    """Return the catalog-owned manifest key for generated OpenCode commands."""
+    return get_manifest_metadata_list_policy_key(
+        "opencode",
+        value_kind="path_segment",
+        item_prefix="gpd-",
+        item_suffix=".md",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -446,7 +456,7 @@ def _load_manifest_opencode_generated_command_files(target_dir: Path) -> tuple[s
     if not isinstance(manifest, dict):
         return ()
 
-    command_files = manifest.get(_MANIFEST_OPENCODE_GENERATED_COMMAND_FILES_KEY)
+    command_files = manifest.get(_manifest_opencode_generated_command_files_key())
     if not isinstance(command_files, list):
         return ()
 
@@ -678,7 +688,7 @@ def write_manifest(
         )
     manifest_metadata: dict[str, object] = dict(metadata or {})
     if managed_command_file_names:
-        manifest_metadata[_MANIFEST_OPENCODE_GENERATED_COMMAND_FILES_KEY] = sorted(
+        manifest_metadata[_manifest_opencode_generated_command_files_key()] = sorted(
             {
                 name
                 for name in managed_command_file_names

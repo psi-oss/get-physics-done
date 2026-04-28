@@ -277,7 +277,7 @@ def test_assess_install_target_classifies_owned_complete_and_incomplete_install(
     config_dir = tmp_path / ".codex"
     config_dir.mkdir(parents=True, exist_ok=True)
     (config_dir / "gpd-file-manifest.json").write_text(
-        json.dumps({"install_scope": "local", "runtime": "codex"}),
+        json.dumps({"install_scope": "local", "runtime": "codex", "explicit_target": False}),
         encoding="utf-8",
     )
 
@@ -311,7 +311,7 @@ def test_assess_install_target_rejects_manifest_when_adapter_validation_fails(
     config_dir = tmp_path / ".codex"
     config_dir.mkdir(parents=True, exist_ok=True)
     (config_dir / "gpd-file-manifest.json").write_text(
-        json.dumps({"install_scope": "local", "runtime": "codex"}),
+        json.dumps({"install_scope": "local", "runtime": "codex", "explicit_target": False}),
         encoding="utf-8",
     )
 
@@ -392,7 +392,7 @@ def test_assess_install_target_rejects_malformed_explicit_target_metadata(
     assert config_dir_has_complete_install(config_dir) is False
 
 
-def test_assess_install_target_allows_missing_legacy_explicit_target_metadata(
+def test_assess_install_target_allows_legacy_manifest_but_does_not_synthesize_update_command(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -416,6 +416,8 @@ def test_assess_install_target_allows_missing_legacy_explicit_target_metadata(
     assert assessment.manifest_state == "ok"
     assert assessment.manifest_runtime == descriptor.runtime_name
     assert assessment.readiness_state == "ready"
+    assert config_dir_has_complete_install(config_dir) is True
+    assert installed_update_command(config_dir) is None
 
 
 def test_assess_install_target_preserves_runtime_owned_manifest_list_metadata(
@@ -431,6 +433,7 @@ def test_assess_install_target_preserves_runtime_owned_manifest_list_metadata(
             {
                 "runtime": descriptor.runtime_name,
                 "install_scope": "local",
+                "explicit_target": False,
                 policy.key: [_valid_value_for_manifest_metadata_policy(policy)],
             }
         ),
@@ -470,6 +473,7 @@ def test_assess_install_target_rejects_manifest_list_metadata_owned_by_another_r
             {
                 "runtime": owner_descriptor.runtime_name,
                 "install_scope": "local",
+                "explicit_target": False,
                 foreign_policy.key: [_valid_value_for_manifest_metadata_policy(foreign_policy)],
             }
         ),
@@ -533,7 +537,7 @@ def test_hook_self_detection_accepts_manifest_backed_owned_incomplete_install(
     config_dir = tmp_path / ".codex"
     config_dir.mkdir(parents=True, exist_ok=True)
     (config_dir / "gpd-file-manifest.json").write_text(
-        json.dumps({"install_scope": "local", "runtime": "codex"}),
+        json.dumps({"install_scope": "local", "runtime": "codex", "explicit_target": False}),
         encoding="utf-8",
     )
 
@@ -560,10 +564,10 @@ def test_hook_self_detection_accepts_manifest_backed_owned_incomplete_install(
     assert detected is not None
     assert detected.runtime == "codex"
     assert detected.install_scope == "local"
-    assert installed_update_command(config_dir) is None
+    assert installed_update_command(config_dir) == "npx -y get-physics-done --codex --local"
 
 
-def test_hook_self_detection_requires_explicit_target_metadata_for_update_command(
+def test_hook_self_detection_accepts_legacy_manifest_but_update_command_requires_explicit_target(
     tmp_path: Path,
 ) -> None:
     config_dir = tmp_path / ".codex"
@@ -579,7 +583,11 @@ def test_hook_self_detection_requires_explicit_target_metadata_for_update_comman
     manifest.pop("explicit_target", None)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    assert detect_self_owned_install(hook_path) is not None
+    detected = detect_self_owned_install(hook_path)
+
+    assert detected is not None
+    assert detected.runtime == "codex"
+    assert detected.install_scope == "local"
     assert installed_update_command(config_dir) is None
 
 

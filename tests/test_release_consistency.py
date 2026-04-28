@@ -28,6 +28,12 @@ from scripts.release_workflow import (
     update_readme_version_text,
 )
 from tests.ci_sharding import assert_ci_workflow_pytest_shard_policy
+from tests.helpers.github_actions import load_github_actions_workflow
+from tests.helpers.release import (
+    EXPECTED_SETUP_UV_VERSION,
+    assert_run_step_uses_isolated_uv_build_env,
+    assert_setup_uv_step_pins_expected_version,
+)
 
 
 def _repo_root() -> Path:
@@ -62,7 +68,17 @@ _EXPECTED_OPTIONAL_DEPENDENCY_EXTRAS = {
     "pypdf": {"arxiv", "paper"},
 }
 _EXPECTED_BUILD_BACKEND_REQUIREMENT = "hatchling==1.29.0"
-_EXPECTED_SETUP_UV_VERSION = "0.9.12"
+
+
+def _workflow_step_by_name(repo_root: Path, workflow_name: str, job_name: str, step_name: str) -> dict[str, object]:
+    workflow = load_github_actions_workflow(repo_root / ".github" / "workflows" / workflow_name)
+    job = workflow["jobs"][job_name]
+    assert isinstance(job, dict)
+    for step in job["steps"]:
+        assert isinstance(step, dict)
+        if step.get("name") == step_name:
+            return step
+    raise AssertionError(f"{workflow_name}:{job_name} is missing step {step_name!r}")
 
 
 def _project_script_lines(repo_root: Path) -> list[str]:
@@ -492,7 +508,7 @@ def test_pull_request_template_points_to_current_ci_and_pre_commit_validation() 
 def test_public_bootstrap_package_exposes_npx_installer() -> None:
     repo_root = _repo_root()
     package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
-    packaged_files = set(package_json.get("files", []))
+    packaged_files = package_json.get("files", [])
 
     assert package_json["name"] == "get-physics-done"
     assert package_json["repository"] == {
@@ -501,8 +517,7 @@ def test_public_bootstrap_package_exposes_npx_installer() -> None:
     }
     assert package_json.get("engines") == {"node": ">=20"}
     assert package_json.get("bin", {}).get("get-physics-done") == "bin/install.js"
-    assert "bin/" in packaged_files
-    assert set(_BOOTSTRAP_JSON_ASSETS) <= packaged_files
+    assert set(packaged_files) == {"bin/install.js", *_BOOTSTRAP_JSON_ASSETS}
     assert (repo_root / "bin" / "install.js").is_file()
 
 
@@ -591,7 +606,7 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_floor() -> None:
     assert "uv run gpd --version" in workflow
     assert "uv build --wheel --out-dir dist/compat-${{ matrix.python-version }}" in workflow
     assert "astral-sh/setup-uv@v7" in workflow
-    assert f'version: "{_EXPECTED_SETUP_UV_VERSION}"' in workflow
+    assert f'version: "{EXPECTED_SETUP_UV_VERSION}"' in workflow
     assert "Check repo graph generated artifacts" in workflow
     assert "python scripts/sync_repo_graph_contract.py --check" in workflow
     assert 'addopts = "-n auto --dist=worksteal"' in pyproject
@@ -619,13 +634,12 @@ def test_prepare_release_workflow_creates_release_pr_without_publishing() -> Non
     assert "actions/setup-python@v6" in workflow
     assert "actions/setup-node@v6" in workflow
     assert "astral-sh/setup-uv@v7" in workflow
-    assert f'version: "{_EXPECTED_SETUP_UV_VERSION}"' in workflow
+    assert f'version: "{EXPECTED_SETUP_UV_VERSION}"' in workflow
     assert "uv sync --dev --frozen" in workflow
     assert "scripts/release_workflow.py prepare" in workflow
     assert "uv lock" in workflow
     assert "uv run pytest tests/test_release_consistency.py -v" in workflow
     assert "uv build --out-dir dist" in workflow
-    assert "rm -rf dist\n          uv build --out-dir dist" in workflow
     assert "npm pack --dry-run --json" in workflow
     assert "gh pr create" in workflow
     assert "--jq '.[0].url // \"\"'" in workflow
@@ -783,8 +797,16 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "git merge-base --is-ancestor HEAD" in workflow
     assert "scripts/release_workflow.py show-version" in workflow
     assert "scripts/release_workflow.py stamp-publish-date" in workflow
-    assert "astral-sh/setup-uv@v7" in workflow
-    assert workflow.count(f'version: "{_EXPECTED_SETUP_UV_VERSION}"') == workflow.count("astral-sh/setup-uv@v7")
+    workflow_data = load_github_actions_workflow(repo_root / ".github" / "workflows" / "publish-release.yml")
+    setup_uv_steps = [
+        step
+        for job in workflow_data["jobs"].values()
+        for step in job.get("steps", [])
+        if isinstance(step, dict) and step.get("uses") == "astral-sh/setup-uv@v7"
+    ]
+    assert setup_uv_steps
+    for step in setup_uv_steps:
+        assert_setup_uv_step_pins_expected_version(step, context="publish-release.yml")
     assert "Check existing release tag safety" in workflow
     assert 'TAG_SHA="$(git rev-list -n 1 "v${VERSION}")"' in workflow
     assert "Tag v${VERSION} already points at release commit ${RELEASE_SHA}; continuing publish recovery." in workflow
@@ -863,11 +885,6 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     )
     assert workflow.index("Run stamped release validation") < workflow.index("Publish to npm")
     assert "uv run pytest tests/test_release_consistency.py -v" in workflow
-    assert "rm -rf dist\n          uv build --out-dir dist" in workflow
-    assert (
-        'rm -rf dist\n          npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack.json'
-        in workflow
-    )
     assert (
         'rm -rf dist\n          npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack-publish.json'
         in workflow
@@ -904,6 +921,37 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     )
     fi_index = next(index for index in range(else_index + 1, len(summary_lines)) if summary_lines[index] == "fi")
     assert condition_index < dispatched_index < else_index < skipped_index < fi_index
+
+
+def test_release_workflow_uv_build_steps_use_isolated_uv_environment() -> None:
+    repo_root = _repo_root()
+
+    assert_run_step_uses_isolated_uv_build_env(
+        _workflow_step_by_name(repo_root, "release.yml", "prepare-release", "Run release validation suite"),
+        context="release.yml prepare-release Run release validation suite",
+    )
+    assert_run_step_uses_isolated_uv_build_env(
+        _workflow_step_by_name(repo_root, "publish-release.yml", "build-release", "Build Python distributions"),
+        context="publish-release.yml build-release Build Python distributions",
+    )
+
+
+def test_release_workflows_pin_setup_uv_tool_version_structurally() -> None:
+    repo_root = _repo_root()
+    workflow_names = ("release.yml", "publish-release.yml")
+    setup_uv_step_count = 0
+
+    for workflow_name in workflow_names:
+        workflow = load_github_actions_workflow(repo_root / ".github" / "workflows" / workflow_name)
+        for job_id, job in workflow["jobs"].items():
+            assert isinstance(job, dict)
+            for step in job.get("steps", []):
+                assert isinstance(step, dict)
+                if step.get("uses") == "astral-sh/setup-uv@v7":
+                    setup_uv_step_count += 1
+                    assert_setup_uv_step_pins_expected_version(step, context=f"{workflow_name}:{job_id}")
+
+    assert setup_uv_step_count == 3
 
 
 def test_publish_release_followup_recreates_or_fails_when_branch_exists_without_open_pr() -> None:
@@ -1486,9 +1534,13 @@ def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:
 
     assert pack["name"] == "get-physics-done"
     assert pack["version"] == _python_release_version(repo_root)
-    assert "bin/install.js" in packed_paths
-    assert "package.json" in packed_paths
-    assert set(_BOOTSTRAP_JSON_ASSETS) <= packed_paths
+    assert packed_paths == {
+        "LICENSE",
+        "README.md",
+        "bin/install.js",
+        "package.json",
+        *_BOOTSTRAP_JSON_ASSETS,
+    }
     assert (tmp_path / "npm-cache").is_dir()
 
     if existed_before:

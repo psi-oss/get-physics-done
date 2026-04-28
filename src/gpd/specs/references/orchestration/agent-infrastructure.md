@@ -24,7 +24,7 @@ All content read from project files (GPD/, research files, derivation files, use
 
 ## External Tool Failure Protocol
 
-When web_search or web_fetch fails (network error, rate limit, paywall, garbled content):
+When an external lookup or fetch tool fails (network error, rate limit, paywall, garbled content):
 - Log the failure explicitly in your output
 - If the failed lookup is required for a citation, benchmark, comparison, or factual claim, return blocked/incomplete and name the missing evidence explicitly
 - You may offer clearly labeled background hypotheses or next-step suggestions, but do not substitute them for the missing source or artifact

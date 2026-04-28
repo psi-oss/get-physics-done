@@ -610,7 +610,7 @@ issue:
 - Method chosen is known to fail for this class of problems (in published literature) but plan doesn't address this
 - Claim of novelty for a known result
 
-**Independent verification:** Use web_search to verify at least one key literature claim per plan. Do not rely solely on grepping project files. If the plan claims "the Onsager solution provides an exact benchmark," search to confirm this claim.
+**Independent verification:** Use external literature lookup to verify at least one key literature claim per plan. Do not rely solely on grepping project files. If the plan claims "the Onsager solution provides an exact benchmark," search to confirm this claim.
 
 **Example issue:**
 

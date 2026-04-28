@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from inspect import Parameter, signature
 from pathlib import Path
 
+from gpd.core.constants import ProjectLayout
 from gpd.core.root_resolution import ProjectRootResolution, resolve_project_roots
 
 
@@ -169,6 +170,39 @@ def _project_dir_is_trusted(workspace_dir: str, project_dir: str) -> bool:
         and resolution.project_root == normalized_project
         and (resolution.has_project_layout or (normalized_project / "GPD").is_dir())
     )
+
+
+def trusted_payload_project_root(
+    data: dict[str, object],
+    workspace_dir: str,
+    *,
+    hook_payload: object,
+) -> str | None:
+    """Return a policy-owned payload project root when it is a real ancestor project."""
+    project_dir = project_dir_hint_from_payload(data, hook_payload=hook_payload)
+    if not project_dir:
+        return None
+
+    workspace_path = Path(workspace_dir).expanduser()
+    project_path = Path(project_dir).expanduser()
+    try:
+        resolved_workspace = workspace_path.resolve(strict=False)
+        resolved_project = project_path.resolve(strict=False)
+    except OSError:
+        resolved_workspace = workspace_path
+        resolved_project = project_path
+
+    try:
+        resolved_workspace.relative_to(resolved_project)
+    except ValueError:
+        return None
+
+    resolution = resolve_project_roots(str(resolved_workspace), project_dir=str(resolved_project))
+    if resolution is None or resolution.project_root != resolved_project:
+        return None
+    if resolution.has_project_layout or ProjectLayout(resolved_project).gpd.is_dir():
+        return str(resolved_project)
+    return None
 
 
 def _is_hook_project_anchor(resolution: ProjectRootResolution) -> bool:

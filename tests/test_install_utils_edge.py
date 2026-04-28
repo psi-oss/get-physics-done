@@ -45,6 +45,7 @@ from gpd.adapters.install_utils import (
 )
 from gpd.adapters.runtime_catalog import (
     ManagedInstallSurfacePolicy,
+    get_manifest_metadata_list_policy_key,
     get_runtime_descriptor,
     get_runtime_help_example_runtime,
     get_shared_install_metadata,
@@ -1475,10 +1476,15 @@ class TestInstallBackupSafety:
         (config_dir / "get-physics-done").mkdir(parents=True)
         version_file = config_dir / "get-physics-done" / "VERSION"
         version_file.write_text("1.0.0", encoding="utf-8")
+        generated_skill_dirs_key = get_manifest_metadata_list_policy_key(
+            _LOCAL_EXAMPLE_RUNTIME,
+            value_kind="path_segment",
+            item_prefix="gpd-",
+        )
 
         metadata = {
             "managed_config": {"experimental.enableAgents": True},
-            "codex_generated_skill_dirs": ["gpd-help"],
+            generated_skill_dirs_key: ["gpd-help"],
         }
 
         manifest = write_manifest(
@@ -1496,7 +1502,7 @@ class TestInstallBackupSafety:
         assert manifest["install_scope"] == "local"
         assert manifest["explicit_target"] is False
         assert manifest["managed_config"] == {"experimental.enableAgents": True}
-        assert manifest["codex_generated_skill_dirs"] == ["gpd-help"]
+        assert manifest[generated_skill_dirs_key] == ["gpd-help"]
         assert persisted == manifest
         assert "get-physics-done/VERSION" in persisted["files"]
 

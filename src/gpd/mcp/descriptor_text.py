@@ -10,6 +10,5 @@ SKILL_BEHAVIORAL_GUARDRAIL_HINT = (
 
 SKILLS_SERVER_DESCRIPTION = (
     "GPD skill discovery and routing. Tools for listing, retrieving, auto-routing, "
-    "and indexing GPD workflow skills for runtime context assembly. Treat missing evidence or artifacts as "
-    "missing, blocked, failed, or inconclusive; never fabricate fallback outputs."
+    "and indexing GPD workflow skills for runtime context assembly."
 )

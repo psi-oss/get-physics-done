@@ -14,6 +14,7 @@ import gpd.adapters.runtime_catalog as runtime_catalog
 from gpd.adapters.runtime_catalog import (
     get_hook_payload_policy,
     get_managed_install_surface_policy,
+    get_manifest_metadata_list_policy_key,
     get_runtime_capabilities,
     get_runtime_descriptor,
     get_runtime_help_example_runtime,
@@ -536,6 +537,21 @@ def test_manifest_metadata_list_policies_are_derived_from_runtime_metadata() -> 
     assert opencode_policy.key == opencode_entry["manifest_metadata_list_policies"][0]["key"]
     assert opencode_policy.item_prefix == "gpd-"
     assert opencode_policy.item_suffix == ".md"
+
+
+def test_manifest_metadata_list_policy_key_matches_runtime_descriptor_policy() -> None:
+    assert get_manifest_metadata_list_policy_key("codex", value_kind="path_segment", item_prefix="gpd-") == (
+        get_runtime_descriptor("codex").manifest_metadata_list_policies[0].key
+    )
+    assert get_manifest_metadata_list_policy_key("gemini", value_kind="relpath") == (
+        get_runtime_descriptor("gemini").manifest_metadata_list_policies[0].key
+    )
+    assert get_manifest_metadata_list_policy_key(
+        "opencode",
+        value_kind="path_segment",
+        item_prefix="gpd-",
+        item_suffix=".md",
+    ) == get_runtime_descriptor("opencode").manifest_metadata_list_policies[0].key
 
 
 def test_runtime_catalog_source_does_not_hardcode_managed_agent_globs() -> None:

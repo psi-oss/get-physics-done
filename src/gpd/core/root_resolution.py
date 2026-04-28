@@ -144,21 +144,32 @@ def _walk_project_root(
             if _has_directory_content(path)
         )
         has_state_marker = layout.state_json.exists() or layout.state_md.exists()
-        has_identity_marker = (
-            layout.project_md.exists()
-            or layout.roadmap.exists()
-            or (path / "PROJECT.md").exists()
-            or (path / "ROADMAP.md").exists()
-        )
+        has_identity_marker = layout.project_md.exists() or layout.roadmap.exists()
         if (has_state_marker and has_identity_marker) or strong_marker_count >= 2:
             return path, steps, True
-        if (
-            strong_marker_count > 0
-            and (steps > 0 or layout.agent_id_file.exists())
-            and (best_partial is None or steps < best_partial[0])
+        has_partial_anchor = (
+            layout.project_md.exists()
+            or layout.roadmap.exists()
+            or layout.state_json.exists()
+            or layout.agent_id_file.exists()
+            or any(_has_directory_content(layout.gpd / name) for name in REQUIRED_PLANNING_DIRS)
+            or any(
+                _has_directory_content(candidate)
+                for candidate in (
+                    layout.research_map_dir,
+                    layout.literature_dir,
+                    layout.knowledge_dir,
+                    layout.publication_dir,
+                    layout.review_dir,
+                    layout.milestones_dir,
+                    layout.todos_dir,
+                )
+            )
+        )
+        if has_partial_anchor and (steps > 0 or layout.agent_id_file.exists()) and (
+            best_partial is None or steps < best_partial[0]
         ):
             best_partial = (steps, path)
-
         if steps == 0 and (best_bare is None or steps < best_bare[0]):
             best_bare = (steps, path)
         if allow_ancestor_walk and _is_vcs_boundary(path):

@@ -53,7 +53,7 @@ from gpd.adapters.install_utils import (
     verify_installed,
     write_manifest,
 )
-from gpd.adapters.runtime_catalog import get_runtime_descriptor
+from gpd.adapters.runtime_catalog import get_manifest_metadata_list_policy_key, get_runtime_descriptor
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.core.observability import gpd_span
 from gpd.mcp import managed_integrations as _managed_integrations
@@ -93,7 +93,6 @@ _GPD_AGENT_ROLES_COMMENT = "# GPD agent roles"
 _GPD_AGENT_ROLE_FILE_MARKER = "# Managed by Get Physics Done (GPD)."
 _GPD_CODEX_SKILL_MARKER = "<!-- Managed by Get Physics Done (GPD). -->"
 _MANIFEST_CODEX_SKILLS_DIR_KEY = "codex_skills_dir"
-_MANIFEST_CODEX_GENERATED_SKILL_DIRS_KEY = "codex_generated_skill_dirs"
 _CODEX_DEFAULT_SANDBOX_MODE = "workspace-write"
 _CODEX_YOLO_APPROVAL_POLICY = "never"
 _CODEX_YOLO_SANDBOX_MODE = "danger-full-access"
@@ -127,6 +126,11 @@ def _read_codex_runtime_config(config_path: Path) -> tuple[dict[str, object] | N
 def _codex_config_dir_name() -> str:
     """Return the descriptor-backed Codex config dir name."""
     return get_runtime_descriptor("codex").config_dir_name
+
+
+def _manifest_codex_generated_skill_dirs_key() -> str:
+    """Return the catalog-owned manifest key for generated Codex skill dirs."""
+    return get_manifest_metadata_list_policy_key("codex", value_kind="path_segment", item_prefix="gpd-")
 
 
 _TOOL_REFERENCE_MAP = reference_translation_map(
@@ -248,7 +252,7 @@ def _load_manifest_codex_generated_skill_dirs(target_dir: Path) -> tuple[str, ..
     if not isinstance(manifest, dict):
         return ()
 
-    metadata_dirs = manifest.get(_MANIFEST_CODEX_GENERATED_SKILL_DIRS_KEY)
+    metadata_dirs = manifest.get(_manifest_codex_generated_skill_dirs_key())
     if isinstance(metadata_dirs, list):
         names = [str(name) for name in metadata_dirs if isinstance(name, str) and name.strip()]
         return tuple(dict.fromkeys(names))
@@ -1220,7 +1224,7 @@ class CodexAdapter(RuntimeAdapter):
             managed_skill_dir_names=getattr(self, "_generated_skill_dirs", ()),
             metadata={
                 _MANIFEST_CODEX_SKILLS_DIR_KEY: str(self._skills_dir),
-                _MANIFEST_CODEX_GENERATED_SKILL_DIRS_KEY: list(getattr(self, "_generated_skill_dirs", ())),
+                _manifest_codex_generated_skill_dirs_key(): list(getattr(self, "_generated_skill_dirs", ())),
             },
             install_scope=self._current_install_scope_flag(),
             explicit_target=getattr(self, "_install_explicit_target", False),

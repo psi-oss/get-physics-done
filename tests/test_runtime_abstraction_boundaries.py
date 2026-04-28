@@ -1026,7 +1026,7 @@ def test_base_uninstall_removes_shared_surfaces_from_catalog_globs(tmp_path: Pat
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("content\n", encoding="utf-8")
     (target / _SHARED_INSTALL.manifest_name).write_text(
-        json.dumps({"runtime": adapter.runtime_name, "install_scope": "local"}),
+        json.dumps({"runtime": adapter.runtime_name, "install_scope": "local", "explicit_target": False}),
         encoding="utf-8",
     )
     policy = ManagedInstallSurfacePolicy(

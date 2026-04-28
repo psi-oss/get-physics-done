@@ -333,6 +333,7 @@ class TestBuiltinServerDescriptors:
         assert advance_plan.annotations.idempotentHint is False
         assert run_health_check.annotations is not None
         assert run_health_check.annotations.readOnlyHint is False
+        assert run_health_check.annotations.destructiveHint is True
         assert run_health_check.annotations.idempotentHint is False
         assert run_health_check.inputSchema["properties"]["fix"] == {
             "default": False,
@@ -343,6 +344,11 @@ class TestBuiltinServerDescriptors:
 
     def test_arxiv_public_descriptor_describes_baseline_and_live_upstream_forwarding(self):
         from gpd.mcp.builtin_servers import build_public_descriptors
+        from gpd.mcp.servers.arxiv_bridge import (
+            ADVERTISED_TOOL_NAMES,
+            DOWNLOAD_SOURCE_TOOL_NAME,
+            UPSTREAM_CORE_TOOL_NAMES,
+        )
 
         descriptor = build_public_descriptors()["gpd-arxiv"]
 
@@ -351,20 +357,9 @@ class TestBuiltinServerDescriptors:
         assert "download_source" in descriptor["description"]
         assert descriptor["capability_surface"] == "baseline_dynamic_upstream"
         assert descriptor["dynamic_upstream_capabilities"] is True
-        assert descriptor["baseline_upstream_capabilities"] == [
-            "search_papers",
-            "download_paper",
-            "list_papers",
-            "read_paper",
-        ]
-        assert descriptor["local_capabilities"] == ["download_source"]
-        assert descriptor["capabilities"] == [
-            "search_papers",
-            "download_paper",
-            "list_papers",
-            "read_paper",
-            "download_source",
-        ]
+        assert descriptor["baseline_upstream_capabilities"] == list(UPSTREAM_CORE_TOOL_NAMES)
+        assert descriptor["local_capabilities"] == [DOWNLOAD_SOURCE_TOOL_NAME]
+        assert descriptor["capabilities"] == list(ADVERTISED_TOOL_NAMES)
 
     def test_state_public_descriptor_health_check_is_executable_without_fake_project_path(self):
         from gpd.mcp.builtin_servers import build_public_descriptors
@@ -473,8 +468,8 @@ class TestBuiltinServerDescriptors:
         descriptor = build_public_descriptors()["gpd-skills"]
 
         assert descriptor["description"] == SKILLS_SERVER_DESCRIPTION
-        assert "missing evidence or artifacts" in descriptor["description"]
-        assert "never fabricate fallback outputs" in descriptor["description"]
+        assert "missing evidence or artifacts" not in descriptor["description"]
+        assert "never fabricate fallback outputs" not in descriptor["description"]
 
 
 class TestMcpServerRunner:

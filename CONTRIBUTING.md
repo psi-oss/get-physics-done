@@ -45,7 +45,7 @@ The tracked pre-commit hook runs `uv run ruff check --fix --unsafe-fixes` on sta
 Useful checks:
 
 ```bash
-uv build
+UV_CACHE_DIR="$(mktemp -d)" UV_NO_CONFIG=1 UV_PYTHON_DOWNLOADS=never uv build
 npm_config_cache="$(mktemp -d)" npm pack --dry-run --json
 pre-commit run --all-files
 python scripts/sync_repo_graph_contract.py --check
@@ -67,7 +67,7 @@ Cross-runtime release checks:
 - `tests/core/test_cli.py` covers the public `gpd` CLI surface.
 - `tests/test_metadata_consistency.py` covers public docs, inventory counts, and CLI/registry metadata alignment.
 - `tests/test_release_consistency.py` covers the public install flow, release artifacts, and release-facing messaging.
-- `uv build` validates the published Python wheel and sdist.
+- `uv build` validates the published Python wheel and sdist. Use an isolated `UV_CACHE_DIR` with `UV_NO_CONFIG=1` and `UV_PYTHON_DOWNLOADS=never` to match release validation.
 - `npm pack --dry-run --json` validates the published `npx` bootstrap package surface before release. Use a temporary cache outside the repo so the worktree does not gain a local `.npm-cache/`.
 - Gemini installs are expected to be complete on disk after `GeminiAdapter.install()`: `.gemini/settings.json` should already exist with `experimental.enableAgents`, GPD hooks, GPD MCP servers, and `policyPaths` configured, and `policies/gpd-auto-edit.toml` should already be present.
 - OpenCode installs are expected to leave `opencode.json` complete on disk with GPD-managed `permission.read` / `permission.external_directory` entries and built-in MCP servers under the `mcp` key.

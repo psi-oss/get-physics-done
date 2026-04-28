@@ -109,6 +109,20 @@ def test_write_paper_public_metadata_only_advertises_intake_manifest() -> None:
     assert "from_phases_flag" not in command.content
 
 
+@pytest.mark.parametrize("command_name", ["research-phase", "list-phase-assumptions"])
+def test_phase_required_input_command_metadata_is_not_optional(command_name: str) -> None:
+    registry_module.invalidate_cache()
+
+    command = registry_module.get_command(command_name)
+    subject_policy = command.command_policy.subject_policy
+
+    assert command.argument_hint == "<phase-number>"
+    assert subject_policy.subject_kind == "phase"
+    assert subject_policy.resolution_mode == "phase_number"
+    assert subject_policy.explicit_input_kinds == ["phase-number"]
+    assert subject_policy.allow_interactive_without_subject is False
+
+
 def test_health_runtime_wrapper_accepts_unhealthy_json_exit_status() -> None:
     """Runtime prompt must parse raw health JSON even when the CLI uses exit 1 for fail."""
     health_command = (Path(__file__).resolve().parents[1] / "src/gpd/commands/health.md").read_text(encoding="utf-8")
@@ -2812,6 +2826,51 @@ class TestReviewValidationCommands:
         assert checks["reconcile_confirmation"]["passed"] is True
         assert checks["reconcile_confirmation"]["blocking"] is True
         assert "ask_user" in checks["reconcile_confirmation"]["detail"]
+
+    @pytest.mark.parametrize("command_name", ["research-phase", "list-phase-assumptions"])
+    def test_command_context_phase_commands_require_explicit_phase_in_initialized_project(
+        self,
+        gpd_project: Path,
+        command_name: str,
+    ) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(gpd_project), "validate", "command-context", command_name],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == f"gpd:{command_name}"
+        assert payload["context_mode"] == "project-required"
+        assert payload["passed"] is False
+        assert checks["project_exists"]["passed"] is True
+        assert checks["explicit_inputs"]["passed"] is False
+        assert checks["explicit_inputs"]["detail"] == "missing explicit subject (phase-number)"
+        assert payload["guidance"] == "missing explicit subject (phase-number)"
+
+    @pytest.mark.parametrize("command_name", ["research-phase", "list-phase-assumptions"])
+    def test_command_context_phase_commands_accept_explicit_phase_in_initialized_project(
+        self,
+        gpd_project: Path,
+        command_name: str,
+    ) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(gpd_project), "validate", "command-context", command_name, "1"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == f"gpd:{command_name}"
+        assert payload["context_mode"] == "project-required"
+        assert payload["passed"] is True
+        assert checks["project_exists"]["passed"] is True
+        assert checks["explicit_inputs"]["passed"] is True
+        assert checks["explicit_inputs"]["detail"] == "explicit phase subject 1"
 
     def test_command_context_resume_work_resolves_ancestor_project_root_for_nested_workspace(
         self,

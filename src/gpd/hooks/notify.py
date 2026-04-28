@@ -22,7 +22,7 @@ from gpd.core.root_resolution import resolve_project_roots
 from gpd.core.utils import atomic_write, file_lock
 from gpd.hooks.install_context import detect_self_owned_install
 from gpd.hooks.payload_policy import resolve_hook_payload_policy, resolve_hook_surface_runtime
-from gpd.hooks.payload_roots import payload_uses_alias_only_workspace_mapping, project_dir_hint_from_payload
+from gpd.hooks.payload_roots import payload_uses_alias_only_workspace_mapping, trusted_payload_project_root
 from gpd.hooks.payload_roots import resolve_payload_roots as _resolve_payload_roots
 from gpd.hooks.runtime_lookup import resolve_runtime_lookup_context_from_payload_roots
 from gpd.hooks.update_resolution import latest_update_cache as _shared_latest_update_cache
@@ -37,39 +37,6 @@ def _debug(msg: str) -> None:
         sys.stderr.write(f"[gpd-debug] {msg}\n")
 
 
-def _trusted_payload_project_root(
-    data: dict[str, object],
-    workspace_dir: str,
-    *,
-    hook_payload: object,
-) -> str | None:
-    """Return a policy-owned payload project root when it is a real ancestor project."""
-    project_dir = project_dir_hint_from_payload(data, hook_payload=hook_payload)
-    if not project_dir:
-        return None
-
-    workspace_path = Path(workspace_dir).expanduser()
-    project_path = Path(project_dir).expanduser()
-    try:
-        resolved_workspace = workspace_path.resolve(strict=False)
-        resolved_project = project_path.resolve(strict=False)
-    except OSError:
-        resolved_workspace = workspace_path
-        resolved_project = project_path
-
-    try:
-        resolved_workspace.relative_to(resolved_project)
-    except ValueError:
-        return None
-
-    resolution = resolve_project_roots(str(resolved_workspace), project_dir=str(resolved_project))
-    if resolution is None or resolution.project_root != resolved_project:
-        return None
-    if resolution.has_project_layout or ProjectLayout(resolved_project).gpd.is_dir():
-        return str(resolved_project)
-    return None
-
-
 def _trusted_side_effect_project_root(
     data: dict[str, object],
     *,
@@ -81,7 +48,7 @@ def _trusted_side_effect_project_root(
     """Return the project root that should own project side effects, when trusted."""
     if project_dir_trusted and project_root:
         return str(Path(project_root).expanduser().resolve(strict=False))
-    return _trusted_payload_project_root(data, workspace_dir, hook_payload=hook_payload)
+    return trusted_payload_project_root(data, workspace_dir, hook_payload=hook_payload)
 
 
 def _has_project_layout(cwd: str) -> bool:

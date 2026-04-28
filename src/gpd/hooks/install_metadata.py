@@ -394,26 +394,6 @@ def assess_install_target(
     missing_install_artifacts: tuple[str, ...] = ()
 
     if manifest_state == "ok" and manifest_runtime is not None:
-        explicit_target_state, _explicit_target_payload, _explicit_target = load_install_manifest_explicit_target_status(resolved)
-        if explicit_target_state not in {"ok", "missing_explicit_target"}:
-            return InstallTargetAssessment(
-                config_dir=resolved,
-                expected_runtime=expected_runtime,
-                state="untrusted_manifest",
-                manifest_state=explicit_target_state,
-                manifest_runtime=manifest_runtime,
-                has_managed_markers=True,
-            )
-        path_metadata_state = _manifest_path_metadata_state(_payload, config_dir=resolved, runtime=manifest_runtime)
-        if path_metadata_state != "ok":
-            return InstallTargetAssessment(
-                config_dir=resolved,
-                expected_runtime=expected_runtime,
-                state="untrusted_manifest",
-                manifest_state=path_metadata_state,
-                manifest_runtime=manifest_runtime,
-                has_managed_markers=True,
-            )
         if expected_runtime is not None and manifest_runtime != expected_runtime:
             return InstallTargetAssessment(
                 config_dir=resolved,
@@ -429,6 +409,26 @@ def assess_install_target(
                 expected_runtime=expected_runtime,
                 state="untrusted_manifest",
                 manifest_state=manifest_scope_state,
+                manifest_runtime=manifest_runtime,
+                has_managed_markers=True,
+            )
+        explicit_target_state, _explicit_target_payload, _explicit_target = load_install_manifest_explicit_target_status(resolved)
+        if explicit_target_state == "malformed_explicit_target":
+            return InstallTargetAssessment(
+                config_dir=resolved,
+                expected_runtime=expected_runtime,
+                state="untrusted_manifest",
+                manifest_state=explicit_target_state,
+                manifest_runtime=manifest_runtime,
+                has_managed_markers=True,
+            )
+        path_metadata_state = _manifest_path_metadata_state(_payload, config_dir=resolved, runtime=manifest_runtime)
+        if path_metadata_state != "ok":
+            return InstallTargetAssessment(
+                config_dir=resolved,
+                expected_runtime=expected_runtime,
+                state="untrusted_manifest",
+                manifest_state=path_metadata_state,
                 manifest_runtime=manifest_runtime,
                 has_managed_markers=True,
             )

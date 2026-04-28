@@ -454,11 +454,7 @@ def list_protocols(
 
     Args:
         domain: Optional domain filter. Use one of the values returned in
-                ``available_domains`` such as:
-                "core_derivation", "computational_methods", "mathematical_methods",
-                "numerical_translation", "gr_cosmology", "fluid_plasma",
-                "quantum_info", "condensed_matter", "nuclear_particle",
-                "general".
+                ``available_domains``.
     """
     if domain is not None and (not isinstance(domain, str) or not domain.strip()):
         return stable_mcp_response(error="domain must be a non-empty string when provided")

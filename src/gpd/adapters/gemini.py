@@ -48,7 +48,7 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     finish_install as _finish_install,
 )
-from gpd.adapters.runtime_catalog import get_runtime_descriptor
+from gpd.adapters.runtime_catalog import get_manifest_metadata_list_policy_key, get_runtime_descriptor
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.mcp import managed_integrations as _managed_integrations
 
@@ -216,6 +216,11 @@ _GEMINI_CONTRACT_FILE_NOTE = (
     f"`{_GEMINI_APPROVED_CONTRACT_PATH}`, then validate and persist from that file using direct `gpd` commands. "
     "Do not stash the approved contract in shell variables, command substitutions, or heredocs."
 )
+
+
+def _manifest_gemini_managed_runtime_files_key() -> str:
+    """Return the catalog-owned manifest key for Gemini managed runtime files."""
+    return get_manifest_metadata_list_policy_key("gemini", value_kind="relpath")
 
 
 def _convert_gemini_tool_name(tool_name: str) -> str | None:
@@ -424,7 +429,7 @@ def _validate_existing_gemini_managed_state(target_dir: Path) -> None:
         ):
             raise RuntimeError("Gemini managed_config.policyPaths is malformed.")
 
-    managed_runtime_files = manifest.get("managed_runtime_files")
+    managed_runtime_files = manifest.get(_manifest_gemini_managed_runtime_files_key())
     if managed_runtime_files is not None and not (
         isinstance(managed_runtime_files, list)
         and all(isinstance(path, str) and path for path in managed_runtime_files)
@@ -1426,7 +1431,7 @@ class GeminiAdapter(RuntimeAdapter):
         if managed_config:
             metadata["managed_config"] = managed_config
         if getattr(self, "_managed_runtime_files", []):
-            metadata["managed_runtime_files"] = list(self._managed_runtime_files)
+            metadata[_manifest_gemini_managed_runtime_files_key()] = list(self._managed_runtime_files)
         write_manifest(
             target_dir,
             version,
@@ -1539,7 +1544,7 @@ class GeminiAdapter(RuntimeAdapter):
         manifest = read_settings(target_dir / MANIFEST_NAME)
         has_authoritative_manifest = self._has_authoritative_install_manifest(target_dir)
         managed_config = manifest.get("managed_config")
-        managed_runtime_files = manifest.get("managed_runtime_files")
+        managed_runtime_files = manifest.get(_manifest_gemini_managed_runtime_files_key())
         remove_managed_enable_agents = (
             isinstance(managed_config, dict) and managed_config.get("experimental.enableAgents") is True
         )

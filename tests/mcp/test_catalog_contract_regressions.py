@@ -57,6 +57,16 @@ def test_protocol_catalog_tools_reject_blank_inputs_up_front() -> None:
     assert list_protocols(domain="") == {"error": "domain must be a non-empty string when provided", "schema_version": 1}
 
 
+def test_list_protocols_docstring_defers_domain_examples_to_live_catalog() -> None:
+    from gpd.mcp.servers.protocols_server import list_protocols
+
+    docstring = list_protocols.__doc__ or ""
+
+    assert "available_domains" in docstring
+    assert "core_derivation" not in docstring
+    assert "quantum_info" not in docstring
+
+
 def test_skill_catalog_tools_reject_blank_and_unknown_filters_up_front() -> None:
     from gpd import registry as content_registry
     from gpd.mcp.servers.skills_server import get_skill, list_skills

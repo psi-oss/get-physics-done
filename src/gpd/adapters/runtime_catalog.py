@@ -1292,6 +1292,26 @@ def get_manifest_metadata_list_policies(runtime: str | None = None) -> tuple[Man
     return tuple(policies)
 
 
+def get_manifest_metadata_list_policy_key(
+    runtime: str,
+    *,
+    value_kind: str | None = None,
+    item_prefix: str | None = None,
+    item_suffix: str | None = None,
+) -> str:
+    """Return the single manifest list metadata key matching a runtime policy."""
+    policies = [
+        policy
+        for policy in get_runtime_descriptor(runtime).manifest_metadata_list_policies
+        if (value_kind is None or policy.value_kind == value_kind)
+        and (item_prefix is None or policy.item_prefix == item_prefix)
+        and (item_suffix is None or policy.item_suffix == item_suffix)
+    ]
+    if len(policies) != 1:
+        raise ValueError(f"{runtime} must declare exactly one matching manifest metadata list policy")
+    return policies[0].key
+
+
 def iter_runtime_descriptors() -> tuple[RuntimeDescriptor, ...]:
     return _load_catalog()
 
@@ -1458,6 +1478,7 @@ __all__ = [
     "RuntimeDescriptor",
     "SharedInstallMetadata",
     "get_hook_payload_policy",
+    "get_manifest_metadata_list_policy_key",
     "get_manifest_metadata_list_policies",
     "get_managed_install_surface_policy",
     "get_runtime_capabilities",

@@ -137,10 +137,10 @@ Exploit known physics to reduce the parameter space:
 
 **Critical slowing down near phase transitions:**
 
-Near a continuous phase transition at T_c, the autocorrelation time diverges as tau_auto ~ L^z where z is the dynamic critical exponent (z ~ 2.17 for local Metropolis in 2D Ising). Two consequences for grid design:
+Near a continuous phase transition at T_c, the autocorrelation time diverges as tau_auto ~ L^z where z is the dynamic critical exponent. Two consequences for grid design:
 
 1. **Temperature grid:** Space points logarithmically in |T - T_c|. Near T_c the correlation length xi diverges as xi ~ |t|^{-nu} where t = (T - T_c)/T_c. To resolve the crossover, you need 5+ points where xi > L, i.e., |t| < L^{-1/nu}.
-2. **Sampling cost at T_c:** Cost per independent sample scales as L^{d+z} (L^d for a sweep, L^z for decorrelation). For L = 128 in 2D Ising with Metropolis, tau_auto ~ 128^{2.17} ~ 30,000 sweeps. Use cluster algorithms (Wolff: z ~ 0.25) to reduce to tau_auto ~ 128^{0.25} ~ 3.4 sweeps.
+2. **Sampling cost at T_c:** Cost per independent sample scales as L^{d+z} (L^d for a sweep, L^z for decorrelation). If local updates make decorrelation too slow near criticality, consider an algorithm with a lower dynamic exponent and document the regime where it is valid.
 
 **Log-spacing near singularities:**
 
@@ -519,7 +519,7 @@ When each simulation point is very expensive (e.g., > 1 CPU-hour per point), use
 
 Most parameter sweeps are embarrassingly parallel: different (T, L) points are independent. Design the experiment to exploit this:
 
-- **Task granularity:** Each (T, L, seed) triple is one independent task. For the 2D Ising example: 22 temperatures * 5 sizes * 3 seeds = 330 independent tasks.
+- **Task granularity:** Each independent parameter/size/seed tuple should be one schedulable task. Record the total task count from the actual design grid.
 - **Job scheduling:** Submit tasks as an array job. No inter-task communication needed.
 - **Load balancing:** Tasks at larger L take longer. Group tasks by L to balance wall-time across nodes.
 
@@ -549,7 +549,7 @@ For GPU-accelerated simulations:
 For long-running simulations (> 1 hour wall time):
 
 - **Checkpoint frequency:** Every max(1 hour, N_equil sweeps). Checkpoints must include: full lattice configuration, RNG state, accumulated observables, sweep counter.
-- **Checkpoint size:** For 2D Ising at L = 128: 128^2 * 1 byte (spins) + ~1 KB (RNG) + ~1 KB (observables) = ~17 KB. Negligible.
+- **Checkpoint size:** Estimate the saved configuration, RNG state, accumulated observables, and metadata for the actual model. State whether checkpoint storage is negligible or budget-relevant.
 - **Restart protocol:** Resume from checkpoint with identical results (bitwise reproducibility requires saving the full RNG state).
 - **Budget for checkpointing overhead:** Typically < 1% of wall time. Do not optimize away checkpoints to save time --- the cost of a lost 10-hour run far exceeds the cost of periodic writes.
 

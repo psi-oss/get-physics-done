@@ -75,7 +75,7 @@ COMMAND_BASELINES = {
     "record-insight": (161, 4_853, 1),
     "regression-check": (180, 6_665, 1),
     "remove-phase": (231, 6_061, 1),
-    "research-phase": (349, 14_530, 1),
+    "research-phase": (375, 15_527, 1),
     "respond-to-referees": (890, 50_699, 2),
     "resume-work": (605, 30_515, 1),
     "review-knowledge": (332, 12_854, 1),

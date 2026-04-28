@@ -61,6 +61,12 @@ _PROJECT_MUTATION_TOOL_ANNOTATIONS = ToolAnnotations(
     idempotentHint=False,
     openWorldHint=False,
 )
+_PROJECT_FIX_TOOL_ANNOTATIONS = ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=True,
+    idempotentHint=False,
+    openWorldHint=False,
+)
 
 
 def load_state_json(cwd: Path) -> dict | None:
@@ -228,7 +234,7 @@ def validate_state(project_dir: AbsoluteProjectDirInput) -> dict:
             return stable_mcp_error(exc)
 
 
-@mcp.tool(annotations=_PROJECT_MUTATION_TOOL_ANNOTATIONS)
+@mcp.tool(annotations=_PROJECT_FIX_TOOL_ANNOTATIONS)
 def run_health_check(project_dir: AbsoluteProjectDirInput, fix: FixModeInput = False) -> dict:
     """Run the full project health dashboard.
 

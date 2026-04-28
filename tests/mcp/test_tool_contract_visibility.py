@@ -1205,6 +1205,40 @@ def test_conventions_server_tools_publish_same_absolute_project_dir_schema_as_st
         assert conventions_schemas[tool_name]["properties"]["project_dir"] == state_project_dir
 
 
+def test_mutating_convention_and_pattern_tools_publish_annotations() -> None:
+    from gpd.mcp.servers.conventions_server import mcp as conventions_mcp
+    from gpd.mcp.servers.patterns_server import mcp as patterns_mcp
+
+    async def _load() -> tuple[dict[str, object], dict[str, object]]:
+        conventions_tools = await conventions_mcp.list_tools()
+        patterns_tools = await patterns_mcp.list_tools()
+        return (
+            {tool.name: tool.annotations for tool in conventions_tools},
+            {tool.name: tool.annotations for tool in patterns_tools},
+        )
+
+    conventions_annotations, patterns_annotations = anyio.run(_load)
+
+    convention_set = conventions_annotations["convention_set"]
+    assert convention_set is not None
+    assert convention_set.readOnlyHint is False
+    assert convention_set.destructiveHint is True
+    assert convention_set.idempotentHint is False
+
+    for tool_name in ("add_pattern", "promote_pattern"):
+        annotations = patterns_annotations[tool_name]
+        assert annotations is not None
+        assert annotations.readOnlyHint is False
+        assert annotations.destructiveHint is False
+        assert annotations.idempotentHint is False
+
+    seed_patterns = patterns_annotations["seed_patterns"]
+    assert seed_patterns is not None
+    assert seed_patterns.readOnlyHint is False
+    assert seed_patterns.destructiveHint is False
+    assert seed_patterns.idempotentHint is True
+
+
 def test_public_protocols_infra_descriptor_matches_live_catalog_surface() -> None:
     descriptor = json.loads((Path(__file__).resolve().parents[2] / "infra" / "gpd-protocols.json").read_text(encoding="utf-8"))
 

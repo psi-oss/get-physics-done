@@ -442,7 +442,7 @@ def _command_preflight_cwd(
             return _read_only_project_scoped_cwd(workspace_cwd)
         return _status_command_cwd(workspace_cwd)
 
-    return _project_scoped_cwd(workspace_cwd)
+    return _read_only_project_scoped_cwd(workspace_cwd)
 
 
 def _split_global_cli_options(argv: list[str]) -> tuple[list[str], list[str]]:
@@ -1213,9 +1213,9 @@ app.add_typer(state_app, name="state")
 @state_app.command("load")
 def state_load() -> None:
     """Load and display current research state."""
-    from gpd.core.state import state_load
+    from gpd.core.state import state_load_readonly
 
-    _output(state_load(_read_only_project_scoped_cwd()))
+    _output(state_load_readonly(_read_only_project_scoped_cwd()))
 
 
 @state_app.command("get")
@@ -1232,8 +1232,8 @@ def state_get(
 ) -> None:
     """Get a specific state section or the full state."""
     from gpd.core.state import _session_display_from_continuation
-    from gpd.core.state import state_get as core_state_get
-    from gpd.core.state import state_load as core_state_load
+    from gpd.core.state import state_get_readonly as core_state_get
+    from gpd.core.state import state_load_readonly as core_state_load
 
     if include is not None:
         if section is not None:
@@ -1368,7 +1368,7 @@ def state_snapshot() -> None:
 @state_app.command("active-hypothesis")
 def state_active_hypothesis() -> None:
     """Extract the active hypothesis branch note from STATE.md, if present."""
-    from gpd.core.state import state_get
+    from gpd.core.state import state_get_readonly as state_get
 
     result = state_get(_read_only_project_scoped_cwd(), "Active Hypothesis")
     section = result.value or ""
@@ -1566,10 +1566,10 @@ def contract_record_alignment(
 @contract_app.command("alignment-status")
 def contract_alignment_status() -> None:
     """Print the persisted claim-deliverable alignment confirmation as JSON."""
-    from gpd.core.state import state_load
+    from gpd.core.state import state_load_readonly
 
     project_root = _require_project_root(_get_cwd(), command_label="gpd contract commands")
-    load_result = state_load(project_root)
+    load_result = state_load_readonly(project_root)
     state_obj = load_result.state if isinstance(load_result.state, dict) else {}
     alignment = state_obj.get("contract_alignment") or {}
     payload = {
@@ -1605,11 +1605,11 @@ def contract_context_fingerprint_cmd(
     from gpd.core.context import _find_phase_artifact_path
     from gpd.core.contract_validation import context_guidance_fingerprint
     from gpd.core.phases import find_phase
-    from gpd.core.state import state_load
+    from gpd.core.state import state_load_readonly
 
     project_root = _require_project_root(_get_cwd(), command_label="gpd contract commands")
     if path is None:
-        state_obj = state_load(project_root).state
+        state_obj = state_load_readonly(project_root).state
         current_phase = state_obj.get("position", {}).get("current_phase") if isinstance(state_obj, dict) else None
         if current_phase is None:
             _error(
@@ -8815,7 +8815,7 @@ def _build_nonpublication_resolved_command_subject(
         )
 
     tokens: list[str]
-    if resolution_mode == "phase_or_topic":
+    if resolution_mode in {"phase_number", "phase_or_topic"}:
         tokens = _positional_tokens(subject, flags_with_values=("--depth", "-d"))
     else:
         tokens = _positional_tokens(subject)
@@ -8903,6 +8903,14 @@ def _build_nonpublication_resolved_command_subject(
             detail = f"explicit explanation anchor {_format_display_path(target_path)}"
         else:
             detail = "explicit explanation subject supplied"
+    elif resolution_mode == "phase_number":
+        first = tokens[0]
+        subject_kind = "phase"
+        if re.fullmatch(r"\d+(?:\.\d+)*", first):
+            detail = f"explicit phase subject {first}"
+        else:
+            status = "invalid"
+            detail = f"invalid phase-number subject {first!r}"
     elif resolution_mode == "phase_or_topic":
         first = tokens[0]
         if re.fullmatch(r"\d+(?:\.\d+)*", first):
@@ -9518,6 +9526,24 @@ def _build_command_context_preflight(
                 project_root_auto_selected=selected_root_auto_selected,
                 reentry_mode=selected_reentry_mode,
             )
+            explicit_inputs = _command_explicit_input_labels_from_policy(command)
+            if not explicit_inputs:
+                explicit_inputs = (
+                    [command.argument_hint.strip()] if command.argument_hint.strip() else ["explicit command inputs"]
+                )
+            subject_required = _command_has_typed_subject_policy(command)
+            subject_context_ready = resolved_subject is not None and resolved_subject.status in {"resolved", "bootstrap"}
+            if subject_required:
+                add_check(
+                    "explicit_inputs",
+                    subject_context_ready,
+                    (
+                        resolved_subject.detail
+                        if resolved_subject is not None
+                        else f"missing explicit standalone inputs ({', '.join(explicit_inputs)})"
+                    ),
+                    blocking=True,
+                )
             if current_workspace_candidate is not None:
                 add_check(
                     "project_reentry",
@@ -9656,6 +9682,7 @@ def _build_command_context_preflight(
                 and required_files_present
                 and manuscript_context_passed
                 and reconcile_confirmation_passed
+                and (not subject_required or subject_context_ready)
                 and not selected_root_requires_user_selection
             )
             guidance = (
@@ -9668,6 +9695,12 @@ def _build_command_context_preflight(
                     else (
                         _build_recoverable_workspace_guidance(init_command=init_command)
                         if not (state_exists or roadmap_exists or project_exists)
+                        else (
+                            resolved_subject.detail
+                            if resolved_subject is not None
+                            else f"Either provide {', '.join(explicit_inputs)} explicitly."
+                        )
+                        if subject_required and not subject_context_ready
                         else manuscript_context_detail
                         if not manuscript_context_passed
                         else "This command requires one of the declared required files: "
@@ -9717,6 +9750,23 @@ def _build_command_context_preflight(
             project_root_auto_selected=False,
             reentry_mode="current-workspace" if project_exists else None,
         )
+        explicit_inputs = _command_explicit_input_labels_from_policy(command)
+        if not explicit_inputs:
+            explicit_inputs = (
+                [command.argument_hint.strip()] if command.argument_hint.strip() else ["explicit command inputs"]
+            )
+        subject_required = _command_has_typed_subject_policy(command)
+        subject_context_ready = resolved_subject is not None and resolved_subject.status in {"resolved", "bootstrap"}
+        if subject_required:
+            add_check(
+                "explicit_inputs",
+                subject_context_ready,
+                (
+                    resolved_subject.detail
+                    if resolved_subject is not None
+                    else f"missing explicit standalone inputs ({', '.join(explicit_inputs)})"
+                ),
+            )
         manuscript_context = _command_context_manuscript_check(
             context_cwd,
             command,
@@ -9775,7 +9825,11 @@ def _build_command_context_preflight(
                 reconcile_confirmation_detail,
             )
         passed = (
-            project_exists and required_files_present and manuscript_context_passed and reconcile_confirmation_passed
+            project_exists
+            and required_files_present
+            and manuscript_context_passed
+            and reconcile_confirmation_passed
+            and (not subject_required or subject_context_ready)
         )
         guidance = (
             ""
@@ -9783,6 +9837,12 @@ def _build_command_context_preflight(
             else (
                 "This command requires an initialized GPD project."
                 if not project_exists
+                else (
+                    resolved_subject.detail
+                    if resolved_subject is not None
+                    else f"Either provide {', '.join(explicit_inputs)} explicitly."
+                )
+                if subject_required and not subject_context_ready
                 else manuscript_context_detail
                 if not manuscript_context_passed
                 else "This command requires one of the declared required files: " + ", ".join(required_file_patterns)
