@@ -228,23 +228,64 @@ class TestStatusMetadata:
             {"model": {"display_name": "Opus 4.6"}, "context_window": {"context_window_size": 1_000_000}},
             sparse_policy,
         )
+        scalar_label = _read_model_label({"model": "Opus 4.6"}, sparse_policy)
         remaining = _read_context_remaining(
             {"context_window": {"remaining_percentage": 0}},
             sparse_policy,
         )
 
         assert label == ""
+        assert scalar_label == ""
         assert remaining is None
+
+    def test_context_window_size_supports_top_level_policy_key(self) -> None:
+        policy = SimpleNamespace(
+            model_keys=("display_name",),
+            context_window_size_keys=("context_window_size",),
+            usage_keys=(),
+        )
+
+        label = _read_model_label(
+            {"model": {"display_name": "Opus 4.6"}, "context_window_size": 1_000_000},
+            policy,
+        )
+
+        assert label == "Opus 4.6 (1M context)"
+
+    def test_context_remaining_supports_top_level_policy_key(self) -> None:
+        policy = SimpleNamespace(context_remaining_keys=("remaining_percentage",), usage_keys=())
+
+        remaining = _read_context_remaining({"remaining_percentage": 25}, policy)
+
+        assert remaining == 25
+
+    def test_context_remaining_supports_policy_owned_usage_container(self) -> None:
+        policy = SimpleNamespace(context_remaining_keys=("remaining",), usage_keys=("tokens",))
+
+        remaining = _read_context_remaining({"tokens": {"remaining": 40}}, policy)
+
+        assert remaining == 40
+
+    def test_session_id_supports_policy_owned_usage_container(self) -> None:
+        policy = SimpleNamespace(runtime_session_id_keys=("runtime_session_id",), usage_keys=("tokens",))
+
+        session_id = _read_session_id({"tokens": {"runtime_session_id": "sess-token"}}, policy)
+
+        assert session_id == "sess-token"
 
     def test_read_workspace_label_prefers_project_relative_path(self, tmp_path: Path) -> None:
         project = tmp_path / "project"
         current = project / "src" / "gpd"
         current.mkdir(parents=True)
 
-        label = _read_workspace_label({"workspace": {"project_dir": str(project)}}, str(current))
+        label = _read_workspace_label(
+            {"workspace": {"project_dir": str(project)}},
+            str(current),
+            hook_payload=get_hook_payload_policy(),
+        )
         assert label == "[project/src/gpd]"
 
-    def test_read_workspace_label_uses_top_level_project_dir_with_sparse_policy(self, tmp_path: Path) -> None:
+    def test_read_workspace_label_ignores_project_dir_with_sparse_policy(self, tmp_path: Path) -> None:
         project = tmp_path / "project"
         current = project / "src" / "gpd"
         current.mkdir(parents=True)
@@ -253,6 +294,19 @@ class TestStatusMetadata:
             {"project_dir": str(project)},
             str(current),
             hook_payload=SimpleNamespace(project_dir_keys=()),
+        )
+
+        assert label == "[gpd]"
+
+    def test_read_workspace_label_uses_policy_declared_project_root_alias(self, tmp_path: Path) -> None:
+        project = tmp_path / "project"
+        current = project / "src" / "gpd"
+        current.mkdir(parents=True)
+
+        label = _read_workspace_label(
+            {"project_root": str(project)},
+            str(current),
+            hook_payload=SimpleNamespace(project_dir_keys=("project_root",)),
         )
 
         assert label == "[project/src/gpd]"
@@ -1327,6 +1381,116 @@ class TestMain:
         mock_update.assert_called_once_with(str(nested))
         mock_label.assert_called_once()
         mock_model.assert_called_once()
+        assert "[project/src/notes]" in captured.getvalue()
+
+    def test_main_does_not_promote_project_dir_when_policy_has_no_project_dir_keys(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "workspace"
+        project = tmp_path / "project"
+        workspace.mkdir()
+        (project / "GPD").mkdir(parents=True)
+        payload = {
+            "workspace": {"cwd": str(workspace)},
+            "project_dir": str(project),
+            "runtime_session_id": "sess-runtime",
+        }
+        hook_payload = SimpleNamespace(
+            workspace_keys=("cwd",),
+            project_dir_keys=(),
+            runtime_session_id_keys=("runtime_session_id",),
+            model_keys=(),
+            context_remaining_keys=(),
+            context_window_size_keys=(),
+            usage_keys=(),
+        )
+
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps(payload))),
+            patch("sys.stdout", captured),
+            patch(
+                "gpd.hooks.statusline._resolve_payload_roots",
+                return_value=SimpleNamespace(
+                    workspace_dir=str(workspace),
+                    project_root=str(workspace),
+                    project_dir_present=False,
+                    project_dir_trusted=False,
+                ),
+            ),
+            patch(
+                "gpd.hooks.statusline.resolve_runtime_lookup_context_from_payload_roots",
+                return_value=SimpleNamespace(lookup_dir=str(workspace), active_runtime=None),
+            ),
+            patch("gpd.hooks.statusline._hook_payload_policy", return_value=hook_payload),
+            patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())) as mock_hints,
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}) as mock_execution,
+            patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
+            patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,
+            patch("gpd.hooks.statusline._check_update", return_value="") as mock_update,
+            patch("gpd.hooks.statusline._read_workspace_label", return_value="[workspace]") as mock_label,
+            patch("gpd.hooks.statusline._read_model_label", return_value="model"),
+        ):
+            main()
+
+        mock_hints.assert_called_once_with(str(workspace))
+        mock_execution.assert_called_once_with(str(workspace))
+        mock_position.assert_called_once_with(str(workspace))
+        mock_task.assert_called_once_with("sess-runtime", str(workspace))
+        mock_update.assert_called_once_with(str(workspace))
+        assert mock_label.call_args.kwargs["project_root"] == str(workspace)
+        assert "[workspace]" in captured.getvalue()
+
+    def test_main_uses_policy_declared_project_root_alias_for_project_side_effects(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        project = tmp_path / "project"
+        nested = project / "src" / "notes"
+        nested.mkdir(parents=True)
+        (project / "GPD").mkdir(parents=True)
+        payload = {
+            "workspace": {"cwd": str(nested)},
+            "project_root": str(project),
+            "runtime_session_id": "sess-runtime",
+        }
+        hook_payload = SimpleNamespace(
+            workspace_keys=("cwd",),
+            project_dir_keys=("project_root",),
+            runtime_session_id_keys=("runtime_session_id",),
+            model_keys=(),
+            context_remaining_keys=(),
+            context_window_size_keys=(),
+            usage_keys=(),
+        )
+
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps(payload))),
+            patch("sys.stdout", captured),
+            patch(
+                "gpd.hooks.statusline.resolve_runtime_lookup_context_from_payload_roots",
+                return_value=SimpleNamespace(lookup_dir=str(nested), active_runtime=None),
+            ),
+            patch("gpd.hooks.statusline._hook_payload_policy", return_value=hook_payload),
+            patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())) as mock_hints,
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}) as mock_execution,
+            patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
+            patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,
+            patch("gpd.hooks.statusline._check_update", return_value="") as mock_update,
+            patch("gpd.hooks.statusline._read_workspace_label", return_value="[project/src/notes]") as mock_label,
+            patch("gpd.hooks.statusline._read_model_label", return_value="model"),
+        ):
+            main()
+
+        resolved_project = str(project.resolve(strict=False))
+        mock_hints.assert_called_once_with(resolved_project)
+        mock_execution.assert_called_once_with(resolved_project)
+        mock_position.assert_called_once_with(resolved_project)
+        mock_task.assert_called_once_with("sess-runtime", resolved_project)
+        mock_update.assert_called_once_with(resolved_project)
+        assert mock_label.call_args.kwargs["project_root"] == resolved_project
         assert "[project/src/notes]" in captured.getvalue()
 
     def test_main_downgrades_top_level_alias_only_workspace_mapping_to_keep_workspace_lookup(

@@ -170,9 +170,7 @@ fi
 INIT="$PREFLIGHT_INIT"
 ```
 
-Apply the shared manuscript-root bootstrap contract exactly:
-
-@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md
+Apply the shared manuscript-root bootstrap contract exactly from `{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md`.
 
 ```bash
 gpd validate review-preflight peer-review "$REVIEW_TARGET" --strict
@@ -352,6 +350,8 @@ Use one short sentence that names each stage's job, for example:
 **Peer-review child return contract:**
 
 Every spawned review child must return a typed `gpd_return` envelope with `status: completed | checkpoint | blocked | failed`, `files_written` naming only artifacts that genuinely landed on disk in that child run, `issues`, `next_actions`, and `peer_review_stage`. Human-readable `STAGE X COMPLETE` / `REVIEW COMPLETE` text is presentation only and does not satisfy the handoff without the typed envelope.
+
+Panel-stage artifacts use {GPD_INSTALL_DIR}/references/publication/peer-review-panel.md. Final adjudication uses {GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md and {GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md. Load these only in panel or final-adjudication stages.
 </step>
 
 <step name="stage_1_read">

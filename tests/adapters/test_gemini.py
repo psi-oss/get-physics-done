@@ -17,6 +17,7 @@ from gpd.adapters.gemini import (
     _convert_frontmatter_to_gemini,
     _convert_gemini_tool_name,
     _convert_to_gemini_toml,
+    _inject_gemini_command_runtime_note,
     _render_gemini_command_prompt,
     _render_gemini_policy_toml,
     _rewrite_gemini_shell_workflow_guidance,
@@ -316,8 +317,64 @@ class TestRewriteGeminiShellWorkflowGuidance:
         assert "INIT=$(" not in result
         assert "if [ $? -ne 0 ]" not in result
 
+    def test_rewrites_whole_captured_init_block_with_echo_var(self) -> None:
+        content = (
+            "```bash\n"
+            "BOOTSTRAP=$(gpd --raw init progress --include state,config)\n"
+            "if [ $? -ne 0 ]; then\n"
+            '  echo "ERROR: bootstrap failed: $BOOTSTRAP"\n'
+            '  echo "$BOOTSTRAP"\n'
+            "  exit 1\n"
+            "fi\n"
+            "```"
+        )
+
+        result = _rewrite_gemini_shell_workflow_guidance(content)
+
+        assert "run initialization directly instead of capturing it in BOOTSTRAP" in result
+        assert "gpd --raw init progress --include state,config" in result
+        assert "BOOTSTRAP=$(" not in result
+        assert 'echo "$BOOTSTRAP"' not in result
+        assert "if [ $? -ne 0 ]" not in result
+
 
 class TestGeminiCommandRuntimeNotes:
+    def test_runtime_note_injection_is_idempotent(self) -> None:
+        bridge_command = "/runtime/gpd-cli"
+        content = (
+            "---\n"
+            "name: gpd:status\n"
+            "description: Show project status\n"
+            "---\n"
+            "```bash\n"
+            "gpd status\n"
+            "```\n"
+        )
+
+        once = _inject_gemini_command_runtime_note(content, bridge_command, include_shell_allowlist=True)
+        twice = _inject_gemini_command_runtime_note(once, bridge_command, include_shell_allowlist=True)
+
+        assert once == twice
+        assert twice.count("<gemini_runtime_notes>") == 1
+        assert twice.count("<gemini_shell_runtime_notes>") == 1
+        assert twice.count("Gemini runtime compatibility:") == 1
+        assert twice.count("Gemini shell compatibility:") == 1
+
+    def test_runtime_note_reinjection_can_drop_shell_allowlist(self) -> None:
+        bridge_command = "/runtime/gpd-cli"
+        content = (
+            "<gemini_runtime_notes>\nold runtime note\n</gemini_runtime_notes>\n\n"
+            "<gemini_shell_runtime_notes>\nold shell note\n</gemini_shell_runtime_notes>\n\n"
+            "Summarize project status."
+        )
+
+        result = _inject_gemini_command_runtime_note(content, bridge_command, include_shell_allowlist=False)
+
+        assert result.count("<gemini_runtime_notes>") == 1
+        assert "<gemini_shell_runtime_notes>" not in result
+        assert "old runtime note" not in result
+        assert "old shell note" not in result
+
     def test_non_shell_command_prompt_omits_full_shell_allowlist(self) -> None:
         bridge_command = "/runtime/gpd-cli"
         content = (

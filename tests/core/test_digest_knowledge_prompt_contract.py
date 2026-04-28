@@ -97,8 +97,11 @@ def test_digest_knowledge_workflow_documents_deterministic_target_resolution_and
     assert "Reject lookalike `K-*.md` paths outside `GPD/knowledge/` as canonical targets." in workflow
     assert "GPD/knowledge/{knowledge_id}.md" in workflow
     assert _contains_any(workflow, "explicit file path", "existing file path", "file path must exist", "must exist before")
-    assert _contains_any(workflow, "2401.12345", "modern arxiv", "modern arXiv")
-    assert _contains_any(workflow, "hep-th/9901001", "legacy arxiv", "legacy arXiv")
+    assert "accepted prefixes handled by the shared arXiv normalizer" in workflow
+    assert "2401.12345" in workflow
+    assert "2401.12345v2" in workflow
+    assert "hep-th/9901001" in workflow
+    assert "legacy arxiv" not in workflow.lower()
 
 
 def test_digest_knowledge_templates_keep_non_runtime_deferrals_explicit() -> None:

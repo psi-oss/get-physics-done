@@ -28,7 +28,7 @@ Load the project and command context before choosing a target:
 Keep this init bound to the workspace the user invoked from. `digest-knowledge` may create or update `GPD/knowledge/` in the current workspace, so do not auto-reenter a different recent project here.
 
 ```bash
-INIT=$(gpd --raw init progress --include state,config --no-project-reentry)
+INIT=$(gpd --raw init progress --include state,config,references --no-project-reentry)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
@@ -76,8 +76,8 @@ Classification rules:
 - read `.md`, `.txt`, `.csv`, and `.tsv` directly as source surfaces
 - for `.pdf`, `.docx`, and `.xlsx`, first derive a working text surface with `gpd validate artifact-text <path> --output <txt-path>` and use that text output for drafting while keeping the original artifact path as the canonical source reference
 - `arxiv_id` means an arXiv identifier, including accepted prefixes handled by the shared arXiv normalizer
-  - modern example: `2401.12345` or `2401.12345v2`
-  - legacy example: `hep-th/9901001`
+  - date-based example: `2401.12345` or `2401.12345v2`
+  - prefixed example: `hep-th/9901001`
 - `topic` means a free-form subject string that is not already an explicit file or arXiv target
 
 If the same input could plausibly be classified in more than one way, stop and ask for clarification instead of guessing.

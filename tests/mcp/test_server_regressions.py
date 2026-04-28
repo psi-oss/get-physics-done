@@ -144,6 +144,37 @@ def test_error_store_rejects_duplicate_error_ids(tmp_path: Path) -> None:
             ErrorStore(tmp_path)
 
 
+def test_error_store_rejects_catalog_ids_outside_declared_file_ranges(tmp_path: Path) -> None:
+    from gpd.mcp.servers.errors_mcp import ErrorStore
+
+    errors_dir = tmp_path / "verification" / "errors"
+    errors_dir.mkdir(parents=True)
+    (errors_dir / "catalog.md").write_text(
+        "| # | Error Class | Description | Detection Strategy | Example |\n"
+        "|---|---|---|---|---|\n"
+        "| 2 | Foo | First description | Detect A | Example A |\n",
+        encoding="utf-8",
+    )
+
+    with patch("gpd.mcp.servers.errors_mcp.ERROR_CATALOG_FILES", ["verification/errors/catalog.md"]), patch(
+        "gpd.mcp.servers.errors_mcp.ERROR_CATALOG_FILE_RANGES",
+        (("verification/errors/catalog.md", ((1, 1),)),),
+    ):
+        with pytest.raises(ValueError, match=r"catalog\.md.*1.*out-of-range error class id 2"):
+            ErrorStore(tmp_path)
+
+
+def test_error_catalog_declared_range_helpers_accept_split_ranges() -> None:
+    from gpd.mcp.servers.errors_mcp import _error_id_in_declared_ranges
+
+    ranges = ((52, 81), (102, 104))
+
+    assert _error_id_in_declared_ranges(52, ranges) is True
+    assert _error_id_in_declared_ranges(81, ranges) is True
+    assert _error_id_in_declared_ranges(102, ranges) is True
+    assert _error_id_in_declared_ranges(101, ranges) is False
+
+
 def test_error_store_rejects_duplicate_traceability_rows(tmp_path: Path) -> None:
     from gpd.mcp.servers.errors_mcp import ErrorStore
 

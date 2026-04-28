@@ -150,6 +150,7 @@ NEW_PROJECT_INIT_FIELDS = frozenset(
         "has_research_map",
         "planning_exists",
         "has_research_files",
+        "research_file_samples",
         "has_project_manifest",
         "needs_research_map",
         "has_git",

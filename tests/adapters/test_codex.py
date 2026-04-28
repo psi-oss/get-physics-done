@@ -15,6 +15,7 @@ from gpd.adapters.codex import (
     CodexAdapter,
     _convert_codex_tool_name,
     _convert_to_codex_skill,
+    _inject_codex_command_runtime_note,
     _normalize_codex_questioning,
     _tracked_codex_generated_skill_dirs,
 )
@@ -48,6 +49,26 @@ def expected_codex_bridge(target: Path, *, is_global: bool = False, explicit_tar
         is_global=is_global,
         explicit_target=explicit_target,
     )
+
+
+def test_codex_command_runtime_note_injection_is_idempotent() -> None:
+    content = (
+        "---\n"
+        "name: gpd-probe\n"
+        "description: Probe\n"
+        "---\n"
+        "```bash\n"
+        "gpd status\n"
+        "```\n"
+    )
+    launcher = "/runtime/gpd-cli"
+
+    once = _inject_codex_command_runtime_note(content, launcher)
+    twice = _inject_codex_command_runtime_note(once, launcher)
+
+    assert once == twice
+    assert twice.count("<codex_runtime_notes>") == 1
+    assert twice.count("Codex shell compatibility:") == 1
 
 
 def _make_checkout(tmp_path: Path, version: str) -> Path:

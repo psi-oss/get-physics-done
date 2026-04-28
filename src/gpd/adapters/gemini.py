@@ -116,6 +116,10 @@ _GEMINI_COMMAND_RUNTIME_NOTE = (
     "- When runnable shell steps call the GPD CLI, use {launcher} instead of the ambient `gpd` on PATH.\n"
     "</gemini_runtime_notes>\n\n"
 )
+_GEMINI_COMMAND_RUNTIME_NOTE_BLOCK_RE = re.compile(
+    r"<gemini_runtime_notes>\n.*?</gemini_runtime_notes>\n*",
+    re.DOTALL,
+)
 _GEMINI_COMMAND_SHELL_ALLOWLIST_NOTE = (
     "<gemini_shell_runtime_notes>\n"
     "Gemini shell compatibility:\n"
@@ -125,6 +129,10 @@ _GEMINI_COMMAND_SHELL_ALLOWLIST_NOTE = (
     "- Any remaining `VAR=$(...)` examples in rendered workflow guidance are non-runnable shorthand; do not copy them into Gemini auto-edit mode.\n"
     "- Keep contract JSON in-memory or under `GPD/`. Do not write approved contracts to `/tmp`.\n"
     "</gemini_shell_runtime_notes>\n\n"
+)
+_GEMINI_COMMAND_SHELL_ALLOWLIST_NOTE_BLOCK_RE = re.compile(
+    r"<gemini_shell_runtime_notes>\n.*?</gemini_shell_runtime_notes>\n*",
+    re.DOTALL,
 )
 _GEMINI_NEW_PROJECT_INIT_REPLACEMENT = """Run the init command as its own shell call in Gemini auto-edit mode. Do not wrap it in `INIT=$(...)` or an `if` block.
 
@@ -137,8 +145,7 @@ _GEMINI_NEW_PROJECT_INIT_BLOCK_RE = re.compile(
     r"```bash\n"
     r"INIT=\$\((?:gpd --raw init new-project(?: --stage [a-z_]+)?)\)\n"
     r"if \[ \$\? -ne 0 \]; then\n"
-    r"  echo \"ERROR: (?:gpd )?[^\n]+: \$INIT\"\n"
-    r"  # STOP — display the error to the user and do not proceed with the workflow\.\n"
+    r"(?:  .*\n)+?"
     r"fi\n"
     r"```",
     re.MULTILINE,
@@ -170,8 +177,7 @@ _GEMINI_SET_PROFILE_BLOCK_RE = re.compile(
     r"(?:#.*\n)*"
     r"INIT=\$\((?:gpd --raw init progress --include state,config(?: --no-project-reentry)?)\)\n"
     r"if \[ \$\? -ne 0 \]; then\n"
-    r"  echo \"ERROR: gpd initialization failed: \$INIT\"\n"
-    r"  # STOP — display the error to the user and do not proceed\.\n"
+    r"(?:  .*\n)+?"
     r"fi\n"
     r"```",
     re.MULTILINE,
@@ -363,8 +369,16 @@ def _inject_gemini_command_runtime_note(
         )
     preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
     if not frontmatter:
+        content = _strip_gemini_command_runtime_note_blocks(content)
         return note + content
+    body = _strip_gemini_command_runtime_note_blocks(body)
     return render_markdown_frontmatter(preamble, frontmatter, separator, note + body)
+
+
+def _strip_gemini_command_runtime_note_blocks(content: str) -> str:
+    """Remove adapter-injected Gemini runtime-note blocks before reinjection."""
+    content = _GEMINI_COMMAND_RUNTIME_NOTE_BLOCK_RE.sub("", content)
+    return _GEMINI_COMMAND_SHELL_ALLOWLIST_NOTE_BLOCK_RE.sub("", content)
 
 
 def _render_gemini_command_prompt(content: str, *, bridge_command: str) -> str:
@@ -629,10 +643,28 @@ _GEMINI_CAPTURE_ASSIGNMENT_RE = re.compile(
     r"^(?P<indent>[ \t]*)(?P<var>[A-Z][A-Z0-9_]*)=\$\((?P<command>gpd[^\n]*)\)(?P<suffix>[ \t]*(?:\|\|\s*true)?)$",
     re.MULTILINE,
 )
+_GEMINI_CAPTURED_INIT_BLOCK_RE = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<var>[A-Z][A-Z0-9_]*)=\$\((?P<command>gpd --raw init[^\n]*)\)(?P<suffix>[ \t]*(?:\|\|\s*true)?)\n"
+    r"(?P=indent)if \[ \$\? -ne 0 \]; then\n"
+    r"(?:(?P=indent)[ \t]+.*\n)+?"
+    r"(?P=indent)fi$",
+    re.MULTILINE,
+)
 
 
 def _rewrite_gemini_capture_assignments(content: str) -> str:
     """Rewrite single-line Gemini shell capture examples into direct commands."""
+
+    def _replace_init_block(match: re.Match[str]) -> str:
+        indent = match.group("indent")
+        var = match.group("var")
+        command = match.group("command").strip()
+        suffix = (match.group("suffix") or "").strip()
+        comment = f"{indent}# Gemini auto-edit: run initialization directly instead of capturing it in {var}."
+        rewritten = f"{indent}{command}"
+        if suffix:
+            rewritten = f"{rewritten} {suffix}"
+        return f"{comment}\n{rewritten}"
 
     def _replace(match: re.Match[str]) -> str:
         indent = match.group("indent")
@@ -646,6 +678,7 @@ def _rewrite_gemini_capture_assignments(content: str) -> str:
             rewritten = f"{rewritten} {suffix}"
         return f"{comment}\n{rewritten}"
 
+    content = _GEMINI_CAPTURED_INIT_BLOCK_RE.sub(_replace_init_block, content)
     return _GEMINI_CAPTURE_ASSIGNMENT_RE.sub(_replace, content)
 
 

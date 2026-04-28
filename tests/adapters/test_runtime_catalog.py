@@ -1131,6 +1131,15 @@ def test_hook_payload_policy_uses_runtime_specific_overrides_and_merged_fallback
     assert isinstance(merged_policy.agent_scope_keys, tuple)
 
 
+def test_runtime_catalog_workspace_payload_keys_use_cwd_as_primary_when_declared() -> None:
+    for descriptor in iter_runtime_descriptors():
+        workspace_keys = descriptor.hook_payload.workspace_keys
+        if not workspace_keys:
+            continue
+
+        assert workspace_keys[0] == "cwd", f"{descriptor.runtime_name} must keep cwd as the primary workspace key"
+
+
 @pytest.mark.parametrize(
     ("capability_key", "capability_value", "hook_payload_updates", "match"),
     [

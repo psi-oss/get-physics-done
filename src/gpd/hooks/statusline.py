@@ -18,7 +18,7 @@ from gpd.core.constants import ENV_GPD_DEBUG, ProjectLayout
 from gpd.core.root_resolution import normalize_workspace_hint, resolve_project_roots
 from gpd.core.state import peek_state_json
 from gpd.hooks.payload_policy import resolve_hook_payload_policy, resolve_hook_surface_runtime
-from gpd.hooks.payload_roots import payload_uses_alias_only_workspace_mapping
+from gpd.hooks.payload_roots import payload_uses_alias_only_workspace_mapping, project_dir_hint_from_payload
 from gpd.hooks.payload_roots import resolve_payload_roots as _resolve_payload_roots
 from gpd.hooks.runtime_detect import SCOPE_LOCAL, detect_runtime_install_target
 from gpd.hooks.runtime_lookup import resolve_runtime_lookup_context_from_payload_roots
@@ -82,15 +82,14 @@ def _first_value(value: object, *keys: str) -> object | None:
     return None
 
 
-def _canonical_project_dir_hint(data: dict[str, object]) -> str:
-    """Return the canonical project-dir hint accepted across hook payloads."""
-    workspace_value = data.get("workspace")
-    return _first_string(workspace_value, "project_dir") or _first_string(data, "project_dir")
-
-
-def _trusted_canonical_project_root(data: dict[str, object], workspace_dir: str) -> Path | None:
-    """Return a canonical payload project root when it is a real ancestor project."""
-    project_dir = _canonical_project_dir_hint(data)
+def _trusted_payload_project_root(
+    data: dict[str, object],
+    workspace_dir: str,
+    *,
+    hook_payload: object,
+) -> Path | None:
+    """Return a policy-owned payload project root when it is a real ancestor project."""
+    project_dir = project_dir_hint_from_payload(data, hook_payload=hook_payload)
     if not project_dir:
         return None
 
@@ -197,23 +196,37 @@ def _format_context_window_size(value: object) -> str:
     return f"{compact}{suffix} context"
 
 
+def _context_payload_containers(data: dict[str, object], hook_payload: object) -> tuple[object, ...]:
+    """Return context-bearing containers, including catalog-owned usage containers."""
+    containers: list[object] = [data.get("context_window"), data, data.get("model")]
+    for key in _policy_keys(hook_payload, "usage_keys"):
+        containers.append(data.get(key))
+    return tuple(containers)
+
+
+def _first_context_value(data: dict[str, object], hook_payload: object, key_attribute: str) -> object | None:
+    keys = _policy_keys(hook_payload, key_attribute)
+    if not keys:
+        return None
+    for container in _context_payload_containers(data, hook_payload):
+        value = _first_value(container, *keys)
+        if value is not None:
+            return value
+    return None
+
+
 def _read_model_label(data: dict[str, object], hook_payload=None) -> str:
     """Return the current model label with context-window size when available."""
     policy = hook_payload or _hook_payload_policy()
+    model_keys = _policy_keys(policy, "model_keys")
     model_value = data.get("model")
-    if isinstance(model_value, str) and model_value:
+    if isinstance(model_value, str) and model_value and model_keys:
         model_label = model_value
     else:
-        model_label = _first_string(
-            model_value,
-            *_policy_keys(policy, "model_keys"),
-        )
+        model_label = _first_string(model_value, *model_keys)
 
     context_label = _format_context_window_size(
-        _first_value(
-            data.get("context_window"),
-            *_policy_keys(policy, "context_window_size_keys"),
-        )
+        _first_context_value(data, policy, "context_window_size_keys")
     )
     if model_label and context_label:
         return f"{model_label} ({context_label})"
@@ -233,13 +246,7 @@ def _read_workspace_label(
 
     policy = hook_payload or _hook_payload_policy(workspace_dir)
     workspace_path = Path(workspace_dir).expanduser()
-    workspace_value = data.get("workspace")
-    project_dir = (
-        project_root
-        or _first_string(workspace_value, *policy.project_dir_keys)
-        or _first_string(data, *policy.project_dir_keys)
-        or _canonical_project_dir_hint(data)
-    )
+    project_dir = project_root or project_dir_hint_from_payload(data, hook_payload=policy)
 
     try:
         resolved_workspace = workspace_path.resolve()
@@ -367,10 +374,7 @@ def _read_current_task(session_id: str, workspace_dir: str | None = None) -> str
 
 def _read_context_remaining(data: dict[str, object], hook_payload) -> float | int | None:
     """Read remaining context percentage from runtime payload aliases."""
-    remaining = _first_value(
-        data.get("context_window"),
-        *_policy_keys(hook_payload, "context_remaining_keys"),
-    )
+    remaining = _first_context_value(data, hook_payload, "context_remaining_keys")
     if isinstance(remaining, (int, float)) and math.isfinite(remaining):
         return remaining
     return None
@@ -378,14 +382,8 @@ def _read_context_remaining(data: dict[str, object], hook_payload) -> float | in
 
 def _read_session_id(data: dict[str, object], hook_payload) -> str:
     """Read the runtime session id using the adapter-owned contract."""
-    for container in (
-        data,
-        data.get("workspace"),
-        data.get("model"),
-        data.get("usage"),
-        data.get("token_usage"),
-    ):
-        session_id = _first_string(container, *hook_payload.runtime_session_id_keys)
+    for container in (data, data.get("workspace"), data.get("model"), *_context_payload_containers(data, hook_payload)):
+        session_id = _first_string(container, *_policy_keys(hook_payload, "runtime_session_id_keys"))
         if session_id:
             return session_id
     return ""
@@ -634,10 +632,11 @@ def main() -> None:
             hook_payload=payload_policy,
         ):
             project_dir_trusted = False
-        statusline_project_root = (
-            _trusted_canonical_project_root(data, workspace_dir)
-            or _statusline_project_root(workspace_dir)
-        )
+        statusline_project_root = _trusted_payload_project_root(
+            data,
+            workspace_dir,
+            hook_payload=payload_policy,
+        ) or _statusline_project_root(workspace_dir)
         if statusline_project_root is not None:
             project_root = str(statusline_project_root)
         elif not project_dir_trusted:

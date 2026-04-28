@@ -55,6 +55,7 @@ from gpd.core.cli_args import (
     split_root_global_cli_options as _split_root_global_cli_options,
 )
 from gpd.core.constants import (
+    CONFIG_FILENAME,
     ENV_DATA_DIR,
     ENV_GPD_DISABLE_CHECKOUT_REEXEC,
     HOME_DATA_DIR_NAME,
@@ -354,6 +355,7 @@ def _config_project_scoped_cwd(cwd: Path | None = None) -> Path:
     from gpd.core.constants import REQUIRED_PLANNING_DIRS, REQUIRED_PLANNING_FILES
 
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    config_only_candidate: Path | None = None
     for candidate in (workspace_cwd, *workspace_cwd.parents):
         planning_dir = candidate / PLANNING_DIR_NAME
         if not planning_dir.is_dir():
@@ -364,8 +366,12 @@ def _config_project_scoped_cwd(cwd: Path | None = None) -> Path:
             (planning_dir / name).is_dir() for name in REQUIRED_PLANNING_DIRS
         ):
             return candidate
+        if config_only_candidate is None and (planning_dir / CONFIG_FILENAME).exists():
+            config_only_candidate = candidate
         if (candidate / ".git").exists() or (candidate / ".hg").exists():
             break
+    if config_only_candidate is not None:
+        return config_only_candidate
     resolved = resolve_project_root(workspace_cwd, require_layout=True)
     return resolved if resolved is not None else workspace_cwd
 
@@ -752,9 +758,11 @@ _EXTERNAL_ARTIFACT_OPTIONAL_DETAILS = {
     "verification_reports": "external artifact review: verification reports are optional",
     "artifact_manifest": "no ARTIFACT-MANIFEST.json found near the manuscript; external artifact review can proceed without it",
     "bibliography_audit": "no BIBLIOGRAPHY-AUDIT.json found near the manuscript; external artifact review can proceed without it",
+    "bibliography_audit_clean": "bibliography audit cleanliness is optional for external artifact review",
     "reproducibility_manifest": (
         "no reproducibility manifest found near the manuscript; external artifact review can proceed without it"
     ),
+    "reproducibility_ready": "reproducibility readiness is optional for external artifact review",
     "manuscript_proof_review": (
         "prior staged manuscript proof review is optional in external artifact mode; "
         "theorem-bearing claims will be audited in this review round if detected"
@@ -5059,7 +5067,7 @@ _INIT_PLAN_PHASE_INCLUDES = frozenset(
     {"context", "requirements", "research", "roadmap", "state", "validation", "verification"}
 )
 _INIT_PHASE_OP_INCLUDES = frozenset({"config", "roadmap", "state"})
-_INIT_PROGRESS_INCLUDES = frozenset({"config", "project", "roadmap", "state"})
+_INIT_PROGRESS_INCLUDES = frozenset({"config", "project", "protocols", "references", "roadmap", "state"})
 
 
 def _parse_init_include_option(
@@ -5810,28 +5818,47 @@ def _wolfram_integration_status_payload(cwd: Path) -> dict[str, object]:
 
     configured = record is not None
     api_key_present = WOLFRAM_MANAGED_INTEGRATION.api_key_present()
+    missing_api_key_env_vars = list(WOLFRAM_MANAGED_INTEGRATION.missing_api_key_env_vars())
+    ignored_legacy_api_key_env_vars = list(WOLFRAM_MANAGED_INTEGRATION.ignored_legacy_api_key_env_vars())
+    api_key_recovery = WOLFRAM_MANAGED_INTEGRATION.api_key_recovery_message()
     state = "ready" if ready else "disabled" if not enabled else "missing-api-key"
     if not enabled:
         next_step = "Run `gpd integrations enable wolfram` to re-enable the shared Wolfram bridge for this project."
     elif ready:
         next_step = f"Use `{local_cli_plan_preflight_command()}` to verify whether a specific plan can run."
+    elif api_key_recovery:
+        next_step = (
+            f"{api_key_recovery} This makes the shared Wolfram bridge available, "
+            "or run `gpd integrations disable wolfram` to suppress it for this project."
+        )
     else:
         next_step = (
             f"Set `{WOLFRAM_MANAGED_INTEGRATION.api_key_env_var}` to make the shared Wolfram bridge available, "
             "or run `gpd integrations disable wolfram` to suppress it for this project."
         )
+    projected_server = WOLFRAM_MANAGED_INTEGRATION.projected_server_entry(cwd=project_root) if ready else None
+    projection_status = "projected" if ready else "disabled" if not enabled else "blocked_missing_api_key"
 
     return {
         "integration": _WOLFRAM_INTEGRATION_NAME,
+        "managed_server_key": WOLFRAM_MANAGED_INTEGRATION.managed_server_key,
+        "bridge_command": WOLFRAM_MANAGED_INTEGRATION.bridge_command,
+        "bridge_module": WOLFRAM_MANAGED_INTEGRATION.bridge_module,
         "configured": configured,
         "enabled": enabled,
         "ready": ready,
         "state": state,
+        "projection_status": projection_status,
+        "projected_server": projected_server,
         "config_path": str(config_path),
         "scope": "project-local",
         "endpoint": endpoint,
         "api_key_env": WOLFRAM_MANAGED_INTEGRATION.api_key_env_var,
+        "api_key_env_vars": list(WOLFRAM_MANAGED_INTEGRATION.api_key_env_vars),
         "api_key_present": api_key_present,
+        "missing_api_key_env_vars": missing_api_key_env_vars,
+        "ignored_legacy_api_key_env_vars": ignored_legacy_api_key_env_vars,
+        "api_key_recovery": api_key_recovery,
         "plan_readiness_command": local_cli_plan_preflight_command(),
         "next_step": next_step,
         "local_mathematica_note": (
@@ -7604,11 +7631,16 @@ def _has_flag_value(tokens: list[str], flag: str) -> bool:
         if token == flag:
             if index + 1 < len(tokens):
                 next_token = tokens[index + 1]
-                if next_token and not next_token.startswith("-"):
+                if next_token and (not next_token.startswith("-") or _looks_like_negative_cli_value(next_token)):
                     return True
         elif token.startswith(f"{flag}="):
             return bool(token.partition("=")[2].strip())
     return False
+
+
+def _looks_like_negative_cli_value(token: str) -> bool:
+    """Return True for numeric CLI values that start with '-' but are not options."""
+    return len(token) > 1 and token[0] == "-" and (token[1].isdigit() or token[1] == ".")
 
 
 def _positional_tokens(arguments: str | None, *, flags_with_values: tuple[str, ...] = ()) -> list[str]:

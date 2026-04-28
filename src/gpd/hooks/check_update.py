@@ -13,7 +13,7 @@ from gpd.adapters.install_utils import CACHE_DIR_NAME, GPD_INSTALL_DIR_NAME, UPD
 from gpd.adapters.runtime_catalog import get_shared_install_metadata
 from gpd.core.constants import ENV_GPD_DEBUG
 from gpd.hooks.install_context import should_prefer_self_owned_install
-from gpd.hooks.install_metadata import config_dir_has_complete_install
+from gpd.hooks.install_metadata import config_dir_has_complete_install, load_install_manifest_state
 
 _SHARED_INSTALL_METADATA = get_shared_install_metadata()
 SECONDS_PER_HOUR = 3600
@@ -112,15 +112,30 @@ def _version_files() -> list[Path]:
     return version_files
 
 
+def _read_manifest_version(config_dir: Path) -> str | None:
+    """Return the install manifest's version when it is present and usable."""
+    manifest_state, manifest = load_install_manifest_state(config_dir)
+    if manifest_state != "ok":
+        return None
+    version = manifest.get("version")
+    if not isinstance(version, str):
+        return None
+    version = version.strip()
+    return version or None
+
+
 def _read_installed_version() -> str:
     self_config_dir = _self_config_dir()
     if self_config_dir is not None:
         version_file = self_config_dir / GPD_INSTALL_DIR_NAME / "VERSION"
         try:
             if version_file.exists():
-                return version_file.read_text(encoding="utf-8").strip()
+                version = version_file.read_text(encoding="utf-8").strip()
+                if version:
+                    return version
         except OSError as exc:
             _debug(f"Failed to read self-owned VERSION file {version_file}: {exc}")
+        return _read_manifest_version(self_config_dir) or "0.0.0"
 
     try:
         from gpd.version import __version__

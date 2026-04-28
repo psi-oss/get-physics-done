@@ -54,7 +54,7 @@ The research mode (from `GPD/config.json` field `research_mode`, default: `"bala
 </research_mode_awareness>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
+- `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared Protocols: forbidden files, source hierarchy, convention tracking, physics verification
 - `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, return envelope
 </references>
 

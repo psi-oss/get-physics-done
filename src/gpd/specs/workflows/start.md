@@ -9,10 +9,10 @@ Read all files referenced by the invoking prompt's execution_context before star
 <process>
 
 <step name="detect_workspace_state">
-Figure out what kind of folder this is before offering any commands. Use the raw CLI classifier, which delegates to GPD's workspace-bound, read-only classifier instead of hand-rolled current-directory marker checks. The classifier must describe the invoked folder itself; do not let an ancestor or home-directory GPD project claim an unrelated nested checkout.
+Figure out what kind of folder this is before offering any commands. Use the non-staged raw CLI classifier, which delegates to GPD's workspace-bound, read-only classifier instead of hand-rolled current-directory marker checks. The classifier must describe the invoked folder itself; do not let an ancestor or home-directory GPD project claim an unrelated nested checkout.
 
 ```bash
-START_CONTEXT=$(gpd --raw init new-project --stage scope_intake)
+START_CONTEXT=$(gpd --raw init new-project)
 ```
 
 Parse the JSON result and use these fields:
@@ -21,9 +21,8 @@ Parse the JSON result and use these fields:
 - `recoverable_project_exists=true` means this folder has GPD state that should not be treated as fresh. If `partial_project_exists=true`, route to recovery/inspection rather than new setup.
 - `has_research_map=true` means this folder already has a `research map` (GPD's summary of an existing research folder before full project setup).
 - `has_research_files=true`, `has_project_manifest=true`, or `needs_research_map=true` means this looks like an existing research folder. Example files might be `.tex`, `.py`, `.ipynb`, `.pdf`, or `.csv`.
+- `research_file_samples` is a sorted, bounded list of up to 5 project-relative research-looking files noticed by the classifier.
 - Otherwise, treat this as a fresh folder with no obvious GPD state yet.
-
-For sample files only, after classification, you may use a read-only file search and show up to 5 non-GPD research-looking files. Do not use that file search to override the core classifier.
 
 If `$ARGUMENTS` is non-empty, briefly repeat it back as the researcher’s goal, but keep the folder-state routing rules above.
 </step>
@@ -44,7 +43,7 @@ Use one of these plain-English summaries:
 - Fresh folder:
   `This folder does not look like an existing GPD project or research folder yet, so you can start from scratch here. In GPD terms, \`new-project\` creates the project scaffolding GPD will use later.`
 
-If sample research files are available, show up to 5 so the researcher can see what GPD noticed.
+If `research_file_samples` is non-empty, show those sample files so the researcher can see what GPD noticed.
 
 If advanced terms appear in the summary, explain them once in parentheses and then keep using the official term consistently.
 </step>

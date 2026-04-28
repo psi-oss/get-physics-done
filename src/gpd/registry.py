@@ -81,6 +81,9 @@ _INTERACTIVE_SPAWN_CONTRACT_BLOCK_RE = re.compile(
     r"^[ \t]*<spawn_contract_interactive>[ \t]*$\n(?P<body>.*?)^[ \t]*</spawn_contract_interactive>[ \t]*$",
     re.DOTALL | re.MULTILINE,
 )
+_LEGACY_PLACEHOLDER_LIST_ITEM_RE = re.compile(
+    r"^(?P<prefix>[ \t]*-[ \t]+)(?P<value>\{[^}\n]+\}[^#\n]*?)(?P<suffix>[ \t]*(?:#.*)?)$"
+)
 _SPAWN_CONTRACT_WRITE_SCOPE_MODES = ("scoped_write", "direct")
 _INTERACTIVE_SPAWN_CONTRACT_WRITE_SCOPE_MODES = ("no_write",)
 _INTERACTIVE_SPAWN_CONTRACT_SHARED_STATE_POLICIES = ("none",)
@@ -1962,6 +1965,11 @@ def _validate_spawn_contract(contract: dict[str, object], *, owner_name: str) ->
     if not isinstance(raw_write_scope, dict):
         raise ValueError(f"spawn-contract for {owner_name}: write_scope must be a mapping")
     write_scope = dict(raw_write_scope)
+    unknown_write_scope_keys = sorted(str(key) for key in write_scope if str(key) not in {"mode", "allowed_paths"})
+    if unknown_write_scope_keys:
+        raise ValueError(
+            f"spawn-contract for {owner_name}: unexpected write_scope fields: {', '.join(unknown_write_scope_keys)}"
+        )
     mode = write_scope.get("mode")
     if not isinstance(mode, str) or not mode.strip():
         raise ValueError(f"spawn-contract for {owner_name}: write_scope.mode must be a non-empty string")
@@ -2029,6 +2037,12 @@ def _validate_interactive_spawn_contract(contract: dict[str, object], *, owner_n
     if not isinstance(raw_write_scope, dict):
         raise ValueError(f"interactive spawn-contract for {owner_name}: write_scope must be a mapping")
     write_scope = dict(raw_write_scope)
+    unknown_write_scope_keys = sorted(str(key) for key in write_scope if str(key) not in {"mode", "allowed_paths"})
+    if unknown_write_scope_keys:
+        raise ValueError(
+            f"interactive spawn-contract for {owner_name}: unexpected write_scope fields: "
+            f"{', '.join(unknown_write_scope_keys)}"
+        )
     mode = write_scope.get("mode")
     if not isinstance(mode, str) or not mode.strip():
         raise ValueError(f"interactive spawn-contract for {owner_name}: write_scope.mode must be a non-empty string")
@@ -2098,68 +2112,82 @@ def _validate_interactive_spawn_contract(contract: dict[str, object], *, owner_n
 def _parse_interactive_spawn_contract_block(block: str, *, owner_name: str) -> dict[str, object]:
     """Parse one supervised interactive spawn-contract YAML block."""
 
-    try:
-        parsed = load_strict_yaml(block)
-    except yaml.YAMLError as exc:
-        raise ValueError(f"interactive spawn-contract for {owner_name}: malformed YAML: {exc}") from exc
-    if not isinstance(parsed, dict):
-        raise ValueError(f"interactive spawn-contract for {owner_name}: block must parse to a mapping")
+    parsed = _load_spawn_contract_mapping(
+        block,
+        owner_name=owner_name,
+        contract_label="interactive spawn-contract",
+    )
     return _validate_interactive_spawn_contract(parsed, owner_name=owner_name)
 
 
 def _parse_spawn_contract_block(block: str, *, owner_name: str) -> dict[str, object]:
-    """Parse one spawn-contract block without requiring strict YAML quoting."""
+    """Parse one spawn-contract block as strict YAML."""
 
-    lines = [line.rstrip() for line in block.splitlines() if line.strip()]
-    contract: dict[str, object] = {}
-    index = 0
-    while index < len(lines):
-        line = lines[index]
-        if line == "write_scope:":
-            index += 1
-            write_scope: dict[str, object] = {}
-            while index < len(lines) and lines[index].startswith("  "):
-                nested = lines[index].strip()
-                if nested.startswith("mode:"):
-                    write_scope["mode"] = nested.split(":", 1)[1].strip()
-                    index += 1
-                    continue
-                if nested == "allowed_paths:":
-                    index += 1
-                    allowed_paths: list[str] = []
-                    while index < len(lines) and lines[index].startswith("    - "):
-                        allowed_paths.append(lines[index].split("- ", 1)[1].strip())
-                        index += 1
-                    write_scope["allowed_paths"] = allowed_paths
-                    continue
-                raise ValueError(f"spawn-contract for {owner_name}: unexpected write_scope field {nested!r}")
-            contract["write_scope"] = write_scope
-            continue
-        if line.startswith("activation:"):
-            contract["activation"] = line.split(":", 1)[1].strip()
-            index += 1
-            continue
-        if line == "expected_artifacts:":
-            index += 1
-            expected_artifacts: list[str] = []
-            while index < len(lines) and lines[index].startswith("  - "):
-                expected_artifacts.append(lines[index].split("- ", 1)[1].strip())
-                index += 1
-            contract["expected_artifacts"] = expected_artifacts
-            continue
-        if line.startswith("shared_state_policy:"):
-            contract["shared_state_policy"] = line.split(":", 1)[1].strip()
-            index += 1
-            continue
-        raise ValueError(f"spawn-contract for {owner_name}: unexpected line {line!r}")
+    parsed = _load_spawn_contract_mapping(
+        block,
+        owner_name=owner_name,
+        contract_label="spawn-contract",
+        allow_legacy_placeholder_list_items=True,
+    )
+    _normalize_legacy_empty_spawn_contract_lists(parsed)
+    return _validate_spawn_contract(parsed, owner_name=owner_name)
 
-    if "write_scope" not in contract:
-        raise ValueError(f"spawn-contract for {owner_name}: missing write_scope")
-    if "expected_artifacts" not in contract:
-        raise ValueError(f"spawn-contract for {owner_name}: missing expected_artifacts")
-    if "shared_state_policy" not in contract:
-        raise ValueError(f"spawn-contract for {owner_name}: missing shared_state_policy")
-    return _validate_spawn_contract(contract, owner_name=owner_name)
+
+def _normalize_legacy_empty_spawn_contract_lists(contract: dict[str, object]) -> None:
+    """Normalize old blank normal-contract list fields to explicit empty lists."""
+
+    raw_write_scope = contract.get("write_scope")
+    if isinstance(raw_write_scope, dict) and "allowed_paths" in raw_write_scope and raw_write_scope["allowed_paths"] is None:
+        raw_write_scope["allowed_paths"] = []
+    if "expected_artifacts" in contract and contract["expected_artifacts"] is None:
+        contract["expected_artifacts"] = []
+
+
+def _load_spawn_contract_mapping(
+    block: str,
+    *,
+    owner_name: str,
+    contract_label: str,
+    allow_legacy_placeholder_list_items: bool = False,
+) -> dict[str, object]:
+    """Parse one spawn-contract YAML mapping, with a narrow legacy path-list shim."""
+
+    try:
+        parsed = load_strict_yaml(block)
+    except yaml.YAMLError as exc:
+        if not allow_legacy_placeholder_list_items:
+            raise ValueError(f"{contract_label} for {owner_name}: malformed YAML: {exc}") from exc
+        normalized_block = _quote_legacy_placeholder_list_items(block)
+        if normalized_block == block:
+            raise ValueError(f"{contract_label} for {owner_name}: malformed YAML: {exc}") from exc
+        try:
+            parsed = load_strict_yaml(normalized_block)
+        except yaml.YAMLError as normalized_exc:
+            raise ValueError(f"{contract_label} for {owner_name}: malformed YAML: {normalized_exc}") from normalized_exc
+
+    if not isinstance(parsed, dict):
+        raise ValueError(f"{contract_label} for {owner_name}: block must parse to a mapping")
+    return dict(parsed)
+
+
+def _quote_legacy_placeholder_list_items(block: str) -> str:
+    """Quote legacy list items like ``- {phase_dir}/file.md`` before strict YAML parsing."""
+
+    normalized_lines: list[str] = []
+    changed = False
+    for line in block.splitlines():
+        match = _LEGACY_PLACEHOLDER_LIST_ITEM_RE.match(line)
+        if match is None:
+            normalized_lines.append(line)
+            continue
+        value = match.group("value").strip()
+        if "/" not in value:
+            normalized_lines.append(line)
+            continue
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        normalized_lines.append(f'{match.group("prefix")}"{escaped}"{match.group("suffix")}')
+        changed = True
+    return "\n".join(normalized_lines) if changed else block
 
 
 def _load_command_staged_loading(path: Path, *, allowed_tools: list[str]) -> WorkflowStageManifest | None:

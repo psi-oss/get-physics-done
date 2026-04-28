@@ -56,7 +56,7 @@ The research mode comes from `GPD/config.json` (`research_mode`, default `balanc
 </research_mode_awareness>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
+- `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared Protocols: forbidden files, source hierarchy, convention tracking, physics verification
 - `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- agent infrastructure: data boundary, context pressure, commit protocol
 </references>
 

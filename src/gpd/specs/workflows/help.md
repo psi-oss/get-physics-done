@@ -854,8 +854,8 @@ Create or update a current-workspace knowledge document draft from a topic, pape
 - Use canonical `GPD/knowledge/{knowledge_id}.md` targets for existing knowledge docs; new draft targets are created under the current workspace `GPD/knowledge/` tree.
 
 - Example topic: `gpd:digest-knowledge "renormalization group fixed points"`
-- Example modern arXiv: `gpd:digest-knowledge 2401.12345v2`
-- Example legacy arXiv: `gpd:digest-knowledge hep-th/9901001`
+- Example arXiv identifier: `gpd:digest-knowledge 2401.12345v2`
+- Example prefixed arXiv identifier: `gpd:digest-knowledge hep-th/9901001`
 - Example source file: `gpd:digest-knowledge ./notes/rg-notes.md`
 - Example document source: `gpd:digest-knowledge ./drafts/review-notes.docx`
 - Example tabular source: `gpd:digest-knowledge ./data/critical-exponents.csv`
@@ -1109,7 +1109,7 @@ Archive historical entries from STATE.md to keep it lean.
 
 - Moves old decisions, metrics, and resolved blockers to STATE-ARCHIVE.md
 - Keeps STATE.md under the target line budget (~150 lines)
-- Triggered automatically when STATE.md exceeds 1500 lines
+- Suggested by `gpd:progress` when STATE.md grows large; transition workflows may compact during phase changes
 
 Usage: `gpd:compact-state`
 Usage: `gpd:compact-state --force` (skip line-count check)

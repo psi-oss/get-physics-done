@@ -159,49 +159,21 @@ fi
 
 **If DERIVATION-STATE.md exists:**
 
-### Enforce Session Cap (Last 5 Sessions)
+### Check Session Cap (Last 5 Sessions)
 
-Before loading DERIVATION-STATE.md into context, enforce the hard cap to keep the file bounded:
+During read-only restoration, count session blocks and warn if the file exceeds the recommended cap. Do not prune, rewrite, replace, or otherwise modify `GPD/DERIVATION-STATE.md` from `gpd:resume-work`.
 
 ```bash
 SESSION_COUNT=$(grep -c "^## Session:" GPD/DERIVATION-STATE.md 2>/dev/null || echo 0)
 
 if [ "$SESSION_COUNT" -gt 5 ]; then
-  echo "DERIVATION-STATE.md has ${SESSION_COUNT} session blocks (cap: 5). Pruning oldest..."
-
-  # Atomic read-modify-write: write to PID-unique .tmp, validate, then replace
-  TMP_FILE="GPD/DERIVATION-STATE.md.tmp.$$"
-  trap "rm -f '$TMP_FILE'" EXIT
-
-  KEEP_FROM=$(grep -n "^## Session:" GPD/DERIVATION-STATE.md | tail -5 | head -1 | cut -d: -f1)
-  HEADER_END=$(grep -n "^## Session:" GPD/DERIVATION-STATE.md | head -1 | cut -d: -f1)
-  HEADER_END=$((HEADER_END - 1))
-  {
-    head -n "$HEADER_END" GPD/DERIVATION-STATE.md
-    echo ""
-    echo "> Older session entries archived in git history."
-    echo "> Use \`git log -p -- GPD/DERIVATION-STATE.md\` to recover."
-    echo ""
-    tail -n +"$KEEP_FROM" GPD/DERIVATION-STATE.md
-  } > "$TMP_FILE"
-
-  TMP_LINES=$(wc -l < "$TMP_FILE")
-  if [ "$TMP_LINES" -lt 5 ]; then
-    echo "WARNING: Pruned file suspiciously small (${TMP_LINES} lines). Keeping original."
-    rm -f "$TMP_FILE"
-  elif ! grep -q "^# Derivation State" "$TMP_FILE"; then
-    echo "WARNING: Pruned file missing required header. Keeping original."
-    rm -f "$TMP_FILE"
-  else
-    cp "$TMP_FILE" GPD/DERIVATION-STATE.md && \
-      rm -f "$TMP_FILE" || \
-      echo "WARNING: Failed to replace DERIVATION-STATE.md. Original preserved."
-  fi
-  trap - EXIT
+  echo "WARNING: DERIVATION-STATE.md has ${SESSION_COUNT} session blocks (recommended cap: 5)."
+  echo "Read and summarize the file as-is; do not prune, rewrite, or replace it during resume restoration."
+  echo "After restoration, suggest gpd:pause-work or an explicit maintenance pass if the researcher wants capping."
 fi
 ```
 
-This is the same cap enforcement logic used by pause-work.md. It keeps the 5 most recent `## Session:` blocks and archives older entries via git history.
+This is a report-only check. `gpd:resume-work` restores and summarizes the file as-is; mutating cap enforcement belongs to explicit write/maintenance workflows, not read-only resume restoration.
 
 1. **Read the full file** to reconstruct the complete equation/convention/result history across all sessions. If the latest handoff or session continuity metadata already carries a canonical `last_result_id`, prefer that value as the rerun anchor before rediscovering the target from prose or older summaries.
 2. **Cross-reference against state.json intermediate_results** to find any gaps:
@@ -490,7 +462,7 @@ Based on user selection, route to appropriate workflow:
   ```
   ---
 
-  ## Next Up
+  ## > Next Up
 
   **{phase}-{plan}: [Plan Name]** -- [objective from PLAN.md]
 
@@ -506,7 +478,7 @@ Based on user selection, route to appropriate workflow:
   ```
   ---
 
-  ## Next Up
+  ## > Next Up
 
   **Phase [N]: [Name]** -- [Goal from ROADMAP.md]
 
@@ -523,7 +495,7 @@ Based on user selection, route to appropriate workflow:
   ---
   ```
 
-- **Transition** -> ./transition.md
+- **Transition** -> `{GPD_INSTALL_DIR}/workflows/transition.md`
 - **Check todos** -> Read GPD/todos/pending/, present summary
 - **Review alignment** -> Read PROJECT.md, compare to current state
 - **Something else** -> Ask what they need
@@ -581,7 +553,7 @@ Resume is complete when:
 
 - [ ] STATE.md loaded (or reconstructed)
 - [ ] DERIVATION-STATE.md read and cross-referenced with state.json (if it exists)
-- [ ] DERIVATION-STATE.md pruned and capped to last 5 sessions (if applicable)
+- [ ] DERIVATION-STATE.md session count checked and any cap warning surfaced (if applicable)
 - [ ] Persistent derivation history restored and summarized (equations, conventions, results, approximations)
 - [ ] Any gaps between DERIVATION-STATE.md and state.json flagged to user
 - [ ] Incomplete work detected and flagged

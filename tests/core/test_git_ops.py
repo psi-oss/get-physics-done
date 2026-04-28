@@ -535,6 +535,9 @@ class TestCommit:
             patch("gpd.core.git_ops._exec_git") as mock_git,
         ):
             mock_git.side_effect = [
+                (0, "", ""),  # git diff --name-only under default GPD/ pathspec
+                (0, "", ""),  # git diff --cached --name-only under default GPD/ pathspec
+                (0, "", ""),  # git ls-files --others under default GPD/ pathspec
                 (0, "", ""),  # git add
                 (0, "", ""),  # git diff --cached --quiet (0 = no changes)
             ]
@@ -553,6 +556,9 @@ class TestCommit:
             patch("gpd.core.git_ops._exec_git") as mock_git,
         ):
             mock_git.side_effect = [
+                (0, "", ""),  # git diff --name-only under default GPD/ pathspec
+                (0, "", ""),  # git diff --cached --name-only under default GPD/ pathspec
+                (0, "", ""),  # git ls-files --others under default GPD/ pathspec
                 (128, "", "fatal: not a git repository"),  # git add fails
             ]
             result = cmd_commit(tmp_path, "test: failing add")
@@ -570,6 +576,9 @@ class TestCommit:
             patch("gpd.core.git_ops._exec_git") as mock_git,
         ):
             mock_git.side_effect = [
+                (0, "GPD/STATE.md", ""),  # git diff --name-only under default GPD/ pathspec
+                (0, "", ""),              # git diff --cached --name-only under default GPD/ pathspec
+                (0, "", ""),              # git ls-files --others under default GPD/ pathspec
                 (0, "", ""),     # git add
                 (1, "", ""),     # diff --cached (has changes)
                 (1, "", "error: something went wrong"),  # git commit fails
@@ -609,6 +618,9 @@ class TestCommit:
             patch("gpd.core.git_ops._exec_git") as mock_git,
         ):
             mock_git.side_effect = [
+                (0, "GPD/STATE.md", ""),  # git diff --name-only under default GPD/ pathspec
+                (0, "", ""),              # git diff --cached --name-only under default GPD/ pathspec
+                (0, "", ""),              # git ls-files --others under default GPD/ pathspec
                 (0, "", ""),       # git add
                 (1, "", ""),       # diff --cached
                 (0, "", ""),       # git commit
@@ -616,9 +628,9 @@ class TestCommit:
             ]
             cmd_commit(tmp_path, "test: default staging")
             # Verify the git add was called with GPD/
-            add_call = mock_git.call_args_list[0]
+            add_call = mock_git.call_args_list[3]
             assert "GPD/" in add_call[0][1]
-            mock_precheck.assert_called_once_with(tmp_path, ["GPD/"])
+            mock_precheck.assert_called_once_with(tmp_path, ["GPD/STATE.md"])
 
     def test_empty_files_defaults_to_planning_dir(self, tmp_path: Path) -> None:
         with (
@@ -630,15 +642,18 @@ class TestCommit:
             patch("gpd.core.git_ops._exec_git") as mock_git,
         ):
             mock_git.side_effect = [
+                (0, "GPD/PROJECT.md", ""),  # git diff --name-only under default GPD/ pathspec
+                (0, "", ""),                # git diff --cached --name-only under default GPD/ pathspec
+                (0, "GPD/state.json", ""),  # git ls-files --others under default GPD/ pathspec
                 (0, "", ""),       # git add
                 (1, "", ""),       # diff --cached
                 (0, "", ""),       # git commit
                 (0, "def5678", ""),  # rev-parse
             ]
             cmd_commit(tmp_path, "test: default staging", files=[])
-            add_call = mock_git.call_args_list[0]
+            add_call = mock_git.call_args_list[3]
             assert "GPD/" in add_call[0][1]
-            mock_precheck.assert_called_once_with(tmp_path, ["GPD/"])
+            mock_precheck.assert_called_once_with(tmp_path, ["GPD/PROJECT.md", "GPD/state.json"])
 
     def test_commit_blocks_when_pre_commit_check_fails(self, tmp_path: Path) -> None:
         pre_commit = PreCommitCheckResult(
@@ -711,6 +726,37 @@ class TestCommit:
             "--name-only",
         ).stdout.splitlines()
         assert staged_paths == ["notes.txt"]
+
+    def test_default_commit_validates_only_changed_paths_under_planning_pathspec(self, tmp_path: Path) -> None:
+        self._git(tmp_path, "init")
+        self._git(tmp_path, "config", "user.email", "test@example.com")
+        self._git(tmp_path, "config", "user.name", "Test User")
+
+        state_path = tmp_path / "GPD" / "STATE.md"
+        invalid_stable_path = tmp_path / "GPD" / "tmp" / "final.csv"
+        invalid_stable_path.parent.mkdir(parents=True)
+        state_path.write_text("# Research State\n", encoding="utf-8")
+        invalid_stable_path.write_text("value\nNaN\n", encoding="utf-8")
+        self._git(tmp_path, "add", "GPD/STATE.md", "GPD/tmp/final.csv")
+        self._git(tmp_path, "commit", "-m", "initial")
+
+        state_path.write_text("# Research State\n\nScoped change.\n", encoding="utf-8")
+
+        result = cmd_commit(tmp_path, "test: default scoped commit")
+
+        assert result.committed is True
+        committed_paths = [
+            line
+            for line in self._git(
+                tmp_path,
+                "show",
+                "--format=",
+                "--name-only",
+                "HEAD",
+            ).stdout.splitlines()
+            if line
+        ]
+        assert committed_paths == ["GPD/STATE.md"]
 
 
 # ---------------------------------------------------------------------------

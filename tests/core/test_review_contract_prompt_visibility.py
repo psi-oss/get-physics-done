@@ -1217,6 +1217,26 @@ def test_review_contract_renderer_renders_scope_variants() -> None:
     assert "required_outputs_override:" in section
 
 
+def test_publication_scope_variant_relaxed_and_optional_checks_have_cli_detail_keys() -> None:
+    from gpd import cli
+
+    cli_detail_keys = set(cli._EXTERNAL_ARTIFACT_OPTIONAL_DETAILS) | set(
+        cli._WRITE_PAPER_EXTERNAL_AUTHORING_OPTIONAL_DETAILS
+    )
+    missing_detail_keys: dict[str, list[str]] = {}
+    for command_name in registry.list_review_commands():
+        contract = registry.get_command(command_name).review_contract
+        if contract is None or contract.review_mode != "publication":
+            continue
+        for variant in contract.scope_variants:
+            variant_checks = set(variant.relaxed_preflight_checks) | set(variant.optional_preflight_checks)
+            missing = sorted(variant_checks - cli_detail_keys)
+            if missing:
+                missing_detail_keys[f"{command_name}:{variant.scope}"] = missing
+
+    assert missing_detail_keys == {}
+
+
 def test_review_contract_renderer_rejects_duplicate_scope_variants() -> None:
     with pytest.raises(
         ValueError,

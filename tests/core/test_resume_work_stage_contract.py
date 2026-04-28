@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,12 @@ from gpd.core.workflow_staging import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
 RUNNER = CliRunner()
+
+
+def _workflow_step(text: str, step_name: str) -> str:
+    start = text.index(f'<step name="{step_name}">')
+    end = text.index("</step>", start)
+    return text[start:end]
 
 
 def test_resume_work_stage_manifest_loads_and_preserves_stage_order() -> None:
@@ -57,6 +64,8 @@ def test_resume_work_stage_manifest_loads_and_preserves_stage_order() -> None:
         "derivation_state_content",
         "continuity_handoff_content",
     )
+    assert derivation_restore.writes_allowed == ()
+    assert "file_write" not in derivation_restore.allowed_tools
 
     assert "project_contract_gate" in resume_routing.required_init_fields
     assert "roadmap_content" in resume_routing.required_init_fields
@@ -86,6 +95,35 @@ def test_resume_work_workflow_uses_public_init_resume_for_staged_payloads() -> N
     assert "@{GPD_INSTALL_DIR}/references/orchestration/continuation-format.md" not in text
     assert "@{GPD_INSTALL_DIR}/references/orchestration/state-portability.md" not in text
     assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" not in text
+
+
+def test_resume_work_derivation_restore_does_not_rewrite_derivation_state() -> None:
+    text = (WORKFLOWS_DIR / "resume-work.md").read_text(encoding="utf-8")
+    section = _workflow_step(text, "restore_persistent_state")
+
+    assert "Do not prune, rewrite, replace, or otherwise modify `GPD/DERIVATION-STATE.md`" in section
+    assert "This is a report-only check." in section
+    assert "Read and summarize the file as-is" in section
+    assert "TMP_FILE" not in section
+    assert "Pruning oldest" not in section
+    assert "Pruned file" not in section
+    forbidden_write_patterns = (
+        r">\s*GPD/DERIVATION-STATE\.md",
+        r">>\s*GPD/DERIVATION-STATE\.md",
+        r">\s*\"\$TMP_FILE\"",
+        r"\bcp\b[^\n]*GPD/DERIVATION-STATE\.md",
+        r"\bmv\b[^\n]*GPD/DERIVATION-STATE\.md",
+        r"\bsed\s+-i\b[^\n]*GPD/DERIVATION-STATE\.md",
+    )
+    for pattern in forbidden_write_patterns:
+        assert re.search(pattern, section) is None
+
+
+def test_resume_work_transition_reference_uses_installed_workflow_path() -> None:
+    text = (WORKFLOWS_DIR / "resume-work.md").read_text(encoding="utf-8")
+
+    assert "- **Transition** -> `{GPD_INSTALL_DIR}/workflows/transition.md`" in text
+    assert "- **Transition** -> ./transition.md" not in text
 
 
 @pytest.mark.parametrize("init_alias", ["resume", "resume-work"])

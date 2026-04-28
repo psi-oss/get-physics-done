@@ -74,7 +74,7 @@ Confirmation contract: before any command that writes reconciled state, ask for 
 **Load progress context (with file contents to avoid redundant reads):**
 
 ```bash
-INIT=$(gpd --raw init progress --include state,roadmap,project,config)
+INIT=$(gpd --raw init progress --include state,roadmap,project,config,references)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
@@ -166,20 +166,20 @@ Use this instead of manually reading/parsing ROADMAP.md.
 - Note `paused_at` if work was paused (from init context)
 - Count pending items: use `gpd --raw init todos`
 - Check for active debug sessions: `ls GPD/debug/*.md 2>/dev/null | grep -v resolved | wc -l`
-- Check state compaction health: `gpd --raw state compact 2>&1` — if output contains `"warn": true`, STATE.md is growing large. Note this for the report.
+- Check state compaction health; capture non-fatally because `gpd --raw health` can exit 1 while still printing parseable JSON:
+  ```bash
+  HEALTH_JSON=$(gpd --raw health 2>/dev/null || true)
+  ```
+  If `HEALTH_JSON` parses, inspect the `State Compaction` check. If its status is `warn`, STATE.md is growing large. Report only; do not run raw state compaction from `gpd:progress`.
   </step>
 
 <step name="report">
 **Generate progress bar from gpd CLI, then present rich status report:**
 
 ```bash
-# Get formatted progress bar
 PROGRESS_BAR=$(gpd --raw progress bar)
 
-# Structured progress including the live_execution block (active phase/plan/wave,
-# current task index, last artifact, last result label, age since last update,
-# and execution-preference flags strict_wait / never_interrupt_running_workers /
-# never_auto_close_child_agents).
+# Structured progress with live_execution and execution-preference flags.
 PROGRESS_JSON=$(gpd --raw progress)
 ```
 
@@ -246,17 +246,19 @@ If STATE.md exceeds 1500 lines, append after the report:
 STATE.md is large (N lines). Consider running `gpd:compact-state` to archive historical entries.
 ```
 
-If the compaction health check reported `"warn": true`, append:
+If the read-only health report's `State Compaction` check has status `warn`, append:
 
 ```
-STATE.md is approaching compaction threshold (N lines). Will auto-compact at next phase transition.
+STATE.md is approaching compaction threshold (N lines). `gpd:progress` did not modify it; use `gpd:compact-state` when you want to archive historical entries.
 ```
 
 **Deep diagnostics (--full mode only):** Run the health dashboard for comprehensive system checks:
 
 ```bash
-HEALTH=$(gpd --raw health 2>/dev/null)
+HEALTH=$(gpd --raw health 2>/dev/null || true)
 ```
+
+Do not stop just because raw health returned nonzero; if `HEALTH` contains parseable JSON, use that JSON.
 
 If `HEALTH.summary.warn > 0` or `HEALTH.summary.fail > 0`, append a summary:
 
@@ -337,7 +339,7 @@ Read its `<objective>` section.
 ```
 ---
 
-## >> Next Up
+## > Next Up
 
 **{phase}-{plan}: [Plan Name]** — [objective summary from PLAN.md]
 
@@ -359,7 +361,7 @@ Check if `{phase}-CONTEXT.md` exists in phase directory.
 ```
 ---
 
-## >> Next Up
+## > Next Up
 
 **Phase {N}: {Name}** — {Goal from ROADMAP.md}
 <sub>Context gathered, ready to plan</sub>
@@ -376,7 +378,7 @@ Check if `{phase}-CONTEXT.md` exists in phase directory.
 ```
 ---
 
-## >> Next Up
+## > Next Up
 
 **Phase {N}: {Name}** — {Goal from ROADMAP.md}
 
@@ -478,7 +480,7 @@ Read ROADMAP.md to get the next phase's name and goal.
 
 ## Phase {Z} Complete
 
-## >> Next Up
+## > Next Up
 
 **Phase {Z+1}: {Name}** — {Goal from ROADMAP.md}
 
@@ -506,7 +508,7 @@ Read ROADMAP.md to get the next phase's name and goal.
 
 All {N} phases finished!
 
-## >> Next Up
+## > Next Up
 
 **Complete Milestone** — archive results and prepare for next
 
@@ -537,7 +539,7 @@ Read MILESTONES.md to find the last completed milestone version.
 
 Ready to plan the next research direction.
 
-## >> Next Up
+## > Next Up
 
 **Start Next Milestone** — questioning -> literature survey -> objectives -> roadmap
 

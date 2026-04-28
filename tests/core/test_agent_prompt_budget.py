@@ -55,6 +55,11 @@ PEER_REVIEW_SPECIALIST_AGENTS = (
     "gpd-review-physics",
     "gpd-review-significance",
 )
+LIGHTWEIGHT_SHARED_PROTOCOL_AGENTS = (
+    "gpd-experiment-designer",
+    "gpd-literature-reviewer",
+    "gpd-planner",
+)
 
 MODE_TABLE_ALLOWLIST = {
     "gpd-bibliographer",
@@ -189,3 +194,17 @@ def test_peer_review_specialists_reference_panel_contract_without_eager_inline(a
     assert "# Peer Review Panel Protocol" not in expanded_text
     assert "{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md" in agent.system_prompt
     assert "# Peer Review Panel Protocol" not in agent.system_prompt
+
+
+@pytest.mark.parametrize("agent_name", LIGHTWEIGHT_SHARED_PROTOCOL_AGENTS)
+def test_agents_reference_shared_protocols_without_eager_inline(agent_name: str) -> None:
+    path = AGENTS_DIR / f"{agent_name}.md"
+    raw_text = path.read_text(encoding="utf-8")
+    expanded_text = expanded_prompt_text(path, src_root=SOURCE_ROOT, path_prefix=PATH_PREFIX)
+    agent = registry.get_agent(agent_name)
+
+    assert "{GPD_INSTALL_DIR}/references/shared/shared-protocols.md" in raw_text
+    assert "@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md" not in raw_text
+    assert "# Shared Protocols" not in expanded_text
+    assert "{GPD_INSTALL_DIR}/references/shared/shared-protocols.md" in agent.system_prompt
+    assert "# Shared Protocols" not in agent.system_prompt

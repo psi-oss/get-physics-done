@@ -17,7 +17,6 @@ from enum import StrEnum
 from pathlib import Path
 
 from gpd.core.constants import (
-    OPTIONAL_PLANNING_FILES,
     REQUIRED_PLANNING_DIRS,
     REQUIRED_PLANNING_FILES,
     ProjectLayout,
@@ -127,15 +126,14 @@ def _walk_project_root(
                 break
             continue
 
-        marker_count = sum(
+        strong_marker_count = sum(
             1
             for name in REQUIRED_PLANNING_FILES
             if (layout.gpd / name).exists()
         )
-        marker_count += sum(1 for name in OPTIONAL_PLANNING_FILES if (layout.gpd / name).exists())
-        marker_count += 1 if layout.agent_id_file.exists() else 0
-        marker_count += sum(1 for name in REQUIRED_PLANNING_DIRS if _has_directory_content(layout.gpd / name))
-        marker_count += sum(
+        strong_marker_count += 1 if layout.agent_id_file.exists() else 0
+        strong_marker_count += sum(1 for name in REQUIRED_PLANNING_DIRS if _has_directory_content(layout.gpd / name))
+        strong_marker_count += sum(
             1
             for path in (
                 layout.research_map_dir,
@@ -148,7 +146,7 @@ def _walk_project_root(
             )
             if _has_directory_content(path)
         )
-        if marker_count > 0:
+        if strong_marker_count > 0:
             return path, steps, True
 
         if best_bare is None or steps < best_bare[0]:

@@ -6,7 +6,7 @@ template_version: 1
 
 Template for `GPD/DERIVATION-STATE.md` — cumulative record of equations, conventions, and intermediate results across all sessions.
 
-**Purpose:** Survive context resets. Each session appends its key equations, conventions, and results here via the pause-work workflow. This file is append-only (except pruning) and is read by resume-work to restore derivation context. It is supporting context for canonical continuation, not a competing authority for project position or resume ranking.
+**Purpose:** Survive context resets. Each session appends its key equations, conventions, and results here via the pause-work workflow. This file is append-only except during explicit maintenance/pruning workflows, and resume-work reads it without mutation to restore derivation context. It is supporting context for canonical continuation, not a competing authority for project position or resume ranking.
 
 Result IDs are continuity anchors as well as history entries. When a session ends with a persisted canonical derivation, the active rerun anchor should be called out explicitly as `last_result_id` so the next session can reuse it without rediscovering it from prose.
 
@@ -101,13 +101,13 @@ This file is append-only. Pruning rules apply (see bottom). It is a human- and t
 
 **When this file is read:**
 
-- By resume-work workflow: loads full derivation context before resuming
+- By resume-work workflow: loads full derivation context before resuming and reports cap warnings without mutating the file
 - By execute-plan: optionally references for cross-session equation dependencies
 
 **When this file is pruned:**
 
-- By resume-work workflow: applies pruning rules before loading into context
-- On milestone completion: removes entries for fully archived phases
+- By pause-work or explicit maintenance workflows: applies pruning rules when appending or when the researcher requests maintenance
+- On milestone completion: may remove entries for fully archived phases
 
 **Content quality:**
 

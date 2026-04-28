@@ -71,6 +71,53 @@ def test_spawn_contract_blocks_are_structural_and_count_stable() -> None:
             _assert_contract_shape(contract, workflow_name=workflow_name, index=index)
 
 
+def test_spawn_contract_parser_accepts_strict_yaml_colons_and_flow_lists() -> None:
+    contracts = _extract_spawn_contracts(
+        """
+<spawn_contract>
+activation: "subject contains: explicit manuscript"
+write_scope:
+  mode: scoped_write
+  allowed_paths: ["GPD/review/path:with-colon.md", "GPD/review/list-item.md"]
+expected_artifacts:
+  - "GPD/review/result:final.md"
+shared_state_policy: return_only
+</spawn_contract>
+"""
+    )
+
+    assert contracts == [
+        {
+            "activation": "subject contains: explicit manuscript",
+            "write_scope": {
+                "mode": "scoped_write",
+                "allowed_paths": ["GPD/review/path:with-colon.md", "GPD/review/list-item.md"],
+            },
+            "expected_artifacts": ["GPD/review/result:final.md"],
+            "shared_state_policy": "return_only",
+        }
+    ]
+
+
+def test_spawn_contract_parser_preserves_legacy_placeholder_path_items() -> None:
+    contracts = _extract_spawn_contracts(
+        """
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - {phase_dir}/{phase_number}-RESEARCH.md
+expected_artifacts:
+  - {phase_dir}/{phase_number}-RESEARCH.md
+shared_state_policy: return_only
+</spawn_contract>
+"""
+    )
+
+    assert contracts[0]["write_scope"]["allowed_paths"] == ["{phase_dir}/{phase_number}-RESEARCH.md"]
+    assert contracts[0]["expected_artifacts"] == ["{phase_dir}/{phase_number}-RESEARCH.md"]
+
+
 def test_spawn_contract_source_blocks_preserve_distinct_handoff_sites() -> None:
     for workflow_name, expected_count in EXPECTED_RAW_WORKFLOW_COUNTS.items():
         text = _read(WORKFLOWS_DIR / workflow_name)

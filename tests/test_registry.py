@@ -482,6 +482,22 @@ class TestParseSpawnContracts:
                 owner_name="gpd:test",
             )
 
+    def test_parse_spawn_contracts_rejects_unknown_write_scope_fields(self) -> None:
+        with pytest.raises(ValueError, match="unexpected write_scope fields: owner"):
+            _parse_spawn_contracts(
+                "<spawn_contract>\n"
+                "write_scope:\n"
+                "  mode: scoped_write\n"
+                "  allowed_paths:\n"
+                "    - GPD/out.md\n"
+                "  owner: child\n"
+                "expected_artifacts:\n"
+                "  - GPD/out.md\n"
+                "shared_state_policy: return_only\n"
+                "</spawn_contract>",
+                owner_name="gpd:test",
+            )
+
     @pytest.mark.parametrize(
         ("kwargs", "expected_error"),
         [
@@ -563,6 +579,43 @@ class TestParseSpawnContracts:
                 "expected_return:\n"
                 "  status: completed\n"
                 "shared_state_policy: direct\n"
+                "</spawn_contract_interactive>",
+                owner_name="gpd:test",
+            )
+
+    def test_parse_interactive_spawn_contracts_rejects_unknown_write_scope_fields(self) -> None:
+        with pytest.raises(ValueError, match="unexpected write_scope fields: owner"):
+            _parse_interactive_spawn_contracts(
+                "<spawn_contract_interactive>\n"
+                "activation: mode == interactive\n"
+                "write_scope:\n"
+                "  mode: no_write\n"
+                "  allowed_paths: []\n"
+                "  owner: child\n"
+                "expected_artifacts: []\n"
+                "expected_return:\n"
+                "  status: checkpoint\n"
+                "shared_state_policy: none\n"
+                "</spawn_contract_interactive>",
+                owner_name="gpd:test",
+            )
+
+    @pytest.mark.parametrize(
+        "field_block",
+        [
+            "write_scope:\n  mode: no_write\n  allowed_paths:\nexpected_artifacts: []\n",
+            "write_scope:\n  mode: no_write\n  allowed_paths: []\nexpected_artifacts:\n",
+        ],
+    )
+    def test_parse_interactive_spawn_contracts_rejects_null_list_fields(self, field_block: str) -> None:
+        with pytest.raises(ValueError, match="must be a list"):
+            _parse_interactive_spawn_contracts(
+                "<spawn_contract_interactive>\n"
+                "activation: mode == interactive\n"
+                f"{field_block}"
+                "expected_return:\n"
+                "  status: checkpoint\n"
+                "shared_state_policy: none\n"
                 "</spawn_contract_interactive>",
                 owner_name="gpd:test",
             )

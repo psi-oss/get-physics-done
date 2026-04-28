@@ -418,6 +418,27 @@ def test_get_skill_execute_phase_surfaces_staged_loading_sidecar() -> None:
 def test_get_skill_index_surfaces_spawn_contract_presence_sidecar() -> None:
     from gpd.mcp.servers.skills_server import get_skill_index
 
+    staged_loading = WorkflowStageManifest(
+        schema_version=1,
+        workflow_id="new-project",
+        stages=(
+            WorkflowStage(
+                id="scope_intake",
+                order=1,
+                purpose="intake",
+                mode_paths=("workflows/new-project.md",),
+                required_init_fields=(),
+                loaded_authorities=("workflows/new-project.md",),
+                conditional_authorities=(),
+                must_not_eager_load=(),
+                allowed_tools=("file_read",),
+                writes_allowed=(),
+                produced_state=(),
+                next_stages=(),
+                checkpoints=(),
+            ),
+        ),
+    )
     skill = SkillDef(
         name="gpd-new-project",
         description="New project.",
@@ -431,12 +452,13 @@ def test_get_skill_index_surfaces_spawn_contract_presence_sidecar() -> None:
         name="gpd:new-project",
         description="New project.",
         argument_hint="",
-        agent=None,
+        agent="gpd-planner",
         requires={},
         allowed_tools=["file_read"],
         content="Command body.",
         path="/tmp/gpd-new-project.md",
         source="commands",
+        staged_loading=staged_loading,
         spawn_contracts=(
             {
                 "agent": "gpd-notation-coordinator",
@@ -466,6 +488,12 @@ def test_get_skill_index_surfaces_spawn_contract_presence_sidecar() -> None:
     assert result["command_envelopes"]["gpd-new-project"]["has_spawn_contracts"] is True
     assert result["command_envelopes"]["gpd-new-project"]["has_interactive_spawn_contracts"] is True
     assert result["command_envelopes"]["gpd-new-project"]["has_review_contract"] is False
+    assert result["command_envelopes"]["gpd-new-project"]["agent"] == "gpd-planner"
+    assert result["command_envelopes"]["gpd-new-project"]["has_staged_loading"] is True
+    assert result["command_envelopes"]["gpd-new-project"]["stage_count"] == 1
+    assert "agent=gpd-planner" in result["index_text"]
+    assert "staged-loading" in result["index_text"]
+    assert "stage_count=1" in result["index_text"]
 
 
 def test_get_skill_verify_work_surfaces_staged_loading_sidecar() -> None:
@@ -684,7 +712,7 @@ def test_get_skill_planner_agent_does_not_expose_staged_loading_sidecar(monkeypa
     assert "staged_loading" not in result["structured_metadata_authority"]
 
 
-def test_get_skill_planner_surfaces_docs_references(monkeypatch) -> None:
+def test_get_skill_planner_ignores_fenced_docs_examples(monkeypatch) -> None:
     from pathlib import Path
 
     from gpd import registry as content_registry
@@ -697,7 +725,7 @@ def test_get_skill_planner_surfaces_docs_references(monkeypatch) -> None:
     result = get_skill("gpd-planner")
     docs_references = [entry for entry in result["referenced_files"] if entry["kind"] == "docs"]
 
-    assert any(entry["path"] == "@GPD/docs/conventions.md" for entry in docs_references)
+    assert all(entry["path"] != "@GPD/docs/conventions.md" for entry in docs_references)
     assert all(not entry["path"].startswith("/") for entry in docs_references)
     assert result["loading_hint"].startswith("Treat `content` as the wrapper/context surface.")
 
@@ -709,6 +737,167 @@ def test_missing_docs_reference_rejects_unsafe_relative_suffixes() -> None:
     assert _portable_reference_path("docs/../README.md") is None
     assert _portable_reference_path("docs//future-conventions.md") is None
     assert _portable_reference_path("docs/./future-conventions.md") is None
+
+
+def test_reference_shorthand_aliases_resolve_under_references_root() -> None:
+    from gpd.mcp.servers.skills_server import _extract_referenced_files, _portable_reference_path
+
+    shared = _portable_reference_path("shared/shared-protocols.md")
+    verification = _portable_reference_path("@{GPD_INSTALL_DIR}/verification/core/verification-core.md")
+
+    assert shared is not None
+    assert shared[0] == "@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md"
+    assert shared[1] is not None
+    assert shared[1].as_posix().endswith("src/gpd/specs/references/shared/shared-protocols.md")
+    assert verification is not None
+    assert verification[0] == "@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md"
+    assert _portable_reference_path("domains/verification-domain-qft.md") is None
+
+    direct_references, _transitive_references = _extract_referenced_files(
+        "Read shared/shared-protocols.md and verification/core/verification-core.md.\n"
+    )
+    direct_paths = {entry["path"] for entry in direct_references}
+
+    assert "@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md" in direct_paths
+    assert "@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md" in direct_paths
+    assert all(not path.startswith("@{GPD_INSTALL_DIR}/shared/") for path in direct_paths)
+
+
+def test_relative_domains_reference_extracts_from_reference_docs() -> None:
+    from gpd.mcp.servers.skills_server import _extract_referenced_files
+
+    source_path = (
+        Path(__file__).resolve().parents[2]
+        / "src"
+        / "gpd"
+        / "specs"
+        / "references"
+        / "verification"
+        / "core"
+        / "verification-core.md"
+    )
+
+    direct_references, _transitive_references = _extract_referenced_files(
+        "Read ../domains/verification-domain-qft.md before applying this profile.",
+        source_path=source_path,
+    )
+
+    assert {entry["path"] for entry in direct_references} == {
+        "@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-qft.md"
+    }
+
+
+def test_extract_referenced_files_ignores_fenced_code_blocks(tmp_path: Path) -> None:
+    from gpd.mcp.servers import skills_server
+
+    workflow_path = tmp_path / "wrapper.md"
+    workflow_path.write_text(
+        "Example only:\n\n```markdown\n@{GPD_INSTALL_DIR}/templates/fenced-schema.md\n```\n",
+        encoding="utf-8",
+    )
+    schema_path = tmp_path / "fenced-schema.md"
+    schema_path.write_text("---\ntype: schema\n---\n# Fenced Schema\n", encoding="utf-8")
+    portable_paths = {
+        "@{GPD_INSTALL_DIR}/workflows/wrapper.md": workflow_path,
+        "@{GPD_INSTALL_DIR}/templates/fenced-schema.md": schema_path,
+    }
+    original_portable_reference_path = skills_server._portable_reference_path
+
+    def _patched_portable_reference_path(raw_path: str, *, base_path: Path | None = None):
+        if raw_path in portable_paths:
+            return raw_path, portable_paths[raw_path]
+        return original_portable_reference_path(raw_path, base_path=base_path)
+
+    with patch(
+        "gpd.mcp.servers.skills_server._portable_reference_path",
+        side_effect=_patched_portable_reference_path,
+    ):
+        fenced_direct, fenced_transitive = skills_server._extract_referenced_files(
+            "```markdown\n@{GPD_INSTALL_DIR}/templates/fenced-schema.md\n```\n"
+        )
+        direct_references, transitive_references = skills_server._extract_referenced_files(
+            "Read @{GPD_INSTALL_DIR}/workflows/wrapper.md first.\n"
+        )
+
+    assert fenced_direct == []
+    assert fenced_transitive == []
+    assert [entry["path"] for entry in direct_references] == ["@{GPD_INSTALL_DIR}/workflows/wrapper.md"]
+    assert transitive_references == []
+
+
+def test_get_skill_transitive_reference_documents_are_metadata_only_by_default(tmp_path: Path) -> None:
+    from gpd.mcp.servers import skills_server
+
+    workflow_path = tmp_path / "wrapper.md"
+    workflow_path.write_text(
+        "See @{GPD_INSTALL_DIR}/templates/nested-schema.md for the schema.\n",
+        encoding="utf-8",
+    )
+    schema_path = tmp_path / "nested-schema.md"
+    schema_path.write_text(
+        "---\ntype: schema\n---\n# Nested Schema\n"
+        "Transitive body.\n"
+        "See @{GPD_INSTALL_DIR}/templates/deeper-schema.md.\n",
+        encoding="utf-8",
+    )
+    deeper_schema_path = tmp_path / "deeper-schema.md"
+    deeper_schema_path.write_text("---\ntype: schema\n---\n# Deeper Schema\n", encoding="utf-8")
+    command = CommandDef(
+        name="gpd:debug",
+        description="Debug.",
+        argument_hint="",
+        requires={},
+        allowed_tools=["file_read"],
+        content="Command body.",
+        path=str(tmp_path / "gpd-debug.md"),
+        source="commands",
+    )
+    skill = SkillDef(
+        name="gpd-debug",
+        description="Debug.",
+        content="Read @{GPD_INSTALL_DIR}/workflows/wrapper.md first.\n",
+        category="debugging",
+        path=str(tmp_path / "gpd-debug.md"),
+        source_kind="command",
+        registry_name="debug",
+    )
+    portable_paths = {
+        "@{GPD_INSTALL_DIR}/workflows/wrapper.md": workflow_path,
+        "@{GPD_INSTALL_DIR}/templates/nested-schema.md": schema_path,
+        "@{GPD_INSTALL_DIR}/templates/deeper-schema.md": deeper_schema_path,
+    }
+    original_portable_reference_path = skills_server._portable_reference_path
+
+    def _patched_portable_reference_path(raw_path: str, *, base_path: Path | None = None):
+        if raw_path in portable_paths:
+            return raw_path, portable_paths[raw_path]
+        return original_portable_reference_path(raw_path, base_path=base_path)
+
+    skills_server._reference_document_metadata.cache_clear()
+    try:
+        with (
+            patch("gpd.mcp.servers.skills_server._resolve_skill", return_value=skill),
+            patch("gpd.mcp.servers.skills_server.content_registry.get_command", return_value=command),
+            patch(
+                "gpd.mcp.servers.skills_server._portable_reference_path",
+                side_effect=_patched_portable_reference_path,
+            ),
+        ):
+            result = skills_server.get_skill("gpd-debug")
+            opt_in_result = skills_server.get_skill("gpd-debug", include_transitive_reference_bodies=True)
+    finally:
+        skills_server._reference_document_metadata.cache_clear()
+
+    nested_doc = next(entry for entry in result["transitive_schema_documents"] if entry["name"] == "nested-schema.md")
+    opt_in_nested_doc = next(
+        entry for entry in opt_in_result["transitive_schema_documents"] if entry["name"] == "nested-schema.md"
+    )
+
+    assert nested_doc["frontmatter"] == {"type": "schema"}
+    assert "body" not in nested_doc
+    assert all(not path.endswith("deeper-schema.md") for path in result["transitive_schema_references"])
+    assert any(path.endswith("deeper-schema.md") for path in opt_in_result["transitive_schema_references"])
+    assert "# Nested Schema" in opt_in_nested_doc["body"]
 
 
 def test_get_skill_plan_checker_agent_surfaces_direct_schema_dependency_and_least_privilege(

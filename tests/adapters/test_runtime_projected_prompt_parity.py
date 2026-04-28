@@ -288,6 +288,7 @@ def test_gemini_projected_command_surface_matches_install_runtime_rewrites(tmp_p
         "INIT=$(gpd --raw init progress --include state,config)\n"
         "if [ $? -ne 0 ]; then\n"
         '  echo "ERROR: gpd initialization failed: $INIT"\n'
+        '  echo "$INIT"\n'
         "  # STOP \u2014 display the error to the user and do not proceed.\n"
         "fi\n"
         "```\n"
@@ -300,6 +301,7 @@ def test_gemini_projected_command_surface_matches_install_runtime_rewrites(tmp_p
     assert f"{bridge} config ensure-section" in projected
     assert f"{bridge} --raw init progress --include state,config --no-project-reentry" in projected
     assert "INIT=$(gpd --raw init progress --include state,config)" not in projected
+    assert 'echo "$INIT"' not in projected
 
 
 @pytest.mark.parametrize("runtime", ("claude-code", "opencode"))

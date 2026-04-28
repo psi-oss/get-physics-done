@@ -66,6 +66,7 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
         "has_research_map",
         "planning_exists",
         "has_research_files",
+        "research_file_samples",
         "has_project_manifest",
         "needs_research_map",
         "has_git",

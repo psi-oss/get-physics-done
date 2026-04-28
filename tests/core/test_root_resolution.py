@@ -187,6 +187,27 @@ def test_resolve_project_roots_prefers_stronger_ancestor_over_nested_empty_gpd_s
     assert resolution.walk_up_steps == 2
 
 
+def test_resolve_project_roots_prefers_complete_ancestor_over_nested_config_only_gpd(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    workspace = project / "workspace" / "notes"
+    _make_project_root(project)
+    nested_gpd = workspace / "GPD"
+    nested_gpd.mkdir(parents=True)
+    (nested_gpd / "config.json").write_text('{"commit_docs": true}\n', encoding="utf-8")
+
+    resolution = resolve_project_roots(workspace)
+
+    assert resolution is not None
+    assert resolution.project_root == project.resolve(strict=False)
+    assert resolution.policy == RootResolutionPolicy.PROJECT_SCOPED
+    assert resolution.basis == RootResolutionBasis.WORKSPACE
+    assert resolution.confidence == RootResolutionConfidence.HIGH
+    assert resolution.has_project_layout is True
+    assert resolution.walk_up_steps == 2
+
+
 def test_resolve_project_roots_prefers_nearest_verified_nested_project_over_marker_rich_ancestor(
     tmp_path: Path,
 ) -> None:

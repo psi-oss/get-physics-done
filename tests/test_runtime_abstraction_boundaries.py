@@ -476,6 +476,16 @@ def _runtime_hook_payload_key_tuples() -> dict[tuple[str, ...], set[str]]:
     return key_tuples
 
 
+def _runtime_hook_payload_key_literals() -> set[str]:
+    literals: set[str] = set()
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        for field in fields(descriptor.hook_payload):
+            if not field.name.endswith("_keys"):
+                continue
+            literals.update(getattr(descriptor.hook_payload, field.name))
+    return literals
+
+
 def test_merged_hook_payload_policy_is_descriptor_wise_union_for_every_field() -> None:
     merged_policy = get_hook_payload_policy()
 
@@ -516,6 +526,36 @@ def test_shared_hook_policy_consumers_do_not_duplicate_catalog_hook_payload_key_
 
     assert leaks == [], (
         "Shared hooks and hook tests should consume hook payload keys from runtime_catalog policies instead of duplicating them:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+def test_notify_and_statusline_do_not_hardcode_project_dir_payload_key() -> None:
+    leaks: list[tuple[Path, int, str]] = []
+
+    catalog_key_literals = _runtime_hook_payload_key_literals()
+    consumer_paths = (
+        REPO_ROOT / "src/gpd/hooks/notify.py",
+        REPO_ROOT / "src/gpd/hooks/statusline.py",
+    )
+    for path in consumer_paths:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        rel_path = path.relative_to(REPO_ROOT)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            is_payload_lookup = (isinstance(func, ast.Attribute) and func.attr == "get") or (
+                isinstance(func, ast.Name) and func.id in {"_first_string", "_first_value"}
+            )
+            if not is_payload_lookup:
+                continue
+            for argument in node.args:
+                if isinstance(argument, ast.Constant) and argument.value in catalog_key_literals:
+                    leaks.append((rel_path, argument.lineno, f"hard-coded payload key {argument.value!r}"))
+
+    assert leaks == [], (
+        "shared hook consumers must read runtime payload keys through runtime_catalog hook_payload policies:\n"
         f"{_format_failures(leaks)}"
     )
 

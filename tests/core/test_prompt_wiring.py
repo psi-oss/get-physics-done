@@ -998,9 +998,9 @@ def test_current_workspace_project_aware_workflows_disable_recent_project_reentr
     explain = (WORKFLOWS_DIR / "explain.md").read_text(encoding="utf-8")
     review_knowledge = (WORKFLOWS_DIR / "review-knowledge.md").read_text(encoding="utf-8")
 
-    assert 'INIT=$(gpd --raw init progress --include state --no-project-reentry)' in compare_experiment
+    assert 'INIT=$(gpd --raw init progress --include state,protocols --no-project-reentry)' in compare_experiment
     assert 'INIT=$(gpd --raw init progress --include state --no-project-reentry)' in compare_results
-    assert 'INIT=$(gpd --raw init progress --include state,config --no-project-reentry)' in digest_knowledge
+    assert 'INIT=$(gpd --raw init progress --include state,config,references --no-project-reentry)' in digest_knowledge
     assert 'INIT=$(gpd --raw init progress --include project,state,roadmap,config --no-project-reentry)' in explain
     assert 'INIT=$(gpd --raw init progress --include state,config --no-project-reentry)' in review_knowledge
 
@@ -1423,6 +1423,10 @@ def test_new_project_wiring_mentions_contract_persistence_and_contract_first_dow
     workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
     command_text = (COMMANDS_DIR / "new-project.md").read_text(encoding="utf-8")
     parse_line = next(line for line in workflow_text.splitlines() if line.startswith("Parse JSON for:"))
+    manifest = validate_workflow_stage_manifest_payload(
+        json.loads((WORKFLOWS_DIR / "new-project-stage-manifest.json").read_text(encoding="utf-8")),
+        expected_workflow_id="new-project",
+    )
 
     assert "gpd state set-project-contract" in workflow_text
     assert "gpd --raw validate project-contract - --mode approved" in workflow_text
@@ -1441,6 +1445,7 @@ def test_new_project_wiring_mentions_contract_persistence_and_contract_first_dow
             "has_research_map",
             "planning_exists",
             "has_research_files",
+            "research_file_samples",
             "has_project_manifest",
             "needs_research_map",
             "has_git",
@@ -1450,6 +1455,8 @@ def test_new_project_wiring_mentions_contract_persistence_and_contract_first_dow
             "project_contract_validation",
         ),
     )
+    if "research_file_samples" in manifest.stage("scope_intake").required_init_fields:
+        assert "`research_file_samples`" in parse_line
     assert "POST_SCOPE_INIT=$(gpd --raw init new-project --stage post_scope)" in workflow_text
     assert "roadmapper_model" in workflow_text
     _assert_contains_fragments(
@@ -1646,7 +1653,7 @@ def test_progress_workflow_surfaces_contract_load_and_validation_state() -> None
     assert status_scan in workflow_text
     assert status_scan not in command_text
     assert "Follow the included workflow exactly. Do not duplicate the workflow logic here." in command_text
-    assert "INIT=$(gpd --raw init progress --include state,roadmap,project,config)" not in command_text
+    assert "INIT=$(gpd --raw init progress --include state,roadmap,project,config,references)" not in command_text
     assert 'CONTEXT=$(gpd --raw validate command-context progress "$ARGUMENTS")' not in command_text
     assert "status: (gaps_found|diagnosed|human_needed|expert_needed)" not in workflow_text
     assert "status: (gaps_found|diagnosed|human_needed|expert_needed)" not in command_text
@@ -1658,6 +1665,20 @@ def test_progress_workflow_surfaces_contract_load_and_validation_state() -> None
     assert "## Knowledge Status" in workflow_text
     assert "GPD/phases/[current-phase-dir]/*-VERIFICATION.md" in workflow_text
     assert "GPD/phases/[current-phase-dir]/*-VERIFICATION.md" not in command_text
+
+
+def test_progress_workflow_uses_read_only_health_for_compaction_status() -> None:
+    workflow_text = (WORKFLOWS_DIR / "progress.md").read_text(encoding="utf-8")
+
+    assert "gpd --raw health" in workflow_text
+    assert "HEALTH_JSON=$(gpd --raw health 2>/dev/null || true)" in workflow_text
+    assert "HEALTH=$(gpd --raw health 2>/dev/null || true)" in workflow_text
+    assert "can exit 1 while still printing parseable JSON" in workflow_text
+    assert "Do not stop just because raw health returned nonzero" in workflow_text
+    assert "`State Compaction` check" in workflow_text
+    assert "Report only; do not run raw state compaction from `gpd:progress`." in workflow_text
+    assert "`gpd:progress` did not modify it" in workflow_text
+    assert "gpd --raw state compact" not in workflow_text
 
 
 def test_planning_prompts_keep_contract_gate_in_light_mode_and_all_modes() -> None:
@@ -3277,7 +3298,8 @@ def test_publication_prompts_surface_strict_semantic_manuscript_gates() -> None:
         encoding="utf-8"
     )
 
-    assert PUBLICATION_SHARED_PREFLIGHT_INCLUDE in peer_review_workflow
+    assert PUBLICATION_SHARED_PREFLIGHT_INCLUDE not in peer_review_workflow
+    assert "{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md" in peer_review_workflow
     peer_review_staging = registry.get_command("peer-review").staged_loading
 
     assert peer_review_staging is not None
@@ -3396,7 +3418,8 @@ def test_publication_command_contexts_surface_schema_docs_before_generation() ->
     assert round_artifacts_include in write_paper_workflow
     assert "bibliography_audit_clean" in write_paper_workflow_expanded
     assert "reproducibility_ready" in write_paper_workflow_expanded
-    assert PUBLICATION_SHARED_PREFLIGHT_INCLUDE in peer_review_workflow
+    assert PUBLICATION_SHARED_PREFLIGHT_INCLUDE not in peer_review_workflow
+    assert "{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md" in peer_review_workflow
     assert "templates/paper/review-ledger-schema.md" in peer_review_workflow
     assert "templates/paper/referee-decision-schema.md" in peer_review_workflow
     assert "templates/paper/review-ledger-schema.md" in peer_review_workflow
@@ -4305,6 +4328,18 @@ def test_pause_resume_and_derivation_templates_preserve_result_id_continuity() -
     assert "Reference the result IDs added to state.json this session" in continue_here
     assert "Each entry links back to the state.json intermediate_results key" in continue_here
     assert "Result IDs should match those in state.json intermediate_results" in derivation_state
+    assert "By resume-work workflow: applies pruning rules" not in derivation_state
+    assert "resume-work reads it without mutation" in derivation_state
+
+
+def test_state_compaction_lifecycle_docs_do_not_claim_progress_mutates_state() -> None:
+    compact_state = (WORKFLOWS_DIR / "compact-state.md").read_text(encoding="utf-8")
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+
+    assert "Triggered automatically when progress.md detects" not in compact_state
+    assert "Triggered automatically when STATE.md exceeds 1500 lines" not in help_workflow
+    assert "Suggested by progress.md" in compact_state
+    assert "Suggested by `gpd:progress`" in help_workflow
 
 
 def test_stage6_surfaces_protocol_bundle_context_across_planning_execution_and_verification() -> None:
@@ -4499,7 +4534,8 @@ def test_publication_workflows_refresh_bibliography_audit_after_bibliography_cha
         "refresh `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` before generating the response letter or proceeding to final review"
         in respond
     )
-    assert PUBLICATION_SHARED_PREFLIGHT_INCLUDE in peer_review
+    assert PUBLICATION_SHARED_PREFLIGHT_INCLUDE not in peer_review
+    assert "{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md" in peer_review
     peer_review_staging = registry.get_command("peer-review").staged_loading
 
     assert peer_review_staging is not None

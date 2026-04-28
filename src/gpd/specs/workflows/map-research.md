@@ -530,7 +530,7 @@ Created GPD/research-map/:
 
 ---
 
-## Next Up
+## > Next Up
 
 **Initialize project** -- use research map context for planning
 

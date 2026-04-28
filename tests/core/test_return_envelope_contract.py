@@ -121,6 +121,37 @@ def test_rejects_state_updates_when_not_a_mapping() -> None:
     assert any("state_updates" in error and "mapping" in error for error in result.errors)
 
 
+def test_rejects_unknown_top_level_typo_fields() -> None:
+    content = _wrap_return_block(
+        "  status: completed\n"
+        "  file_written: [src/main.py]\n"
+        "  files_written: [src/main.py]\n"
+        "  issues: []\n"
+        "  next_actions: []\n"
+    )
+
+    result = validate_gpd_return_markdown(content)
+
+    assert result.passed is False
+    assert any("Unknown gpd_return top-level field" in error and "file_written" in error for error in result.errors)
+
+
+def test_rejects_status_disallowed_structured_fields() -> None:
+    content = _wrap_return_block(
+        "  status: blocked\n"
+        "  files_written: []\n"
+        "  issues: [missing checkpoint]\n"
+        "  next_actions: [/gpd:resume-work]\n"
+        "  state_updates:\n"
+        "    advance_plan: true\n"
+    )
+
+    result = validate_gpd_return_markdown(content)
+
+    assert result.passed is False
+    assert any("status 'blocked'" in error and "state_updates" in error for error in result.errors)
+
+
 def test_rejects_transport_execution_segment_inside_durable_continuation_update() -> None:
     content = _wrap_return_block(
         "  status: checkpoint\n"

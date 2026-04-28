@@ -16,7 +16,6 @@ from typing import Annotated
 from mcp.server.fastmcp import FastMCP
 from pydantic import WithJsonSchema
 
-from gpd.core.commands import cmd_apply_return_updates
 from gpd.core.config import load_config
 from gpd.core.errors import GPDError
 from gpd.core.health import run_health
@@ -75,38 +74,6 @@ def load_state_json(cwd: Path) -> dict | None:
     merged_state["project_contract_validation"] = project_contract_validation
     merged_state["project_contract_gate"] = project_contract_gate
     return merged_state
-
-
-def apply_return_updates(project_dir: AbsoluteProjectDirInput, file_path: str | Path) -> dict:
-    """Apply a validated child-return envelope through the canonical state adapter.
-
-    This keeps the canonical apply-return path available from the state server
-    module without changing the published MCP tool surface in this lane.
-    """
-
-    cwd = resolve_absolute_project_dir(project_dir)
-    if cwd is None:
-        return stable_mcp_error("project_dir must be an absolute path")
-    requested_path = Path(file_path)
-    if not requested_path.parts or (not requested_path.is_absolute() and ".." in requested_path.parts):
-        return stable_mcp_error("file_path must be a project-relative path without traversal")
-    with gpd_span("mcp.state.apply_return_updates"):
-        try:
-            cwd_resolved = cwd.resolve(strict=False)
-            resolved = (
-                requested_path.expanduser().resolve(strict=False)
-                if requested_path.is_absolute()
-                else (cwd_resolved / requested_path).resolve(strict=False)
-            )
-            try:
-                resolved.relative_to(cwd_resolved)
-            except ValueError:
-                return stable_mcp_error("file_path must stay within project_dir after symlink resolution")
-            return stable_mcp_response(cmd_apply_return_updates(cwd, resolved).model_dump())
-        except (GPDError, OSError, ValueError, TimeoutError) as exc:
-            return stable_mcp_error(exc)
-        except Exception as exc:  # pragma: no cover - defensive envelope
-            return stable_mcp_error(exc)
 
 
 @mcp.tool()

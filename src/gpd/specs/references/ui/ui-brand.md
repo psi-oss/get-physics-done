@@ -112,14 +112,14 @@ Convergence: |δE| = 2.3e-6 → 1.1e-8 → 4.7e-11  ✓ (tol: 1e-8)
 
 ---
 
-## Next Up Block
+## Canonical Next Up Block
 
 Always at end of major completions.
 
 ```
 ───────────────────────────────────────────────────────────────
 
-## ▶ Next Up
+## > Next Up
 
 **{Identifier}: {Name}** — {one-line description}
 

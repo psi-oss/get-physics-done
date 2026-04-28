@@ -1450,7 +1450,8 @@ class TestInitCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         assert payload["error"] == (
-            "Unknown --include value(s) for gpd init progress: bogus. Allowed values: config, project, roadmap, state."
+            "Unknown --include value(s) for gpd init progress: bogus. "
+            "Allowed values: config, project, protocols, references, roadmap, state."
         )
 
     def test_init_resume_resolves_ancestor_project_root_from_nested_workspace(

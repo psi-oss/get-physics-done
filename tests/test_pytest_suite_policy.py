@@ -6,7 +6,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-import yaml
 
 import tests.ci_sharding as ci_sharding
 import tests.conftest as tests_conftest
@@ -30,6 +29,7 @@ from tests.ci_sharding import (
     synthetic_test_inventory,
     untracked_non_ignored_test_relpaths,
 )
+from tests.helpers.github_actions import load_github_actions_workflow
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TESTS_ROOT = REPO_ROOT / "tests"
@@ -60,7 +60,7 @@ def _assigned_literal(path: Path, *, name: str) -> object | None:
 
 
 def _workflow_data() -> dict[str, object]:
-    return yaml.safe_load((_repo_root() / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8"))
+    return load_github_actions_workflow(_repo_root() / ".github" / "workflows" / "test.yml")
 
 
 def _catalog_runtime_adapter_test_relpaths() -> tuple[str, ...]:

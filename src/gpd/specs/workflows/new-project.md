@@ -161,7 +161,7 @@ Before you show the approval gate, build the raw contract as a literal JSON obje
 - `context_intake`, `approach_policy`, and `uncertainty_markers` must each stay as objects, not strings or lists.
 - `schema_version` must be the integer `1`, `references[].must_surface` must stay a boolean `true` or `false`, and `context_intake`, `uncertainty_markers`, and `references[]` must stay visible in the approval gate so the contract still reflects the real inputs
 
-@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md
+Use the schema discipline reference at `{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md`.
 
 Then present a concise scoping summary and require explicit approval:
 
@@ -413,7 +413,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `researcher_model`, `synthesizer_model`, `commit_docs`, `autonomy`, `research_mode`, `project_exists`, `state_exists`, `roadmap_exists`, `recoverable_project_exists`, `partial_project_exists`, `project_recovery_status`, `has_research_map`, `planning_exists`, `has_research_files`, `has_project_manifest`, `needs_research_map`, `has_git`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`.
+Parse JSON for: `researcher_model`, `synthesizer_model`, `commit_docs`, `autonomy`, `research_mode`, `project_exists`, `state_exists`, `roadmap_exists`, `recoverable_project_exists`, `partial_project_exists`, `project_recovery_status`, `has_research_map`, `planning_exists`, `has_research_files`, `research_file_samples`, `has_project_manifest`, `needs_research_map`, `has_git`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`.
 
 **Mode-aware behavior:**
 - `autonomy=supervised` (default): Pause for user confirmation after each major step (questioning, scoping contract, research, roadmap). Show summaries and wait for approval before proceeding.

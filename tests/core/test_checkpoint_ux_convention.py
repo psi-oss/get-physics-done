@@ -14,6 +14,7 @@ COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
 _CHECKPOINTS_PATH = REFERENCES_DIR / "orchestration" / "checkpoints.md"
 _PLANNER_PATH = AGENTS_DIR / "gpd-planner.md"
 _CONVENTION_PATH = REFERENCES_DIR / "orchestration" / "checkpoint-ux-convention.md"
+_UI_BRAND_PATH = REFERENCES_DIR / "ui" / "ui-brand.md"
 
 
 def test_checkpoint_human_verify_uses_y_n_e_idiom_in_canonical_templates() -> None:
@@ -149,6 +150,24 @@ def test_y_n_prompts_unified_and_carve_outs_preserved() -> None:
             "(expected '(y/n)', a '\"yes\"'/'\"no\"' confirmation, or a "
             "numeric-options decision menu)"
         )
+
+
+def test_owned_completion_examples_use_canonical_next_up_heading() -> None:
+    paths = [
+        _UI_BRAND_PATH,
+        WORKFLOWS_DIR / "add-phase.md",
+        WORKFLOWS_DIR / "insert-phase.md",
+        WORKFLOWS_DIR / "map-research.md",
+        WORKFLOWS_DIR / "execute-phase.md",
+        WORKFLOWS_DIR / "progress.md",
+        WORKFLOWS_DIR / "resume-work.md",
+    ]
+
+    stale_heading_pattern = re.compile(r"(?m)^## (?:Next Up|>> Next Up|▶ Next Up)$")
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        assert "## > Next Up" in text, path
+        assert not stale_heading_pattern.search(text), path
 
 
 def test_merge_phase_confirmation_carve_out_has_explicit_nonapproval_semantics() -> None:

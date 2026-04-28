@@ -1538,7 +1538,7 @@ All automated checks passed. {N} items need human review:
 {Any dimensional inconsistencies, failed limiting cases, or conservation law violations}
 
 ---
-## >> Next Up
+## > Next Up
 
 `gpd:plan-phase {X} --gaps`
 
@@ -1896,7 +1896,7 @@ Never end with only "ready to plan/continue" prose. After a successful closeout,
 **If more phases:**
 
 ```
-## Next Up
+## > Next Up
 
 **Phase {X+1}: {Name}** -- {Goal}
 

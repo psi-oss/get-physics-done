@@ -1380,7 +1380,6 @@ class TestSkillsServer:
             "review_contract": "mirrored",
         }
         assert "Treat `content` as the wrapper/context surface." in result["loading_hint"]
-        assert "See `referenced_files` for external markdown dependencies." in result["loading_hint"]
         assert "It already embeds the model-visible `Command Requirements` section." in result["loading_hint"]
         assert result["file_count"] == 1
         assert result["allowed_tools_surface"] == "command.allowed-tools"

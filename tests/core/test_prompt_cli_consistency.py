@@ -397,16 +397,15 @@ def test_progress_prompt_runs_preflight_after_init_context() -> None:
 
     assert "@{GPD_INSTALL_DIR}/workflows/progress.md" in command
     assert "Follow the included workflow exactly. Do not duplicate the workflow logic here." in command
-    assert "INIT=$(gpd --raw init progress --include state,roadmap,project,config)" not in command
+    assert "INIT=$(gpd --raw init progress --include state,roadmap,project,config,references)" not in command
     assert "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")" not in command
     assert "The recent-project picker is advisory" not in command
     assert "reloads canonical state for that project" not in command
 
-    assert "INIT=$(gpd --raw init progress --include state,roadmap,project,config)" in workflow
+    assert "INIT=$(gpd --raw init progress --include state,roadmap,project,config,references)" in workflow
     assert "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")" in workflow
-    assert workflow.index("INIT=$(gpd --raw init progress --include state,roadmap,project,config)") < workflow.index(
-        "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")"
-    )
+    init_index = workflow.index("INIT=$(gpd --raw init progress --include state,roadmap,project,config,references)")
+    assert init_index < workflow.index("CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")")
 
 
 def test_health_prompt_documents_the_real_raw_health_report_shape() -> None:

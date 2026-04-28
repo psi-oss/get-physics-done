@@ -76,6 +76,24 @@ _TABLE_ROW_RE = re.compile(r"^\|(.+)\|$")
 _TABLE_SEP_RE = re.compile(r"^\|[\s\-:|]+\|$")
 
 
+def _declared_ranges_for_catalog(filename: str) -> tuple[tuple[int, int], ...]:
+    """Return the authoritative error ID ranges declared for one catalog file."""
+    for declared_filename, ranges in ERROR_CATALOG_FILE_RANGES:
+        if declared_filename == filename:
+            return ranges
+    return ()
+
+
+def _error_id_in_declared_ranges(error_id: int, ranges: tuple[tuple[int, int], ...]) -> bool:
+    """Return whether an error ID belongs to one of a catalog's declared ranges."""
+    return any(start <= error_id <= end for start, end in ranges)
+
+
+def _format_error_id_ranges(ranges: tuple[tuple[int, int], ...]) -> str:
+    """Render compact human-readable ID ranges for validation errors."""
+    return ", ".join(str(start) if start == end else f"{start}-{end}" for start, end in ranges)
+
+
 def _parse_table_rows(body: str) -> list[list[str]]:
     """Parse all markdown table rows from a body, skipping headers and separators."""
     rows: list[list[str]] = []
@@ -157,6 +175,7 @@ class ErrorStore:
             body = _load_authoritative_markdown_body(path, label="Error catalog")
             rows = _parse_table_rows(body)
             loaded_rows = 0
+            declared_ranges = _declared_ranges_for_catalog(filename)
 
             for row in rows:
                 # Skip header rows (first cell is "#" or "Error Class")
@@ -168,6 +187,12 @@ class ErrorStore:
                 if not id_match:
                     continue
                 error_id = int(id_match.group(1))
+                if declared_ranges and not _error_id_in_declared_ranges(error_id, declared_ranges):
+                    expected = _format_error_id_ranges(declared_ranges)
+                    raise ValueError(
+                        f"Error catalog {Path(filename).name} declares ID range(s) {expected}; "
+                        f"found out-of-range error class id {error_id}"
+                    )
 
                 name = _strip_bold(row[1].strip())
                 description = row[2].strip()

@@ -24,6 +24,16 @@ Follow @{GPD_INSTALL_DIR}/references/inline.md
     assert count_raw_includes(text) == 4
 
 
+def test_count_raw_includes_ignores_lightweight_reference_list_paths() -> None:
+    text = """
+- `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- metadata-only path mention
+- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- eager include
+"""
+
+    assert parse_at_include_path("- `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- path") is None
+    assert count_raw_includes(text) == 1
+
+
 def test_prompt_metrics_uses_production_include_parser() -> None:
     assert parse_at_include_path("- `@{GPD_INSTALL_DIR}/references/numbered.md` (main workflow)") == (
         "{GPD_INSTALL_DIR}/references/numbered.md"

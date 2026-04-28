@@ -69,12 +69,18 @@ def normalize_optional_path_text(value: str | None, *, base_dir: str | None = No
         return str(path)
 
 
-def _project_dir_from_payload(data: dict[str, object], *, hook_payload: object) -> str:
+def project_dir_hint_from_payload(data: dict[str, object], *, hook_payload: object) -> str:
+    """Return a project-root hint only from runtime-catalog-owned payload keys."""
     workspace_value = data.get("workspace")
-    return _first_string(workspace_value, *hook_payload.project_dir_keys) or _first_string(
+    project_dir_keys = tuple(getattr(hook_payload, "project_dir_keys", ()) or ())
+    return _first_string(workspace_value, *project_dir_keys) or _first_string(
         data,
-        *hook_payload.project_dir_keys,
+        *project_dir_keys,
     )
+
+
+def _project_dir_from_payload(data: dict[str, object], *, hook_payload: object) -> str:
+    return project_dir_hint_from_payload(data, hook_payload=hook_payload)
 
 
 def _target_path_from_payload(
@@ -123,6 +129,7 @@ def payload_uses_alias_only_workspace_mapping(
     if not workspace_keys or not project_dir_keys:
         return False
 
+    primary_workspace_key = workspace_keys[0]
     workspace_value = data.get("workspace")
     if isinstance(workspace_value, dict):
         candidate_mapping: dict[str, object] = workspace_value
@@ -134,7 +141,7 @@ def payload_uses_alias_only_workspace_mapping(
     return bool(
         _first_string(candidate_mapping, *workspace_keys)
         and _project_dir_from_payload(data, hook_payload=hook_payload)
-        and not _first_string(candidate_mapping, "cwd")
+        and not _first_string(candidate_mapping, primary_workspace_key)
     )
 
 

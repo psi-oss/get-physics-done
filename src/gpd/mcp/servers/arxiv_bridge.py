@@ -30,6 +30,8 @@ UPSTREAM_CORE_TOOL_NAMES = (
     "read_paper",
 )
 DOWNLOAD_SOURCE_TOOL_NAME = "download_source"
+# Static descriptor fallback. Runtime forwarding is gated by the live upstream
+# tool list whenever the upstream server can provide one.
 ADVERTISED_TOOL_NAMES = (*UPSTREAM_CORE_TOOL_NAMES, DOWNLOAD_SOURCE_TOOL_NAME)
 
 _DOWNLOAD_SOURCE_SCHEMA: dict[str, object] = {
@@ -81,6 +83,8 @@ class ArxivBridge:
     def __init__(self, config: ArxivBridgeConfig) -> None:
         self.config = config
         self._session: ClientSession | None = None
+        self._upstream_tool_names: set[str] | None = None
+        self._upstream_tool_names_complete = False
 
     @property
     def session(self) -> ClientSession:
@@ -105,16 +109,25 @@ class ArxivBridge:
 
     async def list_tools(self, cursor: str | None = None) -> types.ListToolsResult:
         upstream = await self.session.list_tools(cursor)
-        filtered = [tool for tool in upstream.tools if tool.name in UPSTREAM_CORE_TOOL_NAMES]
+        self._remember_upstream_tools(
+            upstream.tools,
+            reset=cursor in (None, ""),
+            complete=upstream.nextCursor is None,
+        )
+        filtered = [tool for tool in upstream.tools if tool.name != DOWNLOAD_SOURCE_TOOL_NAME]
         if cursor in (None, ""):
             filtered.append(_DOWNLOAD_SOURCE_TOOL)
         return types.ListToolsResult(tools=filtered, nextCursor=upstream.nextCursor)
 
     async def call_tool(self, name: str, arguments: dict[str, object] | None) -> types.CallToolResult:
-        if name not in ADVERTISED_TOOL_NAMES:
-            return _tool_error(f"Tool {name!r} is not advertised by the GPD arXiv bridge")
         if name == DOWNLOAD_SOURCE_TOOL_NAME:
             return await self._call_download_source(arguments or {})
+        try:
+            upstream_tool_names = await self._live_upstream_tool_names()
+        except Exception as exc:
+            return _tool_error(f"Could not confirm live arXiv tool list before forwarding {name!r}: {exc}")
+        if name not in upstream_tool_names:
+            return _tool_error(f"Tool {name!r} is not advertised by the GPD arXiv bridge")
         return await self.session.call_tool(name, arguments or {})
 
     async def list_prompts(self, cursor: str | None = None) -> types.ListPromptsResult:
@@ -122,6 +135,43 @@ class ArxivBridge:
 
     async def get_prompt(self, name: str, arguments: dict[str, str] | None) -> types.GetPromptResult:
         return await self.session.get_prompt(name, arguments)
+
+    def _remember_upstream_tools(
+        self,
+        tools: list[types.Tool],
+        *,
+        reset: bool,
+        complete: bool,
+    ) -> None:
+        names = {tool.name for tool in tools if tool.name != DOWNLOAD_SOURCE_TOOL_NAME}
+        if reset or self._upstream_tool_names is None:
+            self._upstream_tool_names = names
+        else:
+            self._upstream_tool_names.update(names)
+        if complete:
+            self._upstream_tool_names_complete = True
+
+    async def _live_upstream_tool_names(self) -> set[str]:
+        if self._upstream_tool_names is not None and self._upstream_tool_names_complete:
+            return set(self._upstream_tool_names)
+
+        names: set[str] = set()
+        cursor: str | None = None
+        seen_cursors: set[str] = set()
+        while True:
+            upstream = await self.session.list_tools(cursor)
+            names.update(tool.name for tool in upstream.tools if tool.name != DOWNLOAD_SOURCE_TOOL_NAME)
+            next_cursor = upstream.nextCursor
+            if next_cursor is None:
+                break
+            if next_cursor in seen_cursors:
+                raise RuntimeError("upstream arXiv list_tools returned a repeated pagination cursor")
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+
+        self._upstream_tool_names = names
+        self._upstream_tool_names_complete = True
+        return set(names)
 
     async def _call_download_source(self, arguments: dict[str, object]) -> types.CallToolResult:
         extra_args = sorted(set(arguments) - set(_DOWNLOAD_SOURCE_SCHEMA["properties"]))

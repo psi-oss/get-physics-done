@@ -1,35 +1,12 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
-import yaml
-
 from tests.ci_sharding import assert_ci_workflow_pytest_shard_policy, assert_tests_readme_documents_ci_shard_policy
+from tests.helpers.github_actions import load_github_actions_workflow
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
-
-
-class GitHubActionsLoader(yaml.SafeLoader):
-    """PyYAML loader compatible with GitHub Actions' YAML 1.2-style `on` key."""
-
-
-GitHubActionsLoader.yaml_implicit_resolvers = {
-    key: [(tag, regexp) for tag, regexp in resolvers if tag != "tag:yaml.org,2002:bool"]
-    for key, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
-}
-GitHubActionsLoader.add_implicit_resolver(
-    "tag:yaml.org,2002:bool",
-    re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$"),
-    list("tTfF"),
-)
-
-
-def _load_github_actions_workflow(path: Path) -> dict[str, object]:
-    data = yaml.load(path.read_text(encoding="utf-8"), Loader=GitHubActionsLoader)
-    assert isinstance(data, dict), f"{path} must parse to a mapping"
-    return data
 
 
 def _workflow_paths() -> list[Path]:
@@ -37,7 +14,7 @@ def _workflow_paths() -> list[Path]:
 
 
 def _workflow_data() -> dict[str, object]:
-    return _load_github_actions_workflow(WORKFLOW_DIR / "test.yml")
+    return load_github_actions_workflow(WORKFLOW_DIR / "test.yml")
 
 
 def test_all_github_workflows_parse_with_github_actions_shape() -> None:
@@ -51,9 +28,8 @@ def test_all_github_workflows_parse_with_github_actions_shape() -> None:
     }
 
     for path in workflow_paths:
-        workflow = _load_github_actions_workflow(path)
+        workflow = load_github_actions_workflow(path)
 
-        assert True not in workflow, f"{path} parsed the `on` key as a boolean"
         assert isinstance(workflow.get("name"), str), f"{path} must define a workflow name"
         assert isinstance(workflow.get("on"), dict), f"{path} must define GitHub Actions triggers under `on`"
         assert isinstance(workflow.get("permissions"), dict), f"{path} must define explicit permissions"
@@ -74,7 +50,7 @@ def test_all_github_workflows_parse_with_github_actions_shape() -> None:
 
 
 def test_github_actions_loader_preserves_on_key_without_losing_boolean_inputs() -> None:
-    workflow = _load_github_actions_workflow(WORKFLOW_DIR / "release.yml")
+    workflow = load_github_actions_workflow(WORKFLOW_DIR / "release.yml")
     dry_run = workflow["on"]["workflow_dispatch"]["inputs"]["dry_run"]
 
     assert "on" in workflow
@@ -175,14 +151,18 @@ def test_ci_workflow_uses_current_action_versions() -> None:
 def test_ci_workflow_installs_dev_dependencies_from_frozen_lockfile() -> None:
     workflow = _workflow_data()
     jobs = workflow["jobs"]
-    install_commands: list[str] = []
+    install_commands_by_job: dict[str, list[str]] = {}
 
-    for job in jobs.values():
+    for job_id, job in jobs.items():
         for step in job.get("steps", []):
             if step.get("name") == "Install dependencies":
-                install_commands.append(step["run"])
+                install_commands_by_job.setdefault(str(job_id), []).append(step["run"])
 
-    assert install_commands == ["uv sync --dev --frozen", "uv sync --dev --frozen", "uv sync --dev --frozen"]
+    assert {"ruff", "python-compatibility", "pytest"} <= set(install_commands_by_job)
+    for job_id, install_commands in install_commands_by_job.items():
+        assert install_commands, f"{job_id} must have at least one matching install step"
+        for install_command in install_commands:
+            assert install_command == "uv sync --dev --frozen", f"{job_id} install must use the frozen lockfile"
 
 
 def test_tests_readme_documents_default_full_suite_and_category_named_runtime_informed_ci_shards() -> None:

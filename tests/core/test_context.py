@@ -2160,6 +2160,7 @@ class TestInitNewProject:
     def test_empty_project(self, tmp_path: Path) -> None:
         ctx = init_new_project(tmp_path)
         assert ctx["has_research_files"] is False
+        assert ctx["research_file_samples"] == []
         assert ctx["has_project_manifest"] is False
         assert "has_existing_project" not in ctx
         assert ctx["planning_exists"] is False
@@ -2182,6 +2183,7 @@ class TestInitNewProject:
         assert ctx["planning_exists"] is False
         assert ctx["has_research_map"] is False
         assert ctx["has_research_files"] is True
+        assert ctx["research_file_samples"] == ["calc.py"]
         assert ctx["needs_research_map"] is True
         assert not (planning / "state.json.lock").exists()
 
@@ -2189,7 +2191,36 @@ class TestInitNewProject:
         (tmp_path / "calc.py").write_text("import numpy", encoding="utf-8")
         ctx = init_new_project(tmp_path)
         assert ctx["has_research_files"] is True
+        assert ctx["research_file_samples"] == ["calc.py"]
         assert "has_existing_project" not in ctx
+
+    def test_collects_bounded_sorted_project_relative_research_file_samples(self, tmp_path: Path) -> None:
+        for filename in ("zeta.ipynb", "alpha.py", "epsilon.pdf", "delta.csv", "beta.tex"):
+            (tmp_path / filename).write_text("research artifact\n", encoding="utf-8")
+        notes = tmp_path / "notes"
+        notes.mkdir()
+        (notes / "gamma.jl").write_text("println(\"research\")\n", encoding="utf-8")
+
+        ctx = init_new_project(tmp_path)
+
+        assert ctx["has_research_files"] is True
+        assert ctx["research_file_samples"] == [
+            "alpha.py",
+            "beta.tex",
+            "delta.csv",
+            "epsilon.pdf",
+            "notes/gamma.jl",
+        ]
+
+    def test_research_file_samples_are_depth_limited(self, tmp_path: Path) -> None:
+        deep_dir = tmp_path / "one" / "two" / "three" / "four"
+        deep_dir.mkdir(parents=True)
+        (deep_dir / "too_deep.py").write_text("print('outside scan')\n", encoding="utf-8")
+
+        ctx = init_new_project(tmp_path)
+
+        assert ctx["has_research_files"] is False
+        assert ctx["research_file_samples"] == []
 
     @pytest.mark.parametrize("filename", ("draft.pdf", "measurements.csv"))
     def test_detects_documented_research_file_extensions(self, tmp_path: Path, filename: str) -> None:
@@ -2198,6 +2229,7 @@ class TestInitNewProject:
         ctx = init_new_project(tmp_path)
 
         assert ctx["has_research_files"] is True
+        assert ctx["research_file_samples"] == [filename]
         assert ctx["needs_research_map"] is True
 
     def test_ignores_runtime_owned_dirs_when_detecting_research_files(self, tmp_path: Path) -> None:
@@ -2208,6 +2240,7 @@ class TestInitNewProject:
         ctx = init_new_project(tmp_path)
 
         assert ctx["has_research_files"] is False
+        assert ctx["research_file_samples"] == []
         assert "has_existing_project" not in ctx
 
     def test_detects_non_runtime_config_research_files(self, tmp_path: Path) -> None:
@@ -2217,6 +2250,7 @@ class TestInitNewProject:
         ctx = init_new_project(tmp_path)
 
         assert ctx["has_research_files"] is True
+        assert ctx["research_file_samples"] == [".config/notes.py"]
         assert "has_existing_project" not in ctx
 
     @pytest.mark.parametrize("directory_name", ("agents", "hooks", "command"))
@@ -2329,6 +2363,7 @@ class TestInitNewProject:
         ctx = init_new_project(tmp_path, stage="scope_intake")
 
         assert set(ctx) == set(stage.required_init_fields) | {"staged_loading"}
+        assert ctx["research_file_samples"] == []
         assert ctx["staged_loading"]["workflow_id"] == "new-project"
         assert ctx["staged_loading"]["stage_id"] == "scope_intake"
         assert ctx["staged_loading"]["order"] == 1
@@ -2458,12 +2493,14 @@ class TestInitNewProject:
     def test_stage_scope_intake_returns_only_manifest_required_fields(self, tmp_path: Path) -> None:
         from gpd.core.workflow_staging import load_workflow_stage_manifest
 
+        (tmp_path / "calc.py").write_text("import numpy\n", encoding="utf-8")
         manifest = load_workflow_stage_manifest("new-project")
         stage = manifest.get_stage("scope_intake")
 
         ctx = init_new_project(tmp_path, stage="scope_intake")
 
         assert set(ctx) == set(stage.required_init_fields) | {"staged_loading"}
+        assert ctx["research_file_samples"] == ["calc.py"]
         assert ctx["staged_loading"]["workflow_id"] == "new-project"
         assert ctx["staged_loading"]["stage_id"] == "scope_intake"
         assert ctx["staged_loading"]["order"] == 1
@@ -4607,6 +4644,36 @@ class TestInitProgress:
 
         assert ctx["project_contract"]["references"][0]["must_surface"] is True
         assert "10.1234/benchmark-figure-2" in ctx["active_reference_context"]
+
+    def test_progress_default_omits_reference_artifact_content_until_requested(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_project_contract_state(tmp_path)
+        _write_research_map_anchor_files(tmp_path)
+
+        ctx = init_progress(tmp_path)
+
+        assert "GPD/research-map/REFERENCES.md" in ctx["reference_artifact_files"]
+        assert ctx["reference_artifacts_content"] is None
+
+        ctx_with_references = init_progress(tmp_path, includes={"references"})
+
+        assert "Reference and Anchor Map" in ctx_with_references["reference_artifacts_content"]
+        assert "Universal crossing window" in ctx_with_references["reference_artifacts_content"]
+
+    def test_progress_default_omits_protocol_bundle_context_until_requested(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_stat_mech_project(tmp_path)
+        _write_bundle_ready_contract_state(tmp_path)
+
+        ctx = init_progress(tmp_path)
+
+        assert "stat-mech-simulation" in ctx["selected_protocol_bundle_ids"]
+        assert ctx["protocol_bundle_count"] >= 1
+        assert ctx["protocol_bundle_context"] is None
+
+        ctx_with_protocols = init_progress(tmp_path, includes={"protocols"})
+
+        assert "Decisive artifacts:" in ctx_with_protocols["protocol_bundle_context"]
 
     def test_progress_surfaces_knowledge_inventory_and_runtime_counts(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

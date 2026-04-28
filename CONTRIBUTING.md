@@ -8,9 +8,9 @@ GPD is published by Physical Superintelligence PBC (PSI) as an open-source commu
 
 All contributors must sign a CLA before their pull requests can be merged.
 
-**Individual contributors:** Sign the CLA at https://cla-assistant.io/psi-oss/get-physics-done — the CLA Assistant bot will prompt you automatically when you open a pull request.
-
-**Corporate contributors** (if your employer owns your IP): Download [GPD_CLA_Corporate.pdf](CLA/GPD_CLA_Corporate.pdf), sign it, and email it to legal@psi.inc.
+- Individual contributors should review `CLA/GPD_CLA_Individual.pdf`; signing is handled automatically via the CLA Assistant GitHub flow at https://cla-assistant.io/psi-oss/get-physics-done.
+- Corporate contributors, or contributors whose employer owns their IP, should review `CLA/GPD_CLA_Corporate.pdf` and email the signed PDF to legal@psi.inc.
+- Corporate CLA submissions are collected manually and should be logged by the owner of contributor agreement tracking, Ted Grace.
 
 ## Before You Start
 
@@ -41,15 +41,6 @@ Use `codex`, `claude`, `gemini`, or `opencode` for `<runtime>`. After
 `uv sync --dev`, an activated `.venv` can also run `gpd ...` directly.
 
 The tracked pre-commit hook runs `uv run ruff check --fix --unsafe-fixes` on staged Python files.
-
-## Contributor License Agreements
-
-Before we can accept a contribution, you must complete the applicable CLA:
-
-- Individual contributors should review `CLA/GPD_CLA_Individual.pdf`; signing is handled automatically via the CLA Assistant GitHub flow at https://cla-assistant.io/psi-oss/get-physics-done
-- Corporate contributors, or contributors whose employer owns their IP, should review `CLA/GPD_CLA_Corporate.pdf` and email the signed PDF to legal@psi.inc
-- Corporate CLA submissions are collected manually and should be logged by the owner of contributor agreement tracking, Ted Grace
-- If your employer owns the intellectual property for your work, use the corporate CLA flow instead of the individual one
 
 Useful checks:
 

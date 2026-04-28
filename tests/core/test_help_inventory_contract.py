@@ -252,11 +252,21 @@ def test_help_workflow_files_and_structure_and_knowledge_lifecycle_coverages() -
         == 1
     )
     assert "stable` docs can later become `superseded`; superseded docs remain addressable and traceable rather than disappearing" in help_workflow
-    assert "Example topic: `gpd:digest-knowledge \"renormalization group fixed points\"`" in help_workflow
-    assert "Example modern arXiv: `gpd:digest-knowledge 2401.12345v2`" in help_workflow
-    assert "Example legacy arXiv: `gpd:digest-knowledge hep-th/9901001`" in help_workflow
-    assert "Example source file: `gpd:digest-knowledge ./notes/rg-notes.md`" in help_workflow
-    assert "Example explicit knowledge path: `gpd:digest-knowledge GPD/knowledge/K-renormalization-group-fixed-points.md`" in help_workflow
+    digest_detail = _section(
+        help_workflow,
+        "**`gpd:digest-knowledge [topic|arXiv id|source file|knowledge path]`**",
+        "**`gpd:review-knowledge",
+    )
+    for sample in (
+        '`gpd:digest-knowledge "renormalization group fixed points"`',
+        "`gpd:digest-knowledge 2401.12345v2`",
+        "`gpd:digest-knowledge hep-th/9901001`",
+        "`gpd:digest-knowledge ./notes/rg-notes.md`",
+        "`gpd:digest-knowledge GPD/knowledge/K-renormalization-group-fixed-points.md`",
+    ):
+        assert sample in digest_detail
+    assert "arXiv identifier with accepted prefixes" in digest_detail
+    assert "legacy arxiv" not in digest_detail.lower()
     assert "Stable knowledge is already visible through the shared runtime reference surfaces" in help_workflow
     assert "Stable knowledge is available through the shared runtime reference surfaces" in help_workflow
 

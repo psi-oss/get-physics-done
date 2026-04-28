@@ -49,6 +49,9 @@ def stable_mcp_response(
     response = StableMCPEnvelope()
     if payload is not None:
         response.update(payload)
+        payload_schema_version = payload.get("schema_version")
+        if payload_schema_version is not None and payload_schema_version != MCP_SCHEMA_VERSION:
+            response["payload_schema_version"] = payload_schema_version
     if error is not None:
         response["error"] = str(error)
     response["schema_version"] = MCP_SCHEMA_VERSION

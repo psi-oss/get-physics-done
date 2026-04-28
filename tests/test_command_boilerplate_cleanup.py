@@ -11,6 +11,8 @@ AGENTS_DIR = REPO_ROOT / "src" / "gpd" / "agents"
 SPECS_DIR = REPO_ROOT / "src" / "gpd" / "specs"
 WORKFLOWS_DIR = SPECS_DIR / "workflows"
 PUBLICATION_REFERENCES_DIR = SPECS_DIR / "references" / "publication"
+RESEARCH_REFERENCES_DIR = SPECS_DIR / "references" / "research"
+TEMPLATES_DIR = SPECS_DIR / "templates"
 
 LEGACY_COMMENT_FRAGMENTS = (
     "Tool names and @ includes are platform-specific.",
@@ -88,6 +90,23 @@ def test_model_facing_prompts_do_not_explain_test_or_installer_scaffolding() -> 
             text = path.read_text(encoding="utf-8").lower()
             for phrase in STALE_MODEL_FACING_WORDING:
                 assert phrase not in text, f"{path.relative_to(REPO_ROOT)} still contains {phrase}"
+
+
+def test_researcher_shared_does_not_label_arxiv_as_peer_reviewed() -> None:
+    text = (RESEARCH_REFERENCES_DIR / "researcher-shared.md").read_text(encoding="utf-8")
+    arxiv_search_rows = [line for line in text.splitlines() if "web_search (arXiv)" in line]
+
+    assert len(arxiv_search_rows) == 1
+    assert "HIGH for discovery; publication status varies" in arxiv_search_rows[0]
+    assert all("peer-reviewed" not in line.lower() for line in arxiv_search_rows)
+
+
+def test_learned_pattern_template_uses_install_dir_reference_not_legacy_alias() -> None:
+    text = (TEMPLATES_DIR / "learned-pattern.md").read_text(encoding="utf-8")
+
+    legacy_alias = "@" + "get-physics-done"
+    assert legacy_alias not in text
+    assert "{GPD_INSTALL_DIR}/references/verification/core/verification-core.md" in text
 
 
 def test_parameter_sweep_command_wrapper_delegates_mechanics_to_workflow() -> None:

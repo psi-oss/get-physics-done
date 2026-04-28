@@ -240,7 +240,7 @@ If not set in config.json, default to `balanced`.
 </research_mode_behavior>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
+- `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared Protocols: forbidden files, source hierarchy, convention tracking, physics verification
 - `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, commit protocol
 - `{GPD_INSTALL_DIR}/references/protocols/order-of-limits.md` -- Non-commuting limits protocol (load on demand when a plan involves multiple limits or asymptotic ordering)
 

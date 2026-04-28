@@ -3818,6 +3818,35 @@ def test_validate_command_context_accepts_tokenized_explain_arguments(tmp_path: 
     assert payload["passed"] is True
 
 
+def test_validate_command_context_accepts_negative_parameter_sweep_range(tmp_path: Path) -> None:
+    empty_dir = tmp_path / "empty-context"
+    empty_dir.mkdir()
+
+    result = runner.invoke(
+        app,
+        [
+            "--raw",
+            "--cwd",
+            str(empty_dir),
+            "validate",
+            "command-context",
+            "parameter-sweep",
+            "results/mesh-study.py",
+            "--param",
+            "coupling",
+            "--range",
+            "-1:1:20",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "gpd:parameter-sweep"
+    assert payload["context_mode"] == "project-aware"
+    assert payload["passed"] is True
+
+
 def test_pre_commit_check_recurses_into_directory_inputs(tmp_path: Path) -> None:
     directory = tmp_path / "docs"
     directory.mkdir()

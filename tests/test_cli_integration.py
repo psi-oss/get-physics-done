@@ -2243,7 +2243,7 @@ class TestInitIncludeParsing:
         payload = json.loads(result.output)
         assert payload["error"] == (
             "Unknown --include value(s) for gpd init progress: bogus. "
-            "Allowed values: config, project, roadmap, state."
+            "Allowed values: config, project, protocols, references, roadmap, state."
         )
 
     def test_init_resume_is_read_only_and_returns_ranked_candidates(self, gpd_project: Path) -> None:

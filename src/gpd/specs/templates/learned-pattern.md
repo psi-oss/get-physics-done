@@ -97,7 +97,7 @@ Explain the root cause clearly enough that someone unfamiliar with the specific 
 
 ### How to detect
 
-Concrete, actionable checks that the verifier can perform. Reference specific verification patterns from `@get-physics-done/references/verification/core/verification-core.md` (or the relevant domain file) where applicable.
+Concrete, actionable checks that the verifier can perform. Reference specific verification patterns from `{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` (or the relevant domain file) where applicable.
 
 - Good: "Check the sign of Im[G^R(omega)] for omega > 0. It must be negative (for the convention where G^R has a pole at omega - epsilon_k + i\*eta). If positive, the metric signature is likely flipped."
 - Bad: "Check the propagator carefully." (Not actionable.)

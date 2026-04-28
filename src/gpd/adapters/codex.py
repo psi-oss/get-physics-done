@@ -143,6 +143,10 @@ _CODEX_COMMAND_RUNTIME_NOTE = (
     "- The bridge already pins Codex and validates the install contract, so keep using it for normal CLI execution.\n"
     "</codex_runtime_notes>\n\n"
 )
+_CODEX_COMMAND_RUNTIME_NOTE_BLOCK_RE = re.compile(
+    r"<codex_runtime_notes>\n.*?</codex_runtime_notes>\n*",
+    re.DOTALL,
+)
 _CODEX_QUESTION_MARKERS = (
     "Use ask_user",
     "ask_user(",
@@ -584,7 +588,8 @@ def _inject_codex_command_runtime_note(content: str, launcher: str) -> str:
     note = _CODEX_COMMAND_RUNTIME_NOTE.format(launcher=launcher)
     preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
     if not frontmatter:
-        return note + content
+        return note + _CODEX_COMMAND_RUNTIME_NOTE_BLOCK_RE.sub("", content)
+    body = _CODEX_COMMAND_RUNTIME_NOTE_BLOCK_RE.sub("", body)
     return render_markdown_frontmatter(preamble, frontmatter, separator, note + body)
 
 

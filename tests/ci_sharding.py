@@ -302,6 +302,20 @@ def _test_relpaths_from_git_lines(lines: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(sorted(relpaths))
 
 
+def _test_python_relpaths_from_git_lines(lines: tuple[str, ...]) -> tuple[str, ...]:
+    relpaths: list[str] = []
+    for line in lines:
+        if not line:
+            continue
+        path = Path(line)
+        if path.parts[:1] != ("tests",):
+            continue
+        if path.suffix != ".py":
+            continue
+        relpaths.append(Path(*path.parts[1:]).as_posix())
+    return tuple(sorted(relpaths))
+
+
 def _git_test_relpaths(repo_root: Path, *ls_files_args: str) -> tuple[str, ...]:
     proc = subprocess.run(
         ["git", "ls-files", "--full-name", *ls_files_args, "--", "tests"],
@@ -328,7 +342,14 @@ def untracked_non_ignored_test_relpaths(
     *,
     repo_root: Path | None = None,
 ) -> tuple[str, ...]:
-    return _git_test_relpaths(_normalized_repo_root(repo_root), "--others", "--exclude-standard")
+    proc = subprocess.run(
+        ["git", "ls-files", "--full-name", "--others", "--exclude-standard", "--", "tests"],
+        cwd=_normalized_repo_root(repo_root),
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    return _test_python_relpaths_from_git_lines(tuple(proc.stdout.splitlines()))
 
 
 def all_test_relpaths(*, tests_root: Path) -> tuple[str, ...]:

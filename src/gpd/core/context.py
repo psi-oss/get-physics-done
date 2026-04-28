@@ -187,6 +187,8 @@ class InitRootPolicy(StrEnum):
 
 # Research file extensions for project detection.
 _RESEARCH_EXTENSIONS = frozenset({".tex", ".ipynb", ".py", ".jl", ".f90", ".pdf", ".csv"})
+_RESEARCH_FILE_SAMPLE_LIMIT = 5
+_RESEARCH_SCAN_MAX_DEPTH = 3
 _LITERATURE_DIR_NAME = "literature"
 _REFERENCE_MAP_DOCS = ("REFERENCES.md", "VALIDATION.md")
 _LITERATURE_INCLUDE_LIMIT = 2
@@ -919,15 +921,18 @@ def _explicit_workspace_layout_context(cwd: Path) -> tuple[Path, dict[str, objec
         or layout.execution_lineage_head.exists()
         or layout.execution_lineage_ledger.exists()
     )
-    if not resolution.has_project_layout and not has_execution_resume_surface:
+    has_local_config_surface = resolution.walk_up_steps == 0 and layout.config_json.exists()
+    if not resolution.has_project_layout and not has_execution_resume_surface and not has_local_config_surface:
         return None
 
     state_exists, roadmap_exists, project_exists = recoverable_project_context(project_root)
-    recoverable = state_exists or roadmap_exists or project_exists or has_execution_resume_surface
+    recoverable = state_exists or roadmap_exists or project_exists or has_execution_resume_surface or has_local_config_surface
     if resolution.walk_up_steps > 0:
         reason = "workspace resolved to ancestor project root"
     elif has_execution_resume_surface and not (state_exists or roadmap_exists or project_exists):
         reason = "workspace carries live execution state"
+    elif has_local_config_surface and not (state_exists or roadmap_exists or project_exists):
+        reason = "workspace carries local GPD config"
     elif not project_exists and recoverable:
         reason = "workspace carries partial recoverable GPD state"
     else:
@@ -1253,6 +1258,36 @@ def _should_skip_research_scan_entry(cwd: Path, entry: Path) -> bool:
             if relative_parts[offset : offset + ignored_length] == ignored_parts:
                 return True
     return False
+
+
+def _discover_research_file_samples(cwd: Path) -> list[str]:
+    """Return bounded project-relative research-looking file samples."""
+
+    samples: list[str] = []
+
+    def _walk(directory: Path, depth: int) -> None:
+        if depth > _RESEARCH_SCAN_MAX_DEPTH or len(samples) >= _RESEARCH_FILE_SAMPLE_LIMIT:
+            return
+        try:
+            entries = sorted(directory.iterdir())
+        except (PermissionError, FileNotFoundError):
+            return
+        for entry in entries:
+            if len(samples) >= _RESEARCH_FILE_SAMPLE_LIMIT:
+                return
+            if _should_skip_research_scan_entry(cwd, entry):
+                continue
+            if entry.is_dir():
+                _walk(entry, depth + 1)
+            elif entry.is_file() and entry.suffix.lower() in _RESEARCH_EXTENSIONS:
+                try:
+                    sample = entry.relative_to(cwd).as_posix()
+                except ValueError:
+                    sample = entry.as_posix()
+                samples.append(sample)
+
+    _walk(cwd, 0)
+    return sorted(samples)
 
 
 def _reference_identity_tokens(values: list[object]) -> set[str]:
@@ -1649,7 +1684,7 @@ def _append_contract_warnings(lines: list[str], warnings: list[str]) -> None:
     )
 
 
-def _reference_artifact_payload(cwd: Path) -> dict[str, object]:
+def _reference_artifact_payload(cwd: Path, *, include_content: bool = True) -> dict[str, object]:
     """Collect durable reference artifacts for downstream planning and verification."""
     review_dir = _preferred_review_dir(cwd)
     literature_paths = _sorted_markdown_files(review_dir) if review_dir is not None else []
@@ -1672,16 +1707,17 @@ def _reference_artifact_payload(cwd: Path) -> dict[str, object]:
     knowledge_doc_status_counts = knowledge_inventory.status_counts()
 
     content_sections: list[str] = []
-    selected_artifacts = [
-        *stable_knowledge_paths[:_KNOWLEDGE_INCLUDE_LIMIT],
-        *prioritized_research_map_paths[:_RESEARCH_MAP_INCLUDE_LIMIT],
-        *literature_paths[:_LITERATURE_INCLUDE_LIMIT],
-    ]
-    for path in selected_artifacts:
-        content = _safe_read_file_truncated(path)
-        if not content:
-            continue
-        content_sections.append(f"## {path.relative_to(cwd).as_posix()}\n{content}")
+    if include_content:
+        selected_artifacts = [
+            *stable_knowledge_paths[:_KNOWLEDGE_INCLUDE_LIMIT],
+            *prioritized_research_map_paths[:_RESEARCH_MAP_INCLUDE_LIMIT],
+            *literature_paths[:_LITERATURE_INCLUDE_LIMIT],
+        ]
+        for path in selected_artifacts:
+            content = _safe_read_file_truncated(path)
+            if not content:
+                continue
+            content_sections.append(f"## {path.relative_to(cwd).as_posix()}\n{content}")
 
     return {
         "literature_review_files": literature_review_files,
@@ -1705,6 +1741,8 @@ def _reference_artifact_payload(cwd: Path) -> dict[str, object]:
 def _build_reference_runtime_context(
     cwd: Path,
     *,
+    include_artifact_content: bool = True,
+    include_protocol_context: bool = True,
     persist_manuscript_proof_review_manifest: bool = False,
 ) -> dict[str, object]:
     """Build shared reference/anchor context for workflow init payloads."""
@@ -1714,7 +1752,7 @@ def _build_reference_runtime_context(
         recover_intent=False,
         acquire_lock=False,
     )
-    artifact_payload = _reference_artifact_payload(cwd)
+    artifact_payload = _reference_artifact_payload(cwd, include_content=include_artifact_content)
     artifact_ingestion = ingest_reference_artifacts(
         cwd,
         literature_review_files=list(artifact_payload["literature_review_files"]),
@@ -1816,7 +1854,9 @@ def _build_reference_runtime_context(
         "selected_protocol_bundle_ids": [bundle.bundle_id for bundle in selected_protocol_bundles],
         "protocol_bundle_count": len(selected_protocol_bundles),
         "protocol_bundle_verifier_extensions": bundle_verifier_extensions,
-        "protocol_bundle_context": render_protocol_bundle_context(selected_protocol_bundles),
+        "protocol_bundle_context": render_protocol_bundle_context(selected_protocol_bundles)
+        if include_protocol_context
+        else None,
         "active_reference_context": _render_active_reference_context(
             surfaced_active_references,
             surfaced_effective_reference_intake,
@@ -3463,30 +3503,8 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
     project_cwd = _resolve_workspace_locked_cwd(requested_cwd)
     config = load_config(project_cwd)
 
-    # Detect existing research files (walk up to depth 3, max 5 files)
-    has_research_files = False
-    found_count = 0
-
-    def _walk(directory: Path, depth: int) -> None:
-        nonlocal has_research_files, found_count
-        if depth > 3 or found_count >= 5:
-            return
-        try:
-            entries = sorted(directory.iterdir())
-        except (PermissionError, FileNotFoundError):
-            return
-        for entry in entries:
-            if found_count >= 5:
-                return
-            if _should_skip_research_scan_entry(requested_cwd, entry):
-                continue
-            if entry.is_dir():
-                _walk(entry, depth + 1)
-            elif entry.is_file() and entry.suffix.lower() in _RESEARCH_EXTENSIONS:
-                found_count += 1
-                has_research_files = True
-
-    _walk(requested_cwd, 0)
+    research_file_samples = _discover_research_file_samples(requested_cwd)
+    has_research_files = bool(research_file_samples)
 
     has_project_manifest = (
         _path_exists(requested_cwd, "requirements.txt")
@@ -3525,6 +3543,7 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
         "planning_exists": _path_exists(project_cwd, PLANNING_DIR_NAME),
         # Existing project detection
         "has_research_files": has_research_files,
+        "research_file_samples": research_file_samples,
         "has_project_manifest": has_project_manifest,
         "needs_research_map": (has_research_files or has_project_manifest)
         and not _path_exists(project_cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
@@ -4649,7 +4668,15 @@ def init_progress(
                 "project_reentry_candidates": reentry_metadata["project_reentry_candidates"],
             }
         )
-    result.update(_build_reference_runtime_context(effective_cwd))
+    include_reference_artifact_content = "references" in includes
+    include_protocol_context = "protocols" in includes
+    result.update(
+        _build_reference_runtime_context(
+            effective_cwd,
+            include_artifact_content=include_reference_artifact_content,
+            include_protocol_context=include_protocol_context,
+        )
+    )
     result.update(_build_state_memory_runtime_context(effective_cwd))
     result.update(_build_execution_runtime_context(effective_cwd))
     if result.get("execution_paused_at"):

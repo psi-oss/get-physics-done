@@ -1,7 +1,7 @@
 <purpose>
 Archive historical entries from STATE.md to reduce its size. As research projects grow, STATE.md accumulates decisions, session records, metrics, and resolved blockers from many phases. This workflow archives old entries to STATE-ARCHIVE.md, keeping STATE.md lean and under the target line budget.
 
-Triggered automatically when progress.md detects STATE.md exceeds 1500 lines, or manually via `gpd:compact-state`.
+Suggested by progress.md when STATE.md grows large. Run manually via `gpd:compact-state`; transition workflows may also run compaction during phase changes when thresholds are exceeded.
 </purpose>
 
 <required_reading>

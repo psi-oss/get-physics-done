@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import importlib
 import json
 from pathlib import Path
 
@@ -1076,6 +1077,73 @@ def test_state_server_tools_publish_absolute_project_dir_schema() -> None:
         project_dir = schemas[tool_name]["properties"]["project_dir"]
         for key, value in ABSOLUTE_PROJECT_DIR_SCHEMA.items():
             assert project_dir[key] == value
+
+
+async def _builtin_descriptor_live_tool_names(server_name: str, module_name: str | None) -> list[str]:
+    if server_name == "gpd-arxiv":
+        from mcp.types import ListToolsResult, Tool
+
+        from gpd.mcp.servers.arxiv_bridge import UPSTREAM_CORE_TOOL_NAMES, ArxivBridge, ArxivBridgeConfig
+
+        class FakeSession:
+            async def list_tools(self, cursor=None):
+                return ListToolsResult(
+                    tools=[Tool(name=name, inputSchema={"type": "object"}) for name in UPSTREAM_CORE_TOOL_NAMES],
+                )
+
+        bridge = ArxivBridge(ArxivBridgeConfig())
+        bridge._session = FakeSession()  # type: ignore[assignment]
+        try:
+            result = await bridge.list_tools()
+        finally:
+            bridge._session = None
+        return [tool.name for tool in result.tools]
+
+    assert module_name is not None
+    module = importlib.import_module(module_name)
+    tools = await module.mcp.list_tools()
+    return [tool.name for tool in tools]
+
+
+@pytest.mark.parametrize(
+    ("server_name", "module_name"),
+    [
+        ("gpd-conventions", "gpd.mcp.servers.conventions_server"),
+        ("gpd-errors", "gpd.mcp.servers.errors_mcp"),
+        ("gpd-patterns", "gpd.mcp.servers.patterns_server"),
+        ("gpd-protocols", "gpd.mcp.servers.protocols_server"),
+        ("gpd-skills", "gpd.mcp.servers.skills_server"),
+        ("gpd-state", "gpd.mcp.servers.state_server"),
+        ("gpd-verification", "gpd.mcp.servers.verification_server"),
+        ("gpd-arxiv", None),
+    ],
+)
+def test_builtin_public_descriptor_capabilities_match_live_tool_names(
+    server_name: str,
+    module_name: str | None,
+) -> None:
+    from gpd.mcp.builtin_servers import build_public_descriptor
+
+    descriptor = build_public_descriptor(server_name)
+    live_tool_names = anyio.run(_builtin_descriptor_live_tool_names, server_name, module_name)
+
+    assert descriptor["capabilities"] == live_tool_names
+
+
+def test_state_descriptor_matches_live_tools_and_hides_internal_apply_return_updates() -> None:
+    from gpd.mcp.builtin_servers import build_public_descriptor
+    from gpd.mcp.servers.state_server import mcp
+
+    async def _tool_names() -> set[str]:
+        tools = await mcp.list_tools()
+        return {tool.name for tool in tools}
+
+    live_tool_names = anyio.run(_tool_names)
+    descriptor = build_public_descriptor("gpd-state")
+
+    assert set(descriptor["capabilities"]) == live_tool_names
+    assert "apply_return_updates" not in live_tool_names
+    assert "apply_return_updates" not in descriptor["capabilities"]
 
 
 def test_state_workflow_docs_do_not_reference_dead_emit_phase_event_surface() -> None:
