@@ -96,7 +96,7 @@ EXPLAINER_MODEL=$(gpd resolve-model gpd-explainer)
 
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
-> If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> Apply the canonical runtime delegation convention already loaded above.
 
 ```markdown
 <objective>
@@ -171,8 +171,6 @@ BIBLIO_MODEL=$(gpd resolve-model gpd-bibliographer)
 ```
 
 Apply the canonical runtime delegation convention already loaded above.
-
-> If subagent spawning is unavailable, perform the audit in the main context.
 
 ```
 task(

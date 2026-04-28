@@ -61,7 +61,7 @@ Offer only the choices that fit the detected state.
 
 @{GPD_INSTALL_DIR}/references/shared/interactive-choice-fallback.md
 
-For the plain-text fallback from the shared rule, say explicitly: `Reply with the number or the option name.`
+If choices are rendered as plain text, add: `Reply with the number or the option name.`
 
 Before listing choices, add one short line in plain English such as:
 

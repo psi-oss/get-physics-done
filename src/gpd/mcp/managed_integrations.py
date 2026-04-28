@@ -23,7 +23,6 @@ WOLFRAM_MANAGED_SERVER_KEY = "gpd-wolfram"
 WOLFRAM_BRIDGE_COMMAND = "gpd-mcp-wolfram"
 WOLFRAM_BRIDGE_MODULE = "gpd.mcp.integrations.wolfram_bridge"
 WOLFRAM_MCP_API_KEY_ENV_VAR = "GPD_WOLFRAM_MCP_API_KEY"
-WOLFRAM_LEGACY_API_KEY_ENV_VARS = ("WOLFRAM_MCP_SERVICE_API_KEY",)
 WOLFRAM_MCP_ENDPOINT_ENV_VAR = "GPD_WOLFRAM_MCP_ENDPOINT"
 WOLFRAM_MCP_DEFAULT_ENDPOINT = "https://services.wolfram.com/api/mcp"
 INTEGRATIONS_CONFIG_FILENAME = "integrations.json"
@@ -89,7 +88,6 @@ class ManagedIntegrationDescriptor:
     endpoint_env_var: str
     default_endpoint: str
     description: str
-    legacy_api_key_env_vars: tuple[str, ...] = ()
 
     def _env(self, env: Mapping[str, str] | None = None) -> Mapping[str, str]:
         return os.environ if env is None else env
@@ -173,15 +171,6 @@ class ManagedIntegrationDescriptor:
             return False
         return True
 
-    def ignored_legacy_api_key_env_vars(self, env: Mapping[str, str] | None = None) -> tuple[str, ...]:
-        source = self._env(env)
-        ignored: list[str] = []
-        for key in self.legacy_api_key_env_vars:
-            raw_value = source.get(key, "")
-            if isinstance(raw_value, str) and raw_value.strip():
-                ignored.append(key)
-        return tuple(ignored)
-
     def missing_api_key_env_vars(self, env: Mapping[str, str] | None = None) -> tuple[str, ...]:
         if self.api_key_present(env):
             return ()
@@ -192,10 +181,6 @@ class ManagedIntegrationDescriptor:
         if not missing:
             return ""
         accepted = " or ".join(missing)
-        ignored = self.ignored_legacy_api_key_env_vars(env)
-        if ignored:
-            ignored_text = ", ".join(ignored)
-            return f"{ignored_text} is not used by GPD. Set {accepted} instead."
         return f"Set {accepted}."
 
     def is_configured(
@@ -250,7 +235,6 @@ class ManagedIntegrationDescriptor:
             "api_key_env_vars": list(self.api_key_env_vars),
             "api_key_present": api_key_present,
             "missing_api_key_env_vars": list(self.missing_api_key_env_vars(env)),
-            "ignored_legacy_api_key_env_vars": list(self.ignored_legacy_api_key_env_vars(env)),
             "api_key_recovery": self.api_key_recovery_message(env),
             "endpoint_env_var": self.endpoint_env_var,
             "endpoint": self.resolved_endpoint(env, cwd=cwd),
@@ -274,7 +258,6 @@ WOLFRAM_MANAGED_INTEGRATION = ManagedIntegrationDescriptor(
         "Optional shared Wolfram MCP integration, projected as a local stdio bridge "
         "and configured through environment variables."
     ),
-    legacy_api_key_env_vars=WOLFRAM_LEGACY_API_KEY_ENV_VARS,
 )
 
 MANAGED_INTEGRATIONS: dict[str, ManagedIntegrationDescriptor] = {

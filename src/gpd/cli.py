@@ -38,7 +38,6 @@ from gpd.adapters.runtime_catalog import normalize_runtime_name
 from gpd.command_labels import canonical_command_label, parse_command_label, validated_public_command_prefix
 from gpd.core.artifact_text import (
     DIGEST_KNOWLEDGE_SOURCE_SUFFIXES,
-    PEER_REVIEW_ARTIFACT_SUFFIXES,
     ArtifactTextError,
     load_artifact_text_surface,
     materialize_artifact_text_surface,
@@ -5118,7 +5117,10 @@ def init_execute_phase(
         command_name="gpd init execute-phase",
         allowed=_INIT_EXECUTE_PHASE_INCLUDES,
     )
-    _output(init_execute_phase(_get_cwd(), phase, includes=includes, stage=stage))
+    try:
+        _output(init_execute_phase(_get_cwd(), phase, includes=includes, stage=stage))
+    except ValueError as exc:
+        _error(str(exc))
 
 
 @init_app.command("plan-phase")
@@ -5878,7 +5880,6 @@ def _wolfram_integration_status_payload(cwd: Path) -> dict[str, object]:
     configured = record is not None
     api_key_present = WOLFRAM_MANAGED_INTEGRATION.api_key_present()
     missing_api_key_env_vars = list(WOLFRAM_MANAGED_INTEGRATION.missing_api_key_env_vars())
-    ignored_legacy_api_key_env_vars = list(WOLFRAM_MANAGED_INTEGRATION.ignored_legacy_api_key_env_vars())
     api_key_recovery = WOLFRAM_MANAGED_INTEGRATION.api_key_recovery_message()
     state = "ready" if ready else "disabled" if not enabled else "missing-api-key"
     if not enabled:
@@ -5916,7 +5917,6 @@ def _wolfram_integration_status_payload(cwd: Path) -> dict[str, object]:
         "api_key_env_vars": list(WOLFRAM_MANAGED_INTEGRATION.api_key_env_vars),
         "api_key_present": api_key_present,
         "missing_api_key_env_vars": missing_api_key_env_vars,
-        "ignored_legacy_api_key_env_vars": ignored_legacy_api_key_env_vars,
         "api_key_recovery": api_key_recovery,
         "plan_readiness_command": local_cli_plan_preflight_command(),
         "next_step": next_step,
@@ -7235,27 +7235,10 @@ def _project_root_for_json_input(input_path: str) -> Path:
         return cwd
 
     target = Path(input_path)
-    if not target.is_absolute():
-        resolved = (cwd / target).resolve(strict=False)
-        for base in (resolved.parent, *resolved.parent.parents):
-            if (base / "GPD").is_dir():
-                return base
-        return resolved.parent
-
-    resolved = target.expanduser().resolve(strict=False)
-    immediate_parent = resolved.parent
-    if (immediate_parent / "GPD").is_dir():
-        return immediate_parent
-
-    for base in immediate_parent.parents:
-        gpd_dir = (base / "GPD").resolve(strict=False)
-        if not gpd_dir.is_dir():
-            continue
-        try:
-            resolved.relative_to(gpd_dir)
-        except ValueError:
-            continue
-        return base
+    resolved = (cwd / target if not target.is_absolute() else target.expanduser()).resolve(strict=False)
+    anchored_root = resolve_project_root(resolved.parent, require_layout=True)
+    if anchored_root is not None:
+        return anchored_root
     return resolved.parent
 
 
@@ -7264,31 +7247,11 @@ def _enclosing_project_root_for_json_input(input_path: str) -> Path | None:
 
     cwd = _get_cwd()
     if input_path == "-":
-        return cwd if (cwd / "GPD").is_dir() else None
+        return resolve_project_root(cwd, require_layout=True)
 
     target = Path(input_path)
-    if not target.is_absolute():
-        resolved = (cwd / target).resolve(strict=False)
-        for base in (resolved.parent, *resolved.parent.parents):
-            if (base / "GPD").is_dir():
-                return base
-        return None
-
-    resolved = target.expanduser().resolve(strict=False)
-    immediate_parent = resolved.parent
-    if (immediate_parent / "GPD").is_dir():
-        return immediate_parent
-
-    for base in immediate_parent.parents:
-        gpd_dir = (base / "GPD").resolve(strict=False)
-        if not gpd_dir.is_dir():
-            continue
-        try:
-            resolved.relative_to(gpd_dir)
-        except ValueError:
-            continue
-        return base
-    return None
+    resolved = (cwd / target if not target.is_absolute() else target.expanduser()).resolve(strict=False)
+    return resolve_project_root(resolved.parent, require_layout=True)
 
 
 def _resolve_existing_input_path(input_path: str | None, *, candidates: tuple[str, ...], label: str) -> Path:
@@ -7555,16 +7518,15 @@ def _reject_internal_paper_config_location(config_file: Path, *, project_root: P
     """Reject removed paper-config locations under internal planning storage."""
     resolved_config = config_file.resolve(strict=False)
     project_root = (project_root or _project_scoped_cwd()).resolve(strict=False)
-    for internal_config_root in (project_root / "GPD" / "paper", project_root / ".gpd" / "paper"):
-        try:
-            resolved_config.relative_to(internal_config_root)
-        except ValueError:
-            continue
-        planning_dir_name = internal_config_root.parent.name
-        raise GPDError(
-            f"Paper configs under `{planning_dir_name}/paper/` are not supported. "
-            "Move the config to `paper/`, `manuscript/`, or `draft/`."
-        )
+    internal_config_root = project_root / "GPD" / "paper"
+    try:
+        resolved_config.relative_to(internal_config_root)
+    except ValueError:
+        return
+    raise GPDError(
+        "Paper configs under `GPD/paper/` are not supported. "
+        "Move the config to `paper/`, `manuscript/`, or `draft/`."
+    )
 
 
 def _split_command_arguments(arguments: str | None) -> list[str]:
@@ -8316,10 +8278,7 @@ def _command_manuscript_intake_policy(command: object) -> ManuscriptIntakePolicy
 
 def _command_explicit_manuscript_suffixes(command: object) -> frozenset[str]:
     """Return the allowed explicit manuscript suffixes for one command."""
-    allowed_suffixes = _command_manuscript_intake_policy(command).allowed_suffixes
-    if getattr(command, "name", "") == "gpd:peer-review" and allowed_suffixes <= {".tex", ".md"}:
-        return PEER_REVIEW_ARTIFACT_SUFFIXES
-    return allowed_suffixes
+    return _command_manuscript_intake_policy(command).allowed_suffixes
 
 
 def _command_allows_external_manuscript_targets(command: object) -> bool:

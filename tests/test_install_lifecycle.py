@@ -191,7 +191,7 @@ def test_install_readiness_treats_same_runtime_incomplete_install_as_repairable(
     target = tmp_path / descriptor.config_dir_name
     target.mkdir()
     (target / MANIFEST_NAME).write_text(
-        json.dumps({"runtime": descriptor.runtime_name, "install_scope": "local"}),
+        json.dumps({"runtime": descriptor.runtime_name, "install_scope": "local", "explicit_target": False}),
         encoding="utf-8",
     )
 
@@ -224,6 +224,7 @@ def test_install_readiness_treats_unsafe_manifest_path_metadata_as_untrusted(
     manifest = {
         "runtime": descriptor.runtime_name,
         "install_scope": "local",
+        "explicit_target": False,
         **manifest_update,
     }
     (target / MANIFEST_NAME).write_text(json.dumps(manifest), encoding="utf-8")

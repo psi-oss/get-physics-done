@@ -94,7 +94,7 @@ def publication_lineage_search_roots(
 
     layout = ProjectLayout(project_root)
     if manuscript is None:
-        return (layout.gpd,), (layout.gpd / "review",)
+        return (layout.gpd,), (layout.review_dir,)
 
     publication_root, review_root = publication_lineage_roots(project_root, manuscript)
     if not include_global_fallback_for_external:
@@ -104,7 +104,7 @@ def publication_lineage_search_roots(
     if publication_root == layout.gpd or supported_root is not None:
         return (publication_root,), (review_root,)
 
-    return _unique_paths(publication_root, layout.gpd), _unique_paths(review_root, layout.gpd / "review")
+    return _unique_paths(publication_root, layout.gpd), _unique_paths(review_root, layout.review_dir)
 
 
 def publication_review_round_path_maps(

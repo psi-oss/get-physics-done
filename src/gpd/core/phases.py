@@ -594,6 +594,7 @@ class PlanEntry(BaseModel):
     depends_on: list[str] = Field(default_factory=list)
     files_modified: list[str] = Field(default_factory=list)
     interactive: bool = False
+    gap_closure: bool = False
     objective: str | None = None
     task_count: int = 0
     has_summary: bool = False
@@ -1380,6 +1381,9 @@ def phase_plan_index(cwd: Path, phase: str) -> PhasePlanIndex:
             interactive = False
             if "interactive" in fm:
                 interactive = fm["interactive"] in (True, "true")
+            gap_closure = False
+            if "gap_closure" in fm:
+                gap_closure = fm["gap_closure"] in (True, "true")
 
             if interactive or _CHECKPOINT_TASK_RE.search(content):
                 has_checkpoints = True
@@ -1392,6 +1396,7 @@ def phase_plan_index(cwd: Path, phase: str) -> PhasePlanIndex:
                 id=plan_id,
                 wave=wave,
                 interactive=interactive,
+                gap_closure=gap_closure,
                 objective=fm.get("objective"),
                 depends_on=depends_on,
                 files_modified=files_modified,

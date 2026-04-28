@@ -293,12 +293,7 @@ fi
 
 **Create the structured referee response document:**
 
-Read the canonical templates. Use the publication response-writer handoff already loaded during initialization:
-
-```bash
-cat {GPD_INSTALL_DIR}/templates/paper/author-response.md
-cat {GPD_INSTALL_DIR}/templates/paper/referee-response.md
-```
+Read the canonical templates at `{GPD_INSTALL_DIR}/templates/paper/author-response.md` and `{GPD_INSTALL_DIR}/templates/paper/referee-response.md` using the runtime's normal file-read mechanism. Use the publication response-writer handoff already loaded during initialization.
 
 Create both response artifacts for the current round:
 
@@ -444,7 +439,7 @@ Draft each response in `${RESPONSE_AUTHOR_PATH}`, then mirror the polished journ
 Group revision items by affected section to minimize agent spawns. For each affected section, spawn a paper-writer agent:
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
-> If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> Apply the canonical runtime delegation convention already loaded above.
 
 Apply the shared publication round and response contracts exactly for the response-artifact pair. The workflow-specific addition for each section handoff is that the same fresh child return must also name the revised section file.
 

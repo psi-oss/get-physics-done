@@ -233,7 +233,7 @@ Use the subject-aware review/response state supplied by the invoking workflow as
 <step name="load_research">
 **Load all research outputs to be reviewed (initial review only).**
 
-1. Read the review target first: title, abstract, introduction, results, conclusion, and the supplied primary review surface. When the workflow supplies nearby manuscript section files, use them as companions; when the target is a standalone `.txt`, `.csv`, or `.tsv`, or an extracted text surface derived from `.pdf`, `.docx`, or `.xlsx`, treat that artifact as the primary review surface.
+1. Read the review target first: title, abstract, introduction, results, conclusion, and the supplied primary review surface. When the workflow supplies nearby manuscript section files, use them as companions; when the target is a standalone `.txt`, `.csv`, or `.tsv`, or an extracted text surface derived from `.pdf`, `.docx`, `.xlsx`, or `.xlsm`, treat that artifact as the primary review surface.
 2. Extract claims from the manuscript before consulting project-internal summaries
 3. Read key derivation files, numerical code, and results only as evidence sources
 4. Read ROADMAP.md, SUMMARY.md, and VERIFICATION.md only after the manuscript-first claim map exists

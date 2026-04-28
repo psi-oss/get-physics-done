@@ -245,6 +245,7 @@ def _shared_runtime_facing_test_paths() -> tuple[Path, ...]:
 _SHARED_TEST_RUNTIME_SURFACE_PATHS = _shared_runtime_facing_test_paths()
 _ROOT_RUNTIME_SURFACE_TEST_NAME_TOKENS = ("runtime", "install", "registry", "update")
 _EXPLICIT_ROOT_RUNTIME_SURFACE_TESTS = {
+    "tests/test_command_label_normalization.py",
     "tests/test_cli_integration.py",
 }
 _STRICT_ROOT_RUNTIME_LITERAL_ALLOWLIST: frozenset[str] = frozenset()
@@ -708,6 +709,7 @@ def test_strict_runtime_literal_guard_covers_root_level_runtime_facing_tests() -
     assert {
         "tests/test_runtime_cli.py",
         "tests/test_runtime_catalog_bootstrap_contract.py",
+        "tests/test_command_label_normalization.py",
         "tests/test_cli_integration.py",
         "tests/test_registry.py",
         "tests/test_update_workflow.py",

@@ -628,8 +628,12 @@ def _publication_lineage_roots_for_subject(
     subject: PublicationSubjectResolution,
 ) -> tuple[Path, Path]:
     layout = ProjectLayout(project_root)
+    publication_root = subject.publication_root
+    review_dir = subject.review_dir
+    if publication_root is not None and review_dir is not None:
+        return publication_root, review_dir
     if subject.manuscript_entrypoint is None:
-        return layout.gpd, layout.gpd / "review"
+        return layout.gpd, layout.review_dir
     return publication_lineage_roots(project_root, subject.manuscript_entrypoint)
 
 
@@ -792,7 +796,7 @@ def resolve_latest_publication_review_artifacts(
     elif manuscript_entrypoint is not None:
         layout = ProjectLayout(project_root)
         resolved_manuscript = manuscript_entrypoint
-        publication_root, review_dir = layout.gpd, layout.gpd / "review"
+        publication_root, review_dir = layout.gpd, layout.review_dir
     else:
         return None
 
@@ -867,7 +871,7 @@ def resolve_latest_publication_response_artifacts(
         _publication_root, review_dir = _publication_lineage_roots_for_subject(project_root, subject)
     elif manuscript_entrypoint is not None:
         layout = ProjectLayout(project_root)
-        review_dir = layout.gpd / "review"
+        review_dir = layout.review_dir
     else:
         return None
     if not review_dir.exists():

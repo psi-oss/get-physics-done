@@ -76,7 +76,7 @@ def test_runtime_public_command_prefixes_are_derived_from_the_runtime_catalog() 
     expected_prefixes.sort(key=len, reverse=True)
 
     assert runtime_public_command_prefixes() == tuple(expected_prefixes)
-    assert "/gpd-" in runtime_public_command_prefixes()
+    assert all(prefix in runtime_public_command_prefixes() for prefix in expected_prefixes)
 
 
 def test_validated_public_command_prefix_uses_descriptor_owned_surface() -> None:

@@ -3198,9 +3198,6 @@ def _detect_platform(cwd: Path | None = None) -> str:
         explicit_override = normalize_runtime_name(os.environ.get(ENV_GPD_ACTIVE_RUNTIME))
         if explicit_override:
             return explicit_override
-        for descriptor in iter_runtime_descriptors():
-            if any(os.environ.get(env_var) for env_var in descriptor.activation_env_vars):
-                return descriptor.runtime_name
         detected = detect_runtime_for_gpd_use(cwd=resolved_cwd, home=resolved_home)
         if isinstance(detected, str) and detected.strip():
             return detected

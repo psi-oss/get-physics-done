@@ -20,6 +20,7 @@ from gpd.core.observability import gpd_span
 from gpd.mcp.servers import (
     configure_mcp_logging,
     parse_frontmatter_with_error,
+    read_only_tool_annotations,
     run_mcp_server,
     stable_mcp_error,
     stable_mcp_response,
@@ -244,7 +245,9 @@ class ErrorStore:
                 continue
             error_id = int(id_match.group(1))
             if error_id in self._traceability:
-                raise ValueError(f"Duplicate traceability row for error class {error_id} in {Path(TRACEABILITY_FILE).name}")
+                raise ValueError(
+                    f"Duplicate traceability row for error class {error_id} in {Path(TRACEABILITY_FILE).name}"
+                )
 
             # Map remaining cells to traceability columns
             checks: dict[str, str] = {}
@@ -390,7 +393,7 @@ ErrorDomainFilterInput = Annotated[
 ]
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_error_class(error_id: int) -> dict[str, object]:
     """Get full details of a physics error class by ID.
 
@@ -418,7 +421,7 @@ def get_error_class(error_id: int) -> dict[str, object]:
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def check_error_classes(computation_desc: ComputationDescriptionInput) -> dict[str, object]:
     """Identify error classes relevant to a computation description.
 
@@ -449,7 +452,7 @@ def check_error_classes(computation_desc: ComputationDescriptionInput) -> dict[s
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_detection_strategy(error_id: int) -> dict[str, object]:
     """Get the detection strategy for a specific error class.
 
@@ -478,7 +481,7 @@ def get_detection_strategy(error_id: int) -> dict[str, object]:
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_traceability(error_id: int) -> dict[str, object]:
     """Get the verification check coverage for an error class.
 
@@ -524,7 +527,7 @@ def get_traceability(error_id: int) -> dict[str, object]:
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def list_error_classes(domain: ErrorDomainFilterInput = None) -> dict[str, object]:
     """List all physics error classes, optionally filtered by domain.
 

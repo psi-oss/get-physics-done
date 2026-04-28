@@ -23,7 +23,7 @@ PATCHES_DIR_NAME = _SHARED_INSTALL.patches_dir_name
 def _write_owned_manifest(target: Path, *, runtime: str = "claude-code") -> None:
     target.mkdir(parents=True, exist_ok=True)
     (target / MANIFEST_NAME).write_text(
-        json.dumps({"runtime": runtime, "install_scope": "local"}),
+        json.dumps({"runtime": runtime, "install_scope": "local", "explicit_target": False}),
         encoding="utf-8",
     )
 
@@ -204,6 +204,7 @@ class TestUninstallBase:
                 {
                     "runtime": "claude-code",
                     "install_scope": "local",
+                    "explicit_target": False,
                     "files": {
                         "hooks/statusline.py": "hash-1",
                         "hooks/check_update.py": "hash-2",

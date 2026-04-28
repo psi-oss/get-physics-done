@@ -98,7 +98,7 @@ Spawn gpd-planner with the quick-mode context:
 
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
-> If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> Apply the canonical runtime delegation convention already loaded above.
 
 ```
 task(
@@ -181,8 +181,6 @@ fi
 
 Spawn gpd-executor with plan reference:
 Apply the canonical runtime delegation convention already loaded above.
-
-> If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(

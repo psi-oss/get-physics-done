@@ -30,6 +30,7 @@ import gpd.registry as registry_module
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors, list_runtime_names
 from gpd.cli import app
 from gpd.command_labels import rewrite_runtime_command_surfaces, runtime_command_surface_pattern
+from gpd.core.artifact_text import PEER_REVIEW_ARTIFACT_SUFFIXES
 from gpd.core.recent_projects import record_recent_project
 from gpd.core.reproducibility import compute_sha256
 from gpd.core.state import StateUpdateResult, default_state_dict, generate_state_markdown
@@ -121,6 +122,16 @@ def test_phase_required_input_command_metadata_is_not_optional(command_name: str
     assert subject_policy.resolution_mode == "phase_number"
     assert subject_policy.explicit_input_kinds == ["phase-number"]
     assert subject_policy.allow_interactive_without_subject is False
+
+
+def test_peer_review_public_metadata_uses_canonical_artifact_suffixes() -> None:
+    """Peer-review frontmatter must stay aligned with the artifact text/resolver suffix set."""
+    registry_module.invalidate_cache()
+
+    command = registry_module.get_command("peer-review")
+    subject_policy = command.command_policy.subject_policy
+
+    assert frozenset(subject_policy.allowed_suffixes) == PEER_REVIEW_ARTIFACT_SUFFIXES
 
 
 def test_health_runtime_wrapper_accepts_unhealthy_json_exit_status() -> None:
@@ -7258,6 +7269,32 @@ class TestReviewValidationCommands:
             "or use the current GPD project when available"
         )
 
+    def test_command_context_peer_review_accepts_external_xlsm_artifact(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "standalone-review"
+        workspace.mkdir()
+        _write_minimal_xlsx(workspace / "standalone.xlsm")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "command-context", "peer-review", "standalone.xlsm"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        resolved_subject = payload["resolved_subject"]
+        assert payload["passed"] is True
+        assert payload["resolved_mode"] == "standalone explicit-artifact review"
+        assert "standalone explicit-artifact" in payload["mode_reason"]
+        assert checks["explicit_inputs"]["passed"] is True
+        assert resolved_subject["status"] == "resolved"
+        assert resolved_subject["ownership_mode"] == "external_artifact"
+        assert resolved_subject["target_path"].endswith("standalone.xlsm")
+
     def test_command_context_write_paper_fails_closed_outside_project_without_intake(
         self,
         tmp_path: Path,
@@ -7587,6 +7624,11 @@ class TestReviewValidationCommands:
             ),
             (
                 ".xlsx",
+                _write_minimal_xlsx,
+                "XLSX review target can be converted using built-in OOXML spreadsheet extraction",
+            ),
+            (
+                ".xlsm",
                 _write_minimal_xlsx,
                 "XLSX review target can be converted using built-in OOXML spreadsheet extraction",
             ),

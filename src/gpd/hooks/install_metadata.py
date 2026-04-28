@@ -413,7 +413,7 @@ def assess_install_target(
                 has_managed_markers=True,
             )
         explicit_target_state, _explicit_target_payload, _explicit_target = load_install_manifest_explicit_target_status(resolved)
-        if explicit_target_state == "malformed_explicit_target":
+        if explicit_target_state in {"missing_explicit_target", "malformed_explicit_target"}:
             return InstallTargetAssessment(
                 config_dir=resolved,
                 expected_runtime=expected_runtime,
@@ -509,11 +509,6 @@ def installed_update_command(config_dir: Path) -> str | None:
     if scope not in {"local", "global"}:
         return None
 
-    try:
-        get_adapter(runtime)
-    except KeyError:
-        return None
-
     explicit_target_state, _explicit_target_manifest, explicit_target = load_install_manifest_explicit_target_status(
         config_dir
     )
@@ -521,6 +516,11 @@ def installed_update_command(config_dir: Path) -> str | None:
         # Fail closed for manifests that do not prove whether the
         # install was explicitly targeted. Update-command synthesis is only
         # trusted when the manifest carries the authoritative flag.
+        return None
+
+    try:
+        get_adapter(runtime)
+    except KeyError:
         return None
 
     return build_runtime_install_repair_command(

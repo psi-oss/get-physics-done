@@ -28,6 +28,7 @@ def test_runtime_cli_allows_help_passthrough_as_root_flag(
             {
                 "runtime": runtime_name,
                 "install_scope": "local",
+                "explicit_target": False,
                 "install_target_dir": str(config_dir),
             }
         ),
@@ -77,6 +78,7 @@ def test_runtime_cli_allows_version_passthrough_as_root_flag(
             {
                 "runtime": runtime_name,
                 "install_scope": "local",
+                "explicit_target": False,
                 "install_target_dir": str(config_dir),
             }
         ),
@@ -272,6 +274,7 @@ def test_runtime_cli_repair_command_projection_respects_env_overridden_global_ta
                     if item.runtime_name != _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name
                 ),
                 "install_scope": "local",
+                "explicit_target": False,
             },
             None,
             runtime_cli._BridgeFailureKind.RUNTIME_MISMATCH,
@@ -290,7 +293,7 @@ def test_runtime_cli_repair_command_projection_respects_env_overridden_global_ta
             "GPD runtime bridge mismatch",
         ),
         (
-            {"runtime": _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name, "install_scope": "local"},
+            {"runtime": _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name, "install_scope": "local", "explicit_target": False},
             ("missing-artifact.txt",),
             runtime_cli._BridgeFailureKind.MISSING_INSTALL_ARTIFACTS,
             "Missing required install artifacts",
@@ -370,6 +373,7 @@ def test_runtime_cli_rejects_manifest_install_scope_mismatch(
             {
                 "runtime": runtime_name,
                 "install_scope": manifest_scope,
+                "explicit_target": False,
                 "install_target_dir": str(config_dir),
             }
         ),

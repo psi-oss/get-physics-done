@@ -13,7 +13,12 @@ from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import PROOF_AUDIT_REVIEWER, statement_looks_theorem_like
 from gpd.core.artifact_text import ArtifactTextError, load_artifact_text_surface
-from gpd.core.constants import PLANNING_DIR_NAME, PUBLICATION_DIR_NAME, ProjectLayout
+from gpd.core.constants import (
+    PLANNING_DIR_NAME,
+    PUBLICATION_DIR_NAME,
+    PUBLICATION_MANUSCRIPT_DIR_NAME,
+    ProjectLayout,
+)
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint, resolve_explicit_publication_subject
 from gpd.core.publication_review_paths import resolve_review_manuscript_path, review_artifact_round
@@ -95,6 +100,7 @@ _PROOF_REDTEAM_REQUIRED_QUANTIFIER_STATUS_VALUES = frozenset({"matched", "narrow
 _PROOF_REDTEAM_REQUIRED_COUNTEREXAMPLE_STATUS_VALUES = frozenset(
     {"none_found", "counterexample_found", "not_attempted", "narrowed_claim"}
 )
+_PROJECT_LOCAL_MANUSCRIPT_ROOT_NAMES = frozenset({"paper", "manuscript", "draft"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,7 +183,7 @@ def _uses_project_local_manuscript_manifest(project_root: Path, manuscript_entry
         relative = manuscript_entrypoint.resolve(strict=False).relative_to(project_root.resolve(strict=False))
     except ValueError:
         return False
-    return bool(relative.parts) and relative.parts[0] in {"paper", "manuscript", "draft"}
+    return bool(relative.parts) and relative.parts[0] in _PROJECT_LOCAL_MANUSCRIPT_ROOT_NAMES
 
 
 def _managed_publication_proof_review_manifest_path(project_root: Path, manuscript_entrypoint: Path) -> Path:
@@ -196,7 +202,7 @@ def _is_project_managed_publication_lane(relative: Path | None) -> bool:
         and len(relative.parts) >= 4
         and relative.parts[0] == PLANNING_DIR_NAME
         and relative.parts[1] == PUBLICATION_DIR_NAME
-        and relative.parts[3] == "manuscript"
+        and relative.parts[3] == PUBLICATION_MANUSCRIPT_DIR_NAME
     )
 
 
@@ -207,7 +213,7 @@ def publication_lineage_mode(project_root: Path, manuscript_entrypoint: Path) ->
         relative = manuscript_entrypoint.resolve(strict=False).relative_to(project_root.resolve(strict=False))
     except ValueError:
         relative = None
-    if relative is not None and relative.parts and relative.parts[0] in {"paper", "manuscript", "draft"}:
+    if relative is not None and relative.parts and relative.parts[0] in _PROJECT_LOCAL_MANUSCRIPT_ROOT_NAMES:
         return "global_gpd"
     if _is_project_managed_publication_lane(relative):
         return "subject_owned"
@@ -227,8 +233,10 @@ def publication_lineage_roots(project_root: Path, manuscript_entrypoint: Path) -
     if _uses_global_publication_lineage(project_root, manuscript_entrypoint):
         publication_root = layout.gpd
     else:
-        publication_root = layout.publication_subject_dir(publication_subject_slug(project_root, manuscript_entrypoint))
-    return publication_root, publication_root / "review"
+        subject_slug = publication_subject_slug(project_root, manuscript_entrypoint)
+        publication_root = layout.publication_subject_dir(subject_slug)
+        return publication_root, layout.publication_review_dir(subject_slug)
+    return publication_root, layout.review_dir
 
 
 def publication_subject_slug(project_root: Path, manuscript_entrypoint: Path) -> str:

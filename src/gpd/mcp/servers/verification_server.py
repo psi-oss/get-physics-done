@@ -68,6 +68,7 @@ from gpd.core.verification_checks import (
 from gpd.mcp.servers import (
     ABSOLUTE_PROJECT_DIR_SCHEMA,
     configure_mcp_logging,
+    read_only_tool_annotations,
     resolve_absolute_project_dir,
     stable_mcp_error,
     stable_mcp_response,
@@ -2138,7 +2139,7 @@ def _dims_equal(a: dict[str, int], b: dict[str, int]) -> bool:
 # ─── MCP Tools ────────────────────────────────────────────────────────────────
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def run_check(
     check_id: RunCheckIdentifierInput,
     domain: Annotated[str, Field(min_length=1, pattern=r"\S")],
@@ -3908,7 +3909,7 @@ def _validate_limit_expected_behavior_binding(
     return expected_behavior, None
 
 
-@mcp.tool(description=_run_contract_check_description())
+@mcp.tool(description=_run_contract_check_description(), annotations=read_only_tool_annotations())
 def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAbsoluteProjectDirInput = None) -> dict:
     """Run a contract-aware verification check."""
 
@@ -4630,7 +4631,7 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
             return _error_result(exc)
 
 
-@mcp.tool(description=_suggest_contract_checks_description())
+@mcp.tool(description=_suggest_contract_checks_description(), annotations=read_only_tool_annotations())
 def suggest_contract_checks(
     contract: SuggestContractPayload,
     active_checks: StringListPayload = None,
@@ -4771,7 +4772,7 @@ def suggest_contract_checks(
             return _error_result(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_checklist(domain: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
     """Return the domain-specific verification checklist.
 
@@ -4811,7 +4812,7 @@ def get_checklist(domain: Annotated[str, Field(min_length=1, pattern=r"\S")]) ->
             return _error_result(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_bundle_checklist(bundle_ids: BundleIdListInput) -> dict:
     """Return additive verifier checklist extensions for selected protocol bundles."""
     validated_bundle_ids, error = _validate_string_list(bundle_ids, field_name="bundle_ids")
@@ -4888,7 +4889,7 @@ def get_bundle_checklist(bundle_ids: BundleIdListInput) -> dict:
             return _error_result(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def dimensional_check(expressions: list[str]) -> dict:
     """Verify dimensional consistency of physics expressions.
 
@@ -4955,7 +4956,7 @@ def _dimensional_check_inner(expressions: list[str]) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def limiting_case_check(expression: str, limits: dict[str, str]) -> dict:
     """Verify that an expression reduces to known results in specified limits.
 
@@ -5036,7 +5037,7 @@ def _limiting_case_inner(expression: str, limits: dict[str, str]) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def symmetry_check(expression: str, symmetries: list[str]) -> dict:
     """Verify that an expression respects specified symmetries.
 
@@ -5112,7 +5113,7 @@ def _symmetry_check_inner(expression: str, symmetries: list[str]) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_verification_coverage(error_class_ids: list[int], active_checks: list[str]) -> dict:
     """Return gap analysis: which error classes are covered by active checks.
 

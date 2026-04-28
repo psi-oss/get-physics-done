@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
-from mcp.types import ToolAnnotations
 from pydantic import Field, WithJsonSchema
 
 from gpd.core.errors import PatternError
@@ -31,6 +30,8 @@ from gpd.core.patterns import (
 )
 from gpd.mcp.servers import (
     configure_mcp_logging,
+    mutating_tool_annotations,
+    read_only_tool_annotations,
     stable_mcp_error,
     stable_mcp_response,
     tighten_registered_tool_contracts,
@@ -40,18 +41,8 @@ logger = configure_mcp_logging("gpd-patterns")
 
 mcp = FastMCP("gpd-patterns")
 
-_PATTERN_MUTATION_TOOL_ANNOTATIONS = ToolAnnotations(
-    readOnlyHint=False,
-    destructiveHint=False,
-    idempotentHint=False,
-    openWorldHint=False,
-)
-_PATTERN_SEED_TOOL_ANNOTATIONS = ToolAnnotations(
-    readOnlyHint=False,
-    destructiveHint=False,
-    idempotentHint=True,
-    openWorldHint=False,
-)
+_PATTERN_MUTATION_TOOL_ANNOTATIONS = mutating_tool_annotations(destructive=False, idempotent=False)
+_PATTERN_SEED_TOOL_ANNOTATIONS = mutating_tool_annotations(destructive=False, idempotent=True)
 
 # Explicit override for tests or embedded callers. When unset, resolve the root
 # for each request so env changes do not leak across long-lived server processes.
@@ -101,7 +92,7 @@ def _get_patterns_root() -> Path:
     return patterns_root()
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def lookup_pattern(
     domain: PatternOptionalDomainInput = None,
     category: PatternOptionalCategoryInput = None,
@@ -237,7 +228,7 @@ def seed_patterns() -> dict:
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def list_domains() -> dict:
     """List all available physics domains and error categories.
 

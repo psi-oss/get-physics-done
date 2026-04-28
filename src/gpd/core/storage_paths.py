@@ -7,7 +7,6 @@ callers can route outputs consistently.
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import tempfile
@@ -352,30 +351,7 @@ def _runtime_config_dir_lookup() -> tuple[tuple[str, ...], str | None]:
 
         return tuple(descriptor.config_dir_name for descriptor in iter_runtime_descriptors()), None
     except Exception as exc:
-        fallback_names, fallback_error = _runtime_config_dir_names_from_catalog_json()
-        lookup_error = f"{type(exc).__name__}: {exc}"
-        if fallback_error is not None:
-            return fallback_names, f"{lookup_error}; catalog JSON fallback failed: {fallback_error}"
-        return fallback_names, f"{lookup_error}; used catalog JSON fallback"
-
-
-def _runtime_config_dir_names_from_catalog_json() -> tuple[tuple[str, ...], str | None]:
-    catalog_path = Path(__file__).resolve().parents[1] / "adapters" / "runtime_catalog.json"
-    try:
-        payload = json.loads(catalog_path.read_text(encoding="utf-8"))
-    except Exception as exc:
         return (), f"{type(exc).__name__}: {exc}"
-    if not isinstance(payload, list):
-        return (), "runtime catalog JSON root is not a list"
-
-    names: list[str] = []
-    for entry in payload:
-        if not isinstance(entry, dict):
-            continue
-        config_dir_name = entry.get("config_dir_name")
-        if isinstance(config_dir_name, str) and config_dir_name.strip():
-            names.append(config_dir_name.strip())
-    return tuple(dict.fromkeys(names)), None
 
 
 def _runtime_config_dir_names() -> tuple[str, ...]:
@@ -804,7 +780,7 @@ class ProjectStorageLayout:
         runtime_config_dir_lookup_error = _runtime_config_dir_lookup_error()
         if runtime_config_dir_lookup_error is not None:
             warnings.append(
-                "Runtime config directory pruning used fallback names because runtime catalog lookup failed: "
+                "Runtime config directory pruning skipped because validated runtime catalog lookup failed: "
                 f"{runtime_config_dir_lookup_error}"
             )
 

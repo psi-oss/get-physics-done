@@ -45,13 +45,21 @@ Load the bootstrap stage first. Keep later wave and closeout context on demand.
 load_execute_phase_stage() {
   local stage_name="$1"
   local init_payload=""
+  local init_stderr=""
+  local init_status=0
 
   if [ -n "$stage_name" ]; then
-    init_payload=$(gpd --raw init execute-phase "${PHASE_ARG}" --stage "${stage_name}" 2>/dev/null)
-    if [ $? -ne 0 ] || [ -z "$init_payload" ]; then
-      echo "ERROR: staged gpd initialization failed for stage '${stage_name}': ${init_payload}"
+    init_stderr=$(mktemp)
+    init_payload=$(gpd --raw init execute-phase "${PHASE_ARG}" --stage "${stage_name}" 2>"$init_stderr")
+    init_status=$?
+    if [ "$init_status" -ne 0 ] || [ -z "$init_payload" ]; then
+      echo "ERROR: staged gpd initialization failed for stage '${stage_name}' (exit ${init_status})."
+      [ -n "$init_payload" ] && echo "stdout: ${init_payload}"
+      [ -s "$init_stderr" ] && echo "stderr: $(cat "$init_stderr")"
+      rm -f "$init_stderr"
       return 1
     fi
+    rm -f "$init_stderr"
 
     printf '%s' "$init_payload"
     return 0
@@ -406,7 +414,7 @@ Load plan inventory with wave grouping in one call:
 PLAN_INDEX=$(gpd phase index "${phase_number}")
 ```
 
-Parse JSON for: `phase`, `plans[]` (each with `id`, `wave`, `interactive`, `objective`, `files_modified`, `task_count`, `has_summary`), `waves` (map of wave number -> plan IDs), `incomplete`, `has_checkpoints`.
+Parse JSON for: `phase`, `plans[]` (each with `id`, `wave`, `interactive`, `gap_closure`, `objective`, `files_modified`, `task_count`, `has_summary`), `waves` (map of wave number -> plan IDs), `incomplete`, `has_checkpoints`.
 
 **Filtering:** Skip plans where `has_summary: true`. If `$GAPS_ONLY` is true, also skip non-gap_closure plans. If all filtered: "No matching incomplete plans" -> exit.
 
@@ -640,7 +648,7 @@ Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `curr
 
    @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
-   The shared note owns empty-model omission, file-producing `readonly=false`, artifact-gated completion, child checkpoints, and sequential main-context fallback. Later handoff blocks should reference this convention instead of restating those rules.
+   The shared note owns runtime-neutral task construction and handoff gates. Later handoff blocks should reference this convention instead of restating those rules.
 
    ```
    task(
@@ -1292,11 +1300,7 @@ Generated figures and plots should live in stable workspace roots such as `artif
 
 **If any figures found:**
 
-Read the figure tracker template:
-
-```bash
-cat {GPD_INSTALL_DIR}/templates/paper/figure-tracker.md
-```
+Read the figure tracker template from `{GPD_INSTALL_DIR}/templates/paper/figure-tracker.md` using the runtime's normal file-read mechanism.
 
 **If `paper/FIGURE_TRACKER.md` already exists:** Append new figures to the existing registry. Do not overwrite existing entries.
 

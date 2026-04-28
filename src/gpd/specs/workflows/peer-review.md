@@ -49,7 +49,7 @@ Treat `project_contract_gate` as authoritative. Use `project_contract` and `cont
 If `derived_manuscript_reference_status` is present, use it as a first-pass manuscript-local summary of reference coverage, citation readiness, and audit freshness. Keep the manuscript-root publication artifacts authoritative for strict decisions: `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and the reproducibility manifest still decide pass/fail.
 If `derived_manuscript_proof_review_status` is present, use it as the first-pass manuscript-local summary of theorem/proof freshness and keep the manuscript-root proof-redteam artifacts authoritative for strict decisions.
 The shared manuscript-root bootstrap contract is applied in preflight. The local steps below add only peer-review-specific routing, proof-review, and adjudication rules.
-This workflow is project-aware: it may resolve the active manuscript from the current GPD project or review one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript-directory target supplied in the current workspace. Write review artifacts under the target-aware `selected_review_root`, falling back to `GPD/review`.
+This workflow is project-aware: it may resolve the active manuscript from the current GPD project or review one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or manuscript-directory target supplied in the current workspace. Write review artifacts under the target-aware `selected_review_root`, falling back to `GPD/review`.
 
 If `REVIEW_TARGET` is empty and `project_exists` is true, ask the user which mode they want:
 
@@ -61,11 +61,11 @@ Use ask_user:
 - question: `Review the current GPD project manuscript, or point at a specific manuscript artifact?`
 - options:
   - `Use current project` -- Review the active manuscript resolved from the current GPD project. Recommended when the folder is already a GPD project.
-  - `Pick artifact path` -- Review a specific `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript directory path instead.
+  - `Pick artifact path` -- Review a specific `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or manuscript directory path instead.
 
 If the user chooses `Pick artifact path`, ask for one explicit path and store it in `REVIEW_TARGET`.
 
-If `REVIEW_TARGET` is empty and `project_exists` is false, ask the user for one explicit manuscript path or directory. Accept `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or a manuscript directory path. If the answer is still empty, STOP and ask again for a concrete artifact path.
+If `REVIEW_TARGET` is empty and `project_exists` is false, ask the user for one explicit manuscript path or directory. Accept `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or a manuscript directory path. If the answer is still empty, STOP and ask again for a concrete artifact path.
 
 After the user has chosen a mode or supplied an explicit path, rerun the subject-aware peer-review init surface for the resolved target. Treat this second payload as authoritative for manuscript routing and review-round state; do not keep using current-project manuscript status from the bootstrap call after an explicit artifact target has been chosen.
 
@@ -95,7 +95,7 @@ Use centralized target-aware init plus centralized command-context preflight as 
 
 1. In `project-backed manuscript review`, resolve the manuscript entrypoint under `paper/`, `manuscript/`, or `draft/` from `ARTIFACT-MANIFEST.json`, then `PAPER-CONFIG.json`, then the canonical current-manuscript rules for those roots.
 2. In `standalone explicit-artifact review`, the explicit path the user chose is authoritative. Do not fall back to canonical project-manuscript discovery after a standalone explicit artifact has been selected.
-3. When the user explicitly points at `.docx`, `.csv`, `.tsv`, or `.xlsx`, treat it as an explicit external-artifact intake surface only; do not widen the default `paper/`, `manuscript/`, or `draft/` discovery rules.
+3. When the user explicitly points at `.docx`, `.csv`, `.tsv`, `.xlsx`, or `.xlsm`, treat it as an explicit external-artifact intake surface only; do not widen the default `paper/`, `manuscript/`, or `draft/` discovery rules.
 4. Do not re-resolve the review target with ad hoc wildcard discovery or first-match shell globs after init/preflight has selected it.
 
 After resolution, keep all manuscript-local support artifacts rooted at the same explicit manuscript directory:
@@ -121,7 +121,7 @@ Prepare a reader-friendly manuscript surface for the staged reviewers:
 - For `.tex` or `.md`, keep the resolved main file plus any nearby section `.tex` / `.md` files under the same manuscript root.
 - For `.txt`, use the `.txt` file directly as the manuscript review surface.
 - For `.csv` or `.tsv`, use the file directly as the explicit-artifact review surface.
-- For `.pdf`, `.docx`, or `.xlsx`, first look for a nearby text companion such as the same basename with `.txt`. If none exists, create `${REVIEW_ROOT}/` if needed, run `gpd validate artifact-text "$RESOLVED_MANUSCRIPT" --output ${REVIEW_ROOT}/MANUSCRIPT-TEXT.txt`, and use that extracted file as the manuscript review surface while keeping the original artifact as the canonical `RESOLVED_MANUSCRIPT`. If extraction fails, STOP and ask the user to point at a `.txt`, `.md`, `.tex`, `.csv`, `.tsv`, or a matching extracted `.txt` companion file.
+- For `.pdf`, `.docx`, `.xlsx`, or `.xlsm`, first look for a nearby text companion such as the same basename with `.txt`. If none exists, create `${REVIEW_ROOT}/` if needed, run `gpd validate artifact-text "$RESOLVED_MANUSCRIPT" --output ${REVIEW_ROOT}/MANUSCRIPT-TEXT.txt`, and use that extracted file as the manuscript review surface while keeping the original artifact as the canonical `RESOLVED_MANUSCRIPT`. If extraction fails, STOP and ask the user to point at a `.txt`, `.md`, `.tex`, `.csv`, `.tsv`, or a matching extracted `.txt` companion file.
 
 Store the reviewer-visible inputs as `MANUSCRIPT_STAGE_FILES`.
 
@@ -130,7 +130,7 @@ Store the reviewer-visible inputs as `MANUSCRIPT_STAGE_FILES`.
 ```
 No review target found. The target-aware peer-review init plus command-context preflight did not resolve a manuscript under `paper/`, `manuscript/`, or `draft/`, and no valid explicit artifact target was accepted.
 
-Run gpd:write-paper first, or provide a `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript directory path to gpd:peer-review.
+Run gpd:write-paper first, or provide a `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or manuscript directory path to gpd:peer-review.
 ```
 
 Exit.
@@ -366,7 +366,7 @@ READ_MODEL=$(gpd resolve-model gpd-review-reader)
 
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
-> If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> Apply the canonical runtime delegation convention already loaded above.
 
 ```
 task(

@@ -25,12 +25,12 @@ Peer review supports two intake modes: `project-backed manuscript review` and `s
 1. **After draft completion.** In `project-backed manuscript review`, the current GPD project manuscript produced by `gpd:write-paper` must already be a real draft with sections, equations, figures, and bibliography in place. In `standalone explicit-artifact review`, the explicit manuscript artifact must already be reviewable. Peer review does not run on incomplete drafts or outlines.
 2. **Before final PDF.** In `project-backed manuscript review`, peer review must complete and its findings must be addressed before the manuscript is packaged for submission (e.g., via `gpd:arxiv-submission`).
 3. **Explicit invocation.** Peer review runs when the user invokes `gpd:peer-review` or when the write-paper workflow reaches its internal review gate. It is not triggered automatically by file saves or partial edits.
-4. **Standalone path intake.** In `standalone explicit-artifact review`, the user points at one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript-directory target. This standalone intake mode is limited to `gpd:peer-review`; it does not imply standalone downstream publication packaging.
+4. **Standalone path intake.** In `standalone explicit-artifact review`, the user points at one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or manuscript-directory target. This standalone intake mode is limited to `gpd:peer-review`; it does not imply standalone downstream publication packaging.
 
 ### Precondition Checklist
 
 - `project-backed manuscript review` uses the active manuscript resolved under `paper/`, `manuscript/`, or `draft/`
-- `standalone explicit-artifact review` requires one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript-directory target
+- `standalone explicit-artifact review` requires one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or manuscript-directory target
 - `GPD/STATE.md` and `GPD/ROADMAP.md` are required only when reviewing the current GPD project manuscript
 - Phase summaries and verification reports under `GPD/phases/` are required only when reviewing the current GPD project manuscript
 - `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and a reproducibility manifest are strict project-backed gates and additive-only context when present for `standalone explicit-artifact review`
@@ -71,7 +71,7 @@ Project-backed manuscript review:
 Standalone explicit-artifact review:
 
 1. **Explicit target resolution.** One concrete manuscript or artifact path has been supplied and accepted by command-context preflight.
-2. **Text-surface readiness.** The explicit target is directly readable (`.tex`, `.md`, `.txt`, `.csv`, `.tsv`) or a valid extracted/companion text surface exists for `.pdf`, `.docx`, or `.xlsx`.
+2. **Text-surface readiness.** The explicit target is directly readable (`.tex`, `.md`, `.txt`, `.csv`, `.tsv`) or a valid extracted/companion text surface exists for `.pdf`, `.docx`, `.xlsx`, or `.xlsm`.
 3. **Additive artifact handling.** Nearby manuscript-root publication artifacts may be read when present, but they are not prerequisites by themselves.
 4. **Preflight pass.** `gpd validate review-preflight peer-review "$REVIEW_TARGET" --strict` exits zero.
 

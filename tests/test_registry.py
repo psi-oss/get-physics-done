@@ -1350,7 +1350,7 @@ class TestParseCommandFile:
             allow_external_subjects=True,
             allow_interactive_without_subject=True,
             supported_roots=["paper", "manuscript", "draft"],
-            allowed_suffixes=[".tex", ".md", ".txt", ".pdf", ".docx", ".csv", ".tsv", ".xlsx"],
+            allowed_suffixes=[".tex", ".md", ".txt", ".pdf", ".docx", ".csv", ".tsv", ".xlsx", ".xlsm"],
             bootstrap_allowed=False,
         )
 

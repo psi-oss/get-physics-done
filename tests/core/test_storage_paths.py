@@ -516,7 +516,30 @@ def test_audit_storage_warnings_prunes_runtime_ignored_and_cache_dirs(
     assert warnings == ()
 
 
-def test_audit_storage_warnings_prunes_runtime_dirs_when_catalog_lookup_fails(
+def test_runtime_config_dir_lookup_fails_closed_when_catalog_loader_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _raise_runtime_catalog() -> tuple[object, ...]:
+        raise RuntimeError("catalog offline")
+
+    monkeypatch.setattr("gpd.adapters.runtime_catalog.iter_runtime_descriptors", _raise_runtime_catalog)
+    storage_paths_module._runtime_config_dir_lookup.cache_clear()
+    try:
+        names, error = storage_paths_module._runtime_config_dir_lookup()
+    finally:
+        storage_paths_module._runtime_config_dir_lookup.cache_clear()
+
+    assert names == ()
+    assert error == "RuntimeError: catalog offline"
+
+
+def test_storage_paths_does_not_read_runtime_catalog_json_directly() -> None:
+    source_path = Path(storage_paths_module.__file__).resolve()
+    source = source_path.read_text(encoding="utf-8")
+
+    assert "runtime_catalog.json" not in source
+    assert "_runtime_config_dir_names_from_catalog_json" not in source
+
+
+def test_audit_storage_warnings_does_not_prune_runtime_dirs_when_catalog_lookup_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -524,7 +547,7 @@ def test_audit_storage_warnings_prunes_runtime_dirs_when_catalog_lookup_fails(
     monkeypatch.setattr(
         storage_paths_module,
         "_runtime_config_dir_lookup",
-        lambda: ((_RUNTIME_CONFIG_DIR_FOR_STORAGE_TEST,), "RuntimeError: catalog offline"),
+        lambda: ((), "RuntimeError: catalog offline"),
     )
     layout = _make_layout(tmp_path)
     runtime_output = layout.root / _RUNTIME_CONFIG_DIR_FOR_STORAGE_TEST / "tmp" / "final.csv"
@@ -533,8 +556,8 @@ def test_audit_storage_warnings_prunes_runtime_dirs_when_catalog_lookup_fails(
 
     warnings = layout.audit_storage_warnings()
 
-    assert any("runtime catalog lookup failed" in warning for warning in warnings)
-    assert not any(f"{_RUNTIME_CONFIG_DIR_FOR_STORAGE_TEST}/tmp/final.csv" in warning for warning in warnings)
+    assert any("validated runtime catalog lookup failed" in warning for warning in warnings)
+    assert any(f"{_RUNTIME_CONFIG_DIR_FOR_STORAGE_TEST}/tmp/final.csv" in warning for warning in warnings)
 
 
 def test_audit_storage_warnings_flags_user_authored_generic_root_outputs(

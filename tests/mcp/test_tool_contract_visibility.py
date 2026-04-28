@@ -27,6 +27,14 @@ def _tool_input_schema(mcp_server: object, tool_name: str) -> dict[str, object]:
     return anyio.run(_load)
 
 
+def _assert_read_only_tool_annotations(annotations: object, *, server_name: str, tool_name: str) -> None:
+    assert annotations is not None, f"{server_name}.{tool_name} must publish MCP annotations"
+    assert annotations.readOnlyHint is True
+    assert annotations.destructiveHint is False
+    assert annotations.idempotentHint is True
+    assert annotations.openWorldHint is False
+
+
 def _schema_ref(schema_fragment: dict[str, object]) -> str:
     if "$ref" in schema_fragment:
         return str(schema_fragment["$ref"])
@@ -89,7 +97,9 @@ def _assert_recoverable_enum_string_schema(
 
     assert "anyOf" in schema_fragment, f"{label} must publish case-only enum salvage semantics"
     exact_branch = next(
-        branch for branch in schema_fragment["anyOf"] if isinstance(branch, dict) and branch.get("type") == "string" and "enum" in branch
+        branch
+        for branch in schema_fragment["anyOf"]
+        if isinstance(branch, dict) and branch.get("type") == "string" and "enum" in branch
     )
     pattern_branch = next(
         branch
@@ -136,10 +146,9 @@ def _assert_closed_object(schema_fragment: dict[str, object], *, label: str) -> 
 def _assert_strict_required_schema_fragment(schema_fragment: dict[str, object], *, label: str) -> None:
     any_of = schema_fragment.get("anyOf")
     if isinstance(any_of, list):
-        assert not any(
-            isinstance(branch, dict) and branch.get("type") == "null"
-            for branch in any_of
-        ), f"{label} must not allow null when schema-required"
+        assert not any(isinstance(branch, dict) and branch.get("type") == "null" for branch in any_of), (
+            f"{label} must not allow null when schema-required"
+        )
         for branch in any_of:
             if not isinstance(branch, dict):
                 continue
@@ -366,7 +375,14 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
     assert "when the statement is theorem-like" in claims["description"]
     assert "when proof-specific fields are already populated" in claims["description"]
     assert "when `observables` references a `proof_obligation` target" in claims["description"]
-    for field_name in ("observables", "deliverables", "acceptance_tests", "references", "quantifiers", "proof_deliverables"):
+    for field_name in (
+        "observables",
+        "deliverables",
+        "acceptance_tests",
+        "references",
+        "quantifiers",
+        "proof_deliverables",
+    ):
         _assert_string_list_schema(claims["properties"][field_name], label=f"contract.claims[].{field_name}")
     parameters = claims["properties"]["parameters"]["items"]
     _assert_closed_object(parameters, label="contract.claims[].parameters[]")
@@ -404,9 +420,7 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
     proof_field_triggers = {
         required[0]
         for branch in proof_field_condition["if"]["anyOf"]
-        if isinstance(branch, dict)
-        and isinstance((required := branch.get("required")), list)
-        and len(required) == 1
+        if isinstance(branch, dict) and isinstance((required := branch.get("required")), list) and len(required) == 1
     }
     assert proof_field_triggers == {
         "proof_deliverables",
@@ -565,7 +579,9 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
         )
 
 
-def _identity_condition_for_check(run_request_schema: dict[str, object], check_identifier: str) -> list[tuple[str, list[str]]]:
+def _identity_condition_for_check(
+    run_request_schema: dict[str, object], check_identifier: str
+) -> list[tuple[str, list[str]]]:
     for clause in run_request_schema.get("allOf", []):
         if_branch = clause.get("if")
         if not isinstance(if_branch, dict):
@@ -671,14 +687,8 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
         if isinstance(branch, dict) and branch.get("required") == ["check_key"]
     )
     expected_identifiers = {
-        str(entry["check_key"])
-        for entry in list_verification_checks()
-        if entry.get("contract_aware")
-    } | {
-        str(entry["check_id"])
-        for entry in list_verification_checks()
-        if entry.get("contract_aware")
-    }
+        str(entry["check_key"]) for entry in list_verification_checks() if entry.get("contract_aware")
+    } | {str(entry["check_id"]) for entry in list_verification_checks() if entry.get("contract_aware")}
     assert check_key_requirement["properties"]["check_key"]["type"] == "string"
     assert check_key_requirement["properties"]["check_key"]["pattern"] == r"^\S(?:[\s\S]*\S)?$"
     assert set(check_key_requirement["properties"]["check_key"]["enum"]) == expected_identifiers
@@ -704,9 +714,14 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
 
     binding = _schema_anyof_object(run_request["properties"]["binding"])
     assert binding["additionalProperties"] is False
-    assert {"observable_ids", "claim_ids", "deliverable_ids", "acceptance_test_ids", "reference_ids", "forbidden_proxy_ids"} == set(
-        binding["properties"]
-    )
+    assert {
+        "observable_ids",
+        "claim_ids",
+        "deliverable_ids",
+        "acceptance_test_ids",
+        "reference_ids",
+        "forbidden_proxy_ids",
+    } == set(binding["properties"])
     for field_name, field_schema in binding["properties"].items():
         assert field_schema["type"] == "array", field_name
         assert field_schema["minItems"] == 1, field_name
@@ -812,7 +827,13 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
     assert active_checks["anyOf"][0]["items"]["minLength"] == 1
     assert active_checks["anyOf"][0]["items"]["pattern"] == r"\S"
 
-    for field_name in ("source_reference_id", "regime_label", "expected_behavior", "declared_family", "claim_statement"):
+    for field_name in (
+        "source_reference_id",
+        "regime_label",
+        "expected_behavior",
+        "declared_family",
+        "claim_statement",
+    ):
         field_schema = _schema_anyof_string(metadata["properties"][field_name])
         assert field_schema["minLength"] == 1
         assert field_schema["pattern"] == r"\S"
@@ -834,7 +855,9 @@ def test_suggest_contract_checks_exposes_claim_alignment_branches() -> None:
     from gpd.mcp.servers.verification_server import suggest_contract_checks
 
     result = suggest_contract_checks(_proof_contract_fixture())
-    alignment = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.claim_to_proof_alignment")
+    alignment = next(
+        entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.claim_to_proof_alignment"
+    )
 
     assert alignment["required_request_fields"] == ["contract", "observed.scope_status"]
     assert alignment["schema_required_request_fields"] == ["contract", "observed.scope_status"]
@@ -851,7 +874,9 @@ def test_suggested_claim_alignment_template_is_runnable_without_clause_audit_pre
     from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
 
     result = suggest_contract_checks(_proof_contract_fixture())
-    alignment = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.claim_to_proof_alignment")
+    alignment = next(
+        entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.claim_to_proof_alignment"
+    )
     request = copy.deepcopy(alignment["request_template"])
     request["contract"] = _proof_contract_fixture()
     request["observed"]["scope_status"] = "matched"
@@ -924,10 +949,34 @@ def test_public_descriptors_surface_contract_and_optional_dependency_visibility(
 @pytest.mark.parametrize(
     ("mcp_module", "expected_tools"),
     [
-        ("gpd.mcp.servers.conventions_server", {"convention_lock_status", "convention_set", "convention_check", "convention_diff", "assert_convention_validate"}),
-        ("gpd.mcp.servers.errors_mcp", {"get_error_class", "check_error_classes", "get_detection_strategy", "get_traceability", "list_error_classes"}),
-        ("gpd.mcp.servers.patterns_server", {"lookup_pattern", "add_pattern", "promote_pattern", "seed_patterns", "list_domains"}),
-        ("gpd.mcp.servers.protocols_server", {"get_protocol", "list_protocols", "route_protocol", "get_protocol_checkpoints"}),
+        (
+            "gpd.mcp.servers.conventions_server",
+            {
+                "convention_lock_status",
+                "convention_set",
+                "convention_check",
+                "convention_diff",
+                "assert_convention_validate",
+            },
+        ),
+        (
+            "gpd.mcp.servers.errors_mcp",
+            {
+                "get_error_class",
+                "check_error_classes",
+                "get_detection_strategy",
+                "get_traceability",
+                "list_error_classes",
+            },
+        ),
+        (
+            "gpd.mcp.servers.patterns_server",
+            {"lookup_pattern", "add_pattern", "promote_pattern", "seed_patterns", "list_domains"},
+        ),
+        (
+            "gpd.mcp.servers.protocols_server",
+            {"get_protocol", "list_protocols", "route_protocol", "get_protocol_checkpoints"},
+        ),
         ("gpd.mcp.servers.skills_server", {"list_skills", "get_skill", "route_skill", "get_skill_index"}),
     ],
 )
@@ -1101,7 +1150,15 @@ def test_state_server_tools_publish_absolute_project_dir_schema() -> None:
 
     schemas = anyio.run(_load)
 
-    for tool_name in ("get_state", "get_phase_info", "advance_plan", "get_progress", "validate_state", "run_health_check", "get_config"):
+    for tool_name in (
+        "get_state",
+        "get_phase_info",
+        "advance_plan",
+        "get_progress",
+        "validate_state",
+        "run_health_check",
+        "get_config",
+    ):
         project_dir = schemas[tool_name]["properties"]["project_dir"]
         for key, value in ABSOLUTE_PROJECT_DIR_SCHEMA.items():
             assert project_dir[key] == value
@@ -1224,6 +1281,7 @@ def test_mutating_convention_and_pattern_tools_publish_annotations() -> None:
     assert convention_set.readOnlyHint is False
     assert convention_set.destructiveHint is True
     assert convention_set.idempotentHint is False
+    assert convention_set.openWorldHint is False
 
     for tool_name in ("add_pattern", "promote_pattern"):
         annotations = patterns_annotations[tool_name]
@@ -1231,16 +1289,93 @@ def test_mutating_convention_and_pattern_tools_publish_annotations() -> None:
         assert annotations.readOnlyHint is False
         assert annotations.destructiveHint is False
         assert annotations.idempotentHint is False
+        assert annotations.openWorldHint is False
 
     seed_patterns = patterns_annotations["seed_patterns"]
     assert seed_patterns is not None
     assert seed_patterns.readOnlyHint is False
     assert seed_patterns.destructiveHint is False
     assert seed_patterns.idempotentHint is True
+    assert seed_patterns.openWorldHint is False
+
+
+def test_read_only_builtin_mcp_tools_publish_annotations() -> None:
+    expected_read_only_tools = {
+        "conventions_server": {
+            "convention_lock_status",
+            "convention_check",
+            "convention_diff",
+            "assert_convention_validate",
+            "subfield_defaults",
+        },
+        "errors_mcp": {
+            "get_error_class",
+            "check_error_classes",
+            "get_detection_strategy",
+            "get_traceability",
+            "list_error_classes",
+        },
+        "patterns_server": {
+            "lookup_pattern",
+            "list_domains",
+        },
+        "protocols_server": {
+            "get_protocol",
+            "list_protocols",
+            "route_protocol",
+            "get_protocol_checkpoints",
+        },
+        "skills_server": {
+            "list_skills",
+            "get_skill",
+            "route_skill",
+            "get_skill_index",
+        },
+        "state_server": {
+            "get_state",
+            "get_phase_info",
+            "get_progress",
+            "validate_state",
+            "get_config",
+        },
+        "verification_server": {
+            "run_check",
+            "run_contract_check",
+            "suggest_contract_checks",
+            "get_checklist",
+            "get_bundle_checklist",
+            "dimensional_check",
+            "limiting_case_check",
+            "symmetry_check",
+            "get_verification_coverage",
+        },
+    }
+
+    async def _load() -> dict[str, dict[str, object]]:
+        loaded: dict[str, dict[str, object]] = {}
+        for module_name in expected_read_only_tools:
+            module = importlib.import_module(f"gpd.mcp.servers.{module_name}")
+            tools = await module.mcp.list_tools()
+            loaded[module_name] = {tool.name: tool.annotations for tool in tools}
+        return loaded
+
+    annotations_by_server = anyio.run(_load)
+
+    for server_name, tool_names in expected_read_only_tools.items():
+        published_tools = annotations_by_server[server_name]
+        assert tool_names <= set(published_tools), f"{server_name} missing expected read-only tools"
+        for tool_name in tool_names:
+            _assert_read_only_tool_annotations(
+                published_tools[tool_name],
+                server_name=server_name,
+                tool_name=tool_name,
+            )
 
 
 def test_public_protocols_infra_descriptor_matches_live_catalog_surface() -> None:
-    descriptor = json.loads((Path(__file__).resolve().parents[2] / "infra" / "gpd-protocols.json").read_text(encoding="utf-8"))
+    descriptor = json.loads(
+        (Path(__file__).resolve().parents[2] / "infra" / "gpd-protocols.json").read_text(encoding="utf-8")
+    )
 
     description = descriptor["description"]
     assert "live protocol catalog" in description

@@ -37,6 +37,7 @@ from gpd.mcp.servers import (
     configure_mcp_logging,
     parse_frontmatter_with_error,
     published_tool_input_schema,
+    read_only_tool_annotations,
     refresh_string_enum_property_schema,
     set_registered_and_published_tool_input_schema,
     stable_mcp_error,
@@ -720,7 +721,7 @@ def _expanded_reference_documents(
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def list_skills(
     category: Annotated[SkillCategoryFilter, Field(min_length=1, pattern=r"\S")] | None = None,
 ) -> dict:
@@ -758,7 +759,7 @@ def list_skills(
             return stable_mcp_error(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_skill(
     name: Annotated[str, Field(min_length=1, pattern=r"\S")],
     include_transitive_reference_bodies: bool = False,
@@ -904,7 +905,7 @@ def get_skill(
             return stable_mcp_error(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def route_skill(
     task_description: Annotated[str, Field(min_length=1, pattern=r"\S")],
 ) -> dict:
@@ -1088,7 +1089,7 @@ def route_skill(
             return stable_mcp_error(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_skill_index() -> dict:
     """Return a formatted canonical skill index for runtime context assembly.
 

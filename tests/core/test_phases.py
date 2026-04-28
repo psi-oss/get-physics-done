@@ -2003,6 +2003,23 @@ def test_phase_plan_index_basic(tmp_path: Path) -> None:
     assert result.validation.valid is True
 
 
+def test_phase_plan_index_parses_gap_closure_frontmatter(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "a-PLAN.md").write_text(
+        "---\nwave: 1\ngap_closure: true\n---\n## Task 1\nFix verification gap",
+        encoding="utf-8",
+    )
+    (phase_dir / "b-PLAN.md").write_text("---\nwave: 1\n---\n## Task 1\nStandard work", encoding="utf-8")
+
+    result = phase_plan_index(tmp_path, "1")
+
+    entries = {entry.id: entry for entry in result.plans}
+    assert entries["a"].gap_closure is True
+    assert entries["b"].gap_closure is False
+    assert result.validation.valid is True
+
+
 def test_phase_plan_index_rejects_scalar_dependency_fields(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     phase_dir = _create_phase_dir(tmp_path, "01-setup")

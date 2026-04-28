@@ -50,6 +50,7 @@ EXPECTED_VERIFICATION_DIRS = {
 
 REFERENCE_TOKEN_RE = re.compile(r"references/[A-Za-z0-9_./-]+\.md")
 INLINE_DOC_TOKEN_RE = re.compile(r"`((?:references/|\.{1,2}/)[A-Za-z0-9_./-]+\.md(?:#[^`]+)?)`")
+MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
 NON_SPEC_REFERENCE_TOKENS: set[str] = set()
 
 MOVED_REFERENCE_FILES = [
@@ -258,6 +259,27 @@ def test_reference_docs_inline_markdown_targets_resolve() -> None:
             assert resolved.is_file(), f"{path.relative_to(REPO_ROOT)} -> {token}"
 
     assert found_tokens
+
+
+def test_llm_physics_error_catalog_markdown_links_resolve_from_catalog_location() -> None:
+    catalog = REFERENCES_DIR / "verification" / "errors" / "llm-physics-errors.md"
+    content = catalog.read_text(encoding="utf-8")
+
+    targets = [
+        target.split("#", 1)[0]
+        for target in MARKDOWN_LINK_RE.findall(content)
+        if not target.startswith(("http://", "https://", "mailto:", "#"))
+    ]
+
+    assert targets == [
+        "llm-errors-core.md",
+        "llm-errors-field-theory.md",
+        "llm-errors-extended.md",
+        "llm-errors-deep.md",
+    ]
+    assert "references/verification/errors/llm-errors" not in content
+    for target in targets:
+        assert (catalog.parent / target).is_file(), target
 
 
 def test_no_stale_root_reference_paths_remain_in_prompt_sources() -> None:

@@ -955,6 +955,23 @@ class TestDetectRuntimeForGpdUse:
         with patch.dict(os.environ, env, clear=True):
             assert detect_runtime_for_gpd_use(cwd=workspace, home=home) == RUNTIME_CODEX
 
+    def test_missing_explicit_target_install_is_ignored_for_gpd_surfaces(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        home = tmp_path / "home"
+        custom_dir = tmp_path / "custom-codex"
+        _mark_gpd_install(custom_dir, runtime=RUNTIME_CODEX)
+        manifest_path = custom_dir / _SHARED_INSTALL.manifest_name
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest.pop("explicit_target", None)
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        env = _clean_runtime_env()
+        env[_global_config_dir_env_var(RUNTIME_CODEX)] = str(custom_dir)
+        with patch.dict(os.environ, env, clear=True):
+            assert detect_runtime_install_target(RUNTIME_CODEX, cwd=workspace, home=home) is None
+            assert detect_runtime_for_gpd_use(cwd=workspace, home=home) == RUNTIME_UNKNOWN
+
     def test_explicit_runtime_override_wins_when_multiple_installed_runtimes_exist(self, tmp_path: Path) -> None:
         _mark_gpd_install(tmp_path / ".claude")
         _mark_gpd_install(tmp_path / ".codex")

@@ -392,7 +392,7 @@ def test_assess_install_target_rejects_malformed_explicit_target_metadata(
     assert config_dir_has_complete_install(config_dir) is False
 
 
-def test_assess_install_target_allows_legacy_manifest_but_does_not_synthesize_update_command(
+def test_assess_install_target_rejects_missing_explicit_target_as_complete_install(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -404,19 +404,18 @@ def test_assess_install_target_allows_legacy_manifest_but_does_not_synthesize_up
         encoding="utf-8",
     )
 
-    class _FakeAdapter:
-        def missing_install_artifacts(self, target_dir: Path) -> tuple[str, ...]:
-            return ()
-
-    monkeypatch.setattr("gpd.hooks.install_metadata.get_adapter", lambda runtime: _FakeAdapter())
+    monkeypatch.setattr(
+        "gpd.hooks.install_metadata.get_adapter",
+        lambda runtime: (_ for _ in ()).throw(AssertionError("adapter should not be consulted")),
+    )
 
     assessment = assess_install_target(config_dir, expected_runtime=descriptor.runtime_name)
 
-    assert assessment.state == "owned_complete"
-    assert assessment.manifest_state == "ok"
+    assert assessment.state == "untrusted_manifest"
+    assert assessment.manifest_state == "missing_explicit_target"
     assert assessment.manifest_runtime == descriptor.runtime_name
-    assert assessment.readiness_state == "ready"
-    assert config_dir_has_complete_install(config_dir) is True
+    assert assessment.readiness_state == "blocked"
+    assert config_dir_has_complete_install(config_dir) is False
     assert installed_update_command(config_dir) is None
 
 
@@ -567,7 +566,7 @@ def test_hook_self_detection_accepts_manifest_backed_owned_incomplete_install(
     assert installed_update_command(config_dir) == "npx -y get-physics-done --codex --local"
 
 
-def test_hook_self_detection_accepts_legacy_manifest_but_update_command_requires_explicit_target(
+def test_hook_self_detection_rejects_legacy_manifest_without_explicit_target(
     tmp_path: Path,
 ) -> None:
     config_dir = tmp_path / ".codex"
@@ -584,10 +583,11 @@ def test_hook_self_detection_accepts_legacy_manifest_but_update_command_requires
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     detected = detect_self_owned_install(hook_path)
+    assessment = assess_install_target(config_dir, expected_runtime="codex")
 
-    assert detected is not None
-    assert detected.runtime == "codex"
-    assert detected.install_scope == "local"
+    assert assessment.state == "untrusted_manifest"
+    assert assessment.manifest_state == "missing_explicit_target"
+    assert detected is None
     assert installed_update_command(config_dir) is None
 
 

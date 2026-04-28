@@ -15,12 +15,12 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 from mcp.server.lowlevel import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
-from mcp.types import ToolAnnotations
 
 from gpd.core.arxiv_source_download import (
     default_arxiv_source_storage_path,
     download_arxiv_source_archive,
 )
+from gpd.mcp.servers import mutating_tool_annotations
 from gpd.version import __version__ as GPD_VERSION
 
 UPSTREAM_ARXIV_MODULE = "arxiv_mcp_server"
@@ -34,11 +34,10 @@ DOWNLOAD_SOURCE_TOOL_NAME = "download_source"
 # Static descriptor fallback. Runtime forwarding is gated by the live upstream
 # tool list whenever the upstream server can provide one.
 ADVERTISED_TOOL_NAMES = (*UPSTREAM_CORE_TOOL_NAMES, DOWNLOAD_SOURCE_TOOL_NAME)
-_DOWNLOAD_SOURCE_TOOL_ANNOTATIONS = ToolAnnotations(
-    readOnlyHint=False,
-    destructiveHint=True,
-    idempotentHint=False,
-    openWorldHint=True,
+_DOWNLOAD_SOURCE_TOOL_ANNOTATIONS = mutating_tool_annotations(
+    destructive=True,
+    idempotent=False,
+    open_world=True,
 )
 
 _DOWNLOAD_SOURCE_SCHEMA: dict[str, object] = {

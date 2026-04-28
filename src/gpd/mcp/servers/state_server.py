@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
-from mcp.types import ToolAnnotations
 from pydantic import WithJsonSchema
 
 from gpd.core.config import load_config
@@ -33,6 +32,8 @@ from gpd.core.utils import is_phase_complete, matching_phase_artifact_count
 from gpd.mcp.servers import (
     ABSOLUTE_PROJECT_DIR_SCHEMA,
     configure_mcp_logging,
+    mutating_tool_annotations,
+    read_only_tool_annotations,
     resolve_absolute_project_dir,
     stable_mcp_error,
     stable_mcp_response,
@@ -55,18 +56,8 @@ FixModeInput = Annotated[
     ),
 ]
 
-_PROJECT_MUTATION_TOOL_ANNOTATIONS = ToolAnnotations(
-    readOnlyHint=False,
-    destructiveHint=False,
-    idempotentHint=False,
-    openWorldHint=False,
-)
-_PROJECT_FIX_TOOL_ANNOTATIONS = ToolAnnotations(
-    readOnlyHint=False,
-    destructiveHint=True,
-    idempotentHint=False,
-    openWorldHint=False,
-)
+_PROJECT_MUTATION_TOOL_ANNOTATIONS = mutating_tool_annotations(destructive=False, idempotent=False)
+_PROJECT_FIX_TOOL_ANNOTATIONS = mutating_tool_annotations(destructive=True, idempotent=False)
 
 
 def load_state_json(cwd: Path) -> dict | None:
@@ -87,10 +78,12 @@ def load_state_json(cwd: Path) -> dict | None:
     if state_obj is None:
         return None
 
-    project_contract_load_info, project_contract_validation, project_contract_gate = _project_contract_runtime_payload_for_state(
-        project_root,
-        state_obj=state_obj,
-        state_source=state_source,
+    project_contract_load_info, project_contract_validation, project_contract_gate = (
+        _project_contract_runtime_payload_for_state(
+            project_root,
+            state_obj=state_obj,
+            state_source=state_source,
+        )
     )
     merged_state = dict(state_obj)
     merged_state.pop("session", None)
@@ -100,7 +93,7 @@ def load_state_json(cwd: Path) -> dict | None:
     return merged_state
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_state(project_dir: AbsoluteProjectDirInput) -> dict:
     """Get the current project state.
 
@@ -126,7 +119,7 @@ def get_state(project_dir: AbsoluteProjectDirInput) -> dict:
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_phase_info(project_dir: AbsoluteProjectDirInput, phase: str) -> dict:
     """Get detailed information about a specific phase.
 
@@ -184,7 +177,7 @@ def advance_plan(project_dir: AbsoluteProjectDirInput) -> dict:
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_progress(project_dir: AbsoluteProjectDirInput) -> dict:
     """Get overall project progress summary.
 
@@ -206,7 +199,7 @@ def get_progress(project_dir: AbsoluteProjectDirInput) -> dict:
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def validate_state(project_dir: AbsoluteProjectDirInput) -> dict:
     """Run comprehensive state validation checks.
 
@@ -259,7 +252,7 @@ def run_health_check(project_dir: AbsoluteProjectDirInput, fix: FixModeInput = F
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_config(project_dir: AbsoluteProjectDirInput) -> dict:
     """Get the project GPD configuration.
 

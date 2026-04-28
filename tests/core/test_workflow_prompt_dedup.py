@@ -315,7 +315,8 @@ def test_execute_phase_runtime_delegation_rules_are_single_sourced() -> None:
     execute_phase = _read("execute-phase.md")
 
     assert execute_phase.count("references/orchestration/runtime-delegation-note.md") == 1
-    assert "The shared note owns empty-model omission" in execute_phase
+    assert "The shared note owns runtime-neutral task construction and handoff gates." in execute_phase
+    assert "The shared note owns empty-model omission" not in execute_phase
     assert "preserve empty-model omission, `readonly=false`, artifact-gated completion" not in execute_phase
     assert execute_phase.count("Apply the canonical runtime delegation convention above.") >= 3
 

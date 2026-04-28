@@ -11,7 +11,6 @@ from gpd.mcp.managed_integrations import (
     WOLFRAM_BRIDGE_COMMAND,
     WOLFRAM_BRIDGE_MODULE,
     WOLFRAM_INTEGRATION_ID,
-    WOLFRAM_LEGACY_API_KEY_ENV_VARS,
     WOLFRAM_MANAGED_SERVER_KEY,
     WOLFRAM_MCP_API_KEY_ENV_VAR,
     WOLFRAM_MCP_DEFAULT_ENDPOINT,
@@ -93,20 +92,17 @@ def test_wolfram_descriptor_uses_env_vars_for_configuration(monkeypatch) -> None
     ).get("env", {})
 
 
-def test_wolfram_descriptor_reports_complete_missing_key_recovery_status() -> None:
+def test_wolfram_descriptor_reports_canonical_missing_key_recovery_status() -> None:
     descriptor = get_managed_integration("wolfram")
     assert descriptor is not None
 
-    env = {WOLFRAM_LEGACY_API_KEY_ENV_VARS[0]: "legacy-secret"}
+    env = {"WOLFRAM_MCP_SERVICE_API_KEY": "legacy-secret"}
     summary = descriptor.config_summary(env)
 
     assert summary["api_key_present"] is False
     assert summary["missing_api_key_env_vars"] == [WOLFRAM_MCP_API_KEY_ENV_VAR]
-    assert summary["ignored_legacy_api_key_env_vars"] == [WOLFRAM_LEGACY_API_KEY_ENV_VARS[0]]
-    assert summary["api_key_recovery"] == (
-        f"{WOLFRAM_LEGACY_API_KEY_ENV_VARS[0]} is not used by GPD. "
-        f"Set {WOLFRAM_MCP_API_KEY_ENV_VAR} instead."
-    )
+    assert "ignored_legacy_api_key_env_vars" not in summary
+    assert summary["api_key_recovery"] == f"Set {WOLFRAM_MCP_API_KEY_ENV_VAR}."
     assert summary["auth_state"] == "missing-api-key"
 
 
@@ -118,7 +114,7 @@ def test_wolfram_cli_status_projects_missing_key_recovery_without_server_entry(
 
     (tmp_path / "GPD").mkdir()
     monkeypatch.delenv(WOLFRAM_MCP_API_KEY_ENV_VAR, raising=False)
-    monkeypatch.setenv(WOLFRAM_LEGACY_API_KEY_ENV_VARS[0], "legacy-secret")
+    monkeypatch.setenv("WOLFRAM_MCP_SERVICE_API_KEY", "legacy-secret")
 
     payload = _wolfram_integration_status_payload(tmp_path)
 
@@ -126,8 +122,8 @@ def test_wolfram_cli_status_projects_missing_key_recovery_without_server_entry(
     assert payload["projection_status"] == "blocked_missing_api_key"
     assert payload["projected_server"] is None
     assert payload["missing_api_key_env_vars"] == [WOLFRAM_MCP_API_KEY_ENV_VAR]
-    assert payload["ignored_legacy_api_key_env_vars"] == [WOLFRAM_LEGACY_API_KEY_ENV_VARS[0]]
-    assert "is not used by GPD" in payload["next_step"]
+    assert "ignored_legacy_api_key_env_vars" not in payload
+    assert f"Set {WOLFRAM_MCP_API_KEY_ENV_VAR}." in payload["next_step"]
 
 
 def test_managed_optional_mcp_helpers_project_from_registry(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

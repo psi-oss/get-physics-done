@@ -1148,6 +1148,7 @@ def _write_install_manifest(
             {
                 "runtime": runtime,
                 "install_scope": install_scope,
+                "explicit_target": False,
             }
         ),
         encoding="utf-8",
@@ -3403,6 +3404,38 @@ def test_read_only_marker_backed_project_scoped_cwd_ignores_bare_ancestor_gpd_di
     nested_cwd.mkdir(parents=True)
 
     assert cli_module._read_only_marker_backed_project_scoped_cwd(nested_cwd) == nested_cwd.resolve()
+
+
+def test_json_input_root_helpers_ignore_bare_ancestor_gpd_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ancestor = tmp_path / "ancestor"
+    nested_cwd = ancestor / "child" / "work"
+    (ancestor / "GPD").mkdir(parents=True)
+    nested_cwd.mkdir(parents=True)
+    artifact_path = nested_cwd / "referee-decision.json"
+    artifact_path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(cli_module, "_cwd", nested_cwd)
+
+    assert cli_module._project_root_for_json_input(artifact_path.name) == nested_cwd.resolve()
+    assert cli_module._enclosing_project_root_for_json_input(artifact_path.name) is None
+
+
+def test_json_input_root_helpers_use_marker_backed_project_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    nested_cwd = project_root / "GPD" / "review"
+    _mark_verified_project_root(project_root)
+    nested_cwd.mkdir(parents=True, exist_ok=True)
+    artifact_path = nested_cwd / "referee-decision.json"
+    artifact_path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(cli_module, "_cwd", nested_cwd)
+
+    assert cli_module._project_root_for_json_input(artifact_path.name) == project_root.resolve()
+    assert cli_module._enclosing_project_root_for_json_input(artifact_path.name) == project_root.resolve()
 
 
 def test_state_validate_projectless_read_only_does_not_create_gpd_dir(tmp_path: Path) -> None:
@@ -6417,6 +6450,17 @@ def test_init_execute_phase_forwards_stage_option(mock_init):
     assert mock_init.call_args.kwargs == {"includes": set(), "stage": "phase_bootstrap"}
 
 
+@patch("gpd.core.context.init_execute_phase", side_effect=ValueError("Unknown execute-phase stage 'bad'."))
+def test_init_execute_phase_raw_invalid_stage_reports_clean_json_error(mock_init):
+    result = runner.invoke(app, ["--raw", "init", "execute-phase", "42", "--stage", "bad"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["error"] == "Unknown execute-phase stage 'bad'."
+    assert "Traceback" not in result.output
+    mock_init.assert_called_once()
+
+
 @patch("gpd.core.context.init_new_project")
 def test_init_new_project(mock_init):
     mock_result = MagicMock()
@@ -7183,7 +7227,7 @@ def test_paper_build_rejects_explicit_internal_planning_config_path(tmp_path: Pa
     assert "are not supported" in payload["error"]
 
 
-def test_paper_build_rejects_explicit_hidden_internal_planning_config_path(tmp_path: Path, capsys) -> None:
+def test_paper_build_allows_explicit_legacy_hidden_paper_config_as_normal_path(tmp_path: Path) -> None:
     planning_paper_dir = tmp_path / ".gpd" / "paper"
     planning_paper_dir.mkdir(parents=True)
     (tmp_path / ".gpd" / "state.json").write_text("{}\n", encoding="utf-8")
@@ -7200,15 +7244,31 @@ def test_paper_build_rejects_explicit_hidden_internal_planning_config_path(tmp_p
         encoding="utf-8",
     )
 
-    try:
-        cli_module.app(args=["--raw", "--cwd", str(tmp_path), "paper-build", ".gpd/paper/PAPER-CONFIG.json"])
-    except SystemExit as exc:
-        assert exc.code == 1
+    result_payload = MagicMock()
+    result_payload.tex_path = planning_paper_dir / "planning_lowercase.tex"
+    result_payload.manifest_path = planning_paper_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.bibliography_audit = None
+    result_payload.pdf_path = planning_paper_dir / "planning_lowercase.pdf"
+    result_payload.success = True
+    result_payload.errors = []
 
-    captured = capsys.readouterr()
-    payload = json.loads(captured.err)
-    assert ".gpd/paper" in payload["error"]
-    assert "are not supported" in payload["error"]
+    with (
+        patch("gpd.mcp.paper.compiler.detect_latex_toolchain", return_value=_toolchain_capability()),
+        patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build,
+    ):
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "paper-build", ".gpd/paper/PAPER-CONFIG.json"],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["config_path"] == "./.gpd/paper/PAPER-CONFIG.json"
+    assert payload["output_dir"] == "./.gpd/paper"
+    assert any("custom project directory" in warning for warning in payload["warnings"])
+    mock_build.assert_awaited_once()
 
 
 def test_paper_build_preserves_explicit_relative_config_path_from_nested_cwd(tmp_path: Path) -> None:

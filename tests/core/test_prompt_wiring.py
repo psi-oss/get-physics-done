@@ -3270,7 +3270,7 @@ def test_peer_review_command_limits_default_manuscript_targets_to_canonical_root
     assert "then `PAPER-CONFIG.json`, then the canonical current manuscript entrypoint rules" in peer_review_command
     assert "Explicit external artifact intake may also target `.tex`, `.md`, `.txt`, or `.pdf`." in peer_review_command
     assert (
-        "Additional supported external artifact formats also include `.docx`, `.csv`, `.tsv`, and `.xlsx`."
+        "Additional supported external artifact formats also include `.docx`, `.csv`, `.tsv`, `.xlsx`, and `.xlsm`."
         in peer_review_command
     )
     assert (
@@ -3384,7 +3384,7 @@ def test_publication_prompts_surface_strict_semantic_manuscript_gates() -> None:
         in shared_preflight
     )
     assert (
-        "In explicit-artifact mode, allow one `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, or `.xlsx` "
+        "In explicit-artifact mode, allow one `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or `.xlsm` "
         "review target outside those roots." in shared_preflight
     )
     assert (
@@ -4881,11 +4881,11 @@ def test_expanded_artifact_intake_surfaces_use_cli_text_extraction_helper() -> N
     )[1].split("**`gpd:respond-to-referees", 1)[0]
 
     assert (
-        "Review a specific `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript directory "
+        "Review a specific `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or manuscript directory "
         "path instead." in peer_review_workflow
     )
     assert (
-        "Accept `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or a manuscript directory path."
+        "Accept `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or a manuscript directory path."
         in peer_review_workflow
     )
     assert (
@@ -4898,7 +4898,7 @@ def test_expanded_artifact_intake_surfaces_use_cli_text_extraction_helper() -> N
     )
     assert 'gpd --raw init peer-review "$REVIEW_TARGET" --stage bootstrap' in peer_review_workflow
     assert (
-        "When the user explicitly points at `.docx`, `.csv`, `.tsv`, or `.xlsx`, treat it as an explicit "
+        "When the user explicitly points at `.docx`, `.csv`, `.tsv`, `.xlsx`, or `.xlsm`, treat it as an explicit "
         "external-artifact intake surface only; do not widen the default `paper/`, `manuscript/`, or `draft/` "
         "discovery rules." in peer_review_workflow
     )
@@ -4913,7 +4913,7 @@ def test_expanded_artifact_intake_surfaces_use_cli_text_extraction_helper() -> N
         "workflow" in help_workflow
     )
     assert "command-policy supported suffixes for publication-artifact paths" in help_workflow
-    assert "`.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx`" not in peer_review_help_block
+    assert "`.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, and `.xlsm`" not in peer_review_help_block
     assert "gpd validate artifact-text <path> --output <txt-path>" in peer_review_help_block
     assert "Usage: `gpd:peer-review draft.docx`" in peer_review_help_block
     assert "Usage: `gpd:peer-review data/observables.csv`" in peer_review_help_block
@@ -4945,7 +4945,7 @@ def test_expanded_artifact_intake_surfaces_use_cli_text_extraction_helper() -> N
 
     assert (
         "when the target is a standalone `.txt`, `.csv`, or `.tsv`, or an extracted text surface derived from "
-        "`.pdf`, `.docx`, or `.xlsx`, treat that artifact as the primary review surface." in referee
+        "`.pdf`, `.docx`, `.xlsx`, or `.xlsm`, treat that artifact as the primary review surface." in referee
     )
 
 

@@ -75,7 +75,7 @@ def _mark_complete_install(
 def _mark_incomplete_install(config_dir: Path, *, runtime: str, install_scope: str = "local") -> None:
     config_dir.mkdir(parents=True, exist_ok=True)
     (config_dir / MANIFEST_NAME).write_text(
-        json.dumps({"runtime": runtime, "install_scope": install_scope}),
+        json.dumps({"runtime": runtime, "install_scope": install_scope, "explicit_target": False}),
         encoding="utf-8",
     )
 
@@ -84,7 +84,7 @@ def _mark_lookup_only_install(config_dir: Path, *, runtime: str, install_scope: 
     """Seed only the manifest fields needed by local-config lookup tests."""
     config_dir.mkdir(parents=True, exist_ok=True)
     (config_dir / MANIFEST_NAME).write_text(
-        json.dumps({"runtime": runtime, "install_scope": install_scope}),
+        json.dumps({"runtime": runtime, "install_scope": install_scope, "explicit_target": False}),
         encoding="utf-8",
     )
 
@@ -767,9 +767,10 @@ def test_runtime_cli_bridge_explicit_target_flag_overrides_missing_manifest_meta
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
-def test_runtime_cli_allows_complete_legacy_manifest_without_explicit_target_metadata(
+def test_runtime_cli_rejects_complete_manifest_without_explicit_target_metadata(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
     descriptor,
 ) -> None:
     config_dir = tmp_path / descriptor.config_dir_name
@@ -779,11 +780,14 @@ def test_runtime_cli_allows_complete_legacy_manifest_without_explicit_target_met
     manifest.pop("explicit_target", None)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    exit_code, observed = _run_runtime_cli_with_recording(
-        monkeypatch,
-        cwd=tmp_path,
-        runtime=descriptor.runtime_name,
-        argv=[
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "gpd.cli.entrypoint",
+        lambda: (_ for _ in ()).throw(AssertionError("entrypoint should not run for missing explicit_target")),
+    )
+
+    exit_code = main(
+        [
             "--runtime",
             descriptor.runtime_name,
             "--config-dir",
@@ -792,12 +796,13 @@ def test_runtime_cli_allows_complete_legacy_manifest_without_explicit_target_met
             "local",
             "state",
             "load",
-        ],
+        ]
     )
 
-    assert exit_code == 0
-    assert observed["runtime"] == descriptor.runtime_name
-    assert observed["argv"] == ["gpd", "state", "load"]
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "missing_explicit_target" in captured.err
+    assert "Repair or reinstall with:" in captured.err
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)

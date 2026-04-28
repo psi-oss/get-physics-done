@@ -22,6 +22,7 @@ from gpd.mcp.servers import (
     configure_mcp_logging,
     parse_frontmatter_with_error,
     published_tool_input_schema,
+    read_only_tool_annotations,
     refresh_string_enum_property_schema,
     run_mcp_server,
     set_registered_and_published_tool_input_schema,
@@ -179,8 +180,7 @@ def _normalize_protocol_load_when(raw: object, *, protocol_name: str) -> list[st
     for item in raw:
         if not isinstance(item, str):
             raise ValueError(
-                "Protocol "
-                f"{protocol_name!r} has invalid frontmatter: load_when contains non-string entry {item!r}"
+                f"Protocol {protocol_name!r} has invalid frontmatter: load_when contains non-string entry {item!r}"
             )
         stripped = item.strip()
         if not stripped:
@@ -199,9 +199,7 @@ def _normalize_protocol_context_cost(raw: object, *, protocol_name: str) -> str:
         )
     stripped = raw.strip()
     if not stripped:
-        raise ValueError(
-            f"Protocol {protocol_name!r} has invalid frontmatter: context_cost must be a non-empty string"
-        )
+        raise ValueError(f"Protocol {protocol_name!r} has invalid frontmatter: context_cost must be a non-empty string")
     return stripped
 
 
@@ -223,7 +221,9 @@ def _contains_token_sequence(haystack: list[str], needle: list[str]) -> bool:
     if not needle or len(needle) > len(haystack):
         return False
     sequence_length = len(needle)
-    return any(haystack[index : index + sequence_length] == needle for index in range(len(haystack) - sequence_length + 1))
+    return any(
+        haystack[index : index + sequence_length] == needle for index in range(len(haystack) - sequence_length + 1)
+    )
 
 
 def _route_keyword_score(keyword: str, query_tokens: list[str]) -> int:
@@ -407,7 +407,7 @@ _PROTOCOL_USAGE_CAUTION = (
 )
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_protocol(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict[str, object]:
     """Get a physics computation protocol by name.
 
@@ -446,7 +446,7 @@ def get_protocol(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> di
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def list_protocols(
     domain: Annotated[ProtocolDomainFilter, Field(min_length=1, pattern=r"\S")] | None = None,
 ) -> dict[str, object]:
@@ -474,7 +474,7 @@ def list_protocols(
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def route_protocol(
     computation_type: Annotated[str, Field(min_length=1, pattern=r"\S")],
 ) -> dict[str, object]:
@@ -506,7 +506,7 @@ def route_protocol(
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_protocol_checkpoints(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict[str, object]:
     """Get verification checkpoints for a specific protocol.
 
