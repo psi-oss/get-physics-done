@@ -7,6 +7,8 @@ import fnmatch
 import json
 import logging
 import os
+import shutil
+import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -23,6 +25,7 @@ from gpd.adapters.install_utils import (
     UPDATE_CACHE_FILENAME,
     _dir_contains_files,
     build_runtime_cli_bridge_command,
+    bundled_hook_relpaths,
     compute_path_prefix,
     convert_tool_references_in_body,
     copy_hook_scripts,
@@ -56,6 +59,107 @@ if TYPE_CHECKING:
     from gpd.registry import AgentDef
 
 logger = logging.getLogger(__name__)
+
+
+class _InstallRollbackSnapshot:
+    """Snapshot install-owned paths so a failed install can leave the prior state intact."""
+
+    def __init__(self, paths: tuple[Path, ...]):
+        self._paths = self._dedupe_paths(paths)
+        self._root = Path(tempfile.mkdtemp(prefix="gpd-install-rollback-"))
+        self._records: list[tuple[Path, Path, bool]] = []
+        self._created_parent_dirs = self._missing_parent_dirs(self._paths)
+
+        for index, path in enumerate(self._paths):
+            backup = self._root / str(index)
+            existed = path.exists() or path.is_symlink()
+            if existed:
+                self._copy_path(path, backup)
+            self._records.append((path, backup, existed))
+
+    @staticmethod
+    def _dedupe_paths(paths: tuple[Path, ...]) -> tuple[Path, ...]:
+        expanded = tuple(_InstallRollbackSnapshot._expand_symlink_paths(paths))
+        resolved: list[tuple[Path, Path, bool]] = []
+        seen: set[Path] = set()
+        for path in expanded:
+            candidate = Path(path).expanduser()
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            candidate_resolved = candidate.expanduser().resolve(strict=False)
+            candidate_is_symlink = candidate.is_symlink()
+            if any(
+                candidate_resolved == existing or candidate_resolved.is_relative_to(existing)
+                for _, existing, existing_is_symlink in resolved
+                if not candidate_is_symlink and not existing_is_symlink
+            ):
+                continue
+            resolved.append((candidate, candidate_resolved, candidate_is_symlink))
+        return tuple(path for path, _, _ in resolved)
+
+    @staticmethod
+    def _expand_symlink_paths(paths: tuple[Path, ...]) -> tuple[Path, ...]:
+        expanded: list[Path] = []
+        for path in paths:
+            candidate = Path(path)
+            expanded.append(candidate)
+            if not candidate.is_symlink() or candidate.is_dir():
+                continue
+            try:
+                referent = candidate.resolve(strict=False)
+            except OSError:
+                continue
+            if referent != candidate:
+                expanded.append(referent)
+        return tuple(expanded)
+
+    @staticmethod
+    def _missing_parent_dirs(paths: tuple[Path, ...]) -> set[Path]:
+        missing: set[Path] = set()
+        for path in paths:
+            parent = path.parent
+            while parent != parent.parent and not parent.exists() and not parent.is_symlink():
+                missing.add(parent)
+                parent = parent.parent
+        return missing
+
+    @staticmethod
+    def _copy_path(src: Path, dest: Path) -> None:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if src.is_symlink():
+            dest.symlink_to(os.readlink(src))
+            return
+        if src.is_dir():
+            shutil.copytree(src, dest, symlinks=True)
+            return
+        shutil.copy2(src, dest)
+
+    @staticmethod
+    def _remove_path(path: Path) -> None:
+        if path.is_symlink() or path.is_file():
+            path.unlink()
+            return
+        if path.is_dir():
+            shutil.rmtree(path)
+
+    def restore(self) -> None:
+        for path, backup, existed in reversed(self._records):
+            if path.exists() or path.is_symlink():
+                self._remove_path(path)
+            if existed:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                self._copy_path(backup, path)
+        for directory in sorted(self._created_parent_dirs, key=lambda path: len(path.parts), reverse=True):
+            try:
+                directory.rmdir()
+            except OSError:
+                pass
+        self.discard()
+
+    def discard(self) -> None:
+        if self._root.exists():
+            shutil.rmtree(self._root)
 
 
 def _managed_install_surface(target_dir: Path):
@@ -97,6 +201,84 @@ def _catalog_globs_have_files(target_dir: Path, patterns: tuple[str, ...]) -> bo
     except OSError:
         return False
     return False
+
+
+def _existing_catalog_glob_paths(target_dir: Path, patterns: tuple[str, ...]) -> tuple[Path, ...]:
+    """Return existing paths selected by catalog globs."""
+    matches: list[Path] = []
+    for pattern in patterns:
+        try:
+            matches.extend(target_dir.glob(pattern))
+        except OSError:
+            continue
+    return tuple(matches)
+
+
+def _planned_flat_command_paths(gpd_root: Path, root: Path, *, prefix: str, suffix: str) -> tuple[Path, ...]:
+    """Return flat command paths generated from canonical command sources."""
+    commands_src = gpd_root / "commands"
+    if not commands_src.is_dir():
+        return ()
+
+    def _walk(src_dir: Path, current_prefix: str) -> tuple[Path, ...]:
+        planned: list[Path] = []
+        for entry in sorted(src_dir.iterdir()):
+            if entry.is_dir():
+                planned.extend(_walk(entry, f"{current_prefix}-{entry.name}"))
+            elif entry.suffix == ".md":
+                planned.append(root / f"{current_prefix}-{entry.stem}{suffix}")
+        return tuple(planned)
+
+    return _walk(commands_src, prefix)
+
+
+def _planned_agent_surface_paths(adapter: RuntimeAdapter, gpd_root: Path, target_dir: Path) -> tuple[Path, ...]:
+    """Return runtime agent paths generated from canonical agent sources."""
+    agents_src = gpd_root / "agents"
+    if not agents_src.is_dir():
+        return ()
+    agents_dest = target_dir / AGENTS_DIR_NAME
+    paths = [agents_dest / entry.name for entry in sorted(agents_src.glob("*.md"))]
+    paths.extend(agents_dest / f"{agent.name}.toml" for agent in adapter.load_runtime_agents(gpd_root))
+    return tuple(paths)
+
+
+def _scoped_install_rollback_paths(adapter: RuntimeAdapter, gpd_root: Path, target_dir: Path) -> tuple[Path, ...]:
+    """Return owned install surfaces that may be mutated by the shared installer."""
+    paths: list[Path] = [
+        target_dir / GPD_INSTALL_DIR_NAME,
+        target_dir / MANIFEST_NAME,
+        target_dir / PATCHES_DIR_NAME,
+        target_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
+        target_dir / CACHE_DIR_NAME / f"{UPDATE_CACHE_FILENAME}.inflight",
+    ]
+    paths.extend(target_dir / relpath for relpath in bundled_hook_relpaths())
+    paths.extend(target_dir / relpath for relpath in adapter.runtime_install_required_relpaths())
+
+    try:
+        policy = get_managed_install_surface_policy(adapter.runtime_name)
+    except KeyError:
+        policy = None
+    if policy is not None:
+        for pattern in policy.nested_command_globs:
+            static_root = _catalog_static_glob_root(pattern)
+            if static_root:
+                paths.append(target_dir / static_root)
+        paths.extend(_existing_catalog_glob_paths(target_dir, policy.flat_command_globs))
+        paths.extend(_existing_catalog_glob_paths(target_dir, policy.managed_agent_globs))
+        if policy.flat_command_globs:
+            paths.extend(
+                _planned_flat_command_paths(
+                    gpd_root,
+                    target_dir / FLAT_COMMANDS_DIR_NAME,
+                    prefix="gpd",
+                    suffix=".md",
+                )
+            )
+        if policy.managed_agent_globs:
+            paths.extend(_planned_agent_surface_paths(adapter, gpd_root, target_dir))
+
+    return tuple(paths)
 
 
 def _remove_catalog_owned_files(target_dir: Path, patterns: tuple[str, ...], *, stop_at: Path) -> int:
@@ -632,24 +814,37 @@ class RuntimeAdapter(abc.ABC):
                 self._validate(gpd_root)
                 self._validate_target_runtime(target_dir, action="install into")
                 self._preflight_runtime_config(target_dir, is_global)
-                path_prefix = self._compute_path_prefix(target_dir, is_global)
-                self._pre_cleanup(target_dir)
-                install_version = version_for_gpd_root(gpd_root) or __version__
+                rollback = _InstallRollbackSnapshot(self._install_rollback_paths(gpd_root, target_dir, is_global))
+                try:
+                    path_prefix = self._compute_path_prefix(target_dir, is_global)
+                    self._pre_cleanup(target_dir)
+                    install_version = version_for_gpd_root(gpd_root) or __version__
 
-                failures: list[str] = []
-                command_count = self._install_commands(gpd_root, target_dir, path_prefix, failures)
-                self._install_content(gpd_root, target_dir, path_prefix, failures)
-                agent_count = self._install_agents(gpd_root, target_dir, path_prefix, failures)
-                self._install_version(target_dir, install_version, failures)
-                self._install_hooks(gpd_root, target_dir, failures)
+                    failures: list[str] = []
+                    command_count = self._install_commands(gpd_root, target_dir, path_prefix, failures)
+                    self._install_content(gpd_root, target_dir, path_prefix, failures)
+                    agent_count = self._install_agents(gpd_root, target_dir, path_prefix, failures)
+                    self._install_version(target_dir, install_version, failures)
+                    self._install_hooks(gpd_root, target_dir, failures)
 
-                if failures:
-                    span.set_attribute("gpd.install_failures", ", ".join(failures))
-                    raise RuntimeError(f"Installation incomplete! Failed: {', '.join(failures)}")
+                    if failures:
+                        span.set_attribute("gpd.install_failures", ", ".join(failures))
+                        raise RuntimeError(f"Installation incomplete! Failed: {', '.join(failures)}")
 
-                extra = self._configure_runtime(target_dir, is_global)
-                self._write_manifest(target_dir, install_version)
-                self._verify(target_dir)
+                    extra = self._configure_runtime(target_dir, is_global)
+                    self._write_manifest(target_dir, install_version)
+                    self._verify(target_dir)
+                except Exception:
+                    try:
+                        rollback.restore()
+                    except Exception:
+                        logger.exception(
+                            "Failed to roll back %s install after install error",
+                            self.runtime_name,
+                        )
+                    raise
+                else:
+                    rollback.discard()
 
                 span.set_attribute("gpd.commands_count", command_count)
                 span.set_attribute("gpd.agents_count", agent_count)
@@ -714,6 +909,11 @@ class RuntimeAdapter(abc.ABC):
 
         for integration in _managed_integrations.list_managed_integrations().values():
             integration.project_record(project_cwd)
+
+    def _install_rollback_paths(self, gpd_root: Path, target_dir: Path, is_global: bool) -> tuple[Path, ...]:
+        """Return paths that must be restored if install fails after mutation starts."""
+        del is_global
+        return _scoped_install_rollback_paths(self, gpd_root, target_dir)
 
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         """Install commands in runtime-specific format.

@@ -13,7 +13,7 @@ The GitHub Actions workflow runs that same full suite as category-named runtime-
 ## Repository Interdependency Graph
 
 <!-- repo-graph-generated-on:start -->
-Only marked repo-graph blocks are generated from the current worktree via `python scripts/sync_repo_graph_contract.py`.
+Only marked repo-graph blocks are generated from the current worktree via `uv run python scripts/sync_repo_graph_contract.py`.
 <!-- repo-graph-generated-on:end -->
 
 ## Status
@@ -49,6 +49,7 @@ Excluded as noise from node counting, but still modeled where contractually rele
 - `.git/**`
 - `.mcp.json`
 - `.npm-cache/**`
+- `.playwright-mcp/**`
 - `__pycache__/**`
 - `.venv/**`
 - `.pytest_cache/**`

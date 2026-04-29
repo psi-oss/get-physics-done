@@ -125,6 +125,10 @@ def _create_config(tmp_path: Path, config: dict) -> Path:
     return config_path
 
 
+def _state_lock_path(tmp_path: Path) -> Path:
+    return tmp_path / "GPD" / "state.json.lock"
+
+
 _PLAN_PHASE_STAGE_BOOTSTRAP_FIELDS = [
     "researcher_model",
     "planner_model",
@@ -1538,6 +1542,15 @@ class TestInitExecutePhaseStagedWiring:
         assert "protocol_bundle_context" not in ctx
         assert "current_execution" not in ctx
 
+    def test_stage_phase_bootstrap_does_not_create_state_lock(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "01-setup")
+        _write_project_contract_state(tmp_path)
+
+        init_execute_phase(tmp_path, "1", stage="phase_bootstrap")
+
+        assert not _state_lock_path(tmp_path).exists()
+
     def test_stage_phase_classification_skips_reference_artifact_payload(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -1546,7 +1559,9 @@ class TestInitExecutePhaseStagedWiring:
         _write_project_contract_state(tmp_path)
         calls: list[bool] = []
 
-        def _record_artifact_payload(*_args: object, include_content: bool = True, **_kwargs: object) -> dict[str, object]:
+        def _record_artifact_payload(
+            *_args: object, include_content: bool = True, **_kwargs: object
+        ) -> dict[str, object]:
             calls.append(include_content)
             raise AssertionError("phase_classification should not scan reference artifacts")
 
@@ -1620,6 +1635,15 @@ class TestInitPlanPhase:
         assert "active_reference_context" not in ctx
         assert "reference_artifacts_content" not in ctx
         assert "state_content" not in ctx
+
+    def test_stage_phase_bootstrap_does_not_create_state_lock(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "02-analysis")
+        _write_project_contract_state(tmp_path)
+
+        init_plan_phase(tmp_path, "2", stage="phase_bootstrap")
+
+        assert not _state_lock_path(tmp_path).exists()
 
     def test_stage_planner_authoring_surfaces_reference_runtime_and_file_context(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2260,7 +2284,7 @@ class TestInitNewProject:
             (tmp_path / filename).write_text("research artifact\n", encoding="utf-8")
         notes = tmp_path / "notes"
         notes.mkdir()
-        (notes / "gamma.jl").write_text("println(\"research\")\n", encoding="utf-8")
+        (notes / "gamma.jl").write_text('println("research")\n', encoding="utf-8")
 
         ctx = init_new_project(tmp_path)
 
@@ -2622,7 +2646,9 @@ class TestInitNewProject:
         _write_project_contract_state(tmp_path)
         calls: list[bool] = []
 
-        def _record_artifact_payload(*_args: object, include_content: bool = True, **_kwargs: object) -> dict[str, object]:
+        def _record_artifact_payload(
+            *_args: object, include_content: bool = True, **_kwargs: object
+        ) -> dict[str, object]:
             calls.append(include_content)
             raise AssertionError("state_restore should not scan reference artifacts")
 
@@ -2892,7 +2918,9 @@ class TestInitNewProject:
         assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
         assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
 
-    def test_write_paper_stage_bootstrap_surfaces_managed_lane_roots_without_project_backing(self, tmp_path: Path) -> None:
+    def test_write_paper_stage_bootstrap_surfaces_managed_lane_roots_without_project_backing(
+        self, tmp_path: Path
+    ) -> None:
         _setup_project(tmp_path)
         manuscript_dir = tmp_path / "GPD" / "publication" / "external-lane" / "manuscript"
         manuscript_dir.mkdir(parents=True)
@@ -2964,9 +2992,7 @@ class TestInitNewProject:
         assert ctx["selected_publication_root"] == "GPD"
         assert ctx["selected_review_root"] == "GPD/review"
 
-    def test_respond_to_referees_stage_bootstrap_routes_explicit_manuscript_intake(
-        self, tmp_path: Path
-    ) -> None:
+    def test_respond_to_referees_stage_bootstrap_routes_explicit_manuscript_intake(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _write_project_contract_state(tmp_path)
         manuscript_dir = tmp_path / "paper"
@@ -2992,9 +3018,7 @@ class TestInitNewProject:
         assert ctx["resolved_review_target"] == str(manuscript)
         assert ctx["resolved_review_root"] == str(manuscript_dir)
 
-    def test_respond_to_referees_stage_bootstrap_treats_bare_path_as_report_source(
-        self, tmp_path: Path
-    ) -> None:
+    def test_respond_to_referees_stage_bootstrap_treats_bare_path_as_report_source(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _write_project_contract_state(tmp_path)
         manuscript_dir = tmp_path / "paper"
@@ -3069,9 +3093,7 @@ class TestInitNewProject:
             assert ctx["selected_publication_root"] == "GPD"
             assert ctx["selected_review_root"] == "GPD/review"
 
-    def test_arxiv_submission_stage_bootstrap_surfaces_subject_owned_publication_roots(
-        self, tmp_path: Path
-    ) -> None:
+    def test_arxiv_submission_stage_bootstrap_surfaces_subject_owned_publication_roots(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nSubmission target.\n", encoding="utf-8")
         _write_project_contract_state(tmp_path)
@@ -3202,9 +3224,7 @@ class TestInitNewMilestone:
         assert "planning_exists" not in ctx
         assert "roadmapper_model" not in ctx
 
-    def test_new_milestone_stage_resolves_ancestor_project_root_from_nested_workspace(
-        self, tmp_path: Path
-    ) -> None:
+    def test_new_milestone_stage_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_roadmap(tmp_path, "## Milestone v1.0: Setup Phase\n")
         (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
@@ -3414,6 +3434,14 @@ class TestInitResume:
         ctx = init_resume(tmp_path)
         assert ctx["has_interrupted_agent"] is False
         assert ctx["interrupted_agent_id"] is None
+
+    def test_resume_does_not_create_state_lock(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_structured_state_memory(tmp_path)
+
+        init_resume(tmp_path)
+
+        assert not _state_lock_path(tmp_path).exists()
 
     def test_with_interrupted_agent(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -3857,6 +3885,24 @@ class TestInitVerifyWork:
         assert ctx["has_verification"] is True
         assert ctx["project_root"] == tmp_path.resolve(strict=False).as_posix()
         assert ctx["phase_dir_abs"].endswith("/GPD/phases/01-setup")
+
+    def test_plain_init_does_not_create_state_lock(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "01-setup")
+        _write_project_contract_state(tmp_path)
+
+        init_verify_work(tmp_path, "1")
+
+        assert not _state_lock_path(tmp_path).exists()
+
+    def test_staged_init_does_not_create_state_lock(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "01-setup")
+        _write_project_contract_state(tmp_path)
+
+        init_verify_work(tmp_path, "1", stage="session_router")
+
+        assert not _state_lock_path(tmp_path).exists()
 
     def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -4612,6 +4658,14 @@ class TestInitProgress:
         assert ctx["next_phase"] is None
         assert ctx["paused_at"] is None
 
+    def test_progress_does_not_create_state_lock(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_structured_state_memory(tmp_path)
+
+        init_progress(tmp_path)
+
+        assert not _state_lock_path(tmp_path).exists()
+
     def test_phase_statuses(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         # Complete phase
@@ -4923,9 +4977,7 @@ class TestInitProgress:
         assert ctx["execution_paused_at"] == "2026-03-11T08:00:00+00:00"
         assert ctx["paused_at"] == "2026-03-11T08:00:00+00:00"
 
-    def test_progress_does_not_surface_execution_flags_from_non_resumable_bounded_segment(
-        self, tmp_path: Path
-    ) -> None:
+    def test_progress_does_not_surface_execution_flags_from_non_resumable_bounded_segment(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         from gpd.core.state import default_state_dict
 

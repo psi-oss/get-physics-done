@@ -910,7 +910,11 @@ def _has_structured_state_value(value: object) -> bool:
 
 def _build_structured_state_runtime_context(cwd: Path) -> dict[str, object]:
     """Build structured canonical state slices for init payloads."""
-    state, state_issues, state_source = _peek_state_json(cwd, recover_intent=False)
+    state, state_issues, state_source = _peek_state_json(
+        cwd,
+        recover_intent=False,
+        acquire_lock=False,
+    )
     source = state_source.as_posix() if isinstance(state_source, Path) else str(state_source) if state_source else None
     if not isinstance(state, dict):
         return {
@@ -2428,7 +2432,11 @@ def _build_peer_review_runtime_context(
 
 def _build_state_memory_runtime_context(cwd: Path) -> dict[str, object]:
     """Build shared structured state-memory context for init surfaces."""
-    state, _state_issues, _state_source = _peek_state_json(cwd, recover_intent=False)
+    state, _state_issues, _state_source = _peek_state_json(
+        cwd,
+        recover_intent=False,
+        acquire_lock=False,
+    )
     if not isinstance(state, dict):
         return {
             "derived_convention_lock": {},
@@ -2468,7 +2476,11 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
     from gpd.core.observability import get_current_execution
 
     snapshot = get_current_execution(cwd)
-    state, state_issues, _state_source = _peek_state_json(cwd, recover_intent=False)
+    state, state_issues, _state_source = _peek_state_json(
+        cwd,
+        recover_intent=False,
+        acquire_lock=False,
+    )
     position = state.get("position") if isinstance(state, dict) else {}
     machine = _current_machine_identity()
     current_hostname = machine.get("hostname")
@@ -2666,7 +2678,11 @@ def _handoff_last_result_id(resume_projection: object) -> str | None:
 
 def _build_resume_result_lookup(cwd: Path) -> dict[str, dict[str, object]]:
     """Return canonical results keyed by ID for resume hydration."""
-    state, _state_issues, _state_source = _peek_state_json(cwd, recover_intent=False)
+    state, _state_issues, _state_source = _peek_state_json(
+        cwd,
+        recover_intent=False,
+        acquire_lock=False,
+    )
     if not isinstance(state, dict):
         return {}
     try:

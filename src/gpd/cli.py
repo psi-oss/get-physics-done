@@ -5384,10 +5384,14 @@ def init_verify_work(
     """Assemble context for verifying completed work."""
     from gpd.core.context import init_verify_work
 
-    if stage is None:
-        _output(init_verify_work(_get_cwd(), phase))
-    else:
-        _output(init_verify_work(_get_cwd(), phase, stage=stage))
+    try:
+        if stage is None:
+            payload = init_verify_work(_get_cwd(), phase)
+        else:
+            payload = init_verify_work(_get_cwd(), phase, stage=stage)
+    except (GPDError, ValueError) as exc:
+        _error(str(exc))
+    _output(payload)
 
 
 @init_app.command("progress")
@@ -6421,7 +6425,9 @@ def _resolve_subject_path(subject: str | None, *, base: Path) -> Path | None:
     return target.resolve(strict=False)
 
 
-def _resolve_launch_or_project_relative_path(subject: str | None, *, launch_cwd: Path, project_cwd: Path) -> Path | None:
+def _resolve_launch_or_project_relative_path(
+    subject: str | None, *, launch_cwd: Path, project_cwd: Path
+) -> Path | None:
     """Resolve a launch argument relative to launch cwd first, then project root."""
     launch_candidate = _resolve_subject_path(subject, base=launch_cwd)
     if launch_candidate is None or launch_candidate.exists() or Path(str(subject or "")).is_absolute():
@@ -7524,8 +7530,7 @@ def _reject_internal_paper_config_location(config_file: Path, *, project_root: P
     except ValueError:
         return
     raise GPDError(
-        "Paper configs under `GPD/paper/` are not supported. "
-        "Move the config to `paper/`, `manuscript/`, or `draft/`."
+        "Paper configs under `GPD/paper/` are not supported. Move the config to `paper/`, `manuscript/`, or `draft/`."
     )
 
 
@@ -9491,7 +9496,10 @@ def _build_command_context_preflight(
                     [command.argument_hint.strip()] if command.argument_hint.strip() else ["explicit command inputs"]
                 )
             subject_required = _command_has_typed_subject_policy(command)
-            subject_context_ready = resolved_subject is not None and resolved_subject.status in {"resolved", "bootstrap"}
+            subject_context_ready = resolved_subject is not None and resolved_subject.status in {
+                "resolved",
+                "bootstrap",
+            }
             if subject_required:
                 add_check(
                     "explicit_inputs",

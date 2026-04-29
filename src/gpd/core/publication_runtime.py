@@ -30,6 +30,7 @@ from gpd.core.peer_review_mode import (
 )
 from gpd.core.proof_review import (
     ProofReviewStatus,
+    _read_proof_redteam_status,
     manuscript_requires_theorem_bearing_review,
     publication_lineage_mode,
     publication_lineage_roots,
@@ -44,8 +45,9 @@ from gpd.core.publication_rounds import (
     publication_response_round_path_maps,
     publication_review_round_path_maps,
 )
-from gpd.core.referee_policy import validate_referee_decision_ledger_consistency
+from gpd.core.referee_policy import evaluate_referee_decision, validate_referee_decision_ledger_consistency
 from gpd.core.reference_ingestion import ManuscriptReferenceStatusIngestion, ingest_manuscript_reference_status
+from gpd.core.reproducibility import compute_sha256
 from gpd.core.state import load_state_json
 from gpd.mcp.paper.models import ReviewIssueStatus
 from gpd.mcp.paper.review_artifacts import read_referee_decision, read_review_ledger
@@ -512,6 +514,17 @@ def _first_existing_path(*candidates: Path) -> Path | None:
     return None
 
 
+def _proof_redteam_claim_ids(path: Path) -> tuple[tuple[str, ...], str | None]:
+    try:
+        meta, _body = extract_frontmatter(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, FrontmatterParseError) as exc:
+        return (), str(exc)
+    claim_ids = meta.get("claim_ids")
+    if not isinstance(claim_ids, list) or any(not isinstance(item, str) or not item.strip() for item in claim_ids):
+        return (), "top-level frontmatter `claim_ids` must be a list of strings"
+    return tuple(dict.fromkeys(item.strip() for item in claim_ids)), None
+
+
 def _review_artifact_state(
     *,
     review_ledger: Path | None,
@@ -619,6 +632,74 @@ def _review_artifact_state(
 
     if missing:
         return "partial", f"missing review artifact(s): {', '.join(missing)}", tuple(missing), proof_redteam_required
+
+    if ledger is not None and decision is not None:
+        expected_manuscript_sha256 = None
+        if manuscript_entrypoint is not None:
+            try:
+                expected_manuscript_sha256 = compute_sha256(manuscript_entrypoint)
+            except OSError:
+                expected_manuscript_sha256 = None
+        strict_report = evaluate_referee_decision(
+            decision,
+            strict=True,
+            require_explicit_inputs=True,
+            review_ledger=ledger,
+            project_root=project_root,
+            expected_manuscript_sha256=expected_manuscript_sha256,
+        )
+        if not strict_report.valid:
+            return (
+                "invalid",
+                "referee decision strict policy failed: " + "; ".join(strict_report.reasons[:3]),
+                (),
+                proof_redteam_required,
+            )
+        if proof_redteam_required:
+            if not decision.proof_audit_coverage_complete or not decision.theorem_proof_alignment_adequate:
+                return (
+                    "invalid",
+                    "theorem-bearing manuscript requires complete proof-audit coverage and aligned proof-redteam review",
+                    (),
+                    proof_redteam_required,
+                )
+            if proof_redteam is not None:
+                proof_redteam_status, proof_redteam_error = _read_proof_redteam_status(
+                    proof_redteam,
+                    project_root=project_root,
+                    expected_manuscript_path=decision.manuscript_path.strip() or None,
+                    expected_manuscript_sha256=expected_manuscript_sha256,
+                    expected_round=round_number,
+                )
+                if proof_redteam_error is not None:
+                    return (
+                        "invalid",
+                        "proof-redteam strict policy failed: " + proof_redteam_error,
+                        (),
+                        proof_redteam_required,
+                    )
+                if proof_redteam_status != "passed":
+                    return (
+                        "invalid",
+                        f"proof-redteam strict policy failed: expected status `passed`, got `{proof_redteam_status}`",
+                        (),
+                        proof_redteam_required,
+                    )
+                proof_claim_ids, proof_claim_error = _proof_redteam_claim_ids(proof_redteam)
+                if proof_claim_error is not None:
+                    return (
+                        "invalid",
+                        "proof-redteam strict policy failed: " + proof_claim_error,
+                        (),
+                        proof_redteam_required,
+                    )
+                if not proof_claim_ids:
+                    return (
+                        "invalid",
+                        "proof-redteam strict policy failed: theorem-bearing manuscript requires claim_ids",
+                        (),
+                        proof_redteam_required,
+                    )
 
     return "complete", "latest review round is complete for the active manuscript", (), proof_redteam_required
 
@@ -911,7 +992,7 @@ def resolve_latest_publication_response_artifacts(
             missing_artifacts=tuple(missing),
         )
 
-    binding_required = subject.source == "explicit_target" and resolved_manuscript is not None
+    binding_required = resolved_manuscript is not None
     state, detail = _response_artifact_binding_state(
         project_root=project_root,
         author_response=author_response,

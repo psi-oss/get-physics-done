@@ -249,6 +249,64 @@ class TestInstall:
         assert mcp_config_path.read_text(encoding="utf-8") == before
         _assert_no_manifestless_gpd_artifacts(target)
 
+    def test_install_rolls_back_mcp_config_when_manifest_write_fails(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+        mcp_config_path = target.parent / ".mcp.json"
+        mcp_config_path.write_text(
+            json.dumps({"mcpServers": {"custom-server": {"command": "node", "args": ["custom.js"]}}}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        before_mcp = mcp_config_path.read_text(encoding="utf-8")
+
+        def fail_manifest(*args, **kwargs):
+            raise RuntimeError("manifest boom")
+
+        monkeypatch.setattr("gpd.adapters.base.write_manifest", fail_manifest)
+
+        with pytest.raises(RuntimeError, match="manifest boom"):
+            adapter.install(gpd_root, target)
+
+        assert mcp_config_path.read_text(encoding="utf-8") == before_mcp
+        _assert_no_manifestless_gpd_artifacts(target)
+
+    def test_install_rollback_restores_symlinked_mcp_config_referent_when_manifest_write_fails(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+        real_mcp_config = tmp_path / "real-mcp.json"
+        real_mcp_config.write_text(
+            json.dumps({"mcpServers": {"custom-server": {"command": "node", "args": ["custom.js"]}}}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        mcp_config_path = target.parent / ".mcp.json"
+        mcp_config_path.symlink_to(real_mcp_config)
+        before_mcp = real_mcp_config.read_text(encoding="utf-8")
+
+        def fail_manifest(*args, **kwargs):
+            raise RuntimeError("manifest boom")
+
+        monkeypatch.setattr("gpd.adapters.base.write_manifest", fail_manifest)
+
+        with pytest.raises(RuntimeError, match="manifest boom"):
+            adapter.install(gpd_root, target)
+
+        assert mcp_config_path.is_symlink()
+        assert mcp_config_path.resolve(strict=True) == real_mcp_config
+        assert real_mcp_config.read_text(encoding="utf-8") == before_mcp
+        _assert_no_manifestless_gpd_artifacts(target)
+
     def test_install_commands_have_placeholder_replacement(
         self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path
     ) -> None:
@@ -626,6 +684,23 @@ class TestInstall:
 
         parsed = json.loads((tmp_path / ".mcp.json").read_text(encoding="utf-8"))
         assert WOLFRAM_MANAGED_SERVER_KEY not in parsed.get("mcpServers", {})
+
+    def test_install_fails_closed_for_malformed_project_integrations_before_copying_artifacts(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".claude"
+        target.mkdir()
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "integrations.json").write_text('{"wolfram":', encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="Malformed integrations config"):
+            adapter.install(gpd_root, target)
+
+        assert not (tmp_path / ".mcp.json").exists()
+        _assert_no_manifestless_gpd_artifacts(target)
 
     def test_install_translates_tool_references_in_agent_body(
         self,

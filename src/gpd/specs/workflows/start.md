@@ -19,6 +19,8 @@ Parse the JSON result and use these fields:
 
 - `project_exists=true` means this folder already has a `GPD project` (a folder where GPD already saved its own project files, notes, and state), such as `GPD/PROJECT.md`.
 - `recoverable_project_exists=true` means this folder has GPD state that should not be treated as fresh. If `partial_project_exists=true`, route to recovery/inspection rather than new setup.
+- `roadmap_exists=true` means partial state has a roadmap-like recovery anchor.
+- `state_exists=true` means partial state has a state file that can be reconciled.
 - `has_research_map=true` means this folder already has a `research map` (GPD's summary of an existing research folder before full project setup).
 - `has_research_files=true`, `has_project_manifest=true`, or `needs_research_map=true` means this looks like an existing research folder. Example files might be `.tex`, `.py`, `.ipynb`, `.pdf`, or `.csv`.
 - `research_file_samples` is a sorted, bounded list of up to 5 project-relative research-looking files noticed by the classifier.
@@ -62,6 +64,8 @@ Offer only the choices that fit the detected state.
 @{GPD_INSTALL_DIR}/references/shared/interactive-choice-fallback.md
 
 If choices are rendered as plain text, add: `Reply with the number or the option name.`
+
+Assign one internal `option_id` per choice. Do not route directly on the mutable English label; map input to: `resume_work`, `sync_state`, `progress`, `suggest_next`, `map_research`, `new_project_minimal`, `new_project_full`, `tour`, `quick`, `explain`, `help_all`, `reopen_recent`.
 
 Before listing choices, add one short line in plain English such as:
 
@@ -151,60 +155,62 @@ Ask for exactly one choice.
 <step name="route_choice">
 Route immediately into the real existing workflow for the chosen path.
 
-**If the researcher chooses `Resume this project (recommended)`, `Continue where I left off`, `Inspect recovery state (recommended)`, or `Inspect recovery state`:**
+Normalize the reply to one stable `option_id`; labels are aliases only.
+
+**If the researcher chooses option_id `resume_work` (`Resume this project (recommended)`, `Continue where I left off`, `Inspect recovery state (recommended)`, or `Inspect recovery state`):**
 
 - Read `{GPD_INSTALL_DIR}/workflows/resume-work.md` with the file-read tool.
 - Follow that workflow as if the researcher had run `gpd:resume-work`.
 
-**If the researcher chooses `Reconcile state files`:**
+**If the researcher chooses option_id `sync_state` (`Reconcile state files`):**
 
 - Read `{GPD_INSTALL_DIR}/workflows/sync-state.md` with the file-read tool.
 - Follow that workflow as if the researcher had run `gpd:sync-state`.
 
-**If the researcher chooses `Review the project status first`, `Review project status first`, or `Review visible progress`:**
+**If the researcher chooses option_id `progress` (`Review the project status first`, `Review project status first`, or `Review visible progress`):**
 
 - Read `{GPD_INSTALL_DIR}/workflows/progress.md` with the file-read tool.
 - Follow that workflow as if the researcher had run `gpd:progress`.
 
-**If the researcher chooses `Suggest the next best step`:**
+**If the researcher chooses option_id `suggest_next` (`Suggest the next best step`):**
 
 - `suggest-next` is a workflow-exempt command, not a shared workflow include.
 - Follow the installed `gpd:suggest-next` command contract directly, as if the researcher had run it.
 
-**If the researcher chooses `Map this folder first (recommended)` or `Refresh the research map`:**
+**If the researcher chooses option_id `map_research` (`Map this folder first (recommended)` or `Refresh the research map`):**
 
 - Read `{GPD_INSTALL_DIR}/workflows/map-research.md` with the file-read tool.
 - Follow that workflow as if the researcher had run `gpd:map-research`.
 
-**If the researcher chooses `Fast start (recommended)`, `Fast start`, or `Start a brand-new GPD project anyway`:**
+**If the researcher chooses option_id `new_project_minimal` (`Fast start (recommended)`, `Fast start`, or `Start a brand-new GPD project anyway`):**
 
 - Follow the installed `gpd:new-project --minimal` command contract directly, as if the researcher had run it.
 
-**If the researcher chooses `Full guided setup`, `Turn this into a full GPD project (recommended)`, or `Turn this into a full GPD project`:**
+**If the researcher chooses option_id `new_project_full` (`Full guided setup`, `Turn this into a full GPD project (recommended)`, or `Turn this into a full GPD project`):**
 
 - Follow the installed `gpd:new-project` command contract directly, as if the researcher had run it.
 
-**If the researcher chooses `Take a guided tour first` or `tour`:**
+**If the researcher chooses option_id `tour` (`Take a guided tour first` or `tour`):**
 
 - Follow the installed `gpd:tour` command contract directly, as if the researcher had run it.
 
-**If the researcher chooses `Do one small bounded task`:**
+**If the researcher chooses option_id `quick` (`Do one small bounded task`):**
 
 - Read `{GPD_INSTALL_DIR}/workflows/quick.md` with the file-read tool.
 - Follow that workflow as if the researcher had run `gpd:quick`.
 
-**If the researcher chooses `Explain one concept`:**
+**If the researcher chooses option_id `explain` (`Explain one concept`):**
 
 - If `$ARGUMENTS` contains a usable concept or question, reuse it.
 - Otherwise ask for one short concept or question before continuing.
 - Read `{GPD_INSTALL_DIR}/workflows/explain.md` with the file-read tool.
 - Follow that workflow as if the researcher had run `gpd:explain <topic>`.
 
-**If the researcher chooses `Show all commands`:**
+**If the researcher chooses option_id `help_all` (`Show all commands`):**
 
 - Follow the installed `gpd:help --all` command contract directly, as if the researcher had run it.
 
-**If the researcher chooses `Reopen a different GPD project`:**
+**If the researcher chooses option_id `reopen_recent` (`Reopen a different GPD project`):**
 
 - Do not silently switch projects from inside the runtime.
 - Explain exactly:

@@ -504,6 +504,17 @@ Write to:
 - `${phase_dir}/DERIVATION-{slug}-PROOF-REDTEAM.md` when authoritative phase context is phase-scoped
 - `GPD/analysis/derivation-{slug}-proof-redteam.md` when operating in the current-workspace fallback branch
 
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - ${phase_dir}/DERIVATION-{slug}-PROOF-REDTEAM.md
+    - GPD/analysis/derivation-{slug}-proof-redteam.md
+expected_artifacts:
+  - one proof-redteam artifact at the selected path above
+shared_state_policy: return_only
+</spawn_contract>
+
 Files to read:
 - The newly written derivation artifact
 - Any theorem inventory carried in the derivation

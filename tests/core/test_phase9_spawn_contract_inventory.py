@@ -12,6 +12,7 @@ from gpd.registry import _parse_spawn_contracts
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 EXPECTED_WORKFLOW_COUNTS = {
+    "derive-equation.md": 1,
     "execute-phase.md": 2,
     "literature-review.md": 2,
     "map-research.md": 4,
@@ -22,6 +23,7 @@ EXPECTED_WORKFLOW_COUNTS = {
     "plan-phase.md": 1,
     "research-phase.md": 1,
     "verify-work.md": 1,
+    "verify-phase.md": 1,
 }
 EXPECTED_RAW_WORKFLOW_COUNTS = {
     **EXPECTED_WORKFLOW_COUNTS,

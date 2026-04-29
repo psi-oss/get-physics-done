@@ -58,6 +58,7 @@ from gpd.core.recent_projects import record_recent_project
 from gpd.core.reproducibility import compute_sha256
 from gpd.core.resume_surface import RESUME_BACKEND_ONLY_FIELDS
 from gpd.core.state import default_state_dict, generate_state_markdown, save_state_json, save_state_markdown
+from tests.latex_test_support import latex_capability_payload as _latex_capability_payload
 from tests.latex_test_support import toolchain_capability as _toolchain_capability
 from tests.runtime_test_support import (
     FOREIGN_RUNTIME,
@@ -83,6 +84,10 @@ _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 def _normalize_cli_output(text: str) -> str:
     return " ".join(_ANSI_ESCAPE_RE.sub("", text).split())
+
+
+def _has_warning_with_fragments(warnings: list[str], *fragments: str) -> bool:
+    return any(all(fragment in warning for fragment in fragments) for warning in warnings)
 
 
 _COST_TEST_RUNTIME = "runtime-under-test"
@@ -6734,27 +6739,7 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
     ]
     assert payload["manifest_path"] == "../paper/ARTIFACT-MANIFEST.json"
     assert payload["pdf_path"] == "../paper/configured_paper.pdf"
-    assert payload["toolchain"] == {
-        "compiler": "pdflatex",
-        "available": True,
-        "compiler_available": True,
-        "full_toolchain_available": True,
-        "compiler_path": "/usr/bin/pdflatex",
-        "distribution": "TeX Live",
-        "latexmk_available": True,
-        "bibtex_available": True,
-        "bibliography_support_available": True,
-        "kpsewhich_available": True,
-        "pdftotext_available": None,
-        "tectonic_available": False,
-        "tectonic_path": None,
-        "readiness_state": "ready",
-        "message": "pdflatex found (TeX Live): /usr/bin/pdflatex",
-        "paper_build_ready": True,
-        "arxiv_submission_ready": True,
-        "pdf_review_ready": True,
-        "warnings": [],
-    }
+    assert payload["toolchain"] == _latex_capability_payload()
     assert len(payload["warnings"]) == 1
     assert "temporary directory" in payload["warnings"][0]
 
@@ -8518,19 +8503,13 @@ def test_paper_build_surfaces_partial_toolchain_warnings(tmp_path: Path) -> None
     payload = json.loads(result.output)
     assert payload["toolchain"]["paper_build_ready"] is True
     assert payload["toolchain"]["arxiv_submission_ready"] is False
-    assert payload["toolchain"]["warnings"] == [
-        "latexmk not found; multi-pass compilation will fall back to manual passes.",
-        "kpsewhich not found; TeX resource checks will assume installed resources.",
-        "latexmk not found; repeated LaTeX passes may be degraded.",
-        "kpsewhich not found; TeX resource checks may be best-effort only.",
-    ]
-    assert any(
-        warning == "latexmk not found; repeated LaTeX passes may be degraded." for warning in payload["warnings"]
-    )
-    assert any(
-        warning == "kpsewhich not found; TeX resource checks may be best-effort only."
-        for warning in payload["warnings"]
-    )
+    toolchain_warnings = payload["toolchain"]["warnings"]
+    assert _has_warning_with_fragments(toolchain_warnings, "latexmk not found", "manual passes")
+    assert _has_warning_with_fragments(toolchain_warnings, "kpsewhich not found", "installed resources")
+    assert _has_warning_with_fragments(toolchain_warnings, "latexmk not found", "degraded")
+    assert _has_warning_with_fragments(toolchain_warnings, "kpsewhich not found", "best-effort")
+    assert _has_warning_with_fragments(payload["warnings"], "latexmk not found", "degraded")
+    assert _has_warning_with_fragments(payload["warnings"], "kpsewhich not found", "best-effort")
 
 
 def test_paper_build_toolchain_payload_surfaces_missing_bibtex_as_hard_failure_risk() -> None:

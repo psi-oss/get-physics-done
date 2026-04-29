@@ -160,7 +160,9 @@ def test_prompt_sources_keep_command_surface_rules_canonical_and_consistent() ->
         content = path.read_text(encoding="utf-8")
         relpath = str(path.relative_to(REPO_ROOT))
 
-        for surface in _extract_gpd_command_surfaces(content, root_commands=root_commands, group_commands=group_commands):
+        for surface in _extract_gpd_command_surfaces(
+            content, root_commands=root_commands, group_commands=group_commands
+        ):
             if surface not in allowed:
                 invalid_surfaces.append(f"{relpath} -> {surface}")
 
@@ -225,7 +227,10 @@ def test_help_prompt_default_quick_start_extracts_workflow_owned_sections() -> N
     assert_beginner_startup_routing_contract(quick_start_reference)
     assert "Usage: `/gpd:start`" not in quick_start_reference
     assert "## Detailed Command Reference" in help_workflow
-    assert "gpd:new-project -> gpd:discuss-phase -> gpd:plan-phase -> gpd:execute-phase -> gpd:verify-work -> repeat" in help_workflow
+    assert (
+        "gpd:new-project -> gpd:discuss-phase -> gpd:plan-phase -> gpd:execute-phase -> gpd:verify-work -> repeat"
+        in help_workflow
+    )
     assert "gpd init new-project" not in help_workflow
     for token in ("gpd:discuss-phase", "gpd:write-paper", "gpd:tangent", "gpd:set-tier-models", "gpd:settings"):
         assert token in command_index
@@ -241,7 +246,7 @@ def test_help_prompt_keeps_workflow_preset_readiness_on_local_cli_surface() -> N
     )
 
     assert "## Invocation Surfaces" not in quick_start
-    assert "Include the workflow-owned `## Quick Start` section." in quick_start
+    assert "Exclude the marker comment lines themselves." in quick_start
     assert "Append this one wrapper-owned line" in quick_start
     assert_help_workflow_runtime_reference_contract(help_workflow)
     assert "executable probes" in help_workflow
@@ -250,7 +255,10 @@ def test_help_prompt_keeps_workflow_preset_readiness_on_local_cli_surface() -> N
     assert DOCTOR_RUNTIME_SCOPE_RE.search(help_workflow) is not None
     assert_wolfram_plan_boundary_contract(help_workflow)
     assert_workflow_preset_surface_contract(help_workflow)
-    assert "Workflow preset tooling is layered on top of the base install; it does not change runtime permission alignment." in help_workflow
+    assert (
+        "Workflow preset tooling is layered on top of the base install; it does not change runtime permission alignment."
+        in help_workflow
+    )
 
 
 def test_start_prompt_delegates_routing_to_workflow_only() -> None:
@@ -273,7 +281,9 @@ def test_start_prompt_delegates_routing_to_workflow_only() -> None:
     assert "recent-project picker" in start_workflow
     assert "Then open that project folder in the runtime and run" in start_workflow
     assert "`gpd:resume-work`." in start_workflow
-    assert "the in-runtime continuation step once the recovery ladder has identified the right project" in start_workflow
+    assert (
+        "the in-runtime continuation step once the recovery ladder has identified the right project" in start_workflow
+    )
     assert "reopened its workspace" in start_workflow
     assert "Read `{GPD_INSTALL_DIR}/workflows/new-project.md` with the file-read tool." not in start_workflow
     assert "Read `{GPD_INSTALL_DIR}/workflows/help.md` with the file-read tool." not in start_workflow
@@ -446,14 +456,14 @@ def test_progress_prompt_runs_preflight_after_init_context() -> None:
     assert "@{GPD_INSTALL_DIR}/workflows/progress.md" in command
     assert "Follow the included workflow exactly. Do not duplicate the workflow logic here." in command
     assert "INIT=$(gpd --raw init progress --include state,roadmap,project,config,references)" not in command
-    assert "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")" not in command
+    assert 'CONTEXT=$(gpd --raw validate command-context progress "$ARGUMENTS")' not in command
     assert "The recent-project picker is advisory" not in command
     assert "reloads canonical state for that project" not in command
 
     assert "INIT=$(gpd --raw init progress --include state,roadmap,project,config,references)" in workflow
-    assert "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")" in workflow
+    assert 'CONTEXT=$(gpd --raw validate command-context progress "$ARGUMENTS")' in workflow
     init_index = workflow.index("INIT=$(gpd --raw init progress --include state,roadmap,project,config,references)")
-    assert init_index < workflow.index("CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")")
+    assert init_index < workflow.index('CONTEXT=$(gpd --raw validate command-context progress "$ARGUMENTS")')
 
 
 def test_health_prompt_documents_the_real_raw_health_report_shape() -> None:
@@ -535,8 +545,10 @@ def test_command_prompts_declare_valid_context_modes() -> None:
 def test_new_project_prompt_uses_stdin_for_contract_validation_and_persistence() -> None:
     workflow = (REPO_ROOT / "src/gpd/specs/workflows/new-project.md").read_text(encoding="utf-8")
 
-    assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract - --mode approved' in workflow
-    assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -' in workflow
+    assert (
+        "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\" | gpd --raw validate project-contract - --mode approved" in workflow
+    )
+    assert "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\" | gpd state set-project-contract -" in workflow
     assert "gpd permissions sync --runtime <runtime>" in workflow
     assert "gpd permissions sync --runtime <name>" not in workflow
     assert "/tmp/gpd-project-contract.json" not in workflow
@@ -550,8 +562,8 @@ def test_state_json_schema_stays_aligned_with_stdin_contract_persistence_flow() 
         "/runtime/",
     )
 
-    assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract -' in schema
-    assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -' in schema
+    assert "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\" | gpd --raw validate project-contract -" in schema
+    assert "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\" | gpd state set-project-contract -" in schema
     assert "gpd state advance" in schema
     assert "gpd state advance-plan" not in schema
     assert "Preferred write path: `gpd state set-project-contract <path-to-contract.json>`." not in schema
@@ -565,7 +577,10 @@ def test_new_project_and_state_schema_surface_contract_id_integrity_rules() -> N
         "/runtime/",
     )
 
-    assert "do not paraphrase the schema here; reuse its exact keys, enum values, list/object shapes, ID-linkage rules, and proof-bearing claim requirements" in workflow
+    assert (
+        "do not paraphrase the schema here; reuse its exact keys, enum values, list/object shapes, ID-linkage rules, and proof-bearing claim requirements"
+        in workflow
+    )
     assert "Same-kind IDs must be unique within each section." in schema
     assert "must not match any declared contract ID" in schema
 
@@ -583,15 +598,15 @@ def test_help_prompts_surface_tangent_command_for_side_investigations() -> None:
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
 
     assert "gpd:tangent" in help_workflow
-    assert re.search(r"gpd:tangent[^\n]*?(?:tangent|side investigation|alternative direction|parallel)", help_workflow, re.I)
+    assert re.search(
+        r"gpd:tangent[^\n]*?(?:tangent|side investigation|alternative direction|parallel)", help_workflow, re.I
+    )
 
 
 def test_settings_and_research_mode_docs_keep_tangent_branch_taxonomy_strict() -> None:
     settings = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
     new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
-    research_modes = (
-        REPO_ROOT / "src/gpd/specs/references/research/research-modes.md"
-    ).read_text(encoding="utf-8")
+    research_modes = (REPO_ROOT / "src/gpd/specs/references/research/research-modes.md").read_text(encoding="utf-8")
 
     assert "Which starting workflow preset should GPD use for `GPD/config.json`?" in new_project
     assert "offer a preset choice before individual questions" in new_project
@@ -620,9 +635,7 @@ def test_settings_and_research_mode_docs_keep_tangent_branch_taxonomy_strict() -
 def test_new_project_and_help_surface_runtime_default_and_state_backup_gitignore_guidance() -> None:
     new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
-    planning_config = (
-        REPO_ROOT / "src/gpd/specs/references/planning/planning-config.md"
-    ).read_text(encoding="utf-8")
+    planning_config = (REPO_ROOT / "src/gpd/specs/references/planning/planning-config.md").read_text(encoding="utf-8")
 
     assert "without commentary about the missing override" in new_project
     assert 'normal "use the runtime default model" path' in new_project
@@ -746,7 +759,9 @@ def test_prompt_and_public_surface_contract_agree_on_runtime_readiness_and_plan_
 
 def test_help_workflow_mentions_all_authoritative_local_cli_bridge_commands() -> None:
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
-    for command in public_surface_contract_module.load_public_surface_contract().local_cli_bridge.named_commands.ordered():
+    for (
+        command
+    ) in public_surface_contract_module.load_public_surface_contract().local_cli_bridge.named_commands.ordered():
         assert command in help_workflow
 
     assert local_cli_doctor_local_command() in help_workflow
@@ -813,14 +828,8 @@ def test_new_project_prompt_surfaces_discuss_phase_before_planning_in_command_an
 def test_execute_phase_failure_recovery_counts_only_top_level_verification_statuses() -> None:
     workflow = (REPO_ROOT / "src/gpd/specs/workflows/execute-phase.md").read_text(encoding="utf-8")
 
-    assert (
-        "FAILED_COUNT=$(rg -c '^status: (gaps_found|expert_needed|human_needed)$'"
-        in workflow
-    )
-    assert (
-        "TOTAL_COUNT=$(rg -c '^status: (passed|gaps_found|expert_needed|human_needed)$'"
-        in workflow
-    )
+    assert "FAILED_COUNT=$(rg -c '^status: (gaps_found|expert_needed|human_needed)$'" in workflow
+    assert "TOTAL_COUNT=$(rg -c '^status: (passed|gaps_found|expert_needed|human_needed)$'" in workflow
     assert 'grep -c "status: failed"' not in workflow
     assert 'grep -c "status:"' not in workflow
 
@@ -851,9 +860,9 @@ def test_command_requirements_force_concrete_next_up_for_stops() -> None:
 
 
 def test_continuation_format_covers_stop_and_checkpoint_routes() -> None:
-    continuation = (
-        REPO_ROOT / "src/gpd/specs/references/orchestration/continuation-format.md"
-    ).read_text(encoding="utf-8")
+    continuation = (REPO_ROOT / "src/gpd/specs/references/orchestration/continuation-format.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "## Stop And Checkpoint Rules" in continuation
     for command in (

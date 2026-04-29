@@ -367,9 +367,7 @@ def parse_contract_block(content: str, *, source_path: Path | None = None) -> Re
         project_root=_source_path_project_root(source_path),
     )
     if resolution.errors:
-        raise FrontmatterValidationError(
-            "Invalid contract frontmatter: " + "; ".join(resolution.errors)
-        )
+        raise FrontmatterValidationError("Invalid contract frontmatter: " + "; ".join(resolution.errors))
     return resolution.contract
 
 
@@ -575,9 +573,7 @@ def validate_knowledge_frontmatter(
         errors.append(f"knowledge.superseded_by is forbidden when status is {status_value}")
 
     if source_path is not None and source_path.stem != str(knowledge_id or ""):
-        errors.append(
-            f"knowledge_id must match the filename stem ({source_path.stem!r} != {knowledge_id!r})"
-        )
+        errors.append(f"knowledge_id must match the filename stem ({source_path.stem!r} != {knowledge_id!r})")
 
     return FrontmatterValidation(
         valid=len(missing) == 0 and not errors,
@@ -678,6 +674,8 @@ _KNOWLEDGE_REVIEW_CANONICAL_FIELDS = {
     "stale",
 }
 _KNOWLEDGE_REVIEW_DECISION_VALUES = ("approved", "needs_changes", "rejected")
+
+
 def _parse_iso8601_datetime(value: object) -> datetime | None:
     """Parse an ISO 8601 timestamp or return ``None`` when invalid."""
 
@@ -697,8 +695,11 @@ def _parse_iso8601_datetime(value: object) -> datetime | None:
 def _is_lower_hex_sha256(value: object) -> bool:
     """Return True when *value* is a lowercase SHA-256 digest string."""
 
-    return isinstance(value, str) and len(value) == 64 and value == value.lower() and all(
-        character in "0123456789abcdef" for character in value
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and value == value.lower()
+        and all(character in "0123456789abcdef" for character in value)
     )
 
 
@@ -1054,6 +1055,40 @@ def _validate_non_empty_string_list_field(meta: dict[str, object], field_name: s
             errors.append(f"{field_name}: entry {index} must be a non-empty string")
 
 
+def _summary_provides_value(meta: dict[str, object]) -> tuple[object | None, str | None]:
+    """Return summary provides data from the canonical or nested dependency graph field."""
+    if "provides" in meta:
+        return meta.get("provides"), "provides"
+    dependency_graph = meta.get("dependency-graph")
+    if isinstance(dependency_graph, dict) and "provides" in dependency_graph:
+        return dependency_graph.get("provides"), "dependency-graph.provides"
+    return None, None
+
+
+def _summary_required_field_present(meta: dict[str, object], field_name: str) -> bool:
+    """Return whether a summary required field is present."""
+    if field_name == "provides":
+        _value, label = _summary_provides_value(meta)
+        return label is not None
+    return _resolve_field(meta, field_name) is not None
+
+
+def _validate_summary_provides_field(meta: dict[str, object], errors: list[str]) -> None:
+    """Validate summary provides data from either supported frontmatter location."""
+    value, label = _summary_provides_value(meta)
+    if label is None:
+        return
+    if not isinstance(value, list):
+        errors.append(f"{label}: expected a list")
+        return
+    for index, item in enumerate(value):
+        if isinstance(item, (int, float)) and not isinstance(item, bool):
+            value[index] = str(item)
+            item = value[index]
+        if not isinstance(item, str) or not item.strip():
+            errors.append(f"{label}: entry {index} must be a non-empty string")
+
+
 def _validate_knowledge_deps_field(meta: dict[str, object], errors: list[str]) -> None:
     """Append validation errors for the optional top-level ``knowledge_deps`` field."""
 
@@ -1080,9 +1115,7 @@ def _validate_knowledge_deps_field(meta: dict[str, object], errors: list[str]) -
             or not knowledge_id[2:]
             or normalize_ascii_slug(knowledge_id[2:]) != knowledge_id[2:]
         ):
-            errors.append(
-                f"{field_name}: entry {index} must use canonical K-{{ascii-hyphen-slug}} format"
-            )
+            errors.append(f"{field_name}: entry {index} must use canonical K-{{ascii-hyphen-slug}} format")
             continue
         if knowledge_id in seen and knowledge_id not in duplicates:
             duplicates.append(knowledge_id)
@@ -1241,9 +1274,7 @@ def _claim_pass_proof_audit_errors(
         )
 
     allowed_proof_paths = {
-        path
-        for deliverable_id in claim.proof_deliverables
-        if (path := deliverable_path_by_id.get(deliverable_id))
+        path for deliverable_id in claim.proof_deliverables if (path := deliverable_path_by_id.get(deliverable_id))
     }
     if allowed_proof_paths and audit.proof_artifact_path not in allowed_proof_paths:
         errors.append(
@@ -1293,10 +1324,7 @@ def _proof_audit_errors(
     errors: list[str] = []
     observable_kind_by_id = {observable.id: observable.kind for observable in contract.observables}
     acceptance_test_kind_by_id = {test.id: test.kind for test in contract.acceptance_tests}
-    deliverable_path_by_id = {
-        deliverable.id: deliverable.path
-        for deliverable in contract.deliverables
-    }
+    deliverable_path_by_id = {deliverable.id: deliverable.path for deliverable in contract.deliverables}
 
     for claim in contract.claims:
         if not claim_requires_proof_audit(claim, observable_kind_by_id):
@@ -1491,9 +1519,7 @@ def _summary_contract_errors(
         completed = set(usage.completed_actions)
         missing = set(reference.required_actions) - completed
         if reference.must_surface and missing:
-            errors.append(
-                f"Reference {reference.id} missing required_actions in summary: {', '.join(sorted(missing))}"
-            )
+            errors.append(f"Reference {reference.id} missing required_actions in summary: {', '.join(sorted(missing))}")
 
     for verdict in comparison_verdicts:
         if verdict.subject_id not in known_subject_ids:
@@ -1696,9 +1722,7 @@ def _verification_status_errors(
         errors.append("status: passed is inconsistent with non-empty suggested_contract_checks")
 
     non_passed_subjects = [
-        f"claim {entry_id}"
-        for entry_id, entry in contract_results.claims.items()
-        if entry.status != "passed"
+        f"claim {entry_id}" for entry_id, entry in contract_results.claims.items() if entry.status != "passed"
     ]
     non_passed_subjects.extend(
         f"deliverable {entry_id}"
@@ -1734,8 +1758,7 @@ def _verification_status_errors(
     ]
     if unresolved_proxies:
         errors.append(
-            "status: passed is inconsistent with unresolved forbidden_proxies: "
-            + ", ".join(sorted(unresolved_proxies))
+            "status: passed is inconsistent with unresolved forbidden_proxies: " + ", ".join(sorted(unresolved_proxies))
         )
 
     return errors
@@ -1769,9 +1792,7 @@ def _resolve_plan_contract_candidate(
     try:
         meta, _body = extract_frontmatter(content)
     except FrontmatterParseError as exc:
-        return True, _PlanContractResolution(
-            errors=[f"referenced PLAN frontmatter YAML parse error: {exc}"]
-        )
+        return True, _PlanContractResolution(errors=[f"referenced PLAN frontmatter YAML parse error: {exc}"])
 
     if not _frontmatter_identity_matches(meta, artifact_meta):
         return False, _PlanContractResolution()
@@ -1854,9 +1875,7 @@ def _find_matching_plan_contract(
         )
         if resolution.errors:
             matching_candidates.append(
-                _PlanContractResolution(
-                    errors=[f"referenced PLAN contract: {error}" for error in resolution.errors]
-                )
+                _PlanContractResolution(errors=[f"referenced PLAN contract: {error}" for error in resolution.errors])
             )
             continue
         matching_candidates.append(resolution)
@@ -1865,9 +1884,7 @@ def _find_matching_plan_contract(
     if len(valid_candidates) == 1:
         return valid_candidates[0]
     if len(valid_candidates) > 1:
-        return _PlanContractResolution(
-            errors=["multiple matching sibling PLAN contracts found; add plan_contract_ref"]
-        )
+        return _PlanContractResolution(errors=["multiple matching sibling PLAN contracts found; add plan_contract_ref"])
     if matching_candidates:
         return matching_candidates[0]
     return _PlanContractResolution()
@@ -1893,8 +1910,12 @@ def validate_frontmatter(content: str, schema_name: str, source_path: Path | Non
     meta, _ = extract_frontmatter(content)  # may raise FrontmatterParseError
     required = schema["required"]
 
-    missing = [f for f in required if _resolve_field(meta, f) is None]
-    present = [f for f in required if _resolve_field(meta, f) is not None]
+    if schema_name == "summary":
+        missing = [f for f in required if not _summary_required_field_present(meta, f)]
+        present = [f for f in required if _summary_required_field_present(meta, f)]
+    else:
+        missing = [f for f in required if _resolve_field(meta, f) is None]
+        present = [f for f in required if _resolve_field(meta, f) is not None]
     errors: list[str] = []
 
     errors.extend(_unsupported_frontmatter_errors(schema_name, meta))
@@ -1915,7 +1936,7 @@ def validate_frontmatter(content: str, schema_name: str, source_path: Path | Non
         _validate_completed_field(meta, errors)
         _validate_required_string_field(meta, "depth", errors)
         _validate_string_enum_field(meta, "depth", errors, allowed_values=SUMMARY_DEPTH_VALUES)
-        _validate_non_empty_string_list_field(meta, "provides", errors)
+        _validate_summary_provides_field(meta, errors)
     elif schema_name == "verification":
         _validate_required_scalar_field(meta, "phase", errors)
         _validate_required_scalar_field(meta, "verified", errors)
@@ -1928,9 +1949,7 @@ def validate_frontmatter(content: str, schema_name: str, source_path: Path | Non
         if not isinstance(raw_status, str):
             errors.append("status: expected a string")
         elif raw_status.strip() not in VERIFICATION_REPORT_STATUSES:
-            errors.append(
-                "status: must be one of passed, gaps_found, expert_needed, human_needed"
-            )
+            errors.append("status: must be one of passed, gaps_found, expert_needed, human_needed")
 
     if isinstance(meta.get("contract"), dict):
         resolution = _validate_contract_mapping(
@@ -2286,7 +2305,9 @@ def verify_summary(
     if self_check == "failed":
         errors.append("Self-check section indicates failure")
 
-    passed = len(errors) == 0 and len(missing_files) == 0 and self_check != "failed" and not (not commits_exist and hashes)
+    passed = (
+        len(errors) == 0 and len(missing_files) == 0 and self_check != "failed" and not (not commits_exist and hashes)
+    )
     return SummaryVerification(
         passed=passed,
         summary_exists=True,

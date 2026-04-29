@@ -110,7 +110,9 @@ def _draft_invalid_project_contract() -> dict[str, object]:
     return contract
 
 
-def _expected_permissions_capability_fallback_payload(*, contract_source: str, contract_error: str | None = None) -> dict[str, object]:
+def _expected_permissions_capability_fallback_payload(
+    *, contract_source: str, contract_error: str | None = None
+) -> dict[str, object]:
     payload: dict[str, object] = {
         "contract_source": contract_source,
         "permissions_surface": "adapter-defined",
@@ -245,6 +247,7 @@ def test_permissions_capability_payload_keeps_generic_fallback_for_unknown_runti
     payload = health_module._permissions_capability_payload(PRIMARY_RUNTIME)
 
     assert payload == _expected_permissions_capability_fallback_payload(contract_source="generic-fallback")
+
 
 # ─── Model Tests ─────────────────────────────────────────────────────────────
 
@@ -743,7 +746,9 @@ class TestCheckProjectStructure:
         assert result.status == CheckStatus.WARN
         assert result.issues == []
         assert result.details["divergent_root_planning_files"] == [name]
-        assert any(f"{name} exists at both project root and GPD/ but contents differ" in warning for warning in result.warnings)
+        assert any(
+            f"{name} exists at both project root and GPD/ but contents differ" in warning for warning in result.warnings
+        )
 
     def test_warns_for_legacy_gpd_project_markers_without_failing_canonical_structure(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
@@ -879,7 +884,9 @@ class TestCheckKnowledgeInventory:
         assert result.details["missing_supersession_target_files"] == [
             "GPD/knowledge/K-renormalization-group-superseded.md -> K-renormalization-group-missing-target"
         ]
-        assert any("skipping knowledge doc GPD/knowledge/K-invalid-knowledge.md" in warning for warning in result.warnings)
+        assert any(
+            "skipping knowledge doc GPD/knowledge/K-invalid-knowledge.md" in warning for warning in result.warnings
+        )
         assert any("stale reviews" in warning for warning in result.warnings)
         assert any("missing targets" in warning for warning in result.warnings)
 
@@ -955,9 +962,7 @@ class TestCheckStoragePaths:
         assert result.status == CheckStatus.OK
         assert result.details["warning_count"] == 0
 
-    def test_temp_root_project_warns_even_without_hidden_artifacts(
-        self, tmp_path: Path, monkeypatch
-    ) -> None:
+    def test_temp_root_project_warns_even_without_hidden_artifacts(self, tmp_path: Path, monkeypatch) -> None:
         temp_root = tmp_path / "runtime-temp"
         temp_root.mkdir()
         monkeypatch.setattr(ProjectStorageLayout, "temp_roots", lambda self: (temp_root.resolve(strict=False),))
@@ -984,6 +989,24 @@ class TestCheckStoragePaths:
         assert result.status == CheckStatus.WARN
         assert any("GPD/phases/01-setup/results/out.json" in warning for warning in result.warnings)
         assert any("GPD/tmp/final.csv" in warning for warning in result.warnings)
+
+    def test_external_gpd_symlink_warns_without_crashing(self, tmp_path: Path) -> None:
+        cwd = tmp_path / "project"
+        cwd.mkdir()
+        external_gpd = tmp_path / "external-gpd"
+        hidden_results = external_gpd / "phases" / "01-setup" / "results"
+        hidden_results.mkdir(parents=True)
+        (hidden_results / "out.json").write_text("{}", encoding="utf-8")
+        try:
+            (cwd / "GPD").symlink_to(external_gpd, target_is_directory=True)
+        except OSError as exc:
+            pytest.skip(f"directory symlinks unavailable: {exc}")
+
+        result = check_storage_paths(cwd)
+
+        assert result.status == CheckStatus.WARN
+        assert any("GPD storage root resolves outside the project root" in warning for warning in result.warnings)
+        assert not any("Traceback" in warning for warning in result.warnings)
 
     def test_policy_owned_gpd_managed_output_is_not_reported_as_storage_warning(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
@@ -1061,8 +1084,7 @@ class TestCheckStoragePaths:
         )
 
         assert result.returncode == 1, (
-            f"GPD files should not be gitignored but git check-ignore matched: "
-            f"{result.stdout.strip()}"
+            f"GPD files should not be gitignored but git check-ignore matched: {result.stdout.strip()}"
         )
 
     def test_git_status_reports_dirty_tracked_checkpoint_artifacts(self, tmp_path: Path) -> None:
@@ -1074,7 +1096,13 @@ class TestCheckStoragePaths:
         root_index.write_text("initial index\n", encoding="utf-8")
         phase_checkpoint.write_text("initial phase checkpoint\n", encoding="utf-8")
 
-        subprocess.run(["git", "add", "-f", "GPD/CHECKPOINTS.md", "GPD/phase-checkpoints/01-test-phase.md"], cwd=repo, check=True, capture_output=True, text=True)
+        subprocess.run(
+            ["git", "add", "-f", "GPD/CHECKPOINTS.md", "GPD/phase-checkpoints/01-test-phase.md"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
         root_index.write_text("dirty index\n", encoding="utf-8")
         phase_checkpoint.write_text("dirty phase checkpoint\n", encoding="utf-8")
@@ -1452,7 +1480,10 @@ class TestCheckStateValidityProjectContract:
         result = check_state_validity(cwd)
 
         assert result.status == CheckStatus.FAIL
-        assert any("project_contract: claim claim-benchmark references unknown reference missing-ref" in issue for issue in result.issues)
+        assert any(
+            "project_contract: claim claim-benchmark references unknown reference missing-ref" in issue
+            for issue in result.issues
+        )
         assert not any(
             "project_contract: claim claim-benchmark references unknown reference missing-ref" in warning
             for warning in result.warnings
@@ -1503,9 +1534,7 @@ class TestRunHealth:
         assert knowledge_check.details["knowledge_dir_present"] is False
         assert knowledge_check.details["reason"] == "no_knowledge_dir"
 
-    def test_read_only_health_does_not_recover_intent_marker_and_keeps_state_unchanged(
-        self, tmp_path: Path
-    ) -> None:
+    def test_read_only_health_does_not_recover_intent_marker_and_keeps_state_unchanged(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
         layout = ProjectLayout(cwd)
 
@@ -1617,7 +1646,9 @@ class TestRunHealth:
             if args[:3] == ["git", "check-ignore", "--quiet"]:
                 return subprocess.CompletedProcess(args=args, returncode=1, stdout="", stderr="")
             if args[:2] == ["git", "for-each-ref"]:
-                return subprocess.CompletedProcess(args=args, returncode=0, stdout="gpd-checkpoint-old\x000\n", stderr="")
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0, stdout="gpd-checkpoint-old\x000\n", stderr=""
+                )
             if args[:3] == ["git", "tag", "-d"]:
                 return subprocess.CompletedProcess(args=args, returncode=0, stdout="Deleted tag\n", stderr="")
             raise AssertionError(f"Unexpected args: {args}")
@@ -1943,7 +1974,9 @@ trigger:
             if command == ["git", "--version"]:
                 return subprocess.CompletedProcess(args=command, returncode=0, stdout="git version 2.47.0\n", stderr="")
             if command == [sys.executable, "-m", "gpd.cli", "--help"]:
-                return subprocess.CompletedProcess(args=command, returncode=0, stdout="Usage: gpd [OPTIONS] COMMAND\n", stderr="")
+                return subprocess.CompletedProcess(
+                    args=command, returncode=0, stdout="Usage: gpd [OPTIONS] COMMAND\n", stderr=""
+                )
             if command == ["/usr/bin/pdflatex", "--version"]:
                 return subprocess.CompletedProcess(args=command, returncode=0, stdout="pdfTeX 3.14159265\n", stderr="")
             if command == ["/usr/bin/bibtex", "--version"]:
@@ -2188,7 +2221,10 @@ trigger:
         )
         assert publication["status"] == "degraded"
         assert publication["usable"] is True
-        assert publication["summary"] == "degraded without a LaTeX compiler: draft/review remain usable, but build/submission stay blocked"
+        assert (
+            publication["summary"]
+            == "degraded without a LaTeX compiler: draft/review remain usable, but build/submission stay blocked"
+        )
         assert publication["depends_on"] == ["LaTeX Toolchain"]
         assert publication["degraded_workflows"] == [
             "write-paper",
@@ -2398,7 +2434,9 @@ trigger:
 
         checks = {check.label: check for check in report.checks}
         publication = next(
-            preset for preset in checks["Workflow Presets"].details["presets"] if preset["id"] == "publication-manuscript"
+            preset
+            for preset in checks["Workflow Presets"].details["presets"]
+            if preset["id"] == "publication-manuscript"
         )
 
         assert checks["LaTeX Toolchain"].status == CheckStatus.WARN
@@ -2425,7 +2463,10 @@ trigger:
         assert _report.target_assessment is not None
         assert _report.target_assessment.state == "clean"
         assert _report.target_assessment.readiness_state == "ready"
-        assert _report.target_assessment.readiness_message == f"{target_dir.resolve(strict=False)} is ready for a new GPD install."
+        assert (
+            _report.target_assessment.readiness_message
+            == f"{target_dir.resolve(strict=False)} is ready for a new GPD install."
+        )
         assert checks["Runtime Config Target"].status == CheckStatus.OK
         assert checks["Runtime Config Target"].details["install_state"] == "clean"
         assert checks["Runtime Config Target"].details["target_readiness_state"] == "ready"
@@ -2662,13 +2703,16 @@ def _init_git_repo(tmp_path: Path) -> Path:
 
 def _canonical_plan_frontmatter() -> str:
     content = (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8")
-    return content.replace(
-        "    in_scope: [benchmark recovery]",
-        "    in_scope: [primary benchmark comparison]\n"
-        "    out_of_scope: [adjacent publication tasks]",
-    ).replace("depends_on: []", "depends_on: [GPD/STATE.md]").replace(
-        "files_modified: []",
-        "files_modified: [GPD/STATE.md]",
+    return (
+        content.replace(
+            "    in_scope: [benchmark recovery]",
+            "    in_scope: [primary benchmark comparison]\n    out_of_scope: [adjacent publication tasks]",
+        )
+        .replace("depends_on: []", "depends_on: [GPD/STATE.md]")
+        .replace(
+            "files_modified: []",
+            "files_modified: [GPD/STATE.md]",
+        )
     )
 
 
@@ -2795,7 +2839,9 @@ class TestCheckLatestReturn:
         result = check_latest_return(cwd)
 
         assert result.status == CheckStatus.FAIL
-        assert "tasks_completed not a number" in result.issues[0] or "tasks_completed not a number" in " ".join(result.issues)
+        assert "tasks_completed not a number" in result.issues[0] or "tasks_completed not a number" in " ".join(
+            result.issues
+        )
         assert "tasks_total not a number" in " ".join(result.issues)
 
     def test_identical_mtime_uses_phase_order_not_lexicographic_path(
@@ -2876,13 +2922,7 @@ class TestCheckResultConsistency:
         }
         (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
-        summary_content = (
-            "---\n"
-            "provides:\n"
-            "  - Hamiltonian eigenvalues\n"
-            "---\n"
-            "# Summary\n"
-        )
+        summary_content = "---\nprovides:\n  - Hamiltonian eigenvalues\n---\n# Summary\n"
         (phase_dir / "SUMMARY.md").write_text(summary_content, encoding="utf-8")
 
         result = check_result_consistency(tmp_path)
@@ -2925,13 +2965,7 @@ class TestCheckResultConsistency:
         state = {"intermediate_results": []}
         (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
-        summary_content = (
-            "---\n"
-            "provides:\n"
-            "  - correlation function\n"
-            "---\n"
-            "# Summary\n"
-        )
+        summary_content = "---\nprovides:\n  - correlation function\n---\n# Summary\n"
         (phase_dir / "SUMMARY.md").write_text(summary_content, encoding="utf-8")
 
         result = check_result_consistency(tmp_path)
@@ -2959,13 +2993,7 @@ class TestCheckResultConsistency:
         (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
         # provides is a superset string containing the description
-        summary_content = (
-            "---\n"
-            "provides:\n"
-            "  - full energy spectrum for ground state\n"
-            "---\n"
-            "# Summary\n"
-        )
+        summary_content = "---\nprovides:\n  - full energy spectrum for ground state\n---\n# Summary\n"
         (phase_dir / "SUMMARY.md").write_text(summary_content, encoding="utf-8")
 
         result = check_result_consistency(tmp_path)
@@ -2992,13 +3020,7 @@ class TestCheckResultConsistency:
         }
         (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
-        summary_content = (
-            "---\n"
-            "provides:\n"
-            "  - green function\n"
-            "---\n"
-            "# Summary\n"
-        )
+        summary_content = "---\nprovides:\n  - green function\n---\n# Summary\n"
         (phase_dir / "SUMMARY.md").write_text(summary_content, encoding="utf-8")
 
         result = check_result_consistency(tmp_path)
@@ -3023,14 +3045,7 @@ class TestCheckResultConsistency:
         }
         (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
-        summary_content = (
-            "---\n"
-            "provides:\n"
-            "  - name: dispersion relation\n"
-            "    format: equation\n"
-            "---\n"
-            "# Summary\n"
-        )
+        summary_content = "---\nprovides:\n  - name: dispersion relation\n    format: equation\n---\n# Summary\n"
         (phase_dir / "SUMMARY.md").write_text(summary_content, encoding="utf-8")
 
         result = check_result_consistency(tmp_path)
@@ -3078,13 +3093,7 @@ class TestCheckResultConsistency:
         }
         (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
-        summary_content = (
-            "---\n"
-            "provides:\n"
-            "  - scattering amplitude\n"
-            "---\n"
-            "# Summary\n"
-        )
+        summary_content = "---\nprovides:\n  - scattering amplitude\n---\n# Summary\n"
         (phase_dir / "SUMMARY.md").write_text(summary_content, encoding="utf-8")
 
         result = check_result_consistency(tmp_path)
@@ -3095,9 +3104,7 @@ class TestCheckResultConsistency:
 
     # ── SERIOUS #1: Empty-string provides must not match everything ────────
 
-    def test_empty_provides_string_does_not_match_everything(
-        self, tmp_path: Path
-    ) -> None:
+    def test_empty_provides_string_does_not_match_everything(self, tmp_path: Path) -> None:
         """An empty provides value must NOT suppress all state-only warnings.
 
         In Python, ``"" in "any string"`` is ``True``. Without a guard, a
@@ -3114,9 +3121,7 @@ class TestCheckResultConsistency:
         (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
         phase_dir = planning / "phases" / "01-setup"
         phase_dir.mkdir(parents=True)
-        (phase_dir / "SUMMARY.md").write_text(
-            '---\nprovides:\n  - ""\n---\n# Summary\n', encoding="utf-8"
-        )
+        (phase_dir / "SUMMARY.md").write_text('---\nprovides:\n  - ""\n---\n# Summary\n', encoding="utf-8")
         result = check_result_consistency(tmp_path)
         # The empty provides must be ignored, so R-01 should be state-only.
         assert result.status == CheckStatus.WARN
@@ -3124,9 +3129,7 @@ class TestCheckResultConsistency:
         # The empty provides itself must be excluded from all_provides.
         assert result.details["summary_provides_count"] == 0
 
-    def test_whitespace_only_provides_string_is_ignored(
-        self, tmp_path: Path
-    ) -> None:
+    def test_whitespace_only_provides_string_is_ignored(self, tmp_path: Path) -> None:
         """Whitespace-only provides like ``"   "`` must be treated like empty."""
         planning = tmp_path / "GPD"
         planning.mkdir()
@@ -3139,9 +3142,7 @@ class TestCheckResultConsistency:
         (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
         phase_dir = planning / "phases" / "01-setup"
         phase_dir.mkdir(parents=True)
-        (phase_dir / "SUMMARY.md").write_text(
-            '---\nprovides:\n  - "   "\n---\n# Summary\n', encoding="utf-8"
-        )
+        (phase_dir / "SUMMARY.md").write_text('---\nprovides:\n  - "   "\n---\n# Summary\n', encoding="utf-8")
         result = check_result_consistency(tmp_path)
         assert result.status == CheckStatus.WARN
         assert result.details["summary_provides_count"] == 0
@@ -3149,7 +3150,9 @@ class TestCheckResultConsistency:
     # ── SERIOUS #2: Malformed state.json records ──────────────────────────
 
     def test_malformed_state_results_returns_warn_not_crash(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """If result_list raises PydanticValidationError (e.g., from a
         malformed intermediate_results record that somehow bypassed state
@@ -3169,6 +3172,7 @@ class TestCheckResultConsistency:
 
         def _boom(state, **kw):  # type: ignore[override]
             from gpd.core.results import IntermediateResult
+
             # Force a real PydanticValidationError
             IntermediateResult(**{"description": "no id"})
 
@@ -3178,9 +3182,7 @@ class TestCheckResultConsistency:
         assert result.details.get("error") == "malformed_state_results"
         assert any("Cannot parse" in w for w in result.warnings)
 
-    def test_normalization_already_strips_malformed_records(
-        self, tmp_path: Path
-    ) -> None:
+    def test_normalization_already_strips_malformed_records(self, tmp_path: Path) -> None:
         """Verify that state-loading normalization strips malformed records
         (missing ``id``), so result_list sees only valid records and returns OK."""
         planning = tmp_path / "GPD"
@@ -3197,9 +3199,7 @@ class TestCheckResultConsistency:
 
     # ── WARNING #3: Short-string over-matching ────────────────────────────
 
-    def test_short_provides_do_not_match_via_substring(
-        self, tmp_path: Path
-    ) -> None:
+    def test_short_provides_do_not_match_via_substring(self, tmp_path: Path) -> None:
         """Provides shorter than _MIN_PROVIDES_LENGTH must not substring-match;
         they should only exact-match (case-insensitive)."""
         planning = tmp_path / "GPD"
@@ -3214,16 +3214,12 @@ class TestCheckResultConsistency:
         phase_dir = planning / "phases" / "01-setup"
         phase_dir.mkdir(parents=True)
         # "E" is too short to match "energy spectrum" via substring.
-        (phase_dir / "SUMMARY.md").write_text(
-            "---\nprovides:\n  - E\n---\n# Summary\n", encoding="utf-8"
-        )
+        (phase_dir / "SUMMARY.md").write_text("---\nprovides:\n  - E\n---\n# Summary\n", encoding="utf-8")
         result = check_result_consistency(tmp_path)
         assert result.status == CheckStatus.WARN
         assert result.details["state_only_count"] == 1
 
-    def test_short_provides_exact_match_still_works(
-        self, tmp_path: Path
-    ) -> None:
+    def test_short_provides_exact_match_still_works(self, tmp_path: Path) -> None:
         """A short provides string should still match if it is an exact
         case-insensitive match for a result description."""
         planning = tmp_path / "GPD"
@@ -3237,18 +3233,14 @@ class TestCheckResultConsistency:
         (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
         phase_dir = planning / "phases" / "01-setup"
         phase_dir.mkdir(parents=True)
-        (phase_dir / "SUMMARY.md").write_text(
-            "---\nprovides:\n  - ds\n---\n# Summary\n", encoding="utf-8"
-        )
+        (phase_dir / "SUMMARY.md").write_text("---\nprovides:\n  - ds\n---\n# Summary\n", encoding="utf-8")
         result = check_result_consistency(tmp_path)
         assert result.status == CheckStatus.OK
         assert result.details["state_only_count"] == 0
 
     # ── MINOR #6: Structured provides with "provides" key ────────────────
 
-    def test_structured_provides_with_provides_key(
-        self, tmp_path: Path
-    ) -> None:
+    def test_structured_provides_with_provides_key(self, tmp_path: Path) -> None:
         """Structured provides dicts with a ``provides`` key (not ``name``)
         should have their value extracted and matched."""
         planning = tmp_path / "GPD"
@@ -3270,9 +3262,7 @@ class TestCheckResultConsistency:
         assert result.status == CheckStatus.OK
         assert result.details["state_only_count"] == 0
 
-    def test_structured_provides_with_empty_name_is_ignored(
-        self, tmp_path: Path
-    ) -> None:
+    def test_structured_provides_with_empty_name_is_ignored(self, tmp_path: Path) -> None:
         """Structured provides dict with empty ``name`` must be skipped."""
         planning = tmp_path / "GPD"
         planning.mkdir()

@@ -101,11 +101,6 @@ def normalize_manifest_relpath(value: object) -> str | None:
     return PurePosixPath(*parts).as_posix()
 
 
-def is_safe_manifest_relpath(value: object) -> bool:
-    """Return whether *value* is safe to resolve beneath a managed root."""
-    return normalize_manifest_relpath(value) is not None
-
-
 def expand_tilde(file_path: str | None) -> str | None:
     """Expand ``~`` to the user home directory.
 

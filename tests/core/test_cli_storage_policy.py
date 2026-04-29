@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 from gpd.cli import app
 from gpd.core.state import default_state_dict, generate_state_markdown
 from gpd.core.storage_paths import ManagedOutputPolicy, ProjectStorageLayout, StageArtifactPolicy, StoragePathError
+from tests.latex_test_support import latex_capability_payload
 
 
 class _StableCliRunner(CliRunner):
@@ -25,16 +26,7 @@ runner = _StableCliRunner()
 def _mock_paper_toolchain_payload() -> None:
     with patch(
         "gpd.cli._paper_build_toolchain_payload",
-        return_value={
-            "compiler": "pdflatex",
-            "available": True,
-            "compiler_path": "/usr/bin/pdflatex",
-            "distribution": "texlive",
-            "latexmk_available": True,
-            "bibtex_available": True,
-            "kpsewhich_available": True,
-            "warnings": [],
-        },
+        return_value=latex_capability_payload(),
     ):
         yield
 
@@ -132,9 +124,7 @@ def test_paper_build_default_paper_output_has_no_storage_warnings(tmp_path: Path
     assert payload["warnings"] == []
 
 
-def test_paper_build_nested_cwd_uses_project_root_for_storage_validation(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_paper_build_nested_cwd_uses_project_root_for_storage_validation(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
     nested_cwd = tmp_path / "notes"
     nested_cwd.mkdir()
@@ -143,7 +133,9 @@ def test_paper_build_nested_cwd_uses_project_root_for_storage_validation(
     _write_basic_paper_config(tmp_path)
     paper_dir = tmp_path / "paper"
 
-    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=_build_result(paper_dir))) as mock_build:
+    with patch(
+        "gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=_build_result(paper_dir))
+    ) as mock_build:
         result = runner.invoke(app, ["--raw", "--cwd", str(nested_cwd), "paper-build"], catch_exceptions=False)
 
     assert result.exit_code == 0
@@ -159,7 +151,9 @@ def test_paper_build_explicit_nonstandard_output_dir_warns_but_builds(tmp_path: 
     output_dir = tmp_path / "release-paper"
     output_dir.mkdir()
 
-    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=_build_result(output_dir))) as mock_build:
+    with patch(
+        "gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=_build_result(output_dir))
+    ) as mock_build:
         result = runner.invoke(
             app,
             ["--raw", "--cwd", str(tmp_path), "paper-build", "--output-dir", str(output_dir)],
@@ -182,7 +176,9 @@ def test_paper_build_manuscript_family_output_has_no_storage_warnings(
     output_dir = tmp_path / dirname
     output_dir.mkdir()
 
-    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=_build_result(output_dir))) as mock_build:
+    with patch(
+        "gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=_build_result(output_dir))
+    ) as mock_build:
         result = runner.invoke(
             app,
             ["--raw", "--cwd", str(tmp_path), "paper-build", "--output-dir", str(output_dir)],
@@ -195,14 +191,14 @@ def test_paper_build_manuscript_family_output_has_no_storage_warnings(
     assert mock_build.await_args.args[1] == output_dir.resolve(strict=False)
 
 
-def test_paper_build_managed_publication_manuscript_output_has_no_storage_warnings(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_paper_build_managed_publication_manuscript_output_has_no_storage_warnings(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
     config_path = _write_managed_publication_paper_config(tmp_path)
     output_dir = config_path.parent
 
-    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=_build_result(output_dir))) as mock_build:
+    with patch(
+        "gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=_build_result(output_dir))
+    ) as mock_build:
         result = runner.invoke(
             app,
             ["--raw", "--cwd", str(tmp_path), "paper-build", str(config_path)],

@@ -4,6 +4,7 @@
     ".git",
     ".mcp.json",
     ".npm-cache",
+    ".playwright-mcp",
     "__pycache__",
     ".venv",
     ".pytest_cache",

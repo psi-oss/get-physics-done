@@ -27,19 +27,42 @@ def test_new_project_minimal_contract_guidance_surfaces_contract_enum_vocabulary
     assert "templates/project-contract-schema.md" in workflow_text
     assert "templates/state-json-schema.md" not in workflow_text
     assert "use that schema as the canonical source of truth for the object rules" in workflow_text
-    assert "Do not restate the full contract rules here; keep only the approval-critical reminders below." in workflow_text
-    assert '`observables[]` — `{ "id", "name", "kind", "definition", "regime?", "units?" }`' in project_contract_schema_text
-    assert '`acceptance_tests[]` — `{ "id", "subject", "kind", "procedure", "pass_condition", "evidence_required[]", "automation" }`' in project_contract_schema_text
-    assert '`references[]` — `{ "id", "kind", "locator", "aliases[]", "role", "why_it_matters", "applies_to[]", "carry_forward_to[]", "must_surface": true|false, "required_actions[]" }`' in project_contract_schema_text
+    assert (
+        "Do not restate the full contract rules here; keep only the approval-critical reminders below." in workflow_text
+    )
+    assert (
+        '`observables[]` — `{ "id", "name", "kind", "definition", "regime?", "units?" }`'
+        in project_contract_schema_text
+    )
+    assert (
+        '`acceptance_tests[]` — `{ "id", "subject", "kind", "procedure", "pass_condition", "evidence_required[]", "automation" }`'
+        in project_contract_schema_text
+    )
+    assert (
+        '`references[]` — `{ "id", "kind", "locator", "aliases[]", "role", "why_it_matters", "applies_to[]", "carry_forward_to[]", "must_surface": true|false, "required_actions[]" }`'
+        in project_contract_schema_text
+    )
     assert '`links[]` — `{ "id", "source", "target", "relation", "verified_by[]" }`' in project_contract_schema_text
-    assert "`claims[].claim_kind: theorem | lemma | corollary | proposition | result | claim | other`" in project_contract_schema_text
-    assert "`required_actions[]` uses the same closed action vocabulary enforced downstream in contract ledgers: `read`, `use`, `compare`, `cite`, `avoid`." in project_contract_schema_text
+    assert (
+        "`claims[].claim_kind: theorem | lemma | corollary | proposition | result | claim | other`"
+        in project_contract_schema_text
+    )
+    assert (
+        "`required_actions[]` uses the same closed action vocabulary enforced downstream in contract ledgers: `read`, `use`, `compare`, `cite`, `avoid`."
+        in project_contract_schema_text
+    )
     assert (
         "if `references[].must_surface` is `true`, both `references[].applies_to[]` and "
         "`references[].required_actions[]` must be non-empty"
     ) not in workflow_text
-    assert "If a project-contract reference sets `must_surface: true`, `required_actions[]` must not be empty." in project_contract_schema_text
-    assert "If a project-contract reference sets `must_surface: true`, `applies_to[]` must not be empty." in project_contract_schema_text
+    assert (
+        "If a project-contract reference sets `must_surface: true`, `required_actions[]` must not be empty."
+        in project_contract_schema_text
+    )
+    assert (
+        "If a project-contract reference sets `must_surface: true`, `applies_to[]` must not be empty."
+        in project_contract_schema_text
+    )
 
 
 def test_settings_and_planning_config_keep_conventions_outside_config_json() -> None:
@@ -127,17 +150,35 @@ def test_set_tier_models_workflow_keeps_runtime_examples_generic() -> None:
     assert "runtime-native examples are intentionally not hard-coded here" in set_tier_models.lower()
 
 
-def test_settings_workflow_keeps_convention_ownership_outside_settings_and_routes_changes_to_validate_conventions() -> None:
+def test_settings_workflow_keeps_convention_ownership_outside_settings_and_routes_changes_to_validate_conventions() -> (
+    None
+):
     settings_command = (COMMANDS_DIR / "settings.md").read_text(encoding="utf-8")
     settings_workflow = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
 
-    assert "Convention work stays outside settings; use `gpd convention set <key> <value>` or `gpd:validate-conventions` for project convention updates." in settings_command
+    assert (
+        "Convention work stays outside settings; use `gpd convention set <key> <value>` or `gpd:validate-conventions` for project convention updates."
+        in settings_command
+    )
     assert (
         "Project conventions still live in `GPD/state.json` (`convention_lock`) with "
         "`GPD/CONVENTIONS.md` as the projection/audit surface, not in `GPD/config.json`."
     ) in settings_workflow
     assert "gpd:validate-conventions -- verify convention consistency across the project" in settings_workflow
     assert "gpd convention set <key> <value> -- update the locked project conventions directly" in settings_workflow
+
+
+def test_settings_workflow_writes_canonical_config_keys_through_cli() -> None:
+    settings_workflow = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
+    update_step = settings_workflow.split('<step name="update_config">', 1)[1].split("</step>", 1)[0]
+
+    assert 'gpd config set autonomy "$SELECTED_AUTONOMY"' in update_step
+    assert 'gpd config set workflow.research "$SELECTED_WORKFLOW_RESEARCH"' in update_step
+    assert 'gpd config set execution.review_cadence "$SELECTED_REVIEW_CADENCE"' in update_step
+    assert 'gpd config set git.branching_strategy "$SELECTED_BRANCHING_STRATEGY"' in update_step
+    assert 'gpd config set model_overrides "$MODEL_OVERRIDES_JSON"' in update_step
+    for stale_nested_key in ('"planning": {', '"workflow": {', '"execution": {', '"git": {'):
+        assert stale_nested_key not in update_step
 
 
 def test_settings_and_profile_docs_keep_supervised_dense_defaults_consistent() -> None:

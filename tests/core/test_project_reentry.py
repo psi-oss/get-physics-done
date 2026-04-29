@@ -230,6 +230,22 @@ def test_resolve_project_reentry_rejects_string_booleans_on_recent_project_rows(
     assert resolution.candidates[0].resume_file_available is True
 
 
+def test_resolve_project_reentry_recomputes_stale_false_availability_for_live_recent_project(
+    tmp_path: Path,
+) -> None:
+    workspace = _make_gpd_workspace(tmp_path / "workspace")
+    recent = _make_gpd_workspace(tmp_path / "recent-project", project=True, roadmap=True, state=True)
+    row = _recent_row(recent, last_session_at="2026-03-28T12:00:00+00:00")
+    row["available"] = False
+
+    resolution = resolve_project_reentry(workspace, recent_rows=[row])
+
+    assert resolution.mode == "auto-recent-project"
+    assert resolution.project_root == recent.resolve(strict=False).as_posix()
+    assert resolution.candidates[0].available is True
+    assert resolution.candidates[0].recoverable is True
+
+
 def test_resolve_project_reentry_ignores_backup_only_state_as_current_workspace(tmp_path: Path) -> None:
     from gpd.core.state import default_state_dict
 
@@ -382,7 +398,10 @@ def test_resolve_project_reentry_auto_selects_unique_recoverable_recent_project(
     assert resolution.selected_candidate is not None
     assert resolution.selected_candidate.source == "recent_project"
     assert resolution.selected_candidate.project_root == project.resolve(strict=False).as_posix()
-    assert resolution.selected_candidate.summary == "last seen 2026-03-28T12:00:00+00:00; stopped at Phase 02; resume file ready"
+    assert (
+        resolution.selected_candidate.summary
+        == "last seen 2026-03-28T12:00:00+00:00; stopped at Phase 02; resume file ready"
+    )
     assert resolution.candidates[0].source == "recent_project"
     assert resolution.candidates[0].auto_selectable is True
     assert resolution.candidates[0].recoverable is True
@@ -416,7 +435,10 @@ def test_resolve_project_reentry_exposes_selected_candidate_metadata_for_bounded
     assert resolution.selected_candidate.auto_selectable is True
     assert resolution.selected_candidate.resume_target_kind == "bounded_segment"
     assert resolution.selected_candidate.resume_target_recorded_at == "2026-03-28T12:00:00+00:00"
-    assert resolution.selected_candidate.summary == "last seen 2026-03-28T12:00:00+00:00; stopped at Phase 02; resume file ready"
+    assert (
+        resolution.selected_candidate.summary
+        == "last seen 2026-03-28T12:00:00+00:00; stopped at Phase 02; resume file ready"
+    )
     assert resolution.selected_candidate.source_kind == "continuation.bounded_segment"
     assert resolution.selected_candidate.source_event_id == f"event-{project.name}"
     assert resolution.selected_candidate.source_segment_id == f"segment-{project.name}"

@@ -63,6 +63,7 @@ EXCLUDED_GRAPH_DIRS = (
     ".git",
     ".mcp.json",
     ".npm-cache",
+    ".playwright-mcp",
     "__pycache__",
     ".venv",
     ".pytest_cache",
@@ -304,7 +305,7 @@ def render_generated_on_block(_contract: dict[str, object]) -> str:
     return "\n".join(
         (
             GENERATED_ON_START,
-            "Only marked repo-graph blocks are generated from the current worktree via `python scripts/sync_repo_graph_contract.py`.",
+            "Only marked repo-graph blocks are generated from the current worktree via `uv run python scripts/sync_repo_graph_contract.py`.",
             GENERATED_ON_END,
         )
     )

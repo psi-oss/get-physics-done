@@ -4283,7 +4283,7 @@ def test_execution_observability_and_resume_workflow_surfaces_stay_conservative_
     assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
     assert_execution_observability_surface_contract(help_workflow)
     assert_cost_surface_discoverability(help_workflow)
-    assert "Start at the workflow-owned `## Quick Start` section." in help_command
+    assert "Use the workflow-owned stable markers as the extraction boundaries" in help_command
     assert "When STATE.md appears out of sync with disk reality" in progress
     assert "advisory context only" in resume_work
     assert (
@@ -4973,9 +4973,7 @@ def test_peer_review_and_arxiv_use_subject_aware_publication_roots() -> None:
     assert 'gpd --raw init arxiv-submission --stage bootstrap -- "${ARGUMENTS}"' not in arxiv_submission
     assert "BOOTSTRAP_INIT=$(gpd --raw init arxiv-submission --stage bootstrap)" in arxiv_submission
     assert 'gpd --raw validate command-context arxiv-submission -- "${ARGUMENTS}"' in arxiv_submission
-    assert (
-        'gpd --raw validate review-preflight arxiv-submission --strict -- "${ARGUMENTS}"' in arxiv_submission
-    )
+    assert 'gpd --raw validate review-preflight arxiv-submission --strict -- "${ARGUMENTS}"' in arxiv_submission
     assert "Set `subject_slug` from `publication_subject_slug`" in arxiv_submission
     assert 'PUBLICATION_ROOT="GPD/publication/${subject_slug}"' in arxiv_submission
     assert 'PACKAGE_ROOT="${PUBLICATION_ROOT}/arxiv"' in arxiv_submission

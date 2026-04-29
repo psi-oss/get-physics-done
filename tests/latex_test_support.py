@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from gpd.mcp.paper.models import PaperToolchainCapability
 
+PAPER_TOOLCHAIN_CAPABILITY_KEYS = frozenset(PaperToolchainCapability.model_fields)
+
 
 def latex_capability_payload(**overrides: object) -> dict[str, object]:
     # pdf_review_ready defaults to True here because tests construct this payload
@@ -33,7 +35,7 @@ def latex_capability_payload(**overrides: object) -> dict[str, object]:
             and bool(capability.get("kpsewhich_available"))
             and bool(capability.get("pdf_review_ready"))
         )
-    return capability
+    return PaperToolchainCapability.model_validate(capability).model_dump(mode="python")
 
 
 def toolchain_capability(**overrides: object) -> PaperToolchainCapability:

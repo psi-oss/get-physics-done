@@ -323,12 +323,7 @@ def _is_relative_to(path: Path, parent: Path) -> bool:
 
 
 def _safe_component(value: str) -> str:
-    cleaned = "".join(
-        char
-        if (char.isascii() and char.isalnum()) or char in "._-"
-        else "-"
-        for char in value.strip()
-    )
+    cleaned = "".join(char if (char.isascii() and char.isalnum()) or char in "._-" else "-" for char in value.strip())
     collapsed = cleaned.strip("-")
     return collapsed or "unnamed"
 
@@ -445,19 +440,18 @@ def _bind_output_subtree_placeholders(
             )
         return normalized_value[0]
 
-    substituted = tuple(
-        _OUTPUT_SUBTREE_PLACEHOLDER_RE.sub(_replace_placeholder, component) for component in parts
-    )
+    substituted = tuple(_OUTPUT_SUBTREE_PLACEHOLDER_RE.sub(_replace_placeholder, component) for component in parts)
     return _normalize_output_subtree(substituted)
 
 
 class ProjectStorageLayout:
     """Storage policy view over a single project root."""
 
-    __slots__ = ("root", "gpd")
+    __slots__ = ("root", "gpd", "gpd_dir_name")
 
     def __init__(self, root: Path, gpd_dir: str = PLANNING_DIR_NAME) -> None:
         self.root = root.resolve(strict=False)
+        self.gpd_dir_name = gpd_dir
         self.gpd = ProjectLayout(self.root, gpd_dir=gpd_dir).gpd.resolve(strict=False)
 
     @property
@@ -484,11 +478,7 @@ class ProjectStorageLayout:
         )
 
     def phase_artifacts_dir(self, phase_name: str) -> Path:
-        return (
-            self.output_dir(DurableOutputKind.ARTIFACTS)
-            / "phases"
-            / _safe_component(phase_name)
-        )
+        return self.output_dir(DurableOutputKind.ARTIFACTS) / "phases" / _safe_component(phase_name)
 
     def phase_operation_dir(self, phase_name: str, operation: str, *, slug: str | None = None) -> Path:
         path = self.phase_artifacts_dir(phase_name) / _safe_component(operation)
@@ -520,6 +510,8 @@ class ProjectStorageLayout:
         return any(segment.lower() in _PROJECT_SCRATCH_SEGMENTS for segment in rel.parts)
 
     def _internal_storage_violation(self, path: Path) -> str | None:
+        if not _is_relative_to(path, self.root):
+            return None
         rel = path.relative_to(self.root)
         suffix = path.suffix.lower()
 
@@ -527,9 +519,8 @@ class ProjectStorageLayout:
             return f"Suspicious durable-artifact path under {self.gpd.as_posix()}: {rel.as_posix()}"
 
         if (
-            (_is_relative_to(path, self.gpd / "phases") or _is_relative_to(path, self.gpd / "paper"))
-            and suffix in _SUSPICIOUS_DURABLE_SUFFIXES
-        ):
+            _is_relative_to(path, self.gpd / "phases") or _is_relative_to(path, self.gpd / "paper")
+        ) and suffix in _SUSPICIOUS_DURABLE_SUFFIXES:
             return f"Artifact-like file stored under internal metadata directories: {rel.as_posix()}"
 
         return None
@@ -675,9 +666,13 @@ class ProjectStorageLayout:
         display_path = self._display_path(assessment.path)
 
         if assessment.managed_output_class == ManagedOutputClass.GPD_INTERNAL_OTHER:
-            raise StoragePathError(f"Final durable outputs must not be written under {self.gpd.as_posix()}: {display_path}")
+            raise StoragePathError(
+                f"Final durable outputs must not be written under {self.gpd.as_posix()}: {display_path}"
+            )
         if assessment.managed_output_class == ManagedOutputClass.SCRATCH:
-            raise StoragePathError(f"Final durable outputs must not be written under scratch directories: {display_path}")
+            raise StoragePathError(
+                f"Final durable outputs must not be written under scratch directories: {display_path}"
+            )
         if assessment.managed_output_class == ManagedOutputClass.TEMP_ROOT:
             raise StoragePathError(f"Final durable outputs must not be written under an OS temp root: {display_path}")
         if assessment.managed_output_class == ManagedOutputClass.EXTERNAL:
@@ -734,7 +729,9 @@ class ProjectStorageLayout:
                 f"got {resolved.as_posix()}."
             )
         elif assessment.managed_output_class == ManagedOutputClass.PROJECT_LOCAL_OTHER:
-            preferred_label = ", ".join(path.relative_to(self.root).as_posix() for path in preferred_dirs) or "named durable roots"
+            preferred_label = (
+                ", ".join(path.relative_to(self.root).as_posix() for path in preferred_dirs) or "named durable roots"
+            )
             warnings.append(
                 f"Output is in a custom project directory; prefer {preferred_label} for discoverability, got {resolved.as_posix()}."
             )
@@ -758,7 +755,9 @@ class ProjectStorageLayout:
             and kind is not None
             and not _is_relative_to(resolved, self.output_dir(kind))
         ):
-            warnings.append(f"Expected a {kind.value} output under {self.output_dir(kind).as_posix()}, got {resolved.as_posix()}.")
+            warnings.append(
+                f"Expected a {kind.value} output under {self.output_dir(kind).as_posix()}, got {resolved.as_posix()}."
+            )
 
         return StoragePathCheck(
             path=resolved,
@@ -783,14 +782,20 @@ class ProjectStorageLayout:
                 "Runtime config directory pruning skipped because validated runtime catalog lookup failed: "
                 f"{runtime_config_dir_lookup_error}"
             )
+        raw_gpd = self.root / self.gpd_dir_name
+        if raw_gpd.exists() and not _is_relative_to(self.gpd, self.root):
+            warnings.append(
+                "GPD storage root resolves outside the project root: "
+                f"{raw_gpd.relative_to(self.root).as_posix()} -> {self.gpd.as_posix()}"
+            )
 
         if self.gpd.exists():
             for path in _iter_storage_audit_files(self.gpd):
-                rel = path.relative_to(self.root)
+                rel_label = self._display_path(path)
                 suffix = path.suffix.lower()
 
                 if _is_relative_to(path, self.scratch_dir) and suffix not in _SCRATCH_TEMP_SUFFIXES:
-                    warnings.append(f"Scratch file should not be treated as durable output: {rel.as_posix()}")
+                    warnings.append(f"Scratch file should not be treated as durable output: {rel_label}")
                     continue
 
                 assessment = self.assess_output_path(path, managed_output_policies=managed_output_policies)
@@ -810,6 +815,8 @@ class ProjectStorageLayout:
                 continue
             if path.suffix.lower() in _SCRATCH_TEMP_SUFFIXES:
                 continue
-            warnings.append(f"Project scratch directory should not hold final outputs: {path.relative_to(self.root).as_posix()}")
+            warnings.append(
+                f"Project scratch directory should not hold final outputs: {path.relative_to(self.root).as_posix()}"
+            )
 
         return tuple(dict.fromkeys(warnings))

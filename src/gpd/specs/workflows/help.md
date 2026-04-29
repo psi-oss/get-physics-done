@@ -73,6 +73,7 @@ This reference lists the canonical in-runtime command names for the installed ru
 - After resuming inside the runtime, use `gpd:suggest-next` when you only need the next action.
 - For a normal-terminal, read-only machine-local usage / cost summary, use `gpd cost`.
 
+<!-- gpd-help:quick-start:start -->
 ## Quick Start
 
 If you only remember one order, use this: `help -> start -> tour -> new-project / map-research -> resume-work`.
@@ -105,6 +106,8 @@ Use the path that matches your current situation:
 
 When a side investigation appears later, use `gpd:tangent` first. It is the chooser for stay / quick / defer / branch. Use `gpd:branch-hypothesis` only when that tangent needs its own git-backed branch.
 
+<!-- gpd-help:quick-start:end -->
+<!-- gpd-help:command-index:start -->
 ## Command Index
 
 This is the compact grouped list of runtime commands. For normal-terminal install, readiness, and diagnostics commands, use `gpd --help`.
@@ -205,6 +208,8 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:update` - Update GPD to the latest version
 - `gpd:reapply-patches` - Reapply local modifications after updating
 
+<!-- gpd-help:command-index:end -->
+<!-- gpd-help:detailed-command-reference:start -->
 ## Detailed Command Reference
 
 Use `gpd:help --command <name>` when you want the detailed notes for one runtime command at a time.
@@ -1153,6 +1158,8 @@ Usage: `gpd:reapply-patches`
 
 **`gpd:help`**
 Show this command reference.
+
+<!-- gpd-help:detailed-command-reference:end -->
 
 ## Files & Structure
 

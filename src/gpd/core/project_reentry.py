@@ -72,6 +72,7 @@ class ProjectReentryCandidate(BaseModel):
     recovery_plan: str | None = None
     auto_selectable: bool = False
 
+
 class ProjectReentryResolution(BaseModel):
     """Shared re-entry decision payload for recovery/status commands."""
 
@@ -106,6 +107,7 @@ class ProjectReentryResolution(BaseModel):
                 if candidate.project_root == selected_root and candidate.source == selected_source:
                     return candidate
         return next((candidate for candidate in self.candidates if candidate.project_root == selected_root), None)
+
 
 def recoverable_project_context(project_root: Path) -> tuple[bool, bool, bool]:
     """Return whether a project root has enough durable state for recovery.
@@ -241,7 +243,9 @@ def _normalize_recent_text(row: Mapping[str, object], *keys: str) -> str | None:
     return None
 
 
-def _live_resume_file_metadata(project_root: Path, resume_file: str | None) -> tuple[str | None, bool | None, str | None]:
+def _live_resume_file_metadata(
+    project_root: Path, resume_file: str | None
+) -> tuple[str | None, bool | None, str | None]:
     if resume_file is None:
         return None, None, None
 
@@ -292,7 +296,7 @@ def _candidate_from_recent_row(row: Mapping[str, object]) -> ProjectReentryCandi
         except OSError:
             inferred_available = False
     available_value = row.get("available")
-    if available_value is None:
+    if available_value is None or isinstance(available_value, bool):
         available = inferred_available
     else:
         available = _strict_bool_value(available_value) is True and inferred_available
@@ -383,7 +387,9 @@ def _current_workspace_candidate(workspace: Path | None) -> ProjectReentryCandid
         available=project_root.is_dir(),
         recoverable=recoverable,
         resumable=False,
-        confidence=resolution.confidence.value if isinstance(resolution.confidence, RootResolutionConfidence) else str(resolution.confidence),
+        confidence=resolution.confidence.value
+        if isinstance(resolution.confidence, RootResolutionConfidence)
+        else str(resolution.confidence),
         reason=reason,
         summary=reason,
         state_exists=state_exists,

@@ -105,7 +105,9 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
 def test_ci_collection_cache_is_repo_and_category_scoped(tmp_path, monkeypatch) -> None:
     calls: list[tuple[tuple[str, ...], Path]] = []
 
-    def _fake_checked_in_test_relpaths(*, repo_root: Path | None = None, category: str | None = None) -> tuple[str, ...]:
+    def _fake_checked_in_test_relpaths(
+        *, repo_root: Path | None = None, category: str | None = None
+    ) -> tuple[str, ...]:
         if category == "core":
             return ("core/test_sample.py",)
         return ("test_sample.py",)
@@ -232,12 +234,8 @@ def test_ci_workflow_runs_lightweight_python_compatibility_matrix() -> None:
     )
     assert step_by_name["Install dependencies"]["run"] == "uv sync --dev --frozen"
 
-    import_smoke = step_by_name["Import package surfaces"]["run"]
-    assert "importlib.import_module(module)" in import_smoke
-    assert '"gpd.cli"' in import_smoke
-    assert '"gpd.core.artifact_text"' in import_smoke
-    assert '"gpd.mcp.paper.compiler"' in import_smoke
-    assert '"gpd.mcp.servers.arxiv_bridge"' in import_smoke
+    import_smoke = step_by_name["Run import stability contracts"]["run"]
+    assert "uv run pytest -n 0 -q tests/test_import_stability_contracts.py" in import_smoke
 
     console_smoke = step_by_name["Smoke console script"]["run"]
     assert "uv run gpd --version" in console_smoke

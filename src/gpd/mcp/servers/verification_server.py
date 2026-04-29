@@ -2505,6 +2505,7 @@ def _decisive_contract_impacts(
     binding_ids: dict[str, list[str]],
     binding_supplied: bool,
     metadata: dict[str, object],
+    observed: dict[str, object] | None = None,
 ) -> list[str]:
     if contract is None:
         return []
@@ -2551,12 +2552,12 @@ def _decisive_contract_impacts(
         return candidates
 
     if check_key in {"contract.fit_family_mismatch", "contract.estimator_family_mismatch"}:
+        observed_family = _normalize_optional_scalar_str((observed or {}).get("selected_family"))
+        if observed_family:
+            return [observed_family]
         declared_family = _normalize_optional_scalar_str(metadata.get("declared_family"))
         if declared_family:
             return [declared_family]
-        selected_family = _normalize_optional_scalar_str(metadata.get("selected_family"))
-        if selected_family:
-            return [selected_family]
 
     if check_key in _PROOF_CHECK_KEYS:
         candidates, issue = _proof_claim_candidates(
@@ -4598,6 +4599,7 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                     binding_ids=binding_ids,
                     binding_supplied=binding_supplied,
                     metadata=metadata,
+                    observed=observed,
                 )
 
             contract_warnings: list[str] = []

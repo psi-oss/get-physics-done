@@ -1562,6 +1562,30 @@ class TestInitCommands:
         assert payload["error"].startswith("Unknown resume-work stage 'bogus'.")
         assert "Traceback" not in result.output
 
+    def test_init_verify_work_raw_missing_phase_reports_clean_error(self, gpd_project: Path) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(gpd_project), "init", "verify-work"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["error"].startswith("phase is required for init verify-work.")
+        assert "Traceback" not in result.output
+
+    def test_init_verify_work_raw_unknown_stage_reports_clean_error(self, gpd_project: Path) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(gpd_project), "init", "verify-work", "1", "--stage", "bogus"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["error"].startswith("Unknown verify-work stage 'bogus'.")
+        assert "Traceback" not in result.output
+
     @pytest.mark.parametrize(
         ("command_args", "expected_keys"),
         [
@@ -7736,9 +7760,7 @@ class TestReviewValidationCommands:
             if optional_check in checks:
                 assert checks[optional_check]["blocking"] is False
 
-    def test_review_preflight_peer_review_rejects_external_manifest_with_failed_build(
-        self, tmp_path: Path
-    ) -> None:
+    def test_review_preflight_peer_review_rejects_external_manifest_with_failed_build(self, tmp_path: Path) -> None:
         workspace = tmp_path / "standalone-review"
         manuscript_root = workspace / "submission"
         manuscript_root.mkdir(parents=True)

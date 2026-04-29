@@ -1139,6 +1139,23 @@ def roadmap_get_phase(cwd: Path, phase_num: str) -> RoadmapPhaseResult:
 # ─── Phase Next Decimal ────────────────────────────────────────────────────────
 
 
+def _roadmap_decimal_children(content: str | None, normalized_base: str) -> list[str]:
+    """Return immediate decimal children for *normalized_base* declared in ROADMAP.md."""
+
+    if not content:
+        return []
+    base_parts = normalized_base.split(".")
+    children: list[str] = []
+    for heading in _roadmap_phase_headings(content):
+        normalized_heading = phase_normalize(heading.number)
+        parts = normalized_heading.split(".")
+        if len(parts) != len(base_parts) + 1:
+            continue
+        if parts[:-1] == base_parts and parts[-1].isdigit():
+            children.append(normalized_heading)
+    return children
+
+
 def next_decimal_phase(cwd: Path, base_phase: str) -> NextDecimalResult:
     """Calculate the next decimal sub-phase number.
 
@@ -1147,27 +1164,32 @@ def next_decimal_phase(cwd: Path, base_phase: str) -> NextDecimalResult:
     with gpd_span("phases.next_decimal", base_phase=base_phase):
         normalized = phase_normalize(base_phase)
         phases_dir = _phases_dir(cwd)
+        roadmap_content = safe_read_file(_roadmap_path(cwd))
+        roadmap_numbers = (
+            {phase_normalize(heading.number) for heading in _roadmap_phase_headings(roadmap_content)}
+            if roadmap_content
+            else set()
+        )
 
-        if not _is_real_directory(phases_dir):
-            return NextDecimalResult(found=False, base_phase=normalized, next=f"{normalized}.1")
-
-        dirs = [d.name for d in phases_dir.iterdir() if _is_real_directory(d)]
-        base_exists = any(d.startswith(normalized + "-") or d == normalized for d in dirs)
+        dirs = [d.name for d in phases_dir.iterdir() if _is_real_directory(d)] if _is_real_directory(phases_dir) else []
+        base_exists = (
+            any(d.startswith(normalized + "-") or d == normalized for d in dirs) or normalized in roadmap_numbers
+        )
 
         escaped = re.escape(normalized)
         decimal_pattern = re.compile(rf"^{escaped}\.(\d+)")
-        existing_decimals: list[str] = []
+        existing_decimals: set[str] = set(_roadmap_decimal_children(roadmap_content, normalized))
         for d in dirs:
             m = decimal_pattern.match(d)
             if m:
-                existing_decimals.append(f"{normalized}.{m.group(1)}")
+                existing_decimals.add(f"{normalized}.{m.group(1)}")
 
-        existing_decimals = _sorted_phases(existing_decimals)
+        sorted_existing_decimals = _sorted_phases(list(existing_decimals))
 
-        if not existing_decimals:
+        if not sorted_existing_decimals:
             next_decimal = f"{normalized}.1"
         else:
-            last = existing_decimals[-1]
+            last = sorted_existing_decimals[-1]
             last_num = int(last.split(".")[-1])
             next_decimal = f"{normalized}.{last_num + 1}"
 
@@ -1175,7 +1197,7 @@ def next_decimal_phase(cwd: Path, base_phase: str) -> NextDecimalResult:
             found=base_exists,
             base_phase=normalized,
             next=next_decimal,
-            existing=existing_decimals,
+            existing=sorted_existing_decimals,
         )
 
 
@@ -2148,6 +2170,11 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
             normalized_base = phase_normalize(after_phase)
             phases_dir = _phases_dir(cwd)
             existing_decimals: list[int] = []
+            for decimal_child in _roadmap_decimal_children(content, normalized_base):
+                try:
+                    existing_decimals.append(int(decimal_child.split(".")[-1]))
+                except ValueError:
+                    continue
 
             if _is_real_directory(phases_dir):
                 escaped_base = re.escape(normalized_base)
@@ -2905,8 +2932,13 @@ def progress_render(cwd: Path, fmt: str = "json") -> ProgressJsonResult | Progre
                 pos = raw.get("position") or {}
                 val = pos.get("progress_percent")
                 if val is not None:
-                    state_pct = int(val)
-                    if state_pct != percent:
+                    state_pct = strict_parse_int(val, default=None)
+                    if state_pct is None:
+                        progress_warnings.append(
+                            "state.json progress_percent is non-integer; ignoring advisory value. "
+                            "Run 'gpd state update-progress' to reconcile."
+                        )
+                    elif state_pct != percent:
                         diverged = True
                         progress_warnings.append(
                             f"state.json progress_percent ({state_pct}%) differs from "

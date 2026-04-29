@@ -17,7 +17,9 @@ import ast
 import json
 import re
 import subprocess
+from collections.abc import Sequence
 from dataclasses import fields
+from functools import cache
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -308,7 +310,8 @@ _ADAPTER_PRIVATE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
 _RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 
 
-def _git_grep(pattern: str) -> list[tuple[Path, int, str]]:
+@cache
+def _git_grep(pattern: str) -> tuple[tuple[Path, int, str], ...]:
     result = subprocess.run(
         ["git", "grep", "-n", "-I", "-E", pattern],
         cwd=REPO_ROOT,
@@ -323,7 +326,7 @@ def _git_grep(pattern: str) -> list[tuple[Path, int, str]]:
     for line in result.stdout.splitlines():
         rel_path_str, line_no_str, snippet = line.split(":", 2)
         matches.append((Path(rel_path_str), int(line_no_str), snippet))
-    return matches
+    return tuple(matches)
 
 
 def _is_doc(rel_path: Path) -> bool:
@@ -360,7 +363,7 @@ def _is_allowed_shared_python_runtime_file(rel_path: Path) -> bool:
     return rel_path.as_posix() in _ALLOWED_SHARED_PYTHON_RUNTIME_FILES
 
 
-def _format_failures(matches: list[tuple[Path, int, str]]) -> str:
+def _format_failures(matches: Sequence[tuple[Path, int, str]]) -> str:
     lines = [f"{path}:{line_no}: {snippet}" for path, line_no, snippet in matches]
     return "\n".join(lines)
 

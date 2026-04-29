@@ -220,8 +220,7 @@ def test_contract_check_schemas_require_must_surface_reference_surface_fields() 
             for error in schema_errors
         )
         assert any(
-            list(error.absolute_path)[-3:] == ["references", 0, "required_actions"]
-            and "non-empty" in error.message
+            list(error.absolute_path)[-3:] == ["references", 0, "required_actions"] and "non-empty" in error.message
             for error in schema_errors
         )
 
@@ -1561,9 +1560,7 @@ def test_project_contract_salvage_recovers_proof_hypothesis_category_case_drift(
 
     assert result.contract is not None
     assert result.contract.claims[0].hypotheses[0].category == "lemma"
-    assert result.recoverable_errors == [
-        "claims.0.hypotheses.0.category must use exact canonical value: lemma"
-    ]
+    assert result.recoverable_errors == ["claims.0.hypotheses.0.category must use exact canonical value: lemma"]
 
 
 def test_contract_tools_preserve_non_string_list_member_parse_error() -> None:
@@ -2028,6 +2025,72 @@ def test_run_contract_check_backfills_contract_impacts_for_decisive_passes_witho
 
     assert estimator["status"] == "pass"
     assert estimator["contract_impacts"] == ["bootstrap"]
+
+
+def test_run_contract_check_fit_family_failure_impacts_observed_forbidden_family() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    forbidden_result = run_contract_check(
+        {
+            "check_key": "contract.fit_family_mismatch",
+            "contract": _derived_template_contract(),
+            "observed": {
+                "selected_family": "polynomial",
+                "competing_family_checked": True,
+            },
+        }
+    )
+    outside_result = run_contract_check(
+        {
+            "check_key": "contract.fit_family_mismatch",
+            "contract": _derived_template_contract(),
+            "observed": {
+                "selected_family": "spline",
+                "competing_family_checked": True,
+            },
+        }
+    )
+
+    assert forbidden_result["status"] == "fail"
+    assert forbidden_result["contract_impacts"] == ["polynomial"]
+    assert "Selected fit family is explicitly forbidden" in forbidden_result["automated_issues"]
+    assert outside_result["status"] == "fail"
+    assert outside_result["contract_impacts"] == ["spline"]
+    assert "Selected fit family is outside the allowed family set" in outside_result["automated_issues"]
+
+
+def test_run_contract_check_estimator_family_failure_impacts_observed_forbidden_family() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    forbidden_result = run_contract_check(
+        {
+            "check_key": "contract.estimator_family_mismatch",
+            "contract": _derived_template_contract(),
+            "observed": {
+                "selected_family": "jackknife",
+                "bias_checked": True,
+                "calibration_checked": True,
+            },
+        }
+    )
+    outside_result = run_contract_check(
+        {
+            "check_key": "contract.estimator_family_mismatch",
+            "contract": _derived_template_contract(),
+            "observed": {
+                "selected_family": "posterior",
+                "bias_checked": True,
+                "calibration_checked": True,
+            },
+        }
+    )
+
+    assert forbidden_result["status"] == "fail"
+    assert forbidden_result["contract_impacts"] == ["jackknife"]
+    assert "Selected estimator family is explicitly forbidden" in forbidden_result["automated_issues"]
+    assert outside_result["status"] == "fail"
+    assert outside_result["contract_impacts"] == ["posterior"]
+    assert "Selected estimator family is outside the allowed family set" in outside_result["automated_issues"]
 
 
 def test_run_contract_check_limit_recovery_uses_bound_acceptance_test_pass_condition() -> None:

@@ -42,7 +42,7 @@ Your files feed the roadmap:
 | Autonomy | Project Researcher Behavior |
 |---|---|
 | **supervised** | Present research focus areas before executing. Checkpoint after the initial survey with scope confirmation. Flag open questions that need user judgment (for example, which subfield to prioritize in cross-disciplinary projects). |
-| **balanced** | Execute all 4 parallel research threads independently. Make routine scope decisions from the problem description and produce complete research output without checkpoints. Pause only if the survey reveals a real scope fork or missing prerequisite that changes the project direction. |
+| **balanced** | Execute the assigned research dimension independently. Make routine scope decisions from the problem description and produce the assigned output without checkpoints. Pause only if the survey reveals a real scope fork or missing prerequisite that changes the project direction. |
 | **yolo** | Single-pass research: domain survey only, skip feasibility and comparison modes. Focus on identifying the standard approach and key references. Abbreviated output optimized for speed to unblock the roadmapper. |
 
 </autonomy_awareness>
@@ -592,7 +592,9 @@ Run pre-submission checklist (see verification_protocol). Additionally:
 
 ## Step 5: Write Output Files
 
-In `GPD/literature/`:
+When an orchestrator supplies `<output>` or `<spawn_contract>`, that scoped handoff is authoritative. Write only the assigned `write_scope.allowed_paths`; do not create sibling literature files just because they are listed below.
+
+For standalone domain-survey use without a narrower spawn contract, write the relevant files in `GPD/literature/`:
 
 1. **SUMMARY.md** — Always
 2. **PRIOR-WORK.md** — Always

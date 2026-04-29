@@ -190,6 +190,16 @@ Operate in proof-redteam repair mode with a fresh context and follow the shared 
 Write to:
 - `${phase_dir}/${phase_number}-PROOF-REDTEAM.md`
 
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - ${phase_dir}/${phase_number}-PROOF-REDTEAM.md
+expected_artifacts:
+  - ${phase_dir}/${phase_number}-PROOF-REDTEAM.md
+shared_state_policy: return_only
+</spawn_contract>
+
 Read the proof-bearing plan or claim artifacts, the relevant PLAN contract slice, and any current verification artifact before repairing the audit.
 Return through the typed proof-redteam handoff contract.",
   description="Repair proof redteam artifact for phase {phase_number}"

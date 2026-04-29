@@ -681,6 +681,14 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
                 )
             )
     extra_artifact_blockers = {
+        "manuscript_reference_status_present": (
+            "citations",
+            "Manuscript reference status is missing; bibliography provenance is not connected to the active manuscript.",
+        ),
+        "manuscript_reference_bridge_complete": (
+            "citations",
+            "Manuscript references are not bridged to both BibTeX keys and reference ids.",
+        ),
         "empty_citation_commands_absent": (
             "citations",
             "Empty \\cite{} commands remain in the manuscript.",

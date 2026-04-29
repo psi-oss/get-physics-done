@@ -232,9 +232,7 @@ def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pypro
     assert "in {elapsed_seconds:.2f}s" in resolve_targets_command
     assert 'mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"' in pytest_shard_command
     assert pytest_steps[-1]["timeout-minutes"] == CI_PYTEST_SHARD_TIMEOUT_MINUTES
-    assert pytest_steps[-1]["env"]["GPD_FULL_SUITE_SHARD_BUDGET_SECONDS"] == str(
-        CI_FULL_SUITE_SHARD_BUDGET_SECONDS
-    )
+    assert pytest_steps[-1]["env"]["GPD_FULL_SUITE_SHARD_BUDGET_SECONDS"] == str(CI_FULL_SUITE_SHARD_BUDGET_SECONDS)
     assert (
         f"Full-suite shard budget: ${{GPD_FULL_SUITE_SHARD_BUDGET_SECONDS}}s enforced per pytest shard; "
         f"job timeout: {CI_PYTEST_SHARD_TIMEOUT_MINUTES} minutes"
@@ -245,8 +243,7 @@ def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pypro
     ) in pytest_shard_command
     assert 'if [ "$pytest_status" -eq 124 ]; then' in pytest_shard_command
     assert (
-        'echo "::error::pytest shard exceeded enforced ${GPD_FULL_SUITE_SHARD_BUDGET_SECONDS}s '
-        'full-suite shard budget"'
+        'echo "::error::pytest shard exceeded enforced ${GPD_FULL_SUITE_SHARD_BUDGET_SECONDS}s full-suite shard budget"'
     ) in pytest_shard_command
     assert 'exit "$pytest_status"' in pytest_shard_command
     assert '--durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"' in pytest_shard_command
@@ -297,12 +294,14 @@ def assert_tests_readme_documents_ci_shard_policy(tests_readme: str) -> None:
 
 
 def assert_contributing_documents_current_pytest_commands(contributing: str) -> None:
-    assert "python scripts/sync_repo_graph_contract.py --check" in contributing
+    assert "uv run python scripts/sync_repo_graph_contract.py --check" in contributing
     assert "If the repo graph check reports generated-artifact drift" in contributing
-    assert "`python scripts/sync_repo_graph_contract.py`" in contributing
+    assert "`uv run python scripts/sync_repo_graph_contract.py`" in contributing
     assert "uv run pytest -n 0 tests/test_metadata_consistency.py -v" in contributing
     assert "uv run pytest -n 0 tests/test_release_consistency.py -v" in contributing
-    assert "uv run pytest -n 0 tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v" in contributing
+    assert (
+        "uv run pytest -n 0 tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v" in contributing
+    )
     assert "uv run pytest -n 0 tests/core/test_cli.py -v" in contributing
     assert "uv run pytest tests/ -q" in contributing
     assert "`uv run pytest tests/ -q` is the fast local full checked-in suite" in contributing
@@ -444,17 +443,6 @@ def collected_test_inventory(
     category: str | None = None,
 ) -> dict[str, tuple[str, ...]]:
     return dict(_collected_test_inventory_items(_normalized_repo_root(repo_root), category))
-
-
-def collected_test_counts_by_file(
-    *,
-    repo_root: Path | None = None,
-    category: str | None = None,
-) -> dict[str, int]:
-    return {
-        rel_path: len(nodeids)
-        for rel_path, nodeids in collected_test_inventory(repo_root=repo_root, category=category).items()
-    }
 
 
 def _split_nodeids_round_robin(nodeids: tuple[str, ...], *, parts: int) -> tuple[tuple[str, ...], ...]:

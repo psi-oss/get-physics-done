@@ -395,6 +395,23 @@ def test_score_paper_quality_blocks_empty_citation_and_reference_commands() -> N
     assert "empty_reference_commands_absent" in blocking_checks
 
 
+def test_score_paper_quality_blocks_missing_manuscript_reference_bridge() -> None:
+    report = score_paper_quality(
+        PaperQualityInput(
+            title="Reference Bridge Blocked",
+            journal="jhep",
+            journal_extra_checks={
+                "manuscript_reference_status_present": False,
+                "manuscript_reference_bridge_complete": False,
+            },
+        )
+    )
+
+    blocking_checks = {issue.check for issue in report.blocking_issues}
+    assert "manuscript_reference_status_present" in blocking_checks
+    assert "manuscript_reference_bridge_complete" in blocking_checks
+
+
 def test_score_paper_quality_applies_journal_adjustments():
     common_input = PaperQualityInput(
         title="Accessible Paper",

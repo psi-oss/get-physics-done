@@ -74,7 +74,7 @@ Explore and adaptive modes widen comparison and tangent surfacing, but they do *
 
 | Mode | Behavior |
 |---|---|
-| **explore** | Reduced to 9 core dimensions. Focuses on: research question coverage (Dim 1), computational feasibility (Dim 5), dependency correctness (Dim 9), scope sanity (Dim 10). Accepts plans with multiple parallel variants. Does NOT require literature comparison tasks. |
+| **explore** | Uses the exploratory subset of the dimension matrix. Focuses on: research question coverage (Dim 1), computational feasibility (Dim 5), dependency correctness (Dim 9), scope sanity (Dim 10), artifact derivation, and environment validation. Accepts plans with multiple parallel variants. Does NOT require literature comparison tasks. |
 | **balanced** | Full 16 dimensions per profile. Standard checks. |
 | **exploit** | Full 16 dimensions with EXTRA strictness on: error budgets (Dim 8), validation strategy (Dim 6), boundary conditions (Dim 14), publication readiness (Dim 12). Requires every result to have an independent verification task. |
 | **adaptive** | Use explore-style tolerance for parallel variants until the approach is locked; then apply the full exploit-style dimension set to the focused plan. |

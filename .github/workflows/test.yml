@@ -57,9 +57,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Check repo graph generated artifacts
-        run: python scripts/sync_repo_graph_contract.py --check
-
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
         with:
@@ -67,6 +64,9 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --dev --frozen
+
+      - name: Check repo graph generated artifacts
+        run: uv run python scripts/sync_repo_graph_contract.py --check
 
       - name: Run ruff check
         run: uv run ruff check .
@@ -101,24 +101,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev --frozen
 
-      - name: Import package surfaces
+      - name: Run import stability contracts
         run: |
-          uv run python - <<'PY'
-          import importlib
-
-          modules = [
-              "gpd",
-              "gpd.cli",
-              "gpd.runtime_cli",
-              "gpd.adapters.runtime_catalog",
-              "gpd.core.artifact_text",
-              "gpd.mcp.paper.compiler",
-              "gpd.mcp.servers.arxiv_bridge",
-          ]
-          for module in modules:
-              importlib.import_module(module)
-          print(f"Imported {len(modules)} package surfaces")
-          PY
+          uv run pytest -n 0 -q tests/test_import_stability_contracts.py
 
       - name: Smoke console script
         run: |

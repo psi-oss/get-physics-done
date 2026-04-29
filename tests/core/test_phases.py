@@ -1154,6 +1154,30 @@ def test_phase_insert_accepts_padded_em_dash_heading(tmp_path: Path) -> None:
     assert "**Depends on:** Phase 01" in roadmap
 
 
+def test_phase_insert_skips_roadmap_only_decimal_siblings(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1: First
+        **Goal:** do first
+
+        ### Phase 1.1: Existing roadmap-only fix
+        **Goal:** fix without a directory yet
+
+        ### Phase 2: Second
+        **Goal:** do second
+        """,
+    )
+
+    result = phase_insert(tmp_path, "1", "Hotfix")
+
+    assert result.phase_number == "01.2"
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "### Phase 1.1: Existing roadmap-only fix" in roadmap
+    assert "### Phase 1.2: Hotfix (INSERTED)" in roadmap
+
+
 def test_phase_insert_invalid_phase(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     _create_roadmap(tmp_path, "### Phase 1: X\n")
@@ -1183,6 +1207,26 @@ def test_next_decimal_with_existing(tmp_path: Path) -> None:
     result = next_decimal_phase(tmp_path, "3")
     assert result.next == "03.3"
     assert len(result.existing) == 2
+
+
+def test_next_decimal_counts_roadmap_only_decimal_phases(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 3: Analysis
+        **Goal:** analyze
+
+        ### Phase 3.1: Roadmap-only correction
+        **Goal:** correct
+        """,
+    )
+
+    result = next_decimal_phase(tmp_path, "3")
+
+    assert result.found is True
+    assert result.next == "03.2"
+    assert result.existing == ["03.1"]
 
 
 # ─── phase_remove ────────────────────────────────────────────────────────────────
@@ -1961,6 +2005,23 @@ def test_progress_render_json(tmp_path: Path) -> None:
     assert result.total_plans == 1
     assert result.total_summaries == 1
     assert len(result.phases) == 1
+
+
+def test_progress_render_warns_on_non_integer_state_progress_percent(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(tmp_path, "## v1.0: Test\n")
+    phase_dir = _create_phase_dir(tmp_path, "01-x")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (tmp_path / "GPD" / "state.json").write_text(
+        json.dumps({"position": {"progress_percent": "12.5"}}),
+        encoding="utf-8",
+    )
+
+    result = progress_render(tmp_path, "json")
+
+    assert result.state_progress_percent is None
+    assert result.diverged is False
+    assert any("progress_percent is non-integer" in warning for warning in result.warnings)
 
 
 def test_progress_render_bar(tmp_path: Path) -> None:

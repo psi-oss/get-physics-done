@@ -25,6 +25,8 @@ def test_project_researcher_uses_staged_mode_and_one_shot_checkpoint_language() 
     assert "fresh continuation" in source
     assert "Do not wait inside the same spawned run." in source
     assert "Do not query config or reread init JSON inside this agent." in source
+    assert "Write only the assigned `write_scope.allowed_paths`" in source
+    assert "Execute all 4 parallel research threads independently" not in source
 
 
 def test_new_project_scout_returns_route_on_typed_status_and_files_written() -> None:
@@ -43,5 +45,8 @@ def test_new_project_synthesizer_return_stays_typed_and_file_backed() -> None:
 
     assert "Handle the synthesizer return:" in workflow
     assert "Route on `gpd_return.status` and `gpd_return.files_written`." in workflow
-    assert "If `checkpoint`, present it to the user, collect the response, and spawn a fresh continuation after the response." in workflow
+    assert (
+        "If `checkpoint`, present it to the user, collect the response, and spawn a fresh continuation after the response."
+        in workflow
+    )
     assert "If `completed`, verify `GPD/literature/SUMMARY.md` exists and is named in the fresh return." in workflow

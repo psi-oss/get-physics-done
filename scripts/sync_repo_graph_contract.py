@@ -88,7 +88,9 @@ def sync_generated_artifacts(
 ) -> None:
     contract = build_contract(repo_root)
     write_contract(contract, contract_path)
-    graph_path.write_text(sync_readme_text(graph_path.read_text(encoding="utf-8"), contract, repo_root), encoding="utf-8")
+    graph_path.write_text(
+        sync_readme_text(graph_path.read_text(encoding="utf-8"), contract, repo_root), encoding="utf-8"
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -105,7 +107,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if diffs:
             sys.stderr.write(
                 "Repo graph generated artifacts are stale. "
-                "Run `python scripts/sync_repo_graph_contract.py` and commit the result.\n\n"
+                "Run `uv run python scripts/sync_repo_graph_contract.py` and commit the result.\n\n"
             )
             sys.stderr.write("\n".join(diffs))
             return 1

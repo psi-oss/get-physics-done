@@ -14,6 +14,7 @@ _GENERATED_ARTIFACT_DIRS = {
     ".mypy_cache",
     ".nox",
     ".npm-cache",
+    ".playwright-mcp",
     ".pytest_cache",
     ".ruff_cache",
     ".tox",
@@ -206,6 +207,7 @@ def test_gitignore_covers_generated_local_artifact_families(tmp_path: Path) -> N
         "GPD-FIX-REPORT-20260427.md",
         "GPD-FIX-REPORT/report.json",
         "GPD-FIX-REPORT-20260427/details.json",
+        ".playwright-mcp/page-2026-04-28T00-00-00-000Z.yml",
         "GPD/state.json.bak",
         "GPD/state.json.lock",
     )

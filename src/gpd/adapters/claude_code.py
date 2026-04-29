@@ -258,6 +258,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         _, settings_parse_error = _read_claude_settings_state(settings_path)
         if settings_parse_error is not None:
             raise RuntimeError("Claude Code settings.json is malformed; refusing to overwrite it during install.")
+        self._preflight_project_integrations_config(target_dir, is_global)
 
         project_cwd = None if is_global or getattr(self, "_install_explicit_target", False) else target_dir.parent
         mcp_servers = _build_managed_mcp_servers(cwd=project_cwd)
@@ -278,6 +279,12 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             raise RuntimeError(
                 f"{mcp_config_path.name} is malformed; refusing to overwrite Claude MCP config during install."
             )
+
+    def _install_rollback_paths(self, gpd_root: Path, target_dir: Path, is_global: bool) -> tuple[Path, ...]:
+        return (
+            *super()._install_rollback_paths(gpd_root, target_dir, is_global),
+            _mcp_config_path(target_dir, is_global=is_global),
+        )
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         settings_path = target_dir / "settings.json"

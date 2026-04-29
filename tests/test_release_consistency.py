@@ -659,7 +659,7 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_floor() -> None:
     assert "astral-sh/setup-uv@v7" in workflow
     assert f'version: "{EXPECTED_SETUP_UV_VERSION}"' in workflow
     assert "Check repo graph generated artifacts" in workflow
-    assert "python scripts/sync_repo_graph_contract.py --check" in workflow
+    assert "uv run python scripts/sync_repo_graph_contract.py --check" in workflow
     assert 'addopts = "-n auto --dist=worksteal"' in pyproject
     assert_ci_workflow_pytest_shard_policy(workflow_data, pyproject_text=pyproject)
 
@@ -668,6 +668,7 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_floor() -> None:
     rebuild_workflow = (repo_root / ".github" / "workflows" / "staging-rebuild.yml").read_text(encoding="utf-8")
     assert 'workflows: ["tests"]' in rebuild_workflow
     assert "conclusion == 'success'" in rebuild_workflow
+    assert "curl -sf --retry 3 --retry-delay 5 --connect-timeout 10 --max-time 30 -X POST" in rebuild_workflow
 
 
 def test_prepare_release_workflow_creates_release_pr_without_publishing() -> None:
@@ -944,6 +945,7 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "scripts/release_workflow.py release-notes" in workflow
     assert "gh pr create" in workflow
     assert "id: gpd_web_rebuild" in workflow
+    assert "curl -sf --retry 3 --retry-delay 5 --connect-timeout 10 --max-time 30 -X POST" in workflow
     assert "GPD_WEB_DISPATCH_TOKEN not configured" in workflow
     assert 'echo "status=skipped" >> "$GITHUB_OUTPUT"' in workflow
     assert 'echo "status=dispatched" >> "$GITHUB_OUTPUT"' in workflow
@@ -1085,9 +1087,7 @@ def test_uv_lock_tracks_runtime_dependency_extras() -> None:
     requires_dist = metadata.get("requires-dist")
     assert isinstance(requires_dist, list)
 
-    assert [item for item in dependencies if isinstance(item, dict) and item.get("name") == "mcp"] == [
-        {"name": "mcp"}
-    ]
+    assert [item for item in dependencies if isinstance(item, dict) and item.get("name") == "mcp"] == [{"name": "mcp"}]
     assert [item for item in requires_dist if isinstance(item, dict) and item.get("name") == "mcp"] == [
         {"name": "mcp", "specifier": ">=1.27.0"}
     ]
@@ -1472,6 +1472,9 @@ def test_human_author_check_rejects_nonhuman_author_and_committer_in_range(tmp_p
 def test_human_author_check_allows_explicit_repository_automation_identities(tmp_path: Path) -> None:
     repo_root = _repo_root()
     hook_script = repo_root / "scripts" / "check-human-authors.sh"
+    dependabot_config = yaml.safe_load((repo_root / ".github" / "dependabot.yml").read_text(encoding="utf-8"))
+
+    assert dependabot_config["updates"], "Dependabot remains enabled, so its exact bot identity must be allowed"
 
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
     subprocess.run(["git", "config", "user.email", "human@example.com"], cwd=tmp_path, check=True)
@@ -1501,7 +1504,27 @@ def test_human_author_check_allows_explicit_repository_automation_identities(tmp
         text=True,
     )
 
-    (tmp_path / "README.md").write_text("seed\nrelease\nmerge\n", encoding="utf-8")
+    (tmp_path / "README.md").write_text("seed\nrelease\ndependabot\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    dependabot_env = os.environ.copy()
+    dependabot_env.update(
+        {
+            "GIT_AUTHOR_NAME": "dependabot[bot]",
+            "GIT_AUTHOR_EMAIL": "49699333+dependabot[bot]@users.noreply.github.com",
+            "GIT_COMMITTER_NAME": "dependabot[bot]",
+            "GIT_COMMITTER_EMAIL": "49699333+dependabot[bot]@users.noreply.github.com",
+        }
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "build(deps): bump actions/setup-python from 5 to 6"],
+        cwd=tmp_path,
+        env=dependabot_env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    (tmp_path / "README.md").write_text("seed\nrelease\ndependabot\nmerge\n", encoding="utf-8")
     subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
     github_merge_env = os.environ.copy()
     github_merge_env.update(
@@ -1522,7 +1545,7 @@ def test_human_author_check_allows_explicit_repository_automation_identities(tmp
     )
 
     result = subprocess.run(
-        ["sh", str(hook_script), "--range", "HEAD~2..HEAD"],
+        ["sh", str(hook_script), "--range", "HEAD~3..HEAD"],
         cwd=tmp_path,
         capture_output=True,
         text=True,

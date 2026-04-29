@@ -75,8 +75,10 @@ def test_command_wrappers_do_not_repeat_self_workflow_reference_after_include() 
 def test_set_profile_updates_only_model_profile_through_config_cli() -> None:
     set_profile = _read("set-profile.md")
 
-    assert 'gpd config set model_profile "$ARGUMENTS.profile"' in set_profile
+    assert 'PROFILE="$(printf' in set_profile
+    assert 'gpd config set model_profile "$PROFILE"' in set_profile
     assert "preserving all other `GPD/config.json` keys" in set_profile
+    assert "$ARGUMENTS.profile" not in set_profile
     assert '"model_profile": "$ARGUMENTS.profile"' not in set_profile
     assert "Write updated config back to `GPD/config.json`" not in set_profile
 
@@ -230,9 +232,7 @@ def test_new_project_workflow_references_late_artifact_templates_without_inlinin
 
 def test_notation_coordinator_references_subfield_defaults_without_inlining_table() -> None:
     notation_coordinator = (AGENTS_DIR / "gpd-notation-coordinator.md").read_text(encoding="utf-8")
-    subfield_defaults = (
-        REFERENCES_DIR / "conventions" / "subfield-convention-defaults.md"
-    ).read_text(encoding="utf-8")
+    subfield_defaults = (REFERENCES_DIR / "conventions" / "subfield-convention-defaults.md").read_text(encoding="utf-8")
     canonical_reference = "{GPD_INSTALL_DIR}/references/conventions/subfield-convention-defaults.md"
 
     assert canonical_reference in notation_coordinator
@@ -259,9 +259,7 @@ def test_planner_workflows_keep_tangent_policy_single_sourced() -> None:
 
 
 def test_context_pressure_default_threshold_table_is_single_sourced() -> None:
-    infra = (REPO_ROOT / "src/gpd/specs/references/orchestration/agent-infrastructure.md").read_text(
-        encoding="utf-8"
-    )
+    infra = (REPO_ROOT / "src/gpd/specs/references/orchestration/agent-infrastructure.md").read_text(encoding="utf-8")
     thresholds = (REPO_ROOT / "src/gpd/specs/references/orchestration/context-pressure-thresholds.md").read_text(
         encoding="utf-8"
     )
@@ -308,7 +306,10 @@ def test_state_portability_uses_canonical_continuation_prose() -> None:
 
     assert "Canonical state in `state.json.continuation` wins first" in state_portability
     assert "gpd --raw resume` emits the canonical top-level list" in state_portability
-    assert "A derived head without a portable usable resume file remains advisory continuity context only." not in state_portability
+    assert (
+        "A derived head without a portable usable resume file remains advisory continuity context only."
+        not in state_portability
+    )
 
 
 def test_execute_phase_runtime_delegation_rules_are_single_sourced() -> None:
@@ -343,9 +344,9 @@ def test_runtime_delegation_note_is_loaded_once_per_workflow() -> None:
 
 def test_experiment_designer_uses_external_ising_example_as_single_source() -> None:
     designer = (AGENTS_DIR / "gpd-experiment-designer.md").read_text(encoding="utf-8")
-    example = (
-        REPO_ROOT / "src/gpd/specs/references/examples/ising-experiment-design-example.md"
-    ).read_text(encoding="utf-8")
+    example = (REPO_ROOT / "src/gpd/specs/references/examples/ising-experiment-design-example.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "## Worked Example: 2D Ising Model Phase Diagram via Monte Carlo" not in designer
     assert designer.count("@{GPD_INSTALL_DIR}/references/examples/ising-experiment-design-example.md") == 1
@@ -372,7 +373,9 @@ def test_executor_uses_plain_paths_for_inline_references_and_at_includes_only_fo
     executor = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
 
     inline_at_lines = [
-        line for line in executor.splitlines() if "@{GPD_INSTALL_DIR}" in line and not line.strip().startswith("@{GPD_INSTALL_DIR}/")
+        line
+        for line in executor.splitlines()
+        if "@{GPD_INSTALL_DIR}" in line and not line.strip().startswith("@{GPD_INSTALL_DIR}/")
     ]
     assert inline_at_lines == []
     assert "`{GPD_INSTALL_DIR}/references/orchestration/checkpoints.md`" in executor
@@ -401,7 +404,10 @@ def test_agent_specific_return_examples_defer_base_envelope_fields_to_infrastruc
 
     for agent_name in trimmed_agents:
         text = (AGENTS_DIR / agent_name).read_text(encoding="utf-8")
-        assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in text, agent_name
+        assert (
+            "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md."
+            in text
+        ), agent_name
         assert "The four base fields (`status`, `files_written`, `issues`, `next_actions`)" not in text, agent_name
 
 

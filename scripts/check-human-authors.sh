@@ -19,7 +19,9 @@ NON_HUMAN_IDENTITY_PATTERN='(Claude|Anthropic|OpenAI|GPT|C[o]dex|Gemini|Copilot|
 
 is_allowed_automation_identity() {
     case "$1" in
-        "GitHub <noreply@github.com>" | "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>")
+        "GitHub <noreply@github.com>" | \
+        "dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>" | \
+        "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>")
             return 0
             ;;
     esac

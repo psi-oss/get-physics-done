@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from gpd.adapters.install_utils import parse_at_include_path
+from gpd.core.frontmatter import validate_frontmatter
 from tests.core.test_spawn_contracts import _find_single_task
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -27,6 +28,12 @@ def _between(text: str, start_marker: str, end_marker: str) -> str:
     start = text.index(start_marker) + len(start_marker)
     end = text.index(end_marker, start)
     return text[start:end]
+
+
+def _first_markdown_fence(text: str) -> str:
+    match = re.search(r"```markdown\n(.*?)\n```", text, re.S)
+    assert match is not None
+    return match.group(1)
 
 
 def test_discover_managed_outputs_have_write_capability_and_documented_route() -> None:
@@ -70,6 +77,55 @@ def test_help_reference_stays_static_and_delegates_next_action_routing() -> None
     assert "Run `gpd:suggest-next` when you only need the next action" in help_workflow
 
 
+def test_help_wrapper_uses_stable_section_markers_for_extracts() -> None:
+    help_command = _read(COMMANDS_DIR / "help.md")
+    help_workflow = _read(WORKFLOWS_DIR / "help.md")
+
+    marker_pairs = (
+        ("quick-start", "## Quick Start"),
+        ("command-index", "## Command Index"),
+        ("detailed-command-reference", "## Detailed Command Reference"),
+    )
+    for marker_name, heading in marker_pairs:
+        start_marker = f"<!-- gpd-help:{marker_name}:start -->"
+        end_marker = f"<!-- gpd-help:{marker_name}:end -->"
+        assert start_marker in help_workflow
+        assert end_marker in help_workflow
+        assert help_workflow.index(start_marker) < help_workflow.index(heading) < help_workflow.index(end_marker)
+        assert start_marker in help_command
+        assert end_marker in help_command
+
+    assert "Use the workflow-owned stable markers as the extraction boundaries" in help_command
+    assert "never print the HTML marker comments themselves" in help_command
+    assert "Start at the workflow-owned" not in help_command
+    assert "Stop before `## Command Index`" not in help_command
+    assert "Stop before `## Detailed Command Reference`" not in help_command
+
+
+def test_set_profile_workflow_does_not_copy_agent_tier_tables() -> None:
+    set_profile = _read(WORKFLOWS_DIR / "set-profile.md")
+
+    copied_table = re.compile(r"^\|\s*Agent\s*\|\s*Tier\s*\|", re.MULTILINE)
+    assert copied_table.search(set_profile) is None
+    assert "Canonical per-agent tier assignments live in `MODEL_PROFILES`" in set_profile
+    assert "references/orchestration/model-profiles.md" in set_profile
+
+
+def test_plan_checker_profile_docs_avoid_stale_dimension_counts() -> None:
+    docs = (
+        WORKFLOWS_DIR / "set-profile.md",
+        REFERENCES_DIR / "research" / "research-modes.md",
+        REFERENCES_DIR / "orchestration" / "model-profiles.md",
+        REFERENCES_DIR / "orchestration" / "context-pressure-thresholds.md",
+    )
+    stale_phrases = ("9 core dimensions", "8 dims", "15 dims", "16 plan dimensions")
+
+    for path in docs:
+        text = _read(path)
+        for phrase in stale_phrases:
+            assert phrase not in text, path.relative_to(REPO_ROOT)
+
+
 def test_peer_review_file_producing_stage_prompts_carry_spawn_contracts() -> None:
     workflow_path = WORKFLOWS_DIR / "peer-review.md"
     for agent_name in (
@@ -104,6 +160,33 @@ def test_public_local_cli_examples_use_prefixless_command_labels() -> None:
     assert "gpd validate command-context <name>" in help_workflow
     assert "gpd validate command-context gpd:<name>" not in contract
     assert "gpd validate command-context gpd:<name>" not in help_workflow
+
+
+def test_start_workflow_routes_choices_by_stable_option_ids() -> None:
+    start_workflow = _read(WORKFLOWS_DIR / "start.md")
+    offer_step = _between(start_workflow, '<step name="offer_relevant_choices">', "</step>")
+    route_step = _between(start_workflow, '<step name="route_choice">', "</step>")
+
+    option_ids = {
+        "resume_work",
+        "sync_state",
+        "progress",
+        "suggest_next",
+        "map_research",
+        "new_project_minimal",
+        "new_project_full",
+        "tour",
+        "quick",
+        "explain",
+        "help_all",
+        "reopen_recent",
+    }
+
+    assert "Do not route directly on the mutable English label" in offer_step
+    assert "Normalize the reply to one stable `option_id`" in route_step
+    for option_id in option_ids:
+        assert f"`{option_id}`" in offer_step
+        assert f"option_id `{option_id}`" in route_step
 
 
 def test_readme_generic_command_surface_stays_prefixless_and_uninstall_requires_scope() -> None:
@@ -224,6 +307,36 @@ def test_public_templates_do_not_expose_internal_verify_phase_wording() -> None:
     assert "verify-phase" not in state_machine
     assert "Verified by the phase verification workflow after execution" in roadmap
     assert "**Automated verification:**" in state_machine
+
+
+def test_research_verification_template_defers_schema_rules_to_canonical_sources() -> None:
+    research_verification = _read(TEMPLATES_DIR / "research-verification.md")
+
+    assert research_verification.count("```markdown") == 1
+    assert "{GPD_INSTALL_DIR}/templates/verification-report.md" in research_verification
+    assert "{GPD_INSTALL_DIR}/templates/contract-results-schema.md" in research_verification
+    assert "do not restate their closed schema here" in research_verification
+    assert "suggested_contract_checks: []" not in research_verification
+    assert "only `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path`" not in (
+        research_verification
+    )
+
+    result = validate_frontmatter(_first_markdown_fence(research_verification), "verification")
+    assert result.valid is True
+    assert result.errors == []
+
+
+def test_proof_redteam_repair_handoffs_carry_inline_spawn_contracts() -> None:
+    for workflow_name, expected_path in (
+        ("derive-equation.md", "${phase_dir}/DERIVATION-{slug}-PROOF-REDTEAM.md"),
+        ("verify-phase.md", "${phase_dir}/${phase_number}-PROOF-REDTEAM.md"),
+    ):
+        task = _find_single_task(WORKFLOWS_DIR / workflow_name, "gpd-check-proof")
+        assert "<spawn_contract>" in task.text
+        assert "write_scope:" in task.text
+        assert "expected_artifacts:" in task.text
+        assert "shared_state_policy: return_only" in task.text
+        assert expected_path in task.text
 
 
 def test_prompt_markdown_does_not_route_on_stale_prose_return_markers() -> None:
