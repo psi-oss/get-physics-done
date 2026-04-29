@@ -29,45 +29,17 @@ This wrapper runs the undo workflow directly. Any stopping points come from the 
 
 Execute the included undo workflow end-to-end.
 Preserve all safety gates and confirmation steps.
+The workflow owns commit selection, impact preview, confirmation, checkpointing, revert behavior, state repair, and merge-commit rejection.
 
-## Step 1: Find Last GPD Commit
-
-Search recent git log for commits with GPD message patterns: `docs(gpd):`, `fix(gpd):`, `feat(gpd):`, `chore(gpd):`, `test(gpd):`, or any commit with `(phase-NN):` scope, plus `undo:` prefixes.
-
-## Step 2: Show What Would Be Undone
-
-Display the commit message, changed files, and diff summary.
-
-## Step 3: Confirm
-
-Ask user for confirmation before proceeding.
-
-## Step 4: Create Safety Checkpoint
-
-Tag the current state so the undo itself can be reversed.
-
-## Step 5: Revert
-
-Use `git revert --no-commit` followed by a commit with "undo: revert [original message]".
-
-## Step 6: Update STATE.md
-
-If the reverted commit affected STATE.md, update it to reflect the rollback.
-
-## Step 7: Offer Record Backtrack (post-step)
-
-After the revert lands, prompt `Capture what went wrong in BACKTRACKS.md? [Y/n/e]`. Enter = Y invokes `gpd:record-backtrack` via Skill with `--reverted-commit`, `--trigger`, and normalized `--phase` when inferable from the just-reverted commit; the backtrack workflow still collects the remaining required row fields before append. `n` is first-class and skips; `e` opens the form in-place for freeform edits.
+After the workflow completes its revert, preserve its record-backtrack offer: Enter = Y invokes the runtime-installed `gpd:record-backtrack` command with structured runtime arguments for `reverted_commit`, `trigger`, and inferable `phase`. The child workflow still collects remaining required row fields before append. `n` skips; `e` opens the form in-place for freeform edits.
+Preserve the `[Y/n/e]` prompt shape.
 
 **SAFETY:** Never undo merge commits. Never force-push. Always create checkpoint first.
 </process>
 
 <success_criteria>
 
-- [ ] Last GPD commit identified correctly
-- [ ] User shown what will be undone
-- [ ] User confirmed before any changes
-- [ ] Safety checkpoint tag created
-- [ ] Clean revert (no force operations)
-- [ ] STATE.md updated if affected
-- [ ] Merge commits rejected with explanation
-      </success_criteria>
+- [ ] Undo workflow executed as the authority for rollback mechanics
+- [ ] Workflow-owned safety gates and confirmation steps preserved
+- [ ] Record-backtrack child command described with structured runtime arguments
+</success_criteria>

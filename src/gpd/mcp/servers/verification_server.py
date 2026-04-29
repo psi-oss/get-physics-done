@@ -35,6 +35,7 @@ from gpd.contracts import (
     CONTRACT_UNCERTAINTY_MARKER_FIELD_NAMES,
     PROJECT_CONTRACT_COLLECTION_LIST_FIELDS,
     PROJECT_CONTRACT_MAPPING_LIST_FIELDS,
+    PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS,
     PROOF_ACCEPTANCE_TEST_KINDS,
     PROOF_AUDIT_COUNTEREXAMPLE_STATUS_VALUES,
     PROOF_AUDIT_QUANTIFIER_STATUS_VALUES,
@@ -67,6 +68,7 @@ from gpd.core.verification_checks import (
 from gpd.mcp.servers import (
     ABSOLUTE_PROJECT_DIR_SCHEMA,
     configure_mcp_logging,
+    read_only_tool_annotations,
     resolve_absolute_project_dir,
     stable_mcp_error,
     stable_mcp_response,
@@ -418,8 +420,8 @@ class ContractMetadataRequest(_ContractRequestBase):
     expected_behavior: str | None = None
     source_reference_id: str | None = None
     declared_family: str | None = None
-    allowed_families: list[str] | None = None
-    forbidden_families: list[str] | None = None
+    allowed_families: list[str] = Field(default=None)
+    forbidden_families: list[str] = Field(default=None)
     theorem_parameter_symbols: list[str] | None = None
     hypothesis_ids: list[str] | None = None
     quantifiers: list[str] | None = None
@@ -564,7 +566,18 @@ def _object_schema(
     return schema
 
 
-def _strict_required_schema_fragment(schema_fragment: dict[str, object]) -> dict[str, object]:
+_REQUIRED_FIELD_ALLOW_EMPTY_ARRAY: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("observed", "uncovered_conclusion_clause_ids"),
+    }
+)
+
+
+def _strict_required_schema_fragment(
+    schema_fragment: dict[str, object],
+    *,
+    allow_empty_array: bool = False,
+) -> dict[str, object]:
     schema = copy.deepcopy(schema_fragment)
     any_of = schema.get("anyOf")
     if isinstance(any_of, list):
@@ -575,11 +588,20 @@ def _strict_required_schema_fragment(schema_fragment: dict[str, object]) -> dict
                 continue
             if branch.get("type") == "null":
                 continue
-            strict_branches.append(_strict_required_schema_fragment(branch))
+            strict_branches.append(
+                _strict_required_schema_fragment(
+                    branch,
+                    allow_empty_array=allow_empty_array,
+                )
+            )
         if len(strict_branches) == 1 and isinstance(strict_branches[0], dict):
             return strict_branches[0]
         schema["anyOf"] = strict_branches
-    if schema.get("type") == "array" and (not isinstance(schema.get("minItems"), int) or int(schema["minItems"]) < 1):
+    if (
+        not allow_empty_array
+        and schema.get("type") == "array"
+        and (not isinstance(schema.get("minItems"), int) or int(schema["minItems"]) < 1)
+    ):
         schema["minItems"] = 1
     return schema
 
@@ -759,7 +781,7 @@ _CONTRACT_SCOPE_INPUT_SCHEMA["description"] = (
     "does not infer it."
 )
 _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA: dict[str, object] = _object_schema(
-    {field_name: _contract_string_list_schema(min_items=1) for field_name in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES},
+    {field_name: _contract_string_list_schema() for field_name in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES},
     additional_properties=False,
 )
 _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA["minProperties"] = 1
@@ -767,8 +789,9 @@ _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA["anyOf"] = [
     {"required": [field_name]} for field_name in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES
 ]
 _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA["description"] = (
-    "`context_intake` is required and must stay non-empty. Use it to surface anchors, prior outputs, baselines, "
-    "gaps, or other user-stated inputs the model must still see when later contract-aware tools validate the work."
+    "`context_intake` is required and must stay explicit. Use it to surface anchors, prior outputs, baselines, "
+    "gaps, or other user-stated inputs the model must still see when later contract-aware tools validate the work. "
+    "Early contracts may carry empty arrays while the concrete guidance is still being recovered."
 )
 _CONTRACT_APPROACH_POLICY_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {field_name: _contract_string_list_schema() for field_name in CONTRACT_APPROACH_POLICY_FIELD_NAMES},
@@ -816,6 +839,7 @@ _CONTRACT_PROOF_CONCLUSION_INPUT_SCHEMA: dict[str, object] = _object_schema(
     required=("id", "text"),
     additional_properties=False,
 )
+_PROOF_FIELD_CLAIM_KIND_VALUES = tuple(value for value in CONTRACT_CLAIM_KIND_VALUES if value != "other")
 _CONTRACT_CLAIM_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
         "id": _non_empty_string_schema(),
@@ -839,8 +863,9 @@ _CONTRACT_CLAIM_INPUT_SCHEMA["description"] = (
     "Scoping-only contracts should omit claims entirely instead of leaving those links implicit. "
     "Claims are proof-bearing not only when `claim_kind` is theorem-like, but also when the statement is theorem-like, "
     "when proof-specific fields are already populated, or when `observables` references a `proof_obligation` target. "
-    "Do not rely on runtime inference for those cases. Proof-bearing claims must set an explicit proof-oriented `claim_kind`, provide non-empty "
-    "`proof_deliverables`, `parameters`, `hypotheses`, and `conclusion_clauses`, and reference at least one "
+    "Do not rely on runtime inference for those cases. Proof-bearing claims must set an explicit proof-oriented "
+    "`claim_kind`, provide non-empty `proof_deliverables`, `parameters`, `hypotheses`, and `conclusion_clauses`, "
+    "preserve `quantifiers` when explicit quantifier or domain obligations exist, and reference at least one "
     "proof-specific acceptance test id."
 )
 _THEOREM_STYLE_STATEMENT_SCHEMA_PATTERNS = THEOREM_STYLE_STATEMENT_REGEX_PATTERNS
@@ -907,16 +932,23 @@ _CONTRACT_CLAIM_INPUT_SCHEMA["allOf"] = [
     {
         "if": {
             "anyOf": [
-                {"required": ["proof_deliverables"]},
-                {"required": ["parameters"]},
-                {"required": ["hypotheses"]},
-                {"required": ["conclusion_clauses"]},
+                {
+                    "required": [field_name],
+                    "properties": {field_name: {"type": "array", "minItems": 1}},
+                }
+                for field_name in (
+                    "proof_deliverables",
+                    "parameters",
+                    "hypotheses",
+                    "quantifiers",
+                    "conclusion_clauses",
+                )
             ]
         },
         "then": {
             "required": ["claim_kind", "proof_deliverables", "parameters", "hypotheses", "conclusion_clauses"],
             "properties": {
-                "claim_kind": _contract_enum_string_schema(THEOREM_CLAIM_KIND_VALUES),
+                "claim_kind": _contract_enum_string_schema(_PROOF_FIELD_CLAIM_KIND_VALUES),
                 "proof_deliverables": _contract_string_list_schema(min_items=1),
                 "parameters": {
                     "type": "array",
@@ -982,6 +1014,24 @@ _CONTRACT_REFERENCE_INPUT_SCHEMA["description"] = (
     "`applies_to` and `required_actions` must both be non-empty lists. "
     "`carry_forward_to` names workflow scope labels, never contract ids."
 )
+_CONTRACT_REFERENCE_INPUT_SCHEMA["allOf"] = [
+    {
+        "if": {
+            "required": ["must_surface"],
+            "properties": {"must_surface": {"const": True}},
+        },
+        "then": {
+            "required": ["applies_to", "required_actions"],
+            "properties": {
+                "applies_to": _contract_string_list_schema(min_items=1),
+                "required_actions": _contract_enum_string_list_schema(
+                    CONTRACT_REFERENCE_ACTION_VALUES,
+                    min_items=1,
+                ),
+            },
+        },
+    }
+]
 _CONTRACT_FORBIDDEN_PROXY_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
         "id": _non_empty_string_schema(),
@@ -1131,7 +1181,10 @@ def _request_section_required_schema(
         for field_name in required_list:
             field_schema = source_properties.get(field_name)
             if isinstance(field_schema, dict):
-                strict_properties[field_name] = _strict_required_schema_fragment(field_schema)
+                strict_properties[field_name] = _strict_required_schema_fragment(
+                    field_schema,
+                    allow_empty_array=(section_name, field_name) in _REQUIRED_FIELD_ALLOW_EMPTY_ARRAY,
+                )
         if strict_properties:
             schema["properties"] = strict_properties
     return schema
@@ -2086,7 +2139,7 @@ def _dims_equal(a: dict[str, int], b: dict[str, int]) -> bool:
 # ─── MCP Tools ────────────────────────────────────────────────────────────────
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def run_check(
     check_id: RunCheckIdentifierInput,
     domain: Annotated[str, Field(min_length=1, pattern=r"\S")],
@@ -2452,6 +2505,7 @@ def _decisive_contract_impacts(
     binding_ids: dict[str, list[str]],
     binding_supplied: bool,
     metadata: dict[str, object],
+    observed: dict[str, object] | None = None,
 ) -> list[str]:
     if contract is None:
         return []
@@ -2498,12 +2552,12 @@ def _decisive_contract_impacts(
         return candidates
 
     if check_key in {"contract.fit_family_mismatch", "contract.estimator_family_mismatch"}:
+        observed_family = _normalize_optional_scalar_str((observed or {}).get("selected_family"))
+        if observed_family:
+            return [observed_family]
         declared_family = _normalize_optional_scalar_str(metadata.get("declared_family"))
         if declared_family:
             return [declared_family]
-        selected_family = _normalize_optional_scalar_str(metadata.get("selected_family"))
-        if selected_family:
-            return [selected_family]
 
     if check_key in _PROOF_CHECK_KEYS:
         candidates, issue = _proof_claim_candidates(
@@ -3406,13 +3460,15 @@ def _recoverable_collection_list_shape_error(error: str, *, contract_raw: dict[s
     if len(tokens) == 5:
         collection_name, index, nested_collection_name, nested_index, field_name = tokens
         if (
-            collection_name,
-            nested_collection_name,
-            field_name,
-        ) not in {
-            ("claims", "parameters", "aliases"),
-            ("claims", "hypotheses", "symbols"),
-        }:
+            not isinstance(collection_name, str)
+            or not isinstance(nested_collection_name, str)
+            or not isinstance(field_name, str)
+            or field_name
+            not in PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS.get(
+                (collection_name, nested_collection_name),
+                (),
+            )
+        ):
             return False
         return isinstance(index, int) and isinstance(nested_index, int)
 
@@ -3473,7 +3529,10 @@ def _validate_contract_integrity(
     errors: list[str] = []
     if "context_intake" not in contract_raw:
         errors.append("missing context_intake")
-    elif not contract_has_explicit_context_intake(contract, project_root=project_root):
+    elif not _contract_raw_has_explicit_empty_context_intake(contract_raw) and not contract_has_explicit_context_intake(
+        contract,
+        project_root=project_root,
+    ):
         errors.append("context_intake must not be empty")
     for error in collect_plan_contract_integrity_errors(contract, project_root=project_root):
         if error not in errors:
@@ -3481,6 +3540,17 @@ def _validate_contract_integrity(
     if not errors:
         return None
     return _contract_payload_error(errors)
+
+
+def _contract_raw_has_explicit_empty_context_intake(contract_raw: dict[str, object]) -> bool:
+    """Return true for early contracts that explicitly declare empty context-intake arrays."""
+    context_intake = contract_raw.get("context_intake")
+    if not isinstance(context_intake, dict) or not context_intake:
+        return False
+    return all(
+        key in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES and isinstance(value, list) and not value
+        for key, value in context_intake.items()
+    )
 
 
 def _parse_contract_payload(
@@ -3840,7 +3910,7 @@ def _validate_limit_expected_behavior_binding(
     return expected_behavior, None
 
 
-@mcp.tool(description=_run_contract_check_description())
+@mcp.tool(description=_run_contract_check_description(), annotations=read_only_tool_annotations())
 def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAbsoluteProjectDirInput = None) -> dict:
     """Run a contract-aware verification check."""
 
@@ -4425,7 +4495,6 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 uncovered_conclusion_clause_ids, error_message = _validate_optional_string_list(
                     observed.get("uncovered_conclusion_clause_ids"),
                     field_name="observed.uncovered_conclusion_clause_ids",
-                    min_items=1,
                 )
                 if error_message is not None:
                     return _error_result(error_message)
@@ -4530,6 +4599,7 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                     binding_ids=binding_ids,
                     binding_supplied=binding_supplied,
                     metadata=metadata,
+                    observed=observed,
                 )
 
             contract_warnings: list[str] = []
@@ -4563,7 +4633,7 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
             return _error_result(exc)
 
 
-@mcp.tool(description=_suggest_contract_checks_description())
+@mcp.tool(description=_suggest_contract_checks_description(), annotations=read_only_tool_annotations())
 def suggest_contract_checks(
     contract: SuggestContractPayload,
     active_checks: StringListPayload = None,
@@ -4704,7 +4774,7 @@ def suggest_contract_checks(
             return _error_result(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_checklist(domain: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
     """Return the domain-specific verification checklist.
 
@@ -4744,7 +4814,7 @@ def get_checklist(domain: Annotated[str, Field(min_length=1, pattern=r"\S")]) ->
             return _error_result(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_bundle_checklist(bundle_ids: BundleIdListInput) -> dict:
     """Return additive verifier checklist extensions for selected protocol bundles."""
     validated_bundle_ids, error = _validate_string_list(bundle_ids, field_name="bundle_ids")
@@ -4821,7 +4891,7 @@ def get_bundle_checklist(bundle_ids: BundleIdListInput) -> dict:
             return _error_result(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def dimensional_check(expressions: list[str]) -> dict:
     """Verify dimensional consistency of physics expressions.
 
@@ -4888,7 +4958,7 @@ def _dimensional_check_inner(expressions: list[str]) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def limiting_case_check(expression: str, limits: dict[str, str]) -> dict:
     """Verify that an expression reduces to known results in specified limits.
 
@@ -4969,7 +5039,7 @@ def _limiting_case_inner(expression: str, limits: dict[str, str]) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def symmetry_check(expression: str, symmetries: list[str]) -> dict:
     """Verify that an expression respects specified symmetries.
 
@@ -5045,7 +5115,7 @@ def _symmetry_check_inner(expression: str, symmetries: list[str]) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_verification_coverage(error_class_ids: list[int], active_checks: list[str]) -> dict:
     """Return gap analysis: which error classes are covered by active checks.
 

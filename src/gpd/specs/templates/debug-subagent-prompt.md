@@ -169,7 +169,7 @@ If you cannot make progress after 3 investigation rounds, report structured fail
 1. **Document what you tried** — list each hypothesis tested and why it was eliminated
 2. **State what you know** — summarize confirmed facts and narrowed-down possibilities
 3. **Identify the blocker** — what specific information or capability is missing
-4. **Return CHECKPOINT REACHED** with the structured failure block above
+4. Return `gpd_return.status: checkpoint` with the structured failure block above
 
 Do NOT spin in circles retrying the same approaches. Escalate with structured context.
 

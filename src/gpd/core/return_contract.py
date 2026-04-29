@@ -35,6 +35,7 @@ __all__ = [
     "GpdReturnEnvelope",
     "GpdReturnStatusContract",
     "GpdReturnValidationResult",
+    "ALLOWED_RETURN_EXTENSION_FIELDS",
     "REQUIRED_RETURN_FIELDS",
     "RETURN_ENVELOPE_STATUS_CONTRACTS",
     "VALID_RETURN_STATUSES",
@@ -45,18 +46,119 @@ __all__ = [
 VALID_RETURN_STATUSES: frozenset[str] = frozenset({"completed", "checkpoint", "blocked", "failed"})
 """Allowed values for ``gpd_return.status``."""
 
-REQUIRED_RETURN_FIELDS: tuple[str, ...] = ("status", "files_written", "issues", "next_actions")
-"""Fields that must be present in every ``gpd_return`` envelope."""
+ALLOWED_RETURN_EXTENSION_FIELDS: frozenset[str] = frozenset(
+    {
+        "affected_quantities",
+        "approximations",
+        "categories_defined",
+        "category",
+        "change_id",
+        "checks_performed",
+        "citations_added",
+        "confidence",
+        "conflicts",
+        "context_pressure",
+        "conventions",
+        "conventions_file",
+        "conversion_table",
+        "cross_convention_checks",
+        "dimensions_checked",
+        "dimensions_evaluated",
+        "downstream_phases_flagged",
+        "entries_added",
+        "equations_added",
+        "figures_added",
+        "focus",
+        "framing_strategy",
+        "issues_found",
+        "journal_calibration",
+        "major_issues",
+        "minor_issues",
+        "new_value",
+        "old_value",
+        "papers_reviewed",
+        "phase_checked",
+        "phases_created",
+        "plans",
+        "plans_created",
+        "recommendation",
+        "reference_maps",
+        "revision_guidance",
+        "revision_round",
+        "roadmap_updates",
+        "score",
+        "section_name",
+        "session_file",
+        "severity",
+        "test_values_defined",
+        "verification_status",
+        "waves",
+    }
+)
+"""Known workflow/agent-specific top-level extensions allowed in ``gpd_return``."""
 
 GPD_RETURN_BLOCK_RE = re.compile(r"```ya?ml\s*\n(gpd_return:\s*\n[\s\S]*?)```")
 """Fence matcher for the canonical ``gpd_return`` YAML block."""
+
+
+_RETURN_HANDOFF_TEXT_FIELDS = frozenset({"resume_file", "stopped_at", "last_result_id"})
+_RETURN_BOUNDED_SEGMENT_TEXT_FIELDS = frozenset(
+    {
+        "resume_file",
+        "phase",
+        "plan",
+        "segment_id",
+        "segment_status",
+        "checkpoint_reason",
+        "waiting_reason",
+        "blocked_reason",
+        "skeptical_requestioning_summary",
+        "weakest_unchecked_anchor",
+        "disconfirming_observation",
+        "transition_id",
+        "last_result_id",
+        "source_session_id",
+    }
+)
+_RETURN_BOUNDED_SEGMENT_BOOL_FIELDS = frozenset(
+    {
+        "waiting_for_review",
+        "first_result_gate_pending",
+        "pre_fanout_review_pending",
+        "pre_fanout_review_cleared",
+        "skeptical_requestioning_required",
+        "downstream_locked",
+    }
+)
+
+
+def _reject_non_string_continuation_fields(
+    value: Mapping[str, object],
+    *,
+    fields: frozenset[str],
+    label: str,
+) -> None:
+    for field_name in sorted(fields.intersection(value)):
+        field_value = value[field_name]
+        if field_value is not None and not isinstance(field_value, str):
+            raise ValueError(f"{label}.{field_name} must be a string or null")
+
+
+def _reject_non_bool_continuation_fields(
+    value: Mapping[str, object],
+    *,
+    fields: frozenset[str],
+    label: str,
+) -> None:
+    for field_name in sorted(fields.intersection(value)):
+        if type(value[field_name]) is not bool:
+            raise ValueError(f"{label}.{field_name} must be a boolean when provided")
 
 
 @dataclass(frozen=True)
 class GpdReturnStatusContract:
     """Status-specific top-level contract shape."""
 
-    required_fields: tuple[str, ...]
     structured_fields: tuple[str, ...]
 
 
@@ -73,6 +175,11 @@ class GpdReturnContinuationHandoff(ContinuationHandoff):
             if forbidden:
                 fields = ", ".join(forbidden)
                 raise ValueError(f"{fields} are applicator-owned handoff fields; omit them from child returns")
+            _reject_non_string_continuation_fields(
+                value,
+                fields=_RETURN_HANDOFF_TEXT_FIELDS,
+                label="continuation_update.handoff",
+            )
         return value
 
 
@@ -80,6 +187,28 @@ class GpdReturnContinuationBoundedSegment(ContinuationBoundedSegment):
     """Durable bounded-segment payload visible in ``gpd_return``."""
 
     model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_applicator_owned_metadata(cls, value: object) -> object:
+        if isinstance(value, Mapping):
+            forbidden = sorted({"recorded_by", "updated_at"}.intersection(value))
+            if forbidden:
+                fields = ", ".join(forbidden)
+                raise ValueError(
+                    f"{fields} are applicator-owned bounded_segment fields; omit them from child returns"
+                )
+            _reject_non_string_continuation_fields(
+                value,
+                fields=_RETURN_BOUNDED_SEGMENT_TEXT_FIELDS,
+                label="continuation_update.bounded_segment",
+            )
+            _reject_non_bool_continuation_fields(
+                value,
+                fields=_RETURN_BOUNDED_SEGMENT_BOOL_FIELDS,
+                label="continuation_update.bounded_segment",
+            )
+        return value
 
 
 class GpdReturnContinuationUpdate(BaseModel):
@@ -93,7 +222,6 @@ class GpdReturnContinuationUpdate(BaseModel):
 
 RETURN_ENVELOPE_STATUS_CONTRACTS: dict[str, GpdReturnStatusContract] = {
     "completed": GpdReturnStatusContract(
-        required_fields=REQUIRED_RETURN_FIELDS,
         structured_fields=(
             "state_updates",
             "contract_updates",
@@ -102,10 +230,10 @@ RETURN_ENVELOPE_STATUS_CONTRACTS: dict[str, GpdReturnStatusContract] = {
             "blocked_plans",
             "continuation_update",
             "conventions_used",
+            "checkpoint_hashes",
         ),
     ),
     "checkpoint": GpdReturnStatusContract(
-        required_fields=REQUIRED_RETURN_FIELDS,
         structured_fields=(
             "state_updates",
             "contract_updates",
@@ -114,14 +242,13 @@ RETURN_ENVELOPE_STATUS_CONTRACTS: dict[str, GpdReturnStatusContract] = {
             "blocked_plans",
             "blockers",
             "continuation_update",
+            "checkpoint_hashes",
         ),
     ),
     "blocked": GpdReturnStatusContract(
-        required_fields=REQUIRED_RETURN_FIELDS,
         structured_fields=("approved_plans", "blocked_plans", "blockers", "continuation_update"),
     ),
     "failed": GpdReturnStatusContract(
-        required_fields=REQUIRED_RETURN_FIELDS,
         structured_fields=("approved_plans", "blocked_plans", "blockers", "continuation_update"),
     ),
 }
@@ -224,11 +351,38 @@ class GpdReturnEnvelope(BaseModel):
         return [dict(item) for item in value]
 
     @model_validator(mode="after")
-    def _validate_extra_fields(self) -> GpdReturnEnvelope:
+    def _validate_top_level_contract(self) -> GpdReturnEnvelope:
         extras = self.model_extra or {}
+        unknown_fields = sorted(set(extras) - ALLOWED_RETURN_EXTENSION_FIELDS)
+        if unknown_fields:
+            fields = ", ".join(unknown_fields)
+            raise ValueError(f"Unknown gpd_return top-level field(s): {fields}")
+
         for field_name, value in extras.items():
             _validate_yaml_native(value, f"gpd_return.{field_name}")
+
+        status_contract = RETURN_ENVELOPE_STATUS_CONTRACTS[self.status]
+        status_restricted_fields = {
+            field_name
+            for contract in RETURN_ENVELOPE_STATUS_CONTRACTS.values()
+            for field_name in contract.structured_fields
+        }
+        provided_fields = set(self.model_fields_set) | set(extras)
+        disallowed_fields = sorted(
+            field_name
+            for field_name in provided_fields.intersection(status_restricted_fields)
+            if field_name not in status_contract.structured_fields
+        )
+        if disallowed_fields:
+            fields = ", ".join(disallowed_fields)
+            raise ValueError(f"status '{self.status}' does not allow gpd_return field(s): {fields}")
         return self
+
+
+REQUIRED_RETURN_FIELDS: tuple[str, ...] = tuple(
+    field_name for field_name, field_info in GpdReturnEnvelope.model_fields.items() if field_info.is_required()
+)
+"""Fields that must be present in every ``gpd_return`` envelope."""
 
 
 class GpdReturnValidationResult(BaseModel):

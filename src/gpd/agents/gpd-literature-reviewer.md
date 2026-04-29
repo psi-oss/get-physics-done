@@ -9,7 +9,6 @@ artifact_write_authority: scoped_write
 shared_state_authority: return_only
 color: cyan
 ---
-Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and shared-state policy.
 Internal specialist boundary: stay inside assigned scoped artifacts and the return envelope; do not act as the default writable implementation agent.
 This is a one-shot checkpoint handoff.
 
@@ -56,7 +55,7 @@ The research mode comes from `GPD/config.json` (`research_mode`, default `balanc
 </research_mode_awareness>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
+- `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared Protocols: forbidden files, source hierarchy, convention tracking, physics verification
 - `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- agent infrastructure: data boundary, context pressure, commit protocol
 </references>
 

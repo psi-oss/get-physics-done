@@ -11,7 +11,7 @@ PLANNER_SUBAGENT_PROMPT = REPO_ROOT / "src" / "gpd" / "specs" / "templates" / "p
 def test_planner_subagent_prompt_stays_thin_and_fail_closed() -> None:
     prompt = PLANNER_SUBAGENT_PROMPT.read_text(encoding="utf-8")
 
-    assert prompt.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 1
+    assert prompt.count("{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 1
     assert "Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical contract source." in prompt
     assert "project_contract_gate.authoritative" in prompt
     assert "project_contract_load_info.status" in prompt

@@ -278,10 +278,14 @@ class TestBuiltinServerDescriptors:
         expected = ["Install GPD before enabling built-in MCP servers."]
 
         for name, descriptor in descriptors.items():
-            assert descriptor["prerequisites"] == expected, name
-            prerequisite = descriptor["prerequisites"][0].lower()
-            assert "npx" not in prerequisite, name
-            assert "get-physics-done" not in prerequisite, name
+            prerequisites = descriptor["prerequisites"]
+            assert prerequisites[:1] == expected, name
+            if name != "gpd-arxiv":
+                assert prerequisites == expected, name
+            for prerequisite in prerequisites:
+                prerequisite = prerequisite.lower()
+                assert "npx" not in prerequisite, name
+                assert "get-physics-done" not in prerequisite, name
 
     def test_public_descriptor_python_module_alternative_uses_versioned_launcher_label(self):
         from gpd.mcp.builtin_servers import build_public_descriptors
@@ -311,6 +315,55 @@ class TestBuiltinServerDescriptors:
             "get_config",
         ]
         assert "emit_phase_event" not in descriptor["capabilities"]
+        assert descriptor["mutating_capabilities"] == [
+            "advance_plan",
+            "run_health_check",
+        ]
+        assert set(descriptor["mutating_capabilities"]) <= set(descriptor["capabilities"])
+
+    def test_state_mutating_tools_publish_mutation_metadata(self):
+        from gpd.mcp.servers.state_server import mcp
+
+        async def _load() -> dict[str, object]:
+            tools = await mcp.list_tools()
+            return {tool.name: tool for tool in tools}
+
+        tools = anyio.run(_load)
+        advance_plan = tools["advance_plan"]
+        run_health_check = tools["run_health_check"]
+
+        assert advance_plan.annotations is not None
+        assert advance_plan.annotations.readOnlyHint is False
+        assert advance_plan.annotations.idempotentHint is False
+        assert run_health_check.annotations is not None
+        assert run_health_check.annotations.readOnlyHint is False
+        assert run_health_check.annotations.destructiveHint is True
+        assert run_health_check.annotations.idempotentHint is False
+        assert run_health_check.inputSchema["properties"]["fix"] == {
+            "default": False,
+            "description": "If true, attempt auto-fixes and allow the health check to modify project files.",
+            "title": "Fix",
+            "type": "boolean",
+        }
+
+    def test_arxiv_public_descriptor_describes_baseline_and_live_upstream_forwarding(self):
+        from gpd.mcp.builtin_servers import build_public_descriptors
+        from gpd.mcp.servers.arxiv_bridge import (
+            ADVERTISED_TOOL_NAMES,
+            DOWNLOAD_SOURCE_TOOL_NAME,
+            UPSTREAM_CORE_TOOL_NAMES,
+        )
+
+        descriptor = build_public_descriptors()["gpd-arxiv"]
+
+        assert "baseline upstream tools" in descriptor["description"]
+        assert "forwards only tools exposed by the live upstream server" in descriptor["description"]
+        assert "download_source" in descriptor["description"]
+        assert descriptor["capability_surface"] == "baseline_dynamic_upstream"
+        assert descriptor["dynamic_upstream_capabilities"] is True
+        assert descriptor["baseline_upstream_capabilities"] == list(UPSTREAM_CORE_TOOL_NAMES)
+        assert descriptor["local_capabilities"] == [DOWNLOAD_SOURCE_TOOL_NAME]
+        assert descriptor["capabilities"] == list(ADVERTISED_TOOL_NAMES)
 
     def test_state_public_descriptor_health_check_is_executable_without_fake_project_path(self):
         from gpd.mcp.builtin_servers import build_public_descriptors
@@ -342,11 +395,24 @@ class TestBuiltinServerDescriptors:
 
         assert health_check["tool"] == "get_state"
         assert health_check["input"] == {}
+        assert health_check["probe_kind"] == "expected_error"
         assert "missing required project_dir" in str(health_check["expect"])
         assert "/tmp/test" not in json.dumps(health_check)
         assert result["schema_version"] == 1
         assert "error" in result
         assert "project_dir" in result["error"]
+
+    def test_public_descriptor_health_checks_classify_probe_requirements(self):
+        from gpd.mcp.builtin_servers import build_public_descriptors
+
+        descriptors = build_public_descriptors()
+
+        assert descriptors["gpd-state"]["health_check"]["probe_kind"] == "expected_error"
+        assert descriptors["gpd-arxiv"]["health_check"]["probe_kind"] == "network_required"
+        schema_valid_servers = set(descriptors) - {"gpd-state", "gpd-arxiv"}
+        assert schema_valid_servers
+        for server_name in schema_valid_servers:
+            assert descriptors[server_name]["health_check"]["probe_kind"] == "schema_valid"
 
     def test_build_mcp_servers_dict_checks_optional_modules_in_target_interpreter(self, monkeypatch):
         from gpd.mcp import builtin_servers
@@ -355,11 +421,12 @@ class TestBuiltinServerDescriptors:
         current_python = "/usr/bin/python3.9"
         observed: dict[str, object] = {}
 
-        def fake_run(command, *, check, stdout, stderr):
+        def fake_run(command, *, check, stdout, stderr, timeout):
             observed["command"] = command
             observed["check"] = check
             observed["stdout"] = stdout
             observed["stderr"] = stderr
+            observed["timeout"] = timeout
             return SimpleNamespace(returncode=0 if command[0] == target_python else 1)
 
         monkeypatch.setattr(builtin_servers.sys, "executable", current_python)
@@ -372,6 +439,41 @@ class TestBuiltinServerDescriptors:
         assert observed["command"][2].startswith("import importlib.util")
         assert observed["command"][3] == "arxiv_mcp_server"
         assert observed["check"] is False
+        assert observed["timeout"] == 5
+
+    def test_build_mcp_servers_dict_skips_optional_modules_when_detection_times_out(self, monkeypatch):
+        from gpd.mcp import builtin_servers
+
+        def fake_run(command, *, check, stdout, stderr, timeout):
+            raise builtin_servers.subprocess.TimeoutExpired(command, timeout)
+
+        monkeypatch.setattr(builtin_servers.subprocess, "run", fake_run)
+
+        servers = builtin_servers.build_mcp_servers_dict(python_path="/opt/gpd/python3.11")
+
+        assert "gpd-arxiv" not in servers
+
+    def test_public_infra_descriptors_match_builtin_descriptor_builder(self):
+        from gpd.mcp.builtin_servers import build_public_descriptors
+
+        repo_root = Path(__file__).resolve().parents[2]
+        expected = build_public_descriptors()
+        committed = {
+            path.stem: json.loads(path.read_text(encoding="utf-8"))
+            for path in sorted((repo_root / "infra").glob("gpd-*.json"))
+        }
+
+        assert committed == expected
+
+    def test_skills_public_descriptor_uses_shared_descriptor_text(self):
+        from gpd.mcp.builtin_servers import build_public_descriptors
+        from gpd.mcp.descriptor_text import SKILLS_SERVER_DESCRIPTION
+
+        descriptor = build_public_descriptors()["gpd-skills"]
+
+        assert descriptor["description"] == SKILLS_SERVER_DESCRIPTION
+        assert "missing evidence or artifacts" not in descriptor["description"]
+        assert "never fabricate fallback outputs" not in descriptor["description"]
 
 
 class TestMcpServerRunner:
@@ -1024,6 +1126,22 @@ class TestPatternsServer:
             )
         assert result["added"] is True
 
+    @pytest.mark.parametrize("title", ["   ", "!!!"])
+    def test_add_pattern_rejects_titles_that_cannot_generate_slug(self, title, monkeypatch, tmp_path):
+        from gpd.mcp.servers.patterns_server import add_pattern
+
+        monkeypatch.setattr("gpd.mcp.servers.patterns_server._DEFAULT_PATTERNS_ROOT", tmp_path / "patterns")
+
+        result = add_pattern(
+            domain="qft",
+            title=title,
+            category="sign-error",
+            severity="high",
+        )
+
+        assert result["schema_version"] == 1
+        assert result["error"] == "title cannot be empty"
+
     def test_promote_pattern(self):
         from gpd.mcp.servers.patterns_server import promote_pattern
 
@@ -1352,7 +1470,6 @@ class TestSkillsServer:
             "review_contract": "mirrored",
         }
         assert "Treat `content` as the wrapper/context surface." in result["loading_hint"]
-        assert "See `referenced_files` for external markdown dependencies." in result["loading_hint"]
         assert "It already embeds the model-visible `Command Requirements` section." in result["loading_hint"]
         assert result["file_count"] == 1
         assert result["allowed_tools_surface"] == "command.allowed-tools"
@@ -1747,13 +1864,12 @@ class TestSkillsServer:
         assert "error" not in result
         assert any(path.endswith("proof-redteam-schema.md") for path in result["schema_references"])
         assert any(path.endswith("proof-redteam-protocol.md") for path in result["contract_references"])
-        assert "proof-redteam-schema.md" in schema_documents
-        assert "Proof Redteam" in schema_documents["proof-redteam-schema.md"]["body"]
-        assert "proof-redteam-protocol.md" in contract_documents
-        assert "Proof Redteam Protocol" in contract_documents["proof-redteam-protocol.md"]["body"]
+        assert schema_documents == {}
+        assert contract_documents == {}
         assert any(path.endswith("peer-review-panel.md") for path in result["contract_references"])
         assert "Treat `content` as the wrapper/context surface." in result["loading_hint"]
-        assert "Load `schema_documents` and `contract_documents` too when present" in result["loading_hint"]
+        assert "See `referenced_files` for external markdown dependencies." in result["loading_hint"]
+        assert "Load `schema_documents` and `contract_documents` too when present" not in result["loading_hint"]
 
     def test_get_skill_resume_work_surfaces_project_reentry_metadata(self):
         from gpd.mcp.servers.skills_server import get_skill

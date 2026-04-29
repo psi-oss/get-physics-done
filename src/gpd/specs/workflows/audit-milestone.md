@@ -103,7 +103,7 @@ If a phase is missing `*-VERIFICATION.md`, flag it as "unverified phase" -- this
 With phase context collected:
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
-> If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> Apply the canonical runtime delegation convention already loaded above.
 
 ```
 task(
@@ -208,9 +208,7 @@ Resolve referee model:
 ```bash
 REFEREE_MODEL=$(gpd resolve-model gpd-referee)
 ```
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
-
-> If subagent spawning is unavailable, execute these steps sequentially in the main context.
+Apply the canonical runtime delegation convention already loaded above.
 
 ```
 task(
@@ -252,7 +250,7 @@ Treat `project_contract` as approved milestone scope only when `project_contract
 
 Write `GPD/v{milestone_version}-MILESTONE-REFEREE-REPORT.md` and the matching `GPD/v{milestone_version}-MILESTONE-REFEREE-REPORT.tex` companion.
 
-Return REVIEW COMPLETE with recommendation and issue counts."
+Return `gpd_return.status: completed` with recommendation and issue counts."
 )
 ```
 

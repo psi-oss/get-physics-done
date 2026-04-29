@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from gpd import registry
@@ -16,6 +17,14 @@ AGENTS_DIR = REPO_ROOT / "src" / "gpd" / "agents"
 
 def _read_agent(name: str) -> str:
     return (AGENTS_DIR / f"{name}.md").read_text(encoding="utf-8")
+
+
+def _tag_blocks(text: str, tag: str) -> list[str]:
+    return re.findall(rf"<{tag}>\n?(.*?)\n?</{tag}>", text, flags=re.DOTALL)
+
+
+def _fenced_yaml_blocks(text: str) -> list[str]:
+    return re.findall(r"```(?:yaml|yml)\n(.*?)```", text, flags=re.DOTALL)
 
 
 def test_executor_prompt_describes_default_writable_scoped_task_role() -> None:
@@ -145,3 +154,22 @@ def test_planner_backtracks_guidance_is_capped_before_injection() -> None:
     assert "do not inject the full file or an unfiltered tail" in source
     assert "for f in GPD/INSIGHTS.md GPD/ERROR-PATTERNS.md GPD/BACKTRACKS.md; do" not in source
     assert "tail -n 30 GPD/BACKTRACKS.md" not in source
+
+
+def test_owned_agent_structured_returns_defer_base_gpd_return_fields_to_infrastructure() -> None:
+    base_field_pointer = (
+        "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md."
+    )
+    required_fields = ("status:", "files_written:", "issues:", "next_actions:")
+
+    for agent_name in ("gpd-planner", "gpd-executor", "gpd-experiment-designer"):
+        structured_blocks = _tag_blocks(_read_agent(agent_name), "structured_returns")
+        assert structured_blocks, agent_name
+
+        for structured_block in structured_blocks:
+            for yaml_block in _fenced_yaml_blocks(structured_block):
+                if "gpd_return:" not in yaml_block:
+                    continue
+                has_explicit_base_fields = all(field in yaml_block for field in required_fields)
+                has_base_pointer = base_field_pointer in yaml_block
+                assert has_explicit_base_fields or has_base_pointer, (agent_name, yaml_block)

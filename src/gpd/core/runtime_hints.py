@@ -23,7 +23,7 @@ from gpd.core.project_reentry import (
     resolve_project_reentry,
 )
 from gpd.core.public_surface_contract import recovery_local_snapshot_command
-from gpd.core.recent_projects import _strict_bool_value, list_recent_projects
+from gpd.core.recent_projects import RecentProjectsError, _strict_bool_value, list_recent_projects
 from gpd.core.recovery_advice import (
     RecoveryAdvice,
     build_recovery_advice,
@@ -508,6 +508,14 @@ def _cost_payload(cost_summary: object) -> dict[str, object]:
     return payload
 
 
+def _safe_recent_projects(data_root: Path | None, *, last: int) -> list[object]:
+    try:
+        return list_recent_projects(data_root, last=last)
+    except RecentProjectsError as exc:
+        logger.warning("Ignoring malformed recent-project index while building runtime hints: %s", exc)
+        return []
+
+
 def build_runtime_hint_payload(
     cwd: Path | None = None,
     *,
@@ -538,7 +546,7 @@ def build_runtime_hint_payload(
     execution_visibility = derive_execution_visibility(project_root)
     execution = _model_dump(execution_visibility)
 
-    recent_rows = list_recent_projects(data_root, last=recent_projects_last) if include_recovery else []
+    recent_rows = _safe_recent_projects(data_root, last=recent_projects_last) if include_recovery else []
     current_project = (
         _selected_reentry_candidate(reentry, workspace_hint=workspace_hint, recent_rows=recent_rows)
         if include_recovery and reentry is not None

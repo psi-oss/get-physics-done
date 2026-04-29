@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from gpd import registry
+from gpd.adapters.install_utils import expand_at_includes
 from gpd.core.model_visible_sections import (
     MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE,
 )
@@ -226,23 +227,26 @@ def test_model_visible_section_renderers_share_one_canonical_wrapper_structure()
             }
         },
     )
+    assert "commit_authority: orchestrator" in agent_section
+    assert "agent: gpd-planner" in command_section
+    assert "review_mode: review" in review_section
+    assert "  - manuscript" in review_section
 
 
 def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None:
     note = review_contract_visibility_note()
     command_note = command_visibility_note()
     agent_note = agent_visibility_note()
-    command_agent_labels = registry.canonical_agent_names()
     review_modes = " or ".join(f"`{value}`" for value in REVIEW_CONTRACT_MODES)
     conditional_whens = " or ".join(f"`{value}`" for value in REVIEW_CONTRACT_CONDITIONAL_WHENS)
     preflight_checks = " or ".join(f"`{value}`" for value in REVIEW_CONTRACT_PREFLIGHT_CHECKS)
     required_states = " or ".join(f"`{value}`" for value in REVIEW_CONTRACT_REQUIRED_STATES)
-    agent_values = (
-        *AGENT_COMMIT_AUTHORITIES,
-        *AGENT_SURFACES,
-        *AGENT_ROLE_FAMILIES,
-        *AGENT_ARTIFACT_WRITE_AUTHORITIES,
-        *AGENT_SHARED_STATE_AUTHORITIES,
+    agent_disjunctions = (
+        " or ".join(f"`{value}`" for value in AGENT_COMMIT_AUTHORITIES),
+        " or ".join(f"`{value}`" for value in AGENT_SURFACES),
+        " or ".join(f"`{value}`" for value in AGENT_ROLE_FAMILIES),
+        " or ".join(f"`{value}`" for value in AGENT_ARTIFACT_WRITE_AUTHORITIES),
+        " or ".join(f"`{value}`" for value in AGENT_SHARED_STATE_AUTHORITIES),
     )
 
     assert MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE in agent_note
@@ -253,53 +257,44 @@ def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None
     assert note.count(MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE) == 1
     assert "Omit empty optional fields." in note
     assert "strict booleans" in command_note.lower()
+    assert f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}` is the typed additive command-policy wrapper" in command_note
+    assert "integer `schema_version: 1`" in command_note
+    assert "list fields are string lists" in command_note
+    assert "`allowed_tools` is a tool-name list." in command_note
+    assert "`requires` supports only `files`, as a string or string list." in command_note
+    assert "omit empty optional fields" in command_note.lower()
     assert (
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}` when present is the typed additive command-policy wrapper"
+        "typed command policy controls intake, supporting-context routing, and managed outputs"
         in command_note
     )
-    assert f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.schema_version` must be the integer `1`;" in command_note
+    assert "Typed command policy is runtime-authoritative" not in command_note
     assert (
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.explicit_input_kinds`, "
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.allowed_suffixes`, "
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.supported_roots`, "
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.required_file_patterns`, and "
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.optional_file_patterns` "
-        "are lists of strings when present;"
-    ) in command_note
-    assert "`allowed_tools` is a list of tool names when present;" in command_note
-    assert "`requires` is a closed mapping when present; only `files` is supported." in command_note
-    assert "`requires.files` is a string or list of strings." in command_note
-    assert "Empty optional fields may be omitted." in command_note
-    assert (
-        "Typed command policy is runtime-authoritative for command intake, supporting-context routing, "
-        "and managed-output surfaces when a command declares it."
-        in command_note
-    )
-    assert (
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.allowed_suffixes` must use dotted suffixes"
+        "suffix lists use dotted suffixes"
         in command_note
     )
     for value in VALID_CONTEXT_MODES:
         assert value in command_note
-    for value in command_agent_labels:
-        assert value in command_note
-    for value in agent_values:
-        assert value in agent_note
+    for value in registry.canonical_agent_names():
+        assert value not in command_note
+    for disjunction in agent_disjunctions:
+        assert disjunction not in agent_note
+    assert "closed agent-authority vocabularies" in agent_note
+    assert "active YAML values below are authoritative for this agent" in agent_note
     assert "`schema_version` must be the integer `1`" in note
     assert "context_mode" in command_note
     assert "project_reentry_capable" in command_note
-    assert "may be `true` only when `context_mode` is `project-required`" in command_note
+    assert "may be true only with `context_mode: project-required`" in command_note
 
     assert "wrapper key" in note
-    assert f"`review_mode` must be {review_modes}" in note
-    assert f"`required_state` when present must be {required_states}" in note
-    assert f"`conditional_requirements[].when` must be one of {conditional_whens}" in note
-    assert f"`preflight_checks` entries must be {preflight_checks};" in note
+    assert "closed review-contract vocabularies" in note
+    assert "active YAML values below are authoritative" in note
+    for compacted_phrase in (review_modes, required_states, conditional_whens, preflight_checks):
+        assert compacted_phrase not in note
     assert (
         "`conditional_requirements[].preflight_checks` and `conditional_requirements[].blocking_preflight_checks`"
         in note
     )
-    assert "are lists of valid `preflight_checks` values when present." in note
+    assert "are lists of valid preflight-check values when present." in note
     assert "Each `conditional_requirements[].when` value may appear at most once." in note
     assert "List fields reject blank entries and duplicates." in note
     assert "Each conditional requirement needs one non-empty field." in note
@@ -460,14 +455,15 @@ def test_review_contract_visibility_note_surfaces_the_hard_constraints() -> None
 
     assert "Closed schema; no extra keys." in note
     assert "`schema_version` must be the integer `1`;" in note
-    assert f"`review_mode` must be {review_modes};" in note
-    assert f"`conditional_requirements[].when` must be one of {conditional_whens};" in note
-    assert "`required_state` when present must be" in note
+    assert "closed review-contract vocabularies" in note
+    assert "active YAML values below are authoritative" in note
+    assert review_modes not in note
+    assert conditional_whens not in note
+    assert preflight_checks not in note
     assert (
         "List fields when present: `required_outputs`, `required_evidence`, `blocking_conditions`, "
         "`preflight_checks`, `stage_artifacts`, `scope_variants`;"
     ) in note
-    assert f"`preflight_checks` entries must be {preflight_checks};" in note
     assert (
         "`conditional_requirements[].preflight_checks` and `conditional_requirements[].blocking_preflight_checks`"
         in note
@@ -477,7 +473,7 @@ def test_review_contract_visibility_note_surfaces_the_hard_constraints() -> None
         "`blocking_conditions_override` are lists when present."
         in note
     )
-    assert "are lists of valid `preflight_checks` values when present." in note
+    assert "are lists of valid preflight-check values when present." in note
 
 
 @pytest.mark.parametrize(
@@ -1210,6 +1206,26 @@ def test_review_contract_renderer_renders_scope_variants() -> None:
     assert "required_outputs_override:" in section
 
 
+def test_publication_scope_variant_relaxed_and_optional_checks_have_cli_detail_keys() -> None:
+    from gpd import cli
+
+    cli_detail_keys = set(cli._EXTERNAL_ARTIFACT_OPTIONAL_DETAILS) | set(
+        cli._WRITE_PAPER_EXTERNAL_AUTHORING_OPTIONAL_DETAILS
+    )
+    missing_detail_keys: dict[str, list[str]] = {}
+    for command_name in registry.list_review_commands():
+        contract = registry.get_command(command_name).review_contract
+        if contract is None or contract.review_mode != "publication":
+            continue
+        for variant in contract.scope_variants:
+            variant_checks = set(variant.relaxed_preflight_checks) | set(variant.optional_preflight_checks)
+            missing = sorted(variant_checks - cli_detail_keys)
+            if missing:
+                missing_detail_keys[f"{command_name}:{variant.scope}"] = missing
+
+    assert missing_detail_keys == {}
+
+
 def test_review_contract_renderer_rejects_duplicate_scope_variants() -> None:
     with pytest.raises(
         ValueError,
@@ -1464,7 +1480,7 @@ def test_verification_template_surfaces_strict_passed_and_blocked_semantics() ->
     assert "If decisive work remains open, use `gaps_found`, `expert_needed`, or `human_needed`" in verification_template
     assert "Nested `contract_results` entries still use the canonical contract-result status vocabulary" in verification_template
     assert (
-        "Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing and apply it literally."
+        "Reload `{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing and apply it literally."
         in verification_template
     )
     assert "record structured `suggested_contract_checks` instead of padding prose" in verification_template
@@ -1475,7 +1491,7 @@ def test_research_verification_template_surfaces_non_empty_uncertainty_markers()
     research_verification = (TEMPLATES_DIR / "research-verification.md").read_text(encoding="utf-8")
 
     assert (
-        "Use `@{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract."
+        "Use `{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract."
         in research_verification
     )
     assert (
@@ -1520,7 +1536,7 @@ def test_write_paper_prompt_loads_figure_tracker_schema_before_updating_tracker(
 
     assert staging is not None
 
-    assert "@{GPD_INSTALL_DIR}/templates/paper/figure-tracker.md" in source
+    assert "{GPD_INSTALL_DIR}/templates/paper/figure-tracker.md" in source
     assert "${PAPER_DIR}/FIGURE_TRACKER.md" in source
     assert (
         "references/shared/canonical-schema-discipline.md"
@@ -1653,7 +1669,11 @@ def test_contract_ledgers_surface_forbidden_proxy_bindings_and_action_vocabulary
 
 
 def test_prompt_visible_contracts_surface_literal_boolean_requirements() -> None:
-    plan_schema = (TEMPLATES_DIR / "plan-contract-schema.md").read_text(encoding="utf-8")
+    plan_schema = expand_at_includes(
+        (TEMPLATES_DIR / "plan-contract-schema.md").read_text(encoding="utf-8"),
+        REPO_ROOT / "src/gpd/specs",
+        "/runtime/",
+    )
     review_reader = (AGENTS_DIR / "gpd-review-reader.md").read_text(encoding="utf-8")
     panel = (REFERENCES_DIR / "publication" / "peer-review-panel.md").read_text(encoding="utf-8")
 

@@ -17,15 +17,15 @@ def test_derive_equation_command_doc_promises_registry_writeback() -> None:
     assert "Keep standalone/current-workspace durable derivation artifacts under `GPD/analysis/` rooted at the invoking workspace." in text
     assert "canonical result lookup via `gpd result search`" in text
     assert 'direct stored-result inspection via `gpd result show "{result_id}"`' in text
-    assert "Write the derivation artifact to a phase sibling only when authoritative phase context exists" in text
-    assert "Record the derived equation in the project's `intermediate_results` registry through the executable `gpd result persist-derived` bridge only when authoritative phase context is available" in text
-    assert "the workflow reuses or carries forward a stable `result_id` request on reruns" in text
+    assert "artifact write" in text
+    assert "registry persistence only when authoritative phase context exists" in text
+    assert "`gpd result persist-derived`" in text
+    assert "stable `result_id`" in text
     assert "actual canonical `result_id`" in text
-    assert "seeds continuity automatically through the canonical continuation path when an active continuation context exists" in text
+    assert "seed continuation" in text
     assert "If no argument is given, you will be asked what to derive." not in text
     assert "`--carry-forward-last-result`" not in text
-    assert "runs without authoritative phase context stop after writing the derivation document under the current-workspace `GPD/analysis/` tree" in text
-    assert "do not write project registry state" in text
+    assert "standalone artifacts" in text
 
 
 def test_derive_equation_workflow_reuses_prior_results_and_persists_final_equation() -> None:

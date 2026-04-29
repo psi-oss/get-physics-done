@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
 from pydantic import BaseModel
 
+from gpd.mcp.paper.json_io import read_model_json, write_model_json
 from gpd.mcp.paper.models import ClaimIndex, ReviewLedger, StageReviewReport
 
 if TYPE_CHECKING:
@@ -17,17 +17,11 @@ _T = TypeVar("_T", bound=BaseModel)
 
 
 def _write_model(model: BaseModel, output_path: Path) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(model.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8")
+    write_model_json(model, output_path, trailing_newline=True)
 
 
 def _read_model(model_cls: type[_T], input_path: Path) -> _T:
-    try:
-        raw = input_path.read_text(encoding="utf-8")
-    except UnicodeDecodeError as exc:
-        raise OSError(f"{input_path.as_posix()} is not valid UTF-8") from exc
-    payload = json.loads(raw)
-    return model_cls.model_validate(payload)
+    return read_model_json(model_cls, input_path)
 
 
 def write_claim_index(index: ClaimIndex, output_path: Path) -> None:

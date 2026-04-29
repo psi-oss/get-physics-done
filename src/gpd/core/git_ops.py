@@ -17,6 +17,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from gpd.core.artifact_text import TEXT_LIKE_ARTIFACT_SUFFIXES
 from gpd.core.constants import PLANNING_DIR_NAME
 from gpd.core.errors import ConfigError, ValidationError
 from gpd.core.observability import instrument_gpd_function
@@ -108,23 +109,6 @@ _ASSIGNMENT_NONFINITE_RE = re.compile(
     re.VERBOSE,
 )
 _DERIVATION_ASSERT_TARGET_RE = re.compile(r"(?i)^derivation-(?!state\.).+\.(?:md|py)$")
-_TEXT_VALIDATION_SUFFIXES = frozenset(
-    {
-        ".bib",
-        ".csv",
-        ".ipynb",
-        ".json",
-        ".markdown",
-        ".md",
-        ".py",
-        ".rst",
-        ".tex",
-        ".tsv",
-        ".txt",
-        ".yaml",
-        ".yml",
-    }
-)
 
 
 # ---------------------------------------------------------------------------
@@ -153,6 +137,35 @@ def _staged_files(cwd: Path) -> list[str]:
     if rc != 0 or not stdout:
         return []
     return [line.strip() for line in stdout.splitlines() if line.strip()]
+
+
+def _changed_files_for_pathspec(cwd: Path, pathspecs: list[str]) -> list[str]:
+    """Return changed, staged, or untracked regular-file paths under *pathspecs*."""
+    if not pathspecs:
+        return []
+
+    changed: list[str] = []
+    seen: set[str] = set()
+
+    def _append_from_stdout(stdout: str) -> None:
+        for line in stdout.splitlines():
+            file_path = line.strip()
+            if not file_path or file_path in seen:
+                continue
+            seen.add(file_path)
+            changed.append(file_path)
+
+    commands = (
+        ["diff", "--name-only", "--diff-filter=ACMR", "--", *pathspecs],
+        ["diff", "--cached", "--name-only", "--diff-filter=ACMR", "--", *pathspecs],
+        ["ls-files", "--others", "--exclude-standard", "--", *pathspecs],
+    )
+    for args in commands:
+        rc, stdout, _stderr = _exec_git(cwd, args)
+        if rc == 0 and stdout:
+            _append_from_stdout(stdout)
+
+    return changed
 
 
 def _expand_check_inputs(cwd: Path, files: list[str]) -> list[str]:
@@ -215,7 +228,7 @@ def _requires_assert_convention_check(file_path: str) -> bool:
 
 def _requires_utf8_text_validation(file_path: str) -> bool:
     """Return whether a file should be decoded as UTF-8 and text-validated."""
-    return Path(file_path).suffix.lower() in _TEXT_VALIDATION_SUFFIXES
+    return Path(file_path).suffix.lower() in TEXT_LIKE_ARTIFACT_SUFFIXES
 
 
 def _has_assert_convention_marker(content: str) -> bool:
@@ -631,7 +644,8 @@ def cmd_commit(
 
     # Determine files to stage
     files_to_stage: list[str]
-    if files:
+    explicit_file_args = bool(files)
+    if explicit_file_args:
         files_to_stage = list(files)
     else:
         files_to_stage = [f"{PLANNING_DIR_NAME}/"]
@@ -658,7 +672,8 @@ def cmd_commit(
             reason="commit_docs_disabled",
         )
 
-    pre_commit = cmd_pre_commit_check(cwd, files_to_stage)
+    files_to_validate = files_to_stage if explicit_file_args else _changed_files_for_pathspec(cwd, files_to_stage)
+    pre_commit = cmd_pre_commit_check(cwd, files_to_validate)
     if not pre_commit.passed:
         warning_summary = "; ".join(dict.fromkeys(pre_commit.warnings)) or "validation failed"
         return CommitResult(

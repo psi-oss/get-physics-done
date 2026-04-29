@@ -15,6 +15,23 @@ def _assert_strict_envelope(result: object, expected_payload: dict[str, object])
     assert result == {"schema_version": 1, **expected_payload}
 
 
+def test_stable_mcp_response_preserves_different_payload_schema_version() -> None:
+    from gpd.mcp.servers import stable_mcp_response
+
+    result = stable_mcp_response({"schema_version": 2, "status": "ok"})
+
+    assert result == {"schema_version": 1, "payload_schema_version": 2, "status": "ok"}
+
+
+def test_stable_mcp_response_keeps_equal_schema_version_payloads_unchanged() -> None:
+    from gpd.mcp.servers import stable_mcp_response
+
+    result = stable_mcp_response({"schema_version": 1, "status": "ok"})
+
+    assert result == {"schema_version": 1, "status": "ok"}
+    assert "payload_schema_version" not in result
+
+
 def test_protocols_success_envelope() -> None:
     from gpd.mcp.servers.protocols_server import _PROTOCOL_USAGE_CAUTION, get_protocol
 

@@ -23,6 +23,199 @@ def test_execution_lineage_does_not_export_a_separate_append_helper() -> None:
     assert not hasattr(execution_lineage, "append_execution_lineage_entry")
 
 
+def test_execution_lineage_reduces_same_seq_minimal_noop_as_ordered_cursor_advance() -> None:
+    from gpd.core.execution_lineage import (
+        ExecutionHeadEffect,
+        build_execution_lineage_entry,
+        derive_execution_lineage_head,
+    )
+
+    seed = build_execution_lineage_entry(
+        kind="segment.start",
+        event_id="evt-seed",
+        recorded_at="2026-03-29T12:00:00+00:00",
+        head_effect=ExecutionHeadEffect.SEED,
+        head_after={
+            "session_id": "sess-1",
+            "phase": "03",
+            "plan": "01",
+            "segment_id": "seg-1",
+            "segment_status": "active",
+        },
+        bounded_segment_after={
+            "resume_file": "GPD/phases/03/.continue-here.md",
+            "phase": "03",
+            "plan": "01",
+            "segment_id": "seg-1",
+            "segment_status": "paused",
+        },
+        seq=4,
+    )
+    legacy_noop = build_execution_lineage_entry(
+        kind="segment.heartbeat",
+        event_id="evt-noop",
+        recorded_at="2026-03-29T12:01:00+00:00",
+        head_effect=ExecutionHeadEffect.NOOP,
+        seq=4,
+    )
+
+    head = derive_execution_lineage_head([legacy_noop, seed])
+
+    assert head is not None
+    assert head.last_applied_seq == 4
+    assert head.last_applied_event_id == "evt-noop"
+    assert head.recorded_at == "2026-03-29T12:01:00+00:00"
+    assert head.execution is not None
+    assert head.execution["segment_id"] == "seg-1"
+    assert head.bounded_segment is not None
+    assert head.bounded_segment.segment_id == "seg-1"
+
+
+def test_execution_lineage_rederives_stale_same_seq_noop_cache(tmp_path: Path) -> None:
+    from gpd.core.execution_lineage import (
+        ExecutionHeadEffect,
+        build_execution_lineage_entry,
+        execution_lineage_ledger_path,
+        load_execution_lineage_head,
+        project_execution_lineage_head,
+        write_execution_lineage_head,
+    )
+
+    project = _bootstrap_project(tmp_path)
+    seed = build_execution_lineage_entry(
+        kind="segment.start",
+        event_id="evt-seed",
+        recorded_at="2026-03-29T12:00:00+00:00",
+        head_effect=ExecutionHeadEffect.SEED,
+        head_after={"phase": "03", "plan": "01", "segment_id": "seg-1"},
+        bounded_segment_after={
+            "resume_file": "GPD/phases/03/.continue-here.md",
+            "phase": "03",
+            "plan": "01",
+            "segment_id": "seg-1",
+            "segment_status": "paused",
+        },
+        seq=4,
+        reducer_version="1",
+    )
+    legacy_noop = build_execution_lineage_entry(
+        kind="segment.heartbeat",
+        event_id="evt-noop",
+        recorded_at="2026-03-29T12:01:00+00:00",
+        head_effect=ExecutionHeadEffect.NOOP,
+        seq=4,
+        reducer_version="1",
+    )
+    ledger_path = execution_lineage_ledger_path(project)
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    ledger_path.write_text(
+        "\n".join(entry.model_dump_json() for entry in (seed, legacy_noop)) + "\n",
+        encoding="utf-8",
+    )
+    write_execution_lineage_head(
+        project,
+        project_execution_lineage_head(
+            None,
+            last_applied_seq=4,
+            last_applied_event_id="evt-noop",
+            recorded_at="2026-03-29T12:01:00+00:00",
+            reducer_version="1",
+        ),
+    )
+
+    head = load_execution_lineage_head(project)
+
+    assert head is not None
+    assert head.last_applied_event_id == "evt-noop"
+    assert head.execution is not None
+    assert head.execution["segment_id"] == "seg-1"
+    assert head.bounded_segment is not None
+    assert head.bounded_segment.segment_id == "seg-1"
+    assert head.reducer_version != "1"
+
+
+def test_execution_lineage_noop_after_clear_advances_cursor_without_resurrecting_head() -> None:
+    from gpd.core.execution_lineage import (
+        ExecutionHeadEffect,
+        build_execution_lineage_entry,
+        derive_execution_lineage_head,
+    )
+
+    clear = build_execution_lineage_entry(
+        kind="execution.finish",
+        event_id="evt-clear",
+        recorded_at="2026-03-29T12:00:00+00:00",
+        head_effect=ExecutionHeadEffect.CLEAR,
+        seq=10,
+    )
+    stale_noop = build_execution_lineage_entry(
+        kind="segment.heartbeat",
+        event_id="evt-noop",
+        recorded_at="2026-03-29T12:01:00+00:00",
+        head_effect=ExecutionHeadEffect.NOOP,
+        head_after={"phase": "03", "plan": "01", "segment_id": "seg-stale"},
+        bounded_segment_after={
+            "resume_file": "GPD/phases/03/.continue-here.md",
+            "phase": "03",
+            "plan": "01",
+            "segment_id": "seg-stale",
+            "segment_status": "paused",
+        },
+        seq=11,
+    )
+
+    head = derive_execution_lineage_head([clear, stale_noop])
+
+    assert head is not None
+    assert head.last_applied_seq == 11
+    assert head.last_applied_event_id == "evt-noop"
+    assert head.execution is None
+    assert head.bounded_segment is None
+
+
+def test_execution_lineage_rejects_stale_head_when_ledger_is_absent(tmp_path: Path) -> None:
+    from gpd.core.execution_lineage import (
+        load_execution_lineage_head,
+        project_execution_lineage_head,
+        write_execution_lineage_head,
+    )
+
+    project = _bootstrap_project(tmp_path)
+    write_execution_lineage_head(
+        project,
+        project_execution_lineage_head(
+            {"phase": "03", "plan": "01", "segment_id": "seg-1"},
+            last_applied_seq=4,
+            last_applied_event_id="evt-stale",
+            recorded_at="2026-03-29T12:01:00+00:00",
+            reducer_version="1",
+        ),
+    )
+
+    assert load_execution_lineage_head(project) is None
+
+
+def test_execution_lineage_rejects_current_head_when_ledger_is_absent(tmp_path: Path) -> None:
+    from gpd.core.execution_lineage import (
+        load_execution_lineage_head,
+        project_execution_lineage_head,
+        write_execution_lineage_head,
+    )
+
+    project = _bootstrap_project(tmp_path)
+    write_execution_lineage_head(
+        project,
+        project_execution_lineage_head(
+            {"phase": "03", "plan": "01", "segment_id": "seg-1"},
+            last_applied_seq=4,
+            last_applied_event_id="evt-orphan",
+            recorded_at="2026-03-29T12:01:00+00:00",
+        ),
+    )
+
+    assert load_execution_lineage_head(project) is None
+
+
 def test_execution_stream_appends_rows_and_reducer_stays_in_parity(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)
@@ -313,7 +506,13 @@ def test_get_current_execution_prefers_lineage_head_over_stale_snapshot(tmp_path
     monkeypatch.chdir(project)
 
     from gpd.core.constants import ProjectLayout
-    from gpd.core.execution_lineage import project_execution_lineage_head, write_execution_lineage_head
+    from gpd.core.execution_lineage import (
+        ExecutionHeadEffect,
+        build_execution_lineage_entry,
+        execution_lineage_ledger_path,
+        project_execution_lineage_head,
+        write_execution_lineage_head,
+    )
     from gpd.core.observability import get_current_execution
 
     layout = ProjectLayout(project)
@@ -332,18 +531,30 @@ def test_get_current_execution_prefers_lineage_head_over_stale_snapshot(tmp_path
         encoding="utf-8",
     )
 
+    lineage_execution = {
+        "session_id": "lineage-session",
+        "phase": "03",
+        "plan": "02",
+        "segment_status": "blocked",
+        "blocked_reason": "manual stop required",
+        "current_task": "Lineage head task",
+        "updated_at": "2026-03-29T12:03:00+00:00",
+    }
+    lineage_entry = build_execution_lineage_entry(
+        kind="segment.blocked",
+        event_id="evt-lineage",
+        recorded_at="2026-03-29T12:03:00+00:00",
+        head_effect=ExecutionHeadEffect.SEED,
+        head_after=lineage_execution,
+        seq=4,
+    )
+    ledger_path = execution_lineage_ledger_path(project)
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    ledger_path.write_text(lineage_entry.model_dump_json() + "\n", encoding="utf-8")
     write_execution_lineage_head(
         project,
         project_execution_lineage_head(
-            {
-                "session_id": "lineage-session",
-                "phase": "03",
-                "plan": "02",
-                "segment_status": "blocked",
-                "blocked_reason": "manual stop required",
-                "current_task": "Lineage head task",
-                "updated_at": "2026-03-29T12:03:00+00:00",
-            },
+            lineage_execution,
             last_applied_seq=4,
             last_applied_event_id="evt-lineage",
             recorded_at="2026-03-29T12:03:00+00:00",

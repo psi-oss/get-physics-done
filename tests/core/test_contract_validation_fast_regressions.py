@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 from gpd.contracts import ResearchContract, collect_plan_contract_integrity_errors
-from gpd.core.contract_validation import parse_project_contract_data_salvage, validate_project_contract
+from gpd.core.contract_validation import (
+    parse_project_contract_data_salvage,
+    salvage_project_contract,
+    validate_project_contract,
+)
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 
@@ -26,6 +33,87 @@ def _strip_reference_dependencies(contract: dict[str, object]) -> None:
             for evidence_id in acceptance_test["evidence_required"]
             if not str(evidence_id).startswith("ref-")
         ]
+
+
+def _run_import_order_probe(source: str) -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    env = os.environ.copy()
+    src_path = str(repo_root / "src")
+    existing_pythonpath = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = src_path
+    if existing_pythonpath is not None:
+        env["PYTHONPATH"] = src_path + os.pathsep + existing_pythonpath
+    completed = subprocess.run(
+        [sys.executable, "-c", source],
+        cwd=repo_root,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+
+
+def test_fast_contract_validation_import_order_allows_validation_before_contracts() -> None:
+    _run_import_order_probe(
+        "\n".join(
+            [
+                "import gpd.core.contract_validation as contract_validation",
+                "import gpd.contracts as contracts",
+                "result = contracts.parse_project_contract_data_salvage({'schema_version': 1})",
+                "assert result.contract is None",
+                "assert callable(contract_validation.validate_project_contract)",
+            ]
+        )
+    )
+
+
+def test_fast_contract_validation_import_order_allows_contracts_before_validation() -> None:
+    _run_import_order_probe(
+        "\n".join(
+            [
+                "import gpd.contracts as contracts",
+                "import gpd.core.contract_validation as contract_validation",
+                "result = contract_validation.validate_project_contract({'schema_version': 1})",
+                "assert result.valid is False",
+                "assert callable(contracts.parse_project_contract_data_salvage)",
+            ]
+        )
+    )
+
+
+def test_fast_contract_validation_import_order_allows_schema_helper_before_public_modules() -> None:
+    _run_import_order_probe(
+        "\n".join(
+            [
+                "import gpd.core.project_contract_schema as schema",
+                "import gpd.contracts as contracts",
+                "import gpd.core.contract_validation as contract_validation",
+                "contract, findings = schema.salvage_project_contract({'schema_version': 1})",
+                "assert contract is None",
+                "assert isinstance(findings, list)",
+                "assert callable(contracts.parse_project_contract_data_salvage)",
+                "assert callable(contract_validation.validate_project_contract)",
+            ]
+        )
+    )
+
+
+def test_fast_contract_validation_parse_and_salvage_share_schema_helper() -> None:
+    contract = _load_contract_fixture()
+    contract["legacy_notes"] = "drop this field during salvage"
+    contract["references"][0]["role"] = "Benchmark"
+
+    direct_contract, direct_findings = salvage_project_contract(contract)
+    parsed = parse_project_contract_data_salvage(contract)
+
+    assert direct_contract is not None
+    assert parsed.contract == direct_contract
+    assert "legacy_notes: Extra inputs are not permitted" in direct_findings
+    assert "legacy_notes: Extra inputs are not permitted" in parsed.recoverable_errors
+    assert "references.0.role must use exact canonical value: benchmark" in parsed.recoverable_errors
+    assert parsed.blocking_errors == []
 
 
 def test_fast_contract_validation_salvage_normalizes_literal_case_drift() -> None:

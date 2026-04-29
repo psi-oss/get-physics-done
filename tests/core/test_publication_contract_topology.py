@@ -32,7 +32,11 @@ def test_publication_contract_files_use_canonical_names_without_compatibility_sh
     assert "gpd_return.files_written" in response_contract
     assert "${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md" in response_contract
     assert "${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md" in response_contract
-    assert "Default current-project response files without frontmatter remain valid" in response_contract
+    assert "explicit active manuscript gates" in response_contract
+    assert "Default current-project response files without frontmatter" in response_contract
+    assert "existing project-root response rounds" in response_contract
+    assert "new files should carry the binding metadata" in response_contract
+    assert "backwards compatibility" not in response_contract.lower()
     assert "response-artifact-contract.md" not in response_contract
 
     assert "Canonical workflow-facing bootstrap and preflight reference for publication tasks." in bootstrap_preflight
@@ -87,7 +91,7 @@ def test_publication_workflow_prompt_surfaces_surface_the_shared_manuscript_root
     peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
     arxiv = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
     bootstrap_include = "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
-    handoff_include = "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
+    handoff_include = "{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
 
     assert bootstrap_include in write_paper
     assert bootstrap_include in respond

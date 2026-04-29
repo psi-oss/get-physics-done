@@ -74,3 +74,16 @@ def test_planner_prompt_delegates_raw_plan_template_to_canonical_template() -> N
     assert "<execution_context>Use the already-loaded `phase-prompt.md`" not in planner
     assert "Researcher Setup Frontmatter" not in planner
     assert "Tool Requirements Frontmatter" not in planner
+
+
+def test_planner_delegates_checkpoint_examples_to_canonical_reference() -> None:
+    planner = _read_planner_prompt()
+    checkpoint_section = _between(planner, "<checkpoints>", "</checkpoints>")
+
+    assert "references/orchestration/checkpoints.md" in checkpoint_section
+    assert "references/orchestration/checkpoint-ux-convention.md" in checkpoint_section
+    assert "Do not inline a second checkpoint template here." in checkpoint_section
+    assert '<task type="checkpoint:human-verify"' not in checkpoint_section
+    assert '<task type="checkpoint:decision"' not in checkpoint_section
+    assert "Bad -- Checkpointing every derivation step" not in checkpoint_section
+    assert "Good -- Single verification at logical boundary" not in checkpoint_section

@@ -20,6 +20,7 @@ from gpd.core.observability import gpd_span
 from gpd.mcp.servers import (
     configure_mcp_logging,
     parse_frontmatter_with_error,
+    read_only_tool_annotations,
     run_mcp_server,
     stable_mcp_error,
     stable_mcp_response,
@@ -74,6 +75,24 @@ _TABLE_ROW_RE = re.compile(r"^\|(.+)\|$")
 
 # Matches the separator line: |---|---|...|
 _TABLE_SEP_RE = re.compile(r"^\|[\s\-:|]+\|$")
+
+
+def _declared_ranges_for_catalog(filename: str) -> tuple[tuple[int, int], ...]:
+    """Return the authoritative error ID ranges declared for one catalog file."""
+    for declared_filename, ranges in ERROR_CATALOG_FILE_RANGES:
+        if declared_filename == filename:
+            return ranges
+    return ()
+
+
+def _error_id_in_declared_ranges(error_id: int, ranges: tuple[tuple[int, int], ...]) -> bool:
+    """Return whether an error ID belongs to one of a catalog's declared ranges."""
+    return any(start <= error_id <= end for start, end in ranges)
+
+
+def _format_error_id_ranges(ranges: tuple[tuple[int, int], ...]) -> str:
+    """Render compact human-readable ID ranges for validation errors."""
+    return ", ".join(str(start) if start == end else f"{start}-{end}" for start, end in ranges)
 
 
 def _parse_table_rows(body: str) -> list[list[str]]:
@@ -157,6 +176,7 @@ class ErrorStore:
             body = _load_authoritative_markdown_body(path, label="Error catalog")
             rows = _parse_table_rows(body)
             loaded_rows = 0
+            declared_ranges = _declared_ranges_for_catalog(filename)
 
             for row in rows:
                 # Skip header rows (first cell is "#" or "Error Class")
@@ -168,6 +188,12 @@ class ErrorStore:
                 if not id_match:
                     continue
                 error_id = int(id_match.group(1))
+                if declared_ranges and not _error_id_in_declared_ranges(error_id, declared_ranges):
+                    expected = _format_error_id_ranges(declared_ranges)
+                    raise ValueError(
+                        f"Error catalog {Path(filename).name} declares ID range(s) {expected}; "
+                        f"found out-of-range error class id {error_id}"
+                    )
 
                 name = _strip_bold(row[1].strip())
                 description = row[2].strip()
@@ -219,7 +245,9 @@ class ErrorStore:
                 continue
             error_id = int(id_match.group(1))
             if error_id in self._traceability:
-                raise ValueError(f"Duplicate traceability row for error class {error_id} in {Path(TRACEABILITY_FILE).name}")
+                raise ValueError(
+                    f"Duplicate traceability row for error class {error_id} in {Path(TRACEABILITY_FILE).name}"
+                )
 
             # Map remaining cells to traceability columns
             checks: dict[str, str] = {}
@@ -365,7 +393,7 @@ ErrorDomainFilterInput = Annotated[
 ]
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_error_class(error_id: int) -> dict[str, object]:
     """Get full details of a physics error class by ID.
 
@@ -393,7 +421,7 @@ def get_error_class(error_id: int) -> dict[str, object]:
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def check_error_classes(computation_desc: ComputationDescriptionInput) -> dict[str, object]:
     """Identify error classes relevant to a computation description.
 
@@ -424,7 +452,7 @@ def check_error_classes(computation_desc: ComputationDescriptionInput) -> dict[s
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_detection_strategy(error_id: int) -> dict[str, object]:
     """Get the detection strategy for a specific error class.
 
@@ -453,7 +481,7 @@ def get_detection_strategy(error_id: int) -> dict[str, object]:
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def get_traceability(error_id: int) -> dict[str, object]:
     """Get the verification check coverage for an error class.
 
@@ -499,7 +527,7 @@ def get_traceability(error_id: int) -> dict[str, object]:
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def list_error_classes(domain: ErrorDomainFilterInput = None) -> dict[str, object]:
     """List all physics error classes, optionally filtered by domain.
 

@@ -24,8 +24,20 @@ SourceNoteId = Annotated[str, Field(pattern=r"^NOTE-[A-Za-z0-9][A-Za-z0-9_-]*$")
 ResultId = Annotated[str, Field(pattern=r"^RES-[A-Za-z0-9][A-Za-z0-9_-]*$")]
 FigureAssetId = Annotated[str, Field(pattern=r"^FIG-[A-Za-z0-9][A-Za-z0-9_-]*$")]
 _RESERVED_LABEL_PREFIXES = ("sec:", "fig:", "app:")
+_LATEX_BARE_LABEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 _BIB_FILE_STEM_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 _SUBJECT_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_WINDOWS_DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:")
+_WINDOWS_RESERVED_DEVICE_STEMS = frozenset(
+    {
+        "con",
+        "prn",
+        "aux",
+        "nul",
+        *(f"com{index}" for index in range(1, 10)),
+        *(f"lpt{index}" for index in range(1, 10)),
+    }
+)
 REQUIRED_GPD_ACKNOWLEDGMENT = (
     "This research made use of Get Physics Done (GPD), developed by Physical Superintelligence PBC (PSI)."
 )
@@ -38,6 +50,10 @@ def _require_nonempty_text(value: str, *, field_name: str) -> str:
     return normalized
 
 
+def _is_reserved_device_stem(value: str) -> bool:
+    return value.casefold() in _WINDOWS_RESERVED_DEVICE_STEMS
+
+
 def _normalize_label_id(value: str, *, allow_blank: bool) -> str:
     normalized = value.strip()
     if not normalized:
@@ -45,10 +61,12 @@ def _normalize_label_id(value: str, *, allow_blank: bool) -> str:
             return ""
         raise ValueError("label must be a non-empty string")
     for prefix in _RESERVED_LABEL_PREFIXES:
-        if normalized.startswith(prefix):
+        if normalized.lower().startswith(prefix):
             raise ValueError(
                 f"label must omit the reserved {prefix!r} prefix; use the bare identifier because the renderer adds it"
             )
+    if not _LATEX_BARE_LABEL_RE.fullmatch(normalized):
+        raise ValueError("label must be a bare LaTeX-safe identifier using only letters, numbers, '_' or '-'")
     return normalized
 
 
@@ -101,6 +119,20 @@ def _normalize_required_manuscript_path(value: str) -> str:
     if not normalized:
         raise ValueError("manuscript_path must be non-empty")
     return normalized
+
+
+def normalize_manifest_artifact_path(value: str) -> str:
+    """Normalize a PAPER_DIR-relative manifest artifact path."""
+
+    normalized = _require_nonempty_text(value, field_name="artifact path")
+    if "\\" in normalized:
+        raise ValueError("artifact path must use POSIX '/' separators, not backslashes")
+    if posixpath.isabs(normalized) or _WINDOWS_DRIVE_PATH_RE.match(normalized):
+        raise ValueError("artifact path must be relative to PAPER_DIR")
+    compact = posixpath.normpath(normalized)
+    if compact in {"", "."} or compact == ".." or compact.startswith("../"):
+        raise ValueError("artifact path must stay inside PAPER_DIR")
+    return compact
 
 
 def _display_publication_path(project_root: Path, path: Path | None) -> str:
@@ -480,6 +512,11 @@ class ArtifactSourceRef(BaseModel):
     path: str
     role: str = ""
 
+    @field_validator("path")
+    @classmethod
+    def _validate_source_path(cls, value: str) -> str:
+        return _require_nonempty_text(value, field_name="sources[].path")
+
 
 class ArtifactRecord(BaseModel):
     """Machine-readable record for an emitted paper artifact."""
@@ -493,6 +530,16 @@ class ArtifactRecord(BaseModel):
     produced_by: str
     sources: list[ArtifactSourceRef] = Field(default_factory=list)
     metadata: dict[str, str | int | float | bool] = Field(default_factory=dict)
+
+    @field_validator("artifact_id", "produced_by")
+    @classmethod
+    def _validate_required_record_text(cls, value: str, info: ValidationInfo) -> str:
+        return _require_nonempty_text(value, field_name=info.field_name or "artifact record field")
+
+    @field_validator("path")
+    @classmethod
+    def _validate_portable_artifact_path(cls, value: str) -> str:
+        return normalize_manifest_artifact_path(value)
 
 
 class ArtifactManifest(BaseModel):
@@ -531,6 +578,25 @@ class ArtifactManifest(BaseModel):
         except ValueError as exc:
             raise ValueError("created_at must be an ISO 8601 timestamp") from exc
         return normalized
+
+    @model_validator(mode="after")
+    def _artifact_records_must_be_unambiguous(self) -> ArtifactManifest:
+        artifact_ids = [artifact.artifact_id for artifact in self.artifacts]
+        duplicate_artifact_ids = sorted(
+            artifact_id for artifact_id, count in Counter(artifact_ids).items() if count > 1
+        )
+        if duplicate_artifact_ids:
+            raise ValueError("artifacts must not repeat artifact_id values: " + ", ".join(duplicate_artifact_ids))
+
+        category_paths = [(artifact.category, artifact.path) for artifact in self.artifacts]
+        duplicate_category_paths = sorted(
+            f"{category}:{path}" for (category, path), count in Counter(category_paths).items() if count > 1
+        )
+        if duplicate_category_paths:
+            raise ValueError(
+                "artifacts must not repeat the same category+path records: " + ", ".join(duplicate_category_paths)
+            )
+        return self
 
 
 class ClaimType(StrEnum):
@@ -888,6 +954,8 @@ class PaperConfig(BaseModel):
             raise ValueError("bib_file must be a non-empty stem")
         if not _BIB_FILE_STEM_RE.fullmatch(normalized):
             raise ValueError("bib_file must be a stem-safe filename without path separators or extensions")
+        if _is_reserved_device_stem(normalized):
+            raise ValueError("bib_file must not use a reserved device filename stem")
         return normalized
 
     @field_validator("output_filename")
@@ -895,12 +963,19 @@ class PaperConfig(BaseModel):
     def _validate_output_filename(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        normalized = value.strip()
-        if not normalized:
-            return None
-        if normalized in {".", ".."} or "/" in normalized or "\\" in normalized:
-            raise ValueError("output_filename must be a filename stem, not a path")
-        return normalized
+        if value != value.strip():
+            raise ValueError("output_filename must be a strict filename stem without whitespace")
+        if not value:
+            raise ValueError("output_filename must be a non-empty filename stem")
+        if value in {".", ".."} or "/" in value or "\\" in value:
+            raise ValueError("output_filename must be a strict filename stem, not a path")
+        if not _BIB_FILE_STEM_RE.fullmatch(value):
+            raise ValueError(
+                "output_filename must be a strict filename stem using only letters, numbers, '_' or '-'"
+            )
+        if _is_reserved_device_stem(value):
+            raise ValueError("output_filename must not use a reserved device filename stem")
+        return value
 
     @model_validator(mode="after")
     def _ensure_required_acknowledgment(self) -> PaperConfig:
@@ -973,7 +1048,7 @@ def derive_output_filename(config: PaperConfig) -> str:
     selected_tokens = _select_topic_filename_tokens(tokens)
     slug = "_".join(selected_tokens)[:_MAX_FILENAME_LENGTH].strip("_")
 
-    if not slug:
+    if not slug or _is_reserved_device_stem(slug):
         return _FALLBACK_OUTPUT_FILENAME
 
     return slug

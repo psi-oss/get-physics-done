@@ -18,8 +18,10 @@ from pathlib import Path
 from typing import Literal
 
 from pybtex.database import BibliographyData, Entry
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic import ValidationError as PydanticValidationError
+
+from gpd.mcp.paper.json_io import write_model_json
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +160,18 @@ class CitationAuditRecord(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
+def _bibliography_audit_summary_counts(entries: list[CitationAuditRecord]) -> dict[str, int]:
+    """Derive bibliography audit summary counters from the authoritative entries."""
+
+    return {
+        "total_sources": len(entries),
+        "resolved_sources": sum(1 for entry in entries if entry.resolution_status in {"provided", "enriched"}),
+        "partial_sources": sum(1 for entry in entries if entry.verification_status == "partial"),
+        "unverified_sources": sum(1 for entry in entries if entry.verification_status == "unverified"),
+        "failed_sources": sum(1 for entry in entries if entry.resolution_status == "failed"),
+    }
+
+
 class BibliographyAudit(BaseModel):
     """Summary audit artifact for a bibliography emission batch."""
 
@@ -170,6 +184,18 @@ class BibliographyAudit(BaseModel):
     unverified_sources: int
     failed_sources: int
     entries: list[CitationAuditRecord]
+
+    @model_validator(mode="after")
+    def _validate_summary_counts(self) -> BibliographyAudit:
+        expected_counts = _bibliography_audit_summary_counts(self.entries)
+        mismatches = [
+            f"{field} expected {expected} from entries, got {getattr(self, field)}"
+            for field, expected in expected_counts.items()
+            if getattr(self, field) != expected
+        ]
+        if mismatches:
+            raise ValueError("bibliography audit summary counts do not match entries: " + "; ".join(mismatches))
+        return self
 
 
 # ---- BibTeX entry creation ----
@@ -747,8 +773,8 @@ def write_bib_file(bib_data: BibliographyData, output_path: Path) -> None:
 
 def write_bibliography_audit(audit: BibliographyAudit, output_path: Path) -> None:
     """Write a machine-readable bibliography audit artifact as JSON."""
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(audit.model_dump_json(indent=2), encoding="utf-8")
+
+    write_model_json(audit, output_path)
 
 
 def _entry_field(entry: Entry, field_name: str) -> str:
@@ -877,11 +903,7 @@ def _bibliography_audit_from_entries(
 
     return BibliographyAudit(
         generated_at=datetime.now(UTC).isoformat(),
-        total_sources=len(audit_entries),
-        resolved_sources=sum(1 for entry in audit_entries if entry.resolution_status in {"provided", "enriched"}),
-        partial_sources=sum(1 for entry in audit_entries if entry.verification_status == "partial"),
-        unverified_sources=sum(1 for entry in audit_entries if entry.verification_status == "unverified"),
-        failed_sources=sum(1 for entry in audit_entries if entry.resolution_status == "failed"),
+        **_bibliography_audit_summary_counts(audit_entries),
         entries=audit_entries,
     )
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,11 +14,7 @@ def test_get_skill_surfaces_malformed_reference_frontmatter(tmp_path: Path) -> N
 
     reference_path = tmp_path / "peer-review-panel.md"
     reference_path.write_text(
-        "---\n"
-        "type: peer-review-panel-protocol: [broken\n"
-        "---\n"
-        "# Peer Review Panel\n"
-        "Body.\n",
+        "---\ntype: peer-review-panel-protocol: [broken\n---\n# Peer Review Panel\nBody.\n",
         encoding="utf-8",
     )
 
@@ -53,7 +50,9 @@ def test_get_skill_surfaces_malformed_reference_frontmatter(tmp_path: Path) -> N
         with (
             patch("gpd.mcp.servers.skills_server._resolve_skill", return_value=skill),
             patch("gpd.mcp.servers.skills_server.content_registry.get_command", return_value=command),
-            patch("gpd.mcp.servers.skills_server._portable_reference_path", side_effect=_patched_portable_reference_path),
+            patch(
+                "gpd.mcp.servers.skills_server._portable_reference_path", side_effect=_patched_portable_reference_path
+            ),
         ):
             result = skills_server.get_skill("gpd-peer-review")
     finally:
@@ -69,7 +68,95 @@ def test_get_skill_surfaces_malformed_reference_frontmatter(tmp_path: Path) -> N
     assert contract_documents["peer-review-panel.md"]["frontmatter_error"]
 
 
-def test_get_skill_loading_hint_does_not_eager_load_transitive_schema_documents(tmp_path: Path) -> None:
+def test_get_skill_surfaces_unclosed_reference_frontmatter(tmp_path: Path) -> None:
+    from gpd.mcp.servers import skills_server
+
+    reference_path = tmp_path / "unclosed-schema.md"
+    reference_path.write_text(
+        "---\ntype: schema\n# Missing closing delimiter\n",
+        encoding="utf-8",
+    )
+
+    command = CommandDef(
+        name="gpd:debug",
+        description="Debug.",
+        argument_hint="",
+        requires={},
+        allowed_tools=["file_read"],
+        content="Command body.",
+        path=str(tmp_path / "gpd-debug.md"),
+        source="commands",
+    )
+    skill = SkillDef(
+        name="gpd-debug",
+        description="Debug.",
+        content="See @{GPD_INSTALL_DIR}/templates/unclosed-schema.md\n",
+        category="debugging",
+        path=str(tmp_path / "gpd-debug.md"),
+        source_kind="command",
+        registry_name="debug",
+    )
+
+    original_portable_reference_path = skills_server._portable_reference_path
+
+    def _patched_portable_reference_path(raw_path: str, *, base_path: Path | None = None):
+        if raw_path == "@{GPD_INSTALL_DIR}/templates/unclosed-schema.md":
+            return raw_path, reference_path
+        return original_portable_reference_path(raw_path, base_path=base_path)
+
+    skills_server._reference_document_metadata.cache_clear()
+    try:
+        with (
+            patch("gpd.mcp.servers.skills_server._resolve_skill", return_value=skill),
+            patch("gpd.mcp.servers.skills_server.content_registry.get_command", return_value=command),
+            patch(
+                "gpd.mcp.servers.skills_server._portable_reference_path", side_effect=_patched_portable_reference_path
+            ),
+        ):
+            result = skills_server.get_skill("gpd-debug")
+    finally:
+        skills_server._reference_document_metadata.cache_clear()
+
+    schema_documents = {Path(entry["path"]).name: entry for entry in result["schema_documents"]}
+
+    assert "unclosed-schema.md" in schema_documents
+    assert schema_documents["unclosed-schema.md"]["frontmatter_error"] == "Unclosed frontmatter block"
+
+
+def test_portable_skill_content_preserves_bare_lazy_path_placeholders() -> None:
+    from gpd.mcp.servers.skills_server import _portable_skill_content
+
+    content = (
+        "Load {GPD_INSTALL_DIR}/references/verification/errors/llm-errors-core.md on demand.\n"
+        "Read {GPD_AGENTS_DIR}/gpd-verifier.md only when spawning the verifier.\n"
+        "Use @{GPD_INSTALL_DIR}/templates/verification-report.md when eager loading is intentional.\n"
+    )
+
+    portable = _portable_skill_content(content)
+
+    assert "{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-core.md" in portable
+    assert "{GPD_AGENTS_DIR}/gpd-verifier.md" in portable
+    assert "@{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-core.md" not in portable
+    assert "@{GPD_INSTALL_DIR}/templates/verification-report.md" in portable
+
+
+def test_extract_referenced_files_ignores_bare_lazy_schema_placeholders() -> None:
+    from gpd.mcp.servers.skills_server import _extract_referenced_files
+
+    direct_references, transitive_references = _extract_referenced_files(
+        "Load {GPD_INSTALL_DIR}/templates/lazy-schema.md only if needed.\n"
+        "Use @{GPD_INSTALL_DIR}/templates/verification-report.md eagerly.\n",
+        read_transitive_reference_bodies=False,
+    )
+
+    direct_paths = [entry["path"] for entry in direct_references]
+    transitive_paths = [entry["path"] for entry in transitive_references]
+    assert "@{GPD_INSTALL_DIR}/templates/verification-report.md" in direct_paths
+    assert "@{GPD_INSTALL_DIR}/templates/lazy-schema.md" not in direct_paths
+    assert "@{GPD_INSTALL_DIR}/templates/lazy-schema.md" not in transitive_paths
+
+
+def test_get_skill_transitive_schema_documents_are_metadata_only_by_default(tmp_path: Path) -> None:
     from gpd.mcp.servers import skills_server
 
     workflow_path = tmp_path / "wrapper.md"
@@ -79,11 +166,7 @@ def test_get_skill_loading_hint_does_not_eager_load_transitive_schema_documents(
     )
     schema_path = tmp_path / "nested-schema.md"
     schema_path.write_text(
-        "---\n"
-        "type: schema\n"
-        "---\n"
-        "# Nested Schema\n"
-        "Transitive body.\n",
+        "---\ntype: schema\n---\n# Nested Schema\nTransitive body.\n",
         encoding="utf-8",
     )
 
@@ -123,9 +206,12 @@ def test_get_skill_loading_hint_does_not_eager_load_transitive_schema_documents(
         with (
             patch("gpd.mcp.servers.skills_server._resolve_skill", return_value=skill),
             patch("gpd.mcp.servers.skills_server.content_registry.get_command", return_value=command),
-            patch("gpd.mcp.servers.skills_server._portable_reference_path", side_effect=_patched_portable_reference_path),
+            patch(
+                "gpd.mcp.servers.skills_server._portable_reference_path", side_effect=_patched_portable_reference_path
+            ),
         ):
             result = skills_server.get_skill("gpd-debug")
+            opt_in_result = skills_server.get_skill("gpd-debug", include_transitive_reference_bodies=True)
     finally:
         skills_server._reference_document_metadata.cache_clear()
 
@@ -135,6 +221,90 @@ def test_get_skill_loading_hint_does_not_eager_load_transitive_schema_documents(
     nested_doc = next(entry for entry in result["transitive_schema_documents"] if entry["name"] == "nested-schema.md")
     assert "content" not in nested_doc
     assert nested_doc["frontmatter"] == {"type": "schema"}
-    assert "# Nested Schema" in nested_doc["body"]
+    assert "body" not in nested_doc
     assert "transitive_schema_documents" not in result["loading_hint"]
+    assert "metadata-only by default" in result["loading_hint"]
+    assert "include_transitive_reference_bodies=true" in result["loading_hint"]
     assert "See `referenced_files` for external markdown dependencies." in result["loading_hint"]
+
+    opt_in_nested_doc = next(
+        entry for entry in opt_in_result["transitive_schema_documents"] if entry["name"] == "nested-schema.md"
+    )
+    assert opt_in_nested_doc["frontmatter"] == {"type": "schema"}
+    assert "# Nested Schema" in opt_in_nested_doc["body"]
+    assert "metadata-only by default" not in opt_in_result["loading_hint"]
+
+
+def test_get_skill_default_payload_budget_excludes_transitive_reference_bodies(tmp_path: Path) -> None:
+    from gpd.mcp.servers import skills_server
+
+    workflow_path = tmp_path / "wrapper.md"
+    workflow_path.write_text(
+        "See @{GPD_INSTALL_DIR}/templates/large-schema.md for the schema.\n" + ("workflow detail\n" * 2000),
+        encoding="utf-8",
+    )
+    schema_path = tmp_path / "large-schema.md"
+    schema_body = "# Large Schema\n" + ("transitive schema body that should not ship by default\n" * 2500)
+    schema_path.write_text(
+        f"---\ntype: schema\n---\n{schema_body}",
+        encoding="utf-8",
+    )
+
+    command = CommandDef(
+        name="gpd:debug",
+        description="Debug.",
+        argument_hint="",
+        requires={},
+        allowed_tools=["file_read"],
+        content="Command body.",
+        path=str(tmp_path / "gpd-debug.md"),
+        source="commands",
+    )
+    skill = SkillDef(
+        name="gpd-debug",
+        description="Debug.",
+        content="Read @{GPD_INSTALL_DIR}/workflows/wrapper.md first.\n",
+        category="debugging",
+        path=str(tmp_path / "gpd-debug.md"),
+        source_kind="command",
+        registry_name="debug",
+    )
+
+    portable_paths = {
+        "@{GPD_INSTALL_DIR}/workflows/wrapper.md": workflow_path,
+        "@{GPD_INSTALL_DIR}/templates/large-schema.md": schema_path,
+    }
+    original_portable_reference_path = skills_server._portable_reference_path
+
+    def _patched_portable_reference_path(raw_path: str, *, base_path: Path | None = None):
+        if raw_path in portable_paths:
+            return raw_path, portable_paths[raw_path]
+        return original_portable_reference_path(raw_path, base_path=base_path)
+
+    skills_server._reference_document_metadata.cache_clear()
+    try:
+        with (
+            patch("gpd.mcp.servers.skills_server._resolve_skill", return_value=skill),
+            patch("gpd.mcp.servers.skills_server.content_registry.get_command", return_value=command),
+            patch(
+                "gpd.mcp.servers.skills_server._portable_reference_path", side_effect=_patched_portable_reference_path
+            ),
+        ):
+            default_result = skills_server.get_skill("gpd-debug")
+            opt_in_result = skills_server.get_skill("gpd-debug", include_transitive_reference_bodies=True)
+    finally:
+        skills_server._reference_document_metadata.cache_clear()
+
+    default_payload = json.dumps(default_result)
+    opt_in_payload = json.dumps(opt_in_result)
+    default_doc = next(
+        entry for entry in default_result["transitive_schema_documents"] if entry["name"] == "large-schema.md"
+    )
+    opt_in_doc = next(
+        entry for entry in opt_in_result["transitive_schema_documents"] if entry["name"] == "large-schema.md"
+    )
+
+    assert "body" not in default_doc
+    assert "transitive schema body that should not ship by default" not in default_payload
+    assert "transitive schema body that should not ship by default" in opt_in_doc["body"]
+    assert len(opt_in_payload) > len(default_payload) + 100_000

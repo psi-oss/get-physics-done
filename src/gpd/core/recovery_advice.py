@@ -17,7 +17,7 @@ from gpd.core.public_surface_contract import (
     recovery_cross_workspace_command,
     recovery_local_snapshot_command,
 )
-from gpd.core.recent_projects import list_recent_projects
+from gpd.core.recent_projects import RecentProjectsError, list_recent_projects
 from gpd.core.resume_surface import (
     RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF,
     RESUME_SURFACE_SCHEMA_VERSION,
@@ -75,6 +75,7 @@ class RecoveryAdvice(BaseModel):
     project_reentry_mode: str | None = None
     project_reentry_requires_selection: bool = False
     project_reentry_reason: str | None = None
+    project_reentry_diagnostics: list[str] = Field(default_factory=list)
     current_workspace_resumable: bool = False
     current_workspace_has_recovery: bool = False
     current_workspace_has_resume_file: bool = False
@@ -339,6 +340,7 @@ def _serialize_recovery_advice_core(advice: RecoveryAdvice) -> dict[str, object]
         "project_reentry_mode": advice.project_reentry_mode,
         "project_reentry_requires_selection": advice.project_reentry_requires_selection,
         "project_reentry_reason": advice.project_reentry_reason,
+        "project_reentry_diagnostics": advice.project_reentry_diagnostics,
         "current_workspace_resumable": advice.current_workspace_resumable,
         "current_workspace_has_recovery": advice.current_workspace_has_recovery,
         "current_workspace_has_resume_file": advice.current_workspace_has_resume_file,
@@ -502,7 +504,19 @@ def build_recovery_advice(
         payload = {}
     else:
         payload = init_resume(normalized_cwd, data_root=data_root)
-    rows = list(recent_rows) if recent_rows is not None else list_recent_projects(data_root, last=recent_projects_last)
+    if recent_rows is not None:
+        rows = list(recent_rows)
+    else:
+        try:
+            rows = list_recent_projects(data_root, last=recent_projects_last)
+        except RecentProjectsError:
+            rows = []
+    raw_project_reentry_diagnostics = payload.get("project_reentry_diagnostics")
+    project_reentry_diagnostics = (
+        [item.strip() for item in raw_project_reentry_diagnostics if isinstance(item, str) and item.strip()]
+        if isinstance(raw_project_reentry_diagnostics, list)
+        else []
+    )
     project_reentry_candidates = _project_reentry_candidates(payload)
     selected_project_reentry_candidate = _selected_project_reentry_candidate(
         payload,
@@ -762,6 +776,7 @@ def build_recovery_advice(
         project_reentry_mode=inferred_reentry_mode,
         project_reentry_requires_selection=project_reentry_requires_selection,
         project_reentry_reason=project_reentry_reason,
+        project_reentry_diagnostics=project_reentry_diagnostics,
         current_workspace_resumable=current_workspace_resumable,
         current_workspace_has_recovery=current_workspace_has_recovery,
         current_workspace_has_resume_file=current_workspace_has_resume_file,

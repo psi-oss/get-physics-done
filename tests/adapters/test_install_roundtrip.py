@@ -356,12 +356,12 @@ def _assert_installed_contract_visibility(
     assert "`uncertainty_markers`" in new_project
     assert "`context_intake`, `approach_policy`, and `uncertainty_markers` must each stay as objects, not strings or lists." in new_project
     assert "review_mode: publication" in write_paper
-    assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in write_paper
-    assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in write_paper
-    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in write_paper
-    assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in write_paper
-    assert "GPD/REFEREE-REPORT{round_suffix}.md" in write_paper
-    assert "GPD/REFEREE-REPORT{round_suffix}.tex" in write_paper
+    assert "${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md" in write_paper
+    assert "${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md" in write_paper
+    assert "${selected_review_root}/REVIEW-LEDGER{round_suffix}.json" in write_paper
+    assert "${selected_review_root}/REFEREE-DECISION{round_suffix}.json" in write_paper
+    assert "${selected_publication_root}/REFEREE-REPORT{round_suffix}.md" in write_paper
+    assert "references/publication/publication-review-round-artifacts.md" in write_paper
 
     assert "Canonical contract schema and hard validation rules" in plan_phase
     assert (
@@ -611,6 +611,26 @@ class TestCodexRoundtrip:
             fm = content[3:end]
             assert "name:" in fm, f"{skill_dir.name} missing name field"
             assert "description:" in fm, f"{skill_dir.name} missing description field"
+
+    def test_generated_skills_stay_within_budget_and_basic_hygiene(self, installed: tuple[Path, Path]) -> None:
+        """Generated Codex skills stay bounded and have no unresolved install syntax."""
+        _, skills = installed
+        skill_paths = sorted(skills.glob("gpd-*/SKILL.md"))
+
+        assert skill_paths
+        for skill_md in skill_paths:
+            content = skill_md.read_text(encoding="utf-8")
+            line_count = len(content.splitlines())
+            char_count = len(content)
+
+            assert line_count <= 2_700, f"{skill_md.parent.name} has {line_count} lines"
+            assert char_count <= 145_000, f"{skill_md.parent.name} has {char_count} chars"
+            assert content.count("<codex_runtime_notes>") == 1, skill_md.parent.name
+            assert content.count("</codex_runtime_notes>") == 1, skill_md.parent.name
+            assert content.count("<!-- Managed by Get Physics Done (GPD). -->") == 1, skill_md.parent.name
+            assert "{GPD_INSTALL_DIR}" not in content, skill_md.parent.name
+            assert "@{GPD_INSTALL_DIR}" not in content, skill_md.parent.name
+            assert "/gpd:" not in content, skill_md.parent.name
 
     def test_command_count_matches_source(self, installed: tuple[Path, Path]) -> None:
         """Number of skills matches source command count."""

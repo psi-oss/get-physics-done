@@ -68,7 +68,7 @@ def test_verify_work_uses_frontmatter_session_lookup_and_canonical_verification_
     workflow = _read(WORKFLOWS_DIR / "verify-work.md")
 
     assert "gpd frontmatter get \"$file\" --field session_status" in workflow
-    assert "Only treat files whose frontmatter `session_status` is `validating` or `diagnosed` as active researcher sessions." in workflow
+    assert "Active sessions are files with frontmatter `session_status` of `validating` or `diagnosed`." in workflow
     assert "Human-readable headings in the verifier output are presentation only; route on the canonical verification frontmatter and `gpd_return.status`, not on headings or marker strings." in workflow
     assert "gpd_return.status" in workflow
     assert "rg -l '^session_status: (validating|diagnosed)$' GPD/phases/*/*-VERIFICATION.md 2>/dev/null | sort | head-5" not in workflow

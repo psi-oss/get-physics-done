@@ -28,6 +28,7 @@ def test_runtime_cli_allows_help_passthrough_as_root_flag(
             {
                 "runtime": runtime_name,
                 "install_scope": "local",
+                "explicit_target": False,
                 "install_target_dir": str(config_dir),
             }
         ),
@@ -77,6 +78,7 @@ def test_runtime_cli_allows_version_passthrough_as_root_flag(
             {
                 "runtime": runtime_name,
                 "install_scope": "local",
+                "explicit_target": False,
                 "install_target_dir": str(config_dir),
             }
         ),
@@ -272,13 +274,26 @@ def test_runtime_cli_repair_command_projection_respects_env_overridden_global_ta
                     if item.runtime_name != _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name
                 ),
                 "install_scope": "local",
+                "explicit_target": False,
             },
             None,
             runtime_cli._BridgeFailureKind.RUNTIME_MISMATCH,
             "GPD runtime bridge mismatch",
         ),
         (
-            {"runtime": _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name, "install_scope": "local"},
+            {
+                "runtime": next(
+                    item.runtime_name
+                    for item in iter_runtime_descriptors()
+                    if item.runtime_name != _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name
+                ),
+            },
+            None,
+            runtime_cli._BridgeFailureKind.RUNTIME_MISMATCH,
+            "GPD runtime bridge mismatch",
+        ),
+        (
+            {"runtime": _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name, "install_scope": "local", "explicit_target": False},
             ("missing-artifact.txt",),
             runtime_cli._BridgeFailureKind.MISSING_INSTALL_ARTIFACTS,
             "Missing required install artifacts",
@@ -311,6 +326,9 @@ def test_runtime_cli_classifies_bridge_failures_with_stable_kinds(
     manifest_scope_status, manifest_scope_payload, manifest_install_scope = runtime_cli.load_install_manifest_scope_status(
         config_dir
     )
+    manifest_explicit_target_status, _manifest_explicit_target_payload, _manifest_explicit_target = (
+        runtime_cli.load_install_manifest_explicit_target_status(config_dir)
+    )
     if manifest_scope_status == "ok":
         manifest_install_scope = manifest_scope_payload.get("install_scope")
         if not isinstance(manifest_install_scope, str):
@@ -326,6 +344,7 @@ def test_runtime_cli_classifies_bridge_failures_with_stable_kinds(
         manifest_runtime=manifest_runtime,
         manifest_scope_status=manifest_scope_status,
         manifest_install_scope=manifest_install_scope,
+        manifest_explicit_target_status=manifest_explicit_target_status,
         missing=artifact_override,
         has_managed_install_markers=runtime_cli.config_dir_has_managed_install_markers(config_dir),
     )
@@ -354,6 +373,7 @@ def test_runtime_cli_rejects_manifest_install_scope_mismatch(
             {
                 "runtime": runtime_name,
                 "install_scope": manifest_scope,
+                "explicit_target": False,
                 "install_target_dir": str(config_dir),
             }
         ),

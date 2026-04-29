@@ -66,5 +66,22 @@ def test_state_schema_documents_structured_list_and_alignment_fields() -> None:
     assert "### `ContractAlignmentGate`" in text
 
 
+def test_state_schema_uses_public_state_persistence_wording() -> None:
+    text = _state_schema_text()
+
+    assert "public state persistence path" in text
+    assert "Public state commands parse markdown-visible fields" in text
+    assert "Public state commands that update canonical JSON regenerate the human-readable STATE.md view" in text
+    for internal_helper in (
+        "save_state_markdown",
+        "save_state_json",
+        "sync_state_json",
+        "generate_state_markdown",
+        "load_state_json",
+        "file_lock",
+    ):
+        assert internal_helper not in text
+
+
 def test_roadmap_status_values_match_core_state() -> None:
     assert _roadmap_status_values() == VALID_STATUSES

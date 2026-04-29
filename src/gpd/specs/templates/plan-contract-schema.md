@@ -108,15 +108,11 @@ Rules:
 - `deliverables[]` may only reference declared `deliverables[].id`.
 - `acceptance_tests[]` may only reference declared `acceptance_tests[].id`.
 - `references[]` may only reference declared `references[].id`.
-- `claim_kind` is optional and defaults to `other` only for non-proof work; proof-bearing claims must set it explicitly and must not leave it at `other`.
-- `claim_kind: theorem|lemma|corollary|proposition|result|claim|other`
+- `claim_kind` is optional and defaults to `other` only for non-proof work; proof-bearing claims must follow the shared proof-obligation rules below.
 - Closed-vocabulary enum fields use the exact lowercase literals shown here. Case drift such as `Theorem`, `Benchmark`, or `Read` fails strict validation.
-- For theorem/proof work, enumerate `parameters[]`, `hypotheses[]`, `quantifiers[]`, `conclusion_clauses[]`, and `proof_deliverables[]` so proof audits can spot dropped assumptions, specialized parameters, and narrowed conclusions.
-- Keep nested proof lists as YAML arrays, even for one item: `parameters[].aliases`, `hypotheses[].symbols`, `quantifiers`, and `proof_deliverables` must not collapse to scalar strings.
 - `proof_deliverables[]` may only reference declared `deliverables[].id`.
-- Treat a claim as proof-bearing whenever any of these is true: `claim_kind` is `theorem|lemma|corollary|proposition|claim`; the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language); any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`); or `observables[]` references a `proof_obligation` target.
-- Proof-bearing claims must use an explicit non-`other` `claim_kind`, declare at least one proof-specific acceptance test in `acceptance_tests[]`, and surface `proof_deliverables`, `parameters`, `hypotheses`, and `conclusion_clauses` so the proof obligation is auditable.
-- `required_in_proof` must be a literal JSON boolean (`true` or `false`), not a quoted string or synonym such as `"yes"` / `"no"`.
+
+@{GPD_INSTALL_DIR}/templates/contract-proof-obligation-rules.md
 
 ### `context_intake`
 

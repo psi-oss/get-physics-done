@@ -46,15 +46,27 @@ When `gpd --raw validate paper-quality --from-project .` runs, the journal is re
 This workflow uses the staged write-paper init surface at stage boundaries. Load the matching `--stage` payload before relying on fields or authority documents introduced by that stage.
 
 ```bash
-PAPER_BOOTSTRAP_INIT=$(gpd --raw init write-paper --stage paper_bootstrap)
+WRITE_PAPER_ARGUMENTS="${ARGUMENTS:-}"
+if [ -n "$WRITE_PAPER_ARGUMENTS" ]; then
+  PAPER_BOOTSTRAP_INIT=$(gpd --raw init write-paper --stage paper_bootstrap -- "$WRITE_PAPER_ARGUMENTS")
+else
+  PAPER_BOOTSTRAP_INIT=$(gpd --raw init write-paper --stage paper_bootstrap)
+fi
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $PAPER_BOOTSTRAP_INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 INIT="$PAPER_BOOTSTRAP_INIT"
+PROJECT_ROOT=$(echo "$INIT" | gpd json get .project_root --default "")
+if [ -n "$PROJECT_ROOT" ]; then
+  cd "$PROJECT_ROOT" || {
+    echo "ERROR: could not enter resolved project root: $PROJECT_ROOT"
+    exit 1
+  }
+fi
 ```
 
-Parse bootstrap JSON for: the manifest-owned `paper_bootstrap.required_init_fields` in `write-paper-stage-manifest.json`, including `project_contract_gate`, `contract_intake`, `effective_reference_intake`, publication routing fields (`publication_subject_slug`, `publication_lane_kind`, `publication_lane_owner`, `selected_publication_root`, `selected_review_root`, `managed_publication_root`, `managed_manuscript_root`, `publication_intake_root`), manuscript artifact paths, protocol bundle fields, active reference context, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, and `derived_manuscript_proof_review_status`. Do not maintain a second inline field list here.
+Parse bootstrap JSON using the manifest-owned `paper_bootstrap.required_init_fields` in `write-paper-stage-manifest.json`. Keep `project_contract_gate` visible before authoritative-use decisions; do not duplicate the manifest's required-field list in prose. When later steps need publication routing, manuscript artifact paths, protocol bundle fields, active references, or derived manuscript review statuses, read them from the staged payload by their manifest names.
 
 **Load mode settings:**
 
@@ -70,7 +82,7 @@ Mode effects on the write-paper pipeline:
 - **Balanced autonomy**: Auto-generate the outline from the research digest, draft all sections, and continue automatically unless the outline, a draft section, or referee feedback exposes a genuine ambiguity, missing evidence path, claim-level decision, or major structural change. Do not force a routine outline-approval pause in balanced mode.
 - **YOLO autonomy**: Draft all sections, run referee, and present the final result with only hard-stop interruptions.
 
-For detailed mode adaptation specifications (bibliographer search breadth, referee strictness, paper-writer style by mode), see `{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md`.
+The full mode matrix is loaded by `outline_and_scaffold`; until then, use the compact mode effects below.
 
 Normalize the launch into one of two lanes before preflight:
 
@@ -89,7 +101,6 @@ If the normalized write-paper argument payload begins with `--`, pass it to the 
 Run centralized context preflight before continuing:
 
 ```bash
-WRITE_PAPER_ARGUMENTS="$ARGUMENTS"
 CONTEXT=$(gpd --raw validate command-context write-paper -- "$WRITE_PAPER_ARGUMENTS")
 if [ $? -ne 0 ]; then
   echo "$CONTEXT"
@@ -462,9 +473,10 @@ ls GPD/literature/*-REVIEW.md 2>/dev/null
 1. Does a project bibliography exist (`references/references.bib` or `${PAPER_DIR}/references.bib`)?
 2. Does at least one `GPD/literature/*-REVIEW.md` or phase `RESEARCH.md` exist?
 3. Are key prior works identified (the research digest's "Prior Work" or literature review)?
-4. If `GPD/literature/*-CITATION-SOURCES.json` exists for the current topic, treat it as the citation-source handoff from literature-review and pass it through `gpd paper-build --citation-sources` instead of reconstructing the list manually.
-5. If `derived_manuscript_reference_status` is present in the init/context payload, use it as the manuscript-local status summary for the active manuscript instead of reconstructing read/verified/cited state from prose or source ordering.
-6. `gpd paper-build` is the authoritative step that regenerates `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` and the derived `reference_id -> bibtex_key` bridge for the active manuscript root. Rerun it whenever the bibliography or citation set changes before strict review. The JSON audit is the review contract artifact; `${PAPER_DIR}/CITATION-AUDIT.md` is only the human-readable report.
+4. Resolve exactly one `ACTIVE_BIBLIOGRAPHY_PATH` from the latest `gpd paper-build` output / `PAPER-CONFIG.json` `bib_file` / existing bibliography files. Use that path in bibliographer prompts and `files_written` checks; do not hardcode `references/references.bib` when the active manuscript uses `${PAPER_DIR}/references.bib`.
+5. If `GPD/literature/*-CITATION-SOURCES.json` exists for the current topic, treat it as the citation-source handoff from literature-review and pass it through `gpd paper-build --citation-sources` instead of reconstructing the list manually.
+6. If `derived_manuscript_reference_status` is present in the init/context payload, use it as the manuscript-local status summary for the active manuscript instead of reconstructing read/verified/cited state from prose or source ordering.
+7. `gpd paper-build` regenerates `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` and the `reference_id -> bibtex_key` bridge for the active manuscript root. Rerun it whenever the bibliography or citation set changes before strict review. The JSON audit is the review contract artifact; `${PAPER_DIR}/CITATION-AUDIT.md` is the fresh human-readable audit.
    For the default bootstrap path, this means: rerun `paper-build` so `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` reflects the current bibliography before strict review.
 
 **No bibliography file, no literature review, and no citation-source sidecar** → WARNING (citations will need to be built from scratch).
@@ -553,13 +565,15 @@ Generate a detailed outline tailored to the journal format.
 Load the staged outline/scaffold payload before using outline-time publication scaffolding fields or paper schema authorities:
 
 ```bash
-OUTLINE_INIT=$(gpd --raw init write-paper --stage outline_and_scaffold)
+OUTLINE_INIT=$(gpd --raw init write-paper --stage outline_and_scaffold -- "${WRITE_PAPER_ARGUMENTS:-}")
 if [ $? -ne 0 ]; then
   echo "ERROR: write-paper outline/scaffold init failed: $OUTLINE_INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 INIT="$OUTLINE_INIT"
 ```
+
+Apply `{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md` from this staged payload before outline-level mode decisions, including bibliographer search breadth, referee strictness, and paper-writer style by mode.
 
 For each section:
 
@@ -637,11 +651,9 @@ When authoring `${PAPER_DIR}/PAPER-CONFIG.json`:
 - do not invent extra keys just because a journal asks for extra prose; put that prose in the section content instead
 - do not reuse `${PAPER_DIR}/PAPER-CONFIG.json` as the external-authoring intake contract; it is a manuscript-root builder artifact only
 
-Canonical schema for `${PAPER_DIR}/ARTIFACT-MANIFEST.json`:
-@{GPD_INSTALL_DIR}/templates/paper/artifact-manifest-schema.md
+Canonical schema for `${PAPER_DIR}/ARTIFACT-MANIFEST.json`: `{GPD_INSTALL_DIR}/templates/paper/artifact-manifest-schema.md`
 
-Canonical schema for `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`:
-@{GPD_INSTALL_DIR}/templates/paper/bibliography-audit-schema.md
+The canonical schema for `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` is loaded by `consistency_and_references`.
 
 Treat both emitted JSON artifacts as strict review inputs. If they need to be recreated or repaired, match those schema surfaces exactly instead of inventing keys from prose memory.
 
@@ -656,7 +668,7 @@ Treat both emitted JSON artifacts as strict review inputs. If they need to be re
 Load the staged figure/section authoring payload before generating figures or spawning paper-writer section agents:
 
 ```bash
-AUTHORING_INIT=$(gpd --raw init write-paper --stage figure_and_section_authoring)
+AUTHORING_INIT=$(gpd --raw init write-paper --stage figure_and_section_authoring -- "${WRITE_PAPER_ARGUMENTS:-}")
 if [ $? -ne 0 ]; then
   echo "ERROR: write-paper authoring init failed: $AUTHORING_INIT"
   # STOP — display the error to the user and do not proceed.
@@ -672,7 +684,7 @@ mkdir -p "${PAPER_DIR}/figures"
 
 Before drafting sections, generate all planned figures:
 
-1. Before reading or updating `${PAPER_DIR}/FIGURE_TRACKER.md`, load `@{GPD_INSTALL_DIR}/templates/paper/figure-tracker.md` and treat its `figure_registry` frontmatter as the schema source of truth. Keep the registry machine-readable for paper-quality scoring; do not invent ad hoc keys or collapse it into prose.
+1. Before reading or updating `${PAPER_DIR}/FIGURE_TRACKER.md`, load `{GPD_INSTALL_DIR}/templates/paper/figure-tracker.md` and treat its `figure_registry` frontmatter as the schema source of truth. Keep the registry machine-readable for paper-quality scoring; do not invent ad hoc keys or collapse it into prose.
 2. Read `${PAPER_DIR}/FIGURE_TRACKER.md` for figure specifications
 3. For each figure with status != "Final":
    a. Locate source data (from phase directories)
@@ -750,7 +762,7 @@ If the file exists, proceed to the next section.
 **For each section, spawn a writer agent:**
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
-> If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> Apply the canonical runtime delegation convention already loaded above.
 
 ```
 task(
@@ -842,13 +854,15 @@ After all sections are drafted, verify internal consistency:
 Load the staged consistency/reference payload before notation checks, bibliography verification, or reproducibility manifest work:
 
 ```bash
-CONSISTENCY_INIT=$(gpd --raw init write-paper --stage consistency_and_references)
+CONSISTENCY_INIT=$(gpd --raw init write-paper --stage consistency_and_references -- "${WRITE_PAPER_ARGUMENTS:-}")
 if [ $? -ne 0 ]; then
   echo "ERROR: write-paper consistency/reference init failed: $CONSISTENCY_INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 INIT="$CONSISTENCY_INIT"
 ```
+
+Canonical schema for `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`: `{GPD_INSTALL_DIR}/templates/paper/bibliography-audit-schema.md`
 
 **Notation audit:**
 
@@ -954,9 +968,7 @@ Resolve bibliographer model:
 ```bash
 BIBLIO_MODEL=$(gpd resolve-model gpd-bibliographer)
 ```
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
-
-> If subagent spawning is unavailable, execute these steps sequentially in the main context.
+Apply the canonical runtime delegation convention already loaded above.
 
 ```
 task(
@@ -970,7 +982,7 @@ Verify all references in the paper and audit citation completeness.
 Mode: Audit bibliography + Audit manuscript
 
 Paper directory: ${PAPER_DIR}/
-Bibliography: `references/references.bib` (preferred) or `${PAPER_DIR}/references.bib` if the manuscript keeps a local copy
+Bibliography: `{ACTIVE_BIBLIOGRAPHY_PATH}` (the resolved active bibliography for this manuscript)
 Citation sources: `GPD/literature/*-CITATION-SOURCES.json` when literature-review has already assembled a machine-readable citation list for the current topic
 Manuscript tree: all `.tex` files under `${PAPER_DIR}` recursively, rooted at the manifest-resolved manuscript directory
 Target journal: {target_journal}
@@ -986,14 +998,13 @@ Tasks:
 
 Write audit report to ${PAPER_DIR}/CITATION-AUDIT.md
 
-Return a typed `gpd_return` envelope. Use `status: completed` when the bibliography task finished, even if the human-readable heading is `## CITATION ISSUES FOUND`; use `status: checkpoint` only when researcher input is required to continue. A completed return must list `references/references.bib` and `GPD/references-status.json` in `gpd_return.files_written`, and both files must exist on disk before the bibliography pass is accepted."
+Return a typed `gpd_return` envelope. Use `status: completed` when the bibliography task finished, even if the human-readable heading is `## CITATION ISSUES FOUND`; use `status: checkpoint` only when researcher input is required to continue. A completed return must always list `${PAPER_DIR}/CITATION-AUDIT.md` and `GPD/references-status.json` in `gpd_return.files_written`; list `{ACTIVE_BIBLIOGRAPHY_PATH}` only when the bibliography file changed. The active bibliography file must exist on disk before the bibliography pass is accepted."
 )
 ```
 
 **If the bibliographer agent fails to spawn or returns an error:** Do not mark bibliography verification complete. Offer: 1) Retry the bibliographer, 2) Run the audit in the main context, 3) Stop and leave citation status unverified. Do not proceed to strict review, reproducibility-manifest generation, or final review until `${PAPER_DIR}/CITATION-AUDIT.md` and the refreshed `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` exist.
 
-Treat `${PAPER_DIR}/CITATION-AUDIT.md`, the refreshed `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, and the bibliographer's typed `gpd_return` envelope as the bibliography success gate; all three must be present, and the typed return must name the bibliography outputs, before the pass is accepted.
-If the typed return is missing, blocked, or does not name the bibliography outputs, keep the bibliography pass incomplete even if older audit files are still on disk.
+Treat `${PAPER_DIR}/CITATION-AUDIT.md`, the refreshed `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, the existing `{ACTIVE_BIBLIOGRAPHY_PATH}`, and the bibliographer's typed `gpd_return` envelope as the bibliography success gate. The typed return must name `${PAPER_DIR}/CITATION-AUDIT.md` and `GPD/references-status.json`, and must name `{ACTIVE_BIBLIOGRAPHY_PATH}` only when the bibliography changed; otherwise keep the pass incomplete even if older audit files are still on disk.
 
 **If the bibliographer completed with issues recorded in the audit report or `GPD/references-status.json`:**
 
@@ -1021,12 +1032,7 @@ If the typed return is missing, blocked, or does not name the bibliography outpu
 <step name="reproducibility_manifest">
 Before strict review, create or refresh the reproducibility manifest the publication review contract expects.
 
-Use the canonical schema:
-
-- `{GPD_INSTALL_DIR}/templates/paper/reproducibility-manifest.md`
-
-Canonical schema for `${PAPER_DIR}/reproducibility-manifest.json`:
-@{GPD_INSTALL_DIR}/templates/paper/reproducibility-manifest.md
+Canonical schema for `${PAPER_DIR}/reproducibility-manifest.json`: `{GPD_INSTALL_DIR}/templates/paper/reproducibility-manifest.md`
 
 Create or update:
 
@@ -1047,12 +1053,6 @@ Validate it before entering strict review:
 gpd --raw validate reproducibility-manifest "${PAPER_DIR}/reproducibility-manifest.json" --strict
 ```
 
-For the current fresh-bootstrap path, the validation command is:
-
-```bash
-gpd --raw validate reproducibility-manifest "${PAPER_DIR}/reproducibility-manifest.json" --strict
-```
-
 If validation fails, stop and fix the manifest now. Do not enter `pre_submission_review` with a missing or non-review-ready reproducibility manifest, because strict review preflight will block on it.
 </step>
 
@@ -1062,7 +1062,7 @@ Branch by write-paper lane before finalizing:
 Load the staged publication-review payload before running the embedded peer-review panel or evaluating review-round artifacts:
 
 ```bash
-PUBLICATION_REVIEW_INIT=$(gpd --raw init write-paper --stage publication_review)
+PUBLICATION_REVIEW_INIT=$(gpd --raw init write-paper --stage publication_review -- "${WRITE_PAPER_ARGUMENTS:-}")
 if [ $? -ne 0 ]; then
   echo "ERROR: write-paper publication-review init failed: $PUBLICATION_REVIEW_INIT"
   # STOP — display the error to the user and do not proceed.
@@ -1083,11 +1083,9 @@ For theorem-style or `proof_obligation` claims, this stage also carries the mand
 5. `gpd-review-significance`
 6. `gpd-referee` as final adjudicator
 
-Apply the shared publication round contract exactly:
+Apply the shared publication round contract at `{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md` exactly.
 
-@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md
-
-Then follow `@{GPD_INSTALL_DIR}/workflows/peer-review.md` exactly, using the resolved `${PAPER_DIR}/{topic_specific_stem}.tex` target recorded in `ARTIFACT-MANIFEST.json` as the review target. Keep the current `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, and `active_reference_context` visible throughout that staged review; the contract remains authoritative only when `project_contract_gate.authoritative` is true.
+Then follow `{GPD_INSTALL_DIR}/workflows/peer-review.md` exactly, using the resolved `${PAPER_DIR}/{topic_specific_stem}.tex` target recorded in `ARTIFACT-MANIFEST.json` as the review target. Keep the current `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, and `active_reference_context` visible throughout that staged review; the contract remains authoritative only when `project_contract_gate.authoritative` is true.
 
 **If the staged panel fails:** Do not silently waive the review. Note the failure and recommend running `gpd:peer-review` directly after resolving the blocking issue.
 
@@ -1174,9 +1172,7 @@ When revising a paper in response to referee reports:
 
 3. **Produce paired response artifacts after the edits land:** Spawn a paper-writer agent to produce the structured author response and response letter that the gpd-referee expects for multi-round review:
 
-   @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
-
-   > If subagent spawning is unavailable, execute these steps sequentially in the main context.
+   Apply the canonical runtime delegation convention already loaded above.
 
    ```
    task(
@@ -1199,10 +1195,6 @@ When revising a paper in response to referee reports:
      description="Author response: round {N}"
    )
    ```
-
-   Apply the shared publication response-writer handoff exactly:
-
-   @{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md
 
    **If the response-handoff agent fails to spawn or returns an error:** Check the agent's typed `gpd_return.status` first. If it returned `status: completed`, verify that `gpd_return.files_written` names both `${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md` and `${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md`, and verify both files exist on disk. If it returned `status: checkpoint`, treat that as a fresh continuation handoff rather than completion. If it returned `status: blocked` or `status: failed`, treat the response as incomplete. Do not accept preexisting response files as a substitute for a successful spawn; the round remains incomplete until a fresh typed return names both outputs and both files exist on disk.
    Treat `${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md`, `${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md`, and the writer's typed `gpd_return` envelope as the response success gate. If the shared gate is not satisfied, offer: 1) Retry the agent, 2) Draft the response artifacts in the main context using the referee report and revised manuscript, 3) Skip structured response and proceed directly to calculation tracking.

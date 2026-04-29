@@ -12,7 +12,11 @@ Read all files referenced by the invoking prompt's execution_context before star
 **Validate GPD project and observability data:**
 
 ```bash
-gpd validate command-context gpd:export-logs $ARGUMENTS
+CONTEXT=$(gpd --raw validate command-context export-logs "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
 ```
 
 Check that `GPD/observability/sessions/` exists and contains at least one `.jsonl` file:
@@ -31,7 +35,7 @@ ls GPD/observability/sessions/*.jsonl 2>/dev/null | head -5
 No observability sessions found in GPD/observability/sessions/.
 
 Session logs are recorded automatically during GPD command execution.
-Run any GPD command first, then retry gpd:export-logs.
+Run any GPD command first, then retry `export-logs`.
 ```
 
 Exit.
@@ -118,9 +122,9 @@ Parse the JSON result for `exported`, `output_dir`, `sessions_exported`, `events
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
-- `gpd:export-logs --format markdown` — human-readable report
-- `gpd:export-logs --last 5` — export only recent sessions
-- `gpd:export-logs --command gpd:execute-phase --phase 3 --category workflow` — narrow by command, phase, and event category
+- `export-logs --format markdown` — human-readable report
+- `export-logs --last 5` — export only recent sessions
+- `export-logs --command execute-phase --phase 3 --category workflow` — narrow by command, phase, and event category
 - `gpd observe show` — inspect events interactively
 - `gpd observe sessions` — list available sessions
 

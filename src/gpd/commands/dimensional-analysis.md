@@ -82,14 +82,7 @@ Preserve workspace-locked initialization, keep standalone/current-workspace dura
 
 <success_criteria>
 
-- [ ] Unit system established (natural, SI, etc.)
-- [ ] Dimensional assignments built for all quantities
-- [ ] Every equation in target identified and numbered
-- [ ] Term-by-term analysis performed on each equation
-- [ ] Function arguments verified dimensionless
-- [ ] Integration measures checked
-- [ ] Delta function dimensions verified
-- [ ] Natural units restored for key results
-- [ ] Report generated with all anomalies classified
-- [ ] Anomalies linked to specific locations in the derivation
-      </success_criteria>
+- [ ] Command context validated
+- [ ] Dimensional-analysis workflow executed as the authority for audit mechanics
+- [ ] Standalone/current-workspace outputs kept under `GPD/analysis/`
+</success_criteria>

@@ -38,13 +38,14 @@ For most research targets that means actual computation. For proof-bearing or `p
 </core_principle>
 
 <required_reading>
-@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md
-@{GPD_INSTALL_DIR}/references/verification/core/verification-numerical.md
-@{GPD_INSTALL_DIR}/references/verification/core/verification-child-return-contract.md
-@{GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md
-@{GPD_INSTALL_DIR}/references/protocols/error-propagation-protocol.md
-@{GPD_INSTALL_DIR}/templates/verification-report.md
-@{GPD_INSTALL_DIR}/templates/contract-results-schema.md
+Do not raw-include the verification reference library at workflow load. Load only at the consuming step:
+
+- `{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` -> universal decisive-check rules in `verify_contract_targets`
+- `{GPD_INSTALL_DIR}/references/verification/core/verification-numerical.md` -> numerical/statistical checks in `physics_specific_verification`
+- `{GPD_INSTALL_DIR}/references/verification/core/verification-child-return-contract.md` -> verifier return envelope routing
+- `{GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md` -> context include/exclude choices
+- `{GPD_INSTALL_DIR}/references/protocols/error-propagation-protocol.md` -> uncertainty or propagation targets
+- `{GPD_INSTALL_DIR}/templates/verification-report.md` and `{GPD_INSTALL_DIR}/templates/contract-results-schema.md` -> immediately before writing `VERIFICATION.md`
 </required_reading>
 
 <process>
@@ -82,7 +83,7 @@ grep -E "^| ${phase_number}" GPD/REQUIREMENTS.md 2>/dev/null
 
 Extract **phase goal** from ROADMAP.md (the research outcome to verify, not tasks) and **requirements** from REQUIREMENTS.md if it exists.
 
-**Verification independence:** Load only what the verifier needs to judge results on their own merits. See @{GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md.
+**Verification independence:** Load only what the verifier needs to judge results on their own merits. See {GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md.
 
 If `derived_manuscript_proof_review_status` is present, use it as the structured freshness summary for any manuscript-local proof-bearing artifact and keep the corresponding `*-PROOF-REDTEAM.md` artifact authoritative for pass/fail decisions.
 If `project_contract_gate.visible` is true, keep `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, and `protocol_bundle_context` in the verifier context even when `project_contract_gate.authoritative` is false. They remain visible carry-forward context, not authoritative scope, until the gate clears. Stable knowledge docs that surface through this context are reviewed background synthesis only: they may guide check selection and interpretation, but they do not override the contract, the gate, or decisive evidence.
@@ -159,21 +160,9 @@ Detect whether any verification target is proof-bearing.
 
 Use the shared verification child-return contract for the generic handoff mechanics; keep the proof-redteam requirements below authoritative.
 
-Treat a target as proof-bearing when:
+Load `{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-workflow-gate.md` now if any target is proof-bearing.
 
-- the contract includes an observable or claim with kind `proof_obligation`
-- a claim, deliverable, or acceptance test is theorem-style (`theorem`, `lemma`, `corollary`, `proposition`, `claim`, `proof`, `prove`, `show that`)
-- the result is a formal derivation whose truth depends on all named hypotheses, parameters, or quantifiers being used correctly
-
-If ambiguous, default to proof-bearing.
-
-For each proof-bearing plan or claim, require the sibling `*-PROOF-REDTEAM.md` artifact. Read it and verify that it contains:
-
-1. the theorem or claim text being audited
-2. the inventory of named parameters, hypotheses, quantifier/domain obligations, and conclusion clauses
-3. explicit coverage notes showing where each obligation is used in the proof
-4. at least one adversarial special-case or counterexample probe
-5. canonical `status: passed | gaps_found | human_needed`
+For each proof-bearing plan or claim, require the sibling `*-PROOF-REDTEAM.md` artifact. Read it and verify that it follows the shared gate above.
 
 Missing artifact, missing theorem inventory, or `status != passed` is a blocking gap. Do not allow the phase verification report to finish at `status: passed` while any required proof-redteam artifact is missing or open.
 When runtime delegation is available and a required audit is missing, malformed, or stale, spawn `gpd-check-proof` once to repair that gap before finalizing the verdict. If the proof critic cannot produce a passed audit, keep the target blocked rather than inferring theorem-proof alignment from the main verifier context.
@@ -196,14 +185,23 @@ task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.
 Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
 
-Operate in proof-redteam repair mode with a fresh context.
-If the runtime needs user input, return `status: checkpoint` instead of waiting inside the spawned run.
+Operate in proof-redteam repair mode with a fresh context and follow the shared verification child-return contract.
 
 Write to:
 - `${phase_dir}/${phase_number}-PROOF-REDTEAM.md`
 
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - ${phase_dir}/${phase_number}-PROOF-REDTEAM.md
+expected_artifacts:
+  - ${phase_dir}/${phase_number}-PROOF-REDTEAM.md
+shared_state_policy: return_only
+</spawn_contract>
+
 Read the proof-bearing plan or claim artifacts, the relevant PLAN contract slice, and any current verification artifact before repairing the audit.
-Return `status: checkpoint` if the runtime needs user input instead of waiting inside the spawned run.",
+Return through the typed proof-redteam handoff contract.",
   description="Repair proof redteam artifact for phase {phase_number}"
 )
 ```
@@ -513,7 +511,7 @@ A requirement is SATISFIED only if the supporting user-visible claims / delivera
 2. **Verify conservation laws** numerically by computing conserved quantities at multiple time steps
 3. **Check numerical results against analytical limiting cases** by evaluating at parameter values where analytical results are known
 4. **Spot-check output values** against independently computed test cases
-5. Reference: @{GPD_INSTALL_DIR}/workflows/numerical-convergence.md for detailed methodology
+5. Reference: {GPD_INSTALL_DIR}/workflows/numerical-convergence.md for detailed methodology
 
 For each numerical result, record:
 
@@ -559,7 +557,7 @@ If both summaries exist, check for cross-phase consistency by reading:
 2. **Previous summary artifact** — "Approximations Used" table and "Key Results" / "Equations Derived"
 3. **STATE.md** — "Active Approximations" table and "Convention Lock"
 
-Reference: @{GPD_INSTALL_DIR}/references/verification/core/verification-core.md (+ relevant domain verification file)
+Reference: {GPD_INSTALL_DIR}/references/verification/core/verification-core.md (+ relevant domain verification file)
 
 **Check the four most common cross-phase errors:**
 

@@ -28,3 +28,4 @@ def test_context_import_does_not_require_adapter_instantiation(
     assert expected_runtime_dirs <= context._runtime_config_dirs()
     assert expected_runtime_dirs <= context._ignore_dirs()
     assert payload["has_research_files"] is False
+    assert payload["research_file_samples"] == []

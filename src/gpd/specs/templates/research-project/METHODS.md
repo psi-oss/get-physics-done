@@ -12,7 +12,7 @@ template_version: 1
 
 # Methods Research Template
 
-Template for `GPD/research/METHODS.md` - recommended methods and computational tools for the research domain.
+Template for `GPD/literature/METHODS.md` - recommended methods and computational tools for the research domain.
 
 <template>
 

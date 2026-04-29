@@ -72,7 +72,7 @@ class TestRegistry:
         adapter = get_adapter(runtime)
         assert adapter.update_command == f"npx -y get-physics-done {adapter.runtime_descriptor.install_flag}"
 
-    def test_loader_uses_runtime_descriptors_to_import_modules(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_get_adapter_lazy_loads_only_requested_runtime(self, monkeypatch: pytest.MonkeyPatch) -> None:
         alpha_descriptor = RuntimeDescriptor(
             runtime_name="alpha-runtime",
             display_name="Alpha Runtime",
@@ -124,55 +124,27 @@ class TestRegistry:
             return SimpleNamespace(AlphaAdapter=AlphaAdapter, BetaAdapter=BetaAdapter)
 
         monkeypatch.setattr(adapters_module, "iter_runtime_descriptors", lambda: (beta_descriptor, alpha_descriptor))
-        monkeypatch.setattr(adapters_module, "import_module", fake_import_module)
-        monkeypatch.setattr(adapters_module, "_REGISTRY", {})
-        monkeypatch.setattr(adapters_module, "_LOADED", False)
-
-        adapters_module._ensure_loaded()
-
-        assert imported_modules == ["gpd.adapters.shared_fake_runtime", "gpd.adapters.shared_fake_runtime"]
-        assert adapters_module.list_runtimes() == ["beta-runtime", "alpha-runtime"]
-        assert isinstance(adapters_module.get_adapter("alpha-runtime"), AlphaAdapter)
-        assert isinstance(adapters_module.get_adapter("beta-runtime"), BetaAdapter)
-
-    def test_loader_rejects_duplicate_runtime_names(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        duplicate_descriptor = RuntimeDescriptor(
-            runtime_name="duplicate-runtime",
-            display_name="Duplicate Runtime",
-            priority=10,
-            config_dir_name=".duplicate",
-            install_flag="--duplicate",
-            launch_command="duplicate",
-            adapter_module="gpd.adapters.duplicate_runtime",
-            adapter_class="DuplicateAdapter",
-            command_prefix="/gpd:",
-            activation_env_vars=(),
-            selection_flags=("--duplicate",),
-            selection_aliases=("duplicate-runtime",),
-            global_config=GlobalConfigPolicy(strategy="env_or_home", home_subpath=".duplicate"),
-            hook_payload=HookPayloadPolicy(),
-        )
-
-        class DuplicateAdapter(RuntimeAdapter):
-            @property
-            def runtime_name(self) -> str:
-                return "duplicate-runtime"
-
         monkeypatch.setattr(
             adapters_module,
-            "iter_runtime_descriptors",
-            lambda: (duplicate_descriptor, duplicate_descriptor),
+            "get_runtime_descriptor",
+            lambda runtime_name: {
+                "alpha-runtime": alpha_descriptor,
+                "beta-runtime": beta_descriptor,
+            }[runtime_name],
         )
-        def fake_import_module(name: str) -> object:
-            assert name == "gpd.adapters.duplicate_runtime"
-            return SimpleNamespace(DuplicateAdapter=DuplicateAdapter)
-
         monkeypatch.setattr(adapters_module, "import_module", fake_import_module)
         monkeypatch.setattr(adapters_module, "_REGISTRY", {})
-        monkeypatch.setattr(adapters_module, "_LOADED", False)
 
-        with pytest.raises(RuntimeError, match="Duplicate runtime name in runtime catalog"):
-            adapters_module._ensure_loaded()
+        assert adapters_module.list_runtimes() == ["beta-runtime", "alpha-runtime"]
+        assert imported_modules == []
+
+        assert isinstance(adapters_module.get_adapter("alpha-runtime"), AlphaAdapter)
+        assert imported_modules == ["gpd.adapters.shared_fake_runtime"]
+        assert set(adapters_module._REGISTRY) == {"alpha-runtime"}
+
+        assert isinstance(adapters_module.get_adapter("beta-runtime"), BetaAdapter)
+        assert imported_modules == ["gpd.adapters.shared_fake_runtime", "gpd.adapters.shared_fake_runtime"]
+        assert set(adapters_module._REGISTRY) == {"alpha-runtime", "beta-runtime"}
 
     def test_loader_rejects_adapter_runtime_identity_mismatch_without_caching(
         self, monkeypatch: pytest.MonkeyPatch
@@ -204,15 +176,14 @@ class TestRegistry:
             return SimpleNamespace(MismatchedAdapter=MismatchedAdapter)
 
         monkeypatch.setattr(adapters_module, "iter_runtime_descriptors", lambda: (descriptor,))
+        monkeypatch.setattr(adapters_module, "get_runtime_descriptor", lambda runtime_name: descriptor)
         monkeypatch.setattr(adapters_module, "import_module", fake_import_module)
         monkeypatch.setattr(adapters_module, "_REGISTRY", {})
-        monkeypatch.setattr(adapters_module, "_LOADED", False)
 
         with pytest.raises(RuntimeError, match="runtime identity 'adapter-runtime'"):
-            adapters_module._ensure_loaded()
+            adapters_module.get_adapter("catalog-runtime")
 
         assert adapters_module._REGISTRY == {}
-        assert adapters_module._LOADED is False
 
 
 class TestToolNames:

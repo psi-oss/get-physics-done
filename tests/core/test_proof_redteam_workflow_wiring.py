@@ -4,12 +4,27 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from gpd.adapters.install_utils import expand_at_includes
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
+SPECS_DIR = REPO_ROOT / "src/gpd/specs"
+PROOF_GATE_REF = "@{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-workflow-gate.md"
+PROOF_GATE_PATH = "{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-workflow-gate.md"
+REPEATED_PROOF_CHECKPOINT_LINES = (
+    "If the runtime needs user input, return `status: checkpoint` instead of waiting inside this run.",
+    "If the runtime needs user input, return `status: checkpoint` instead of waiting inside the spawned run.",
+    "Return `status: checkpoint` if the runtime needs user input instead of waiting inside the spawned run.",
+    "Return `status: checkpoint` instead of waiting for user input inside this run.",
+)
 
 
 def _read(name: str) -> str:
     return (WORKFLOWS_DIR / name).read_text(encoding="utf-8")
+
+
+def _expanded(name: str) -> str:
+    return expand_at_includes(_read(name), SPECS_DIR, "/runtime/")
 
 
 def test_plan_and_execute_phase_require_proof_redteam_gates() -> None:
@@ -20,7 +35,8 @@ def test_plan_and_execute_phase_require_proof_redteam_gates() -> None:
     assert "`--skip-verify` does NOT waive checker review" in plan_phase
     assert "{plan_id}-PROOF-REDTEAM.md" in plan_phase
 
-    assert "<step name=\"detect_proof_obligation_work\">" in execute_phase
+    assert '<step name="detect_proof_obligation_work">' in execute_phase
+    assert PROOF_GATE_REF in execute_phase
     assert "workflow.verifier=false" in execute_phase
     assert "sibling `{plan_id}-PROOF-REDTEAM.md` artifact" in execute_phase
     assert "`gpd-check-proof` is the canonical owner" in execute_phase
@@ -29,13 +45,21 @@ def test_plan_and_execute_phase_require_proof_redteam_gates() -> None:
 
 
 def test_verification_workflows_fail_closed_on_missing_proof_coverage() -> None:
-    verify_phase = _read("verify-phase.md")
-    verify_work = _read("verify-work.md")
-    derive_equation = _read("derive-equation.md")
+    verify_phase_raw = _read("verify-phase.md")
+    verify_work_raw = _read("verify-work.md")
+    derive_equation_raw = _read("derive-equation.md")
+    verify_phase = _expanded("verify-phase.md")
+    verify_work = _expanded("verify-work.md")
+    derive_equation = _expanded("derive-equation.md")
+
+    assert PROOF_GATE_REF not in verify_phase_raw
+    assert PROOF_GATE_PATH in verify_phase_raw
+    assert PROOF_GATE_REF in verify_work_raw
+    assert PROOF_GATE_REF in derive_equation_raw
 
     assert "theorem-to-proof audit plus an adversarial special-case" in verify_phase
-    assert "<step name=\"proof_obligation_gate\">" in verify_phase
-    assert "fail the target if a named parameter or hypothesis disappears from the proof" in verify_phase
+    assert '<step name="proof_obligation_gate">' in verify_phase
+    assert "Missing artifact, missing theorem inventory, or `status != passed` is a blocking gap" in verify_phase
     assert "spawn `gpd-check-proof` once to repair that gap" in verify_phase
     assert "wait for user confirmation" not in verify_phase
     assert "ask the user then continue" not in verify_phase
@@ -47,7 +71,7 @@ def test_verification_workflows_fail_closed_on_missing_proof_coverage() -> None:
     assert 'task(\n  subagent_type="gpd-check-proof"' in verify_work
     assert "additional mandatory floor applies" in verify_work
 
-    assert "<step name=\"proof_obligation_screen\">" in derive_equation
+    assert '<step name="proof_obligation_screen">' in derive_equation
     assert "DERIVATION-{slug}-PROOF-REDTEAM.md" in derive_equation
     assert "gpd-check-proof" in derive_equation
     assert "CHECK_PROOF_MODEL=$(gpd resolve-model gpd-check-proof)" in derive_equation
@@ -55,10 +79,30 @@ def test_verification_workflows_fail_closed_on_missing_proof_coverage() -> None:
     assert "Proof-bearing derivations fail closed" in derive_equation
 
 
+def test_proof_redteam_handoffs_delegate_checkpoint_semantics_to_shared_contracts() -> None:
+    workflow_names = (
+        "derive-equation.md",
+        "execute-phase.md",
+        "verify-phase.md",
+        "verify-work.md",
+        "peer-review.md",
+    )
+
+    combined = "\n".join(_read(name) for name in workflow_names)
+
+    for phrase in REPEATED_PROOF_CHECKPOINT_LINES:
+        assert phrase not in combined
+
+    assert combined.count("proof-redteam protocol's one-shot return semantics") == 3
+    assert combined.count("typed proof-redteam handoff contract") == 2
+    assert "shared verification child-return contract" in combined
+
+
 def test_quick_publication_and_settings_surfaces_block_proof_bypass() -> None:
     quick = _read("quick.md")
     write_paper = _read("write-paper.md")
-    peer_review = _read("peer-review.md")
+    peer_review = _expanded("peer-review.md")
+    peer_review_raw = _read("peer-review.md")
     settings = _read("settings.md")
 
     assert "Quick mode is NOT authorized to close theorem-style or `proof_obligation` work." in quick
@@ -69,7 +113,8 @@ def test_quick_publication_and_settings_surfaces_block_proof_bypass() -> None:
     assert "GPD/review/PROOF-REDTEAM{round_suffix}.md" in write_paper
     assert "must not strengthen, generalize, or rhetorically smooth theorem-style claims" in write_paper
 
-    assert "<step name=\"detect_proof_bearing_manuscript\">" in peer_review
+    assert '<step name="detect_proof_bearing_manuscript">' in peer_review
+    assert PROOF_GATE_REF in peer_review_raw
     assert "${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md" in peer_review
     assert "gpd-check-proof" in peer_review
     assert "may be running in parallel" in peer_review
@@ -81,24 +126,22 @@ def test_quick_publication_and_settings_surfaces_block_proof_bypass() -> None:
     assert "Sparse cadence does not waive proof red-teaming" in settings
 
 
-def test_proof_obligation_detection_lists_include_claim_language() -> None:
+def test_proof_obligation_detection_distinguishes_generic_manuscript_claims() -> None:
+    proof_gate = (SPECS_DIR / "references/verification/core/proof-redteam-workflow-gate.md").read_text(encoding="utf-8")
     quick = _read("quick.md")
-    plan_phase = _read("plan-phase.md")
-    execute_phase = _read("execute-phase.md")
-    derive_equation = _read("derive-equation.md")
-    verify_phase = _read("verify-phase.md")
-    verify_work = _read("verify-work.md")
-    peer_review = _read("peer-review.md")
-    write_paper = _read("write-paper.md")
+    peer_review = _expanded("peer-review.md")
 
-    for content in (
-        quick,
-        plan_phase,
-        execute_phase,
-        derive_equation,
-        verify_phase,
-        verify_work,
-        peer_review,
-        write_paper,
-    ):
-        assert "`claim`" in content
+    assert (
+        "ProjectContract` vocabulary such as `claim_kind: theorem | lemma | corollary | proposition | claim`"
+        in proof_gate
+    )
+    assert "A generic manuscript claim" in proof_gate
+    assert "the bare word `claim` is not proof-bearing by itself" in proof_gate
+    assert (
+        "Require theorem/proof/formal metadata before routing generic manuscript claims through proof-redteam."
+        in proof_gate
+    )
+
+    assert "ProjectContract `claim_kind: claim`" in quick
+    assert 'A generic manuscript or task "claim" is not enough by itself.' in quick
+    assert "Paper `ClaimRecord.claim_kind: claim`" in peer_review

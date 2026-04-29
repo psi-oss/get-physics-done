@@ -1,8 +1,16 @@
 ---
 name: gpd:research-phase
 description: Research how to tackle a phase (standalone - usually use gpd:plan-phase instead)
-argument-hint: "[phase]"
+argument-hint: "<phase-number>"
 context_mode: project-required
+command-policy:
+  schema_version: 1
+  subject_policy:
+    subject_kind: phase
+    resolution_mode: phase_number
+    explicit_input_kinds:
+      - phase-number
+    allow_interactive_without_subject: false
 allowed-tools:
   - ask_user
   - file_read
@@ -19,7 +27,6 @@ Orchestrator role: validate the phase input, then hand off to the workflow-owned
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/research-phase.md
-@{GPD_INSTALL_DIR}/references/orchestration/model-profile-resolution.md
 </execution_context>
 
 <context>

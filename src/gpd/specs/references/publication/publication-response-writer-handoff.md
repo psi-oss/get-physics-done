@@ -17,9 +17,9 @@ Use this pack when a workflow or agent spawns `gpd-paper-writer` to draft a resp
 
 ## Canonical Sources
 
-- `@{GPD_INSTALL_DIR}/templates/paper/author-response.md`
-- `@{GPD_INSTALL_DIR}/templates/paper/referee-response.md`
-- `@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md`
+- `{GPD_INSTALL_DIR}/templates/paper/author-response.md`
+- `{GPD_INSTALL_DIR}/templates/paper/referee-response.md`
+- `{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md`
 
 ## Rules
 

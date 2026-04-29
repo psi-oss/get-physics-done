@@ -19,6 +19,7 @@ from scripts.repo_graph_contract import (
     REPO_ROOT,
     build_contract,
     sync_readme_text,
+    untracked_graph_scope_files,
     write_contract,
 )
 
@@ -68,6 +69,14 @@ def check_generated_artifacts(
         diffs.append(_diff(expected_contract, current_contract, path=contract_path))
     if current_graph != expected_graph:
         diffs.append(_diff(expected_graph, current_graph, path=graph_path))
+    untracked_scope_files = untracked_graph_scope_files(repo_root)
+    if untracked_scope_files:
+        formatted_paths = "\n".join(f"- {path.as_posix()}" for path in untracked_scope_files)
+        diffs.append(
+            "Untracked repo graph scoped files are not represented in the generated contract. "
+            "Add them to git or move them out of the repo-graph scope before running the check.\n\n"
+            f"{formatted_paths}\n"
+        )
     return tuple(diffs)
 
 
@@ -79,7 +88,9 @@ def sync_generated_artifacts(
 ) -> None:
     contract = build_contract(repo_root)
     write_contract(contract, contract_path)
-    graph_path.write_text(sync_readme_text(graph_path.read_text(encoding="utf-8"), contract, repo_root), encoding="utf-8")
+    graph_path.write_text(
+        sync_readme_text(graph_path.read_text(encoding="utf-8"), contract, repo_root), encoding="utf-8"
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -96,7 +107,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if diffs:
             sys.stderr.write(
                 "Repo graph generated artifacts are stale. "
-                "Run `python scripts/sync_repo_graph_contract.py` and commit the result.\n\n"
+                "Run `uv run python scripts/sync_repo_graph_contract.py` and commit the result.\n\n"
             )
             sys.stderr.write("\n".join(diffs))
             return 1

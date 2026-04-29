@@ -24,6 +24,35 @@ def _sha256_text(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
+def _artifact_manifest_payload(
+    manuscript_path: Path,
+    *,
+    title: str,
+    journal: str = "jhep",
+    artifact_id: str = "tex-paper",
+) -> dict[str, object]:
+    digest = hashlib.sha256(manuscript_path.read_bytes()).hexdigest()
+    return {
+        "version": 1,
+        "paper_title": title,
+        "journal": journal,
+        "created_at": "2026-03-13T00:00:00+00:00",
+        "manuscript_sha256": digest,
+        "manuscript_mtime_ns": manuscript_path.stat().st_mtime_ns,
+        "artifacts": [
+            {
+                "artifact_id": artifact_id,
+                "category": "tex",
+                "path": manuscript_path.name,
+                "sha256": digest,
+                "produced_by": "test",
+                "sources": [],
+                "metadata": {},
+            }
+        ],
+    }
+
+
 def _full_convention_lock() -> dict[str, str]:
     return {
         "metric_signature": "mostly-plus",
@@ -119,8 +148,9 @@ Body.
 
 
 def test_build_paper_quality_input_reads_contract_and_comparison_artifacts(tmp_path: Path) -> None:
+    manuscript = tmp_path / "paper" / "benchmark_paper.tex"
     _write(
-        tmp_path / "paper" / "benchmark_paper.tex",
+        manuscript,
         r"""
 \documentclass{article}
 \begin{document}
@@ -137,25 +167,7 @@ The benchmark was recovered within tolerance.
     )
     _write(
         tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Benchmark Paper",
-                "journal": "jhep",
-                "created_at": "2026-03-13T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "benchmark_paper.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript, title="Benchmark Paper")),
     )
     _write(
         tmp_path / "paper" / "BIBLIOGRAPHY-AUDIT.json",
@@ -262,6 +274,68 @@ comparison_verdicts:
     assert result.figures.decisive_artifact_roles_clear.satisfied == 1
     assert result.results.decisive_artifacts_with_explicit_verdicts.satisfied == 1
     assert result.results.decisive_artifacts_benchmark_anchored.satisfied == 1
+
+
+@pytest.mark.parametrize(
+    "figure_registry_yaml",
+    [
+        """
+  - id: fig-drift
+    label: benchmark
+    path: paper/figures/benchmark.pdf
+    unexpected_schema_key: stale
+""",
+        """
+  - id: fig-drift
+    label: benchmark
+    path: paper/figures/benchmark.pdf
+    contract_ids: claim-benchmark
+""",
+        """
+  - not-a-mapping
+""",
+        "\n",
+        " null\n",
+    ],
+)
+def test_build_paper_quality_input_surfaces_figure_tracker_schema_drift(
+    tmp_path: Path,
+    figure_registry_yaml: str,
+) -> None:
+    _write(
+        tmp_path / "paper" / "figure_drift.tex",
+        r"""
+\documentclass{article}
+\begin{document}
+\begin{abstract}
+Figure tracker drift.
+\end{abstract}
+\section{Introduction}
+Intro.
+\section{Conclusion}
+Done.
+\end{document}
+""".strip()
+        + "\n",
+    )
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps(_paper_config_payload("Figure Drift", "jhep", output_filename="figure_drift")),
+    )
+    _write(
+        tmp_path / "paper" / "FIGURE_TRACKER.md",
+        f"""---
+figure_registry:{figure_registry_yaml}
+---
+
+# Figure Tracker
+""",
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.journal_extra_checks["figure_tracker_parse_ok"] is False
+    assert result.figures.axes_labeled_with_units.total == 0
 
 
 def test_build_paper_quality_input_preserves_project_local_contract_anchors_through_verified_ledgers(
@@ -373,8 +447,9 @@ Done.
 
 
 def test_build_paper_quality_input_recurses_into_nested_manuscript_files(tmp_path: Path) -> None:
+    manuscript = tmp_path / "paper" / "topic_specific_stem.tex"
     _write(
-        tmp_path / "paper" / "topic_specific_stem.tex",
+        manuscript,
         r"""
 \documentclass{article}
 \begin{document}
@@ -406,25 +481,7 @@ TODO finalize the nested conclusion.
     )
     _write(
         tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Recursive Manuscript",
-                "journal": "generic",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "topic_specific_stem.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript, title="Recursive Manuscript", journal="jhep")),
     )
     _write(
         tmp_path / "paper" / "BIBLIOGRAPHY-AUDIT.json",
@@ -505,7 +562,7 @@ def test_build_paper_quality_input_blocks_commented_result_pending_markers(tmp_p
     assert result.completeness.placeholders_cleared.passed is False
 
 
-def test_build_paper_quality_input_falls_back_to_supported_config_journal_when_manifest_is_unsupported(
+def test_build_paper_quality_input_falls_back_to_supported_config_journal_when_manifest_hash_is_stale(
     tmp_path: Path,
 ) -> None:
     _write(
@@ -514,7 +571,7 @@ def test_build_paper_quality_input_falls_back_to_supported_config_journal_when_m
     )
     _write(
         tmp_path / "paper" / "PAPER-CONFIG.json",
-        json.dumps(_paper_config_payload("Config Fallback Title", "jhep")),
+        json.dumps(_paper_config_payload("Config Fallback Title", "jhep", output_filename="config_fallback_title")),
     )
     _write(
         tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
@@ -522,7 +579,7 @@ def test_build_paper_quality_input_falls_back_to_supported_config_journal_when_m
             {
                 "version": 1,
                 "paper_title": "Manifest Title",
-                "journal": "prd",
+                "journal": "prl",
                 "created_at": "2026-03-13T00:00:00+00:00",
                 "artifacts": [],
             }
@@ -713,7 +770,7 @@ def test_build_paper_quality_input_rejects_an_explicit_unresolved_publication_su
         build_paper_quality_input(tmp_path, publication_subject=subject)
 
 
-def test_build_paper_quality_input_prefers_valid_config_when_manifest_is_invalid(
+def test_build_paper_quality_input_rejects_invalid_manifest_even_with_valid_config(
     tmp_path: Path,
 ) -> None:
     _write(tmp_path / "paper" / "config-entry.tex", "\\documentclass{article}\\begin{document}Config.\\end{document}\n")
@@ -756,12 +813,11 @@ def test_build_paper_quality_input_prefers_valid_config_when_manifest_is_invalid
         ),
     )
 
-    result = build_paper_quality_input(tmp_path)
+    with pytest.raises(GPDError, match="paper-quality artifact resolution requires an unambiguous manuscript root"):
+        build_paper_quality_input(tmp_path)
 
-    assert result.title == "Config Title"
 
-
-def test_build_paper_quality_input_ignores_stale_manifest_metadata_when_config_entrypoint_is_active(
+def test_build_paper_quality_input_rejects_manifest_without_freshness_hash_even_with_valid_config(
     tmp_path: Path,
 ) -> None:
     _write(
@@ -778,13 +834,13 @@ def test_build_paper_quality_input_ignores_stale_manifest_metadata_when_config_e
             {
                 "version": 1,
                 "paper_title": "Stale Manifest Title",
-                "journal": "prd",
+                "journal": "prl",
                 "created_at": "2026-03-13T00:00:00+00:00",
                 "artifacts": [
                     {
                         "artifact_id": "main-tex",
                         "category": "tex",
-                        "path": "missing-entry.tex",
+                        "path": "config-entry.tex",
                         "sha256": "b" * 64,
                         "produced_by": "paper-compiler",
                         "sources": [],
@@ -795,10 +851,8 @@ def test_build_paper_quality_input_ignores_stale_manifest_metadata_when_config_e
         ),
     )
 
-    result = build_paper_quality_input(tmp_path)
-
-    assert result.title == "Config Title"
-    assert result.journal == "jhep"
+    with pytest.raises(GPDError, match="manifest is missing manuscript_sha256"):
+        build_paper_quality_input(tmp_path)
 
 
 def test_build_paper_quality_input_trusts_manifest_metadata_when_manuscript_hash_matches(
@@ -844,7 +898,25 @@ def test_build_paper_quality_input_trusts_manifest_metadata_when_manuscript_hash
     assert result.journal == "prl"
 
 
-def test_build_paper_quality_input_ignores_manifest_metadata_when_manuscript_hash_is_stale(
+def test_build_paper_quality_input_discovers_nested_artifact_manifest(tmp_path: Path) -> None:
+    manuscript = tmp_path / "paper" / "nested_sidecar_entry.tex"
+    _write(
+        manuscript,
+        "\\documentclass{article}\\begin{document}\\begin{abstract}A.\\end{abstract}"
+        "\\section{Introduction}Intro.\\section{Conclusion}Done.\\end{document}\n",
+    )
+    _write(
+        tmp_path / "paper" / ".paper-meta" / "ARTIFACT-MANIFEST.json",
+        json.dumps(_artifact_manifest_payload(manuscript, title="Nested Manifest Title", journal="prl")),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.title == "Nested Manifest Title"
+    assert result.journal == "prl"
+
+
+def test_build_paper_quality_input_rejects_manifest_metadata_when_manuscript_hash_is_stale(
     tmp_path: Path,
 ) -> None:
     manuscript = (
@@ -862,7 +934,7 @@ def test_build_paper_quality_input_ignores_manifest_metadata_when_manuscript_has
             {
                 "version": 1,
                 "paper_title": "Stale Manifest Title",
-                "journal": "prd",
+                "journal": "prl",
                 "created_at": "2026-03-13T00:00:00+00:00",
                 "manuscript_sha256": "0" * 64,
                 "artifacts": [
@@ -880,10 +952,8 @@ def test_build_paper_quality_input_ignores_manifest_metadata_when_manuscript_has
         ),
     )
 
-    result = build_paper_quality_input(tmp_path)
-
-    assert result.title == "Config Title"
-    assert result.journal == "jhep"
+    with pytest.raises(GPDError, match="manuscript_sha256 does not match"):
+        build_paper_quality_input(tmp_path)
 
 
 def test_build_paper_quality_input_surfaces_convention_lock_and_derivation_assertion_coverage(
@@ -975,7 +1045,7 @@ def test_build_paper_quality_input_counts_python_and_tex_derivation_artifacts(
     assert result.conventions.assert_convention_coverage.total == 3
 
 
-def test_build_paper_quality_input_ignores_invalid_artifact_manifest_and_falls_back_to_config(tmp_path: Path) -> None:
+def test_build_paper_quality_input_rejects_invalid_artifact_manifest_instead_of_falling_back(tmp_path: Path) -> None:
     _write(
         tmp_path / "paper" / "curvature_flow_bounds.tex",
         "\\documentclass{article}\\begin{document}\\section{Introduction}Intro.\\section{Conclusion}Done.\\end{document}\n",
@@ -990,17 +1060,25 @@ def test_build_paper_quality_input_ignores_invalid_artifact_manifest_and_falls_b
             {
                 "version": 2,
                 "paper_title": "Broken Manifest Title",
-                "journal": "prd",
+                "journal": "prl",
                 "created_at": "2026-03-13T00:00:00+00:00",
-                "artifacts": [],
+                "artifacts": [
+                    {
+                        "artifact_id": "main-tex",
+                        "category": "tex",
+                        "path": "config_fallback_title.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "paper-compiler",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
             }
         ),
     )
 
-    result = build_paper_quality_input(tmp_path)
-
-    assert result.title == "Config Fallback Title"
-    assert result.journal == "jhep"
+    with pytest.raises(GPDError, match="paper-quality artifact resolution requires an unambiguous manuscript root"):
+        build_paper_quality_input(tmp_path)
 
 
 def test_build_paper_quality_input_ignores_invalid_bibliography_audit(tmp_path: Path) -> None:
@@ -1205,9 +1283,45 @@ Done.
     assert result.citations.citation_keys_resolve.total == 1
 
 
-def test_build_paper_quality_input_accepts_an_explicit_publication_subject(tmp_path: Path) -> None:
+def test_build_paper_quality_input_does_not_consume_extra_keys_from_invalid_config(tmp_path: Path) -> None:
     _write(
-        tmp_path / "draft" / "main.tex",
+        tmp_path / "paper" / "config_title.tex",
+        r"""
+\documentclass{article}
+\begin{document}
+\begin{abstract}
+Invalid config extra-key test.
+\end{abstract}
+\section{Introduction}
+Intro.
+\section{Conclusion}
+Done.
+\end{document}
+""".strip()
+        + "\n",
+    )
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps(
+            {
+                "title": "Config Title",
+                "journal": "jhep",
+                "journal_extra_checks": {"abstract_broad_significance": True},
+            }
+        ),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.title == "Config Title"
+    assert result.journal == "jhep"
+    assert "abstract_broad_significance" not in result.journal_extra_checks
+
+
+def test_build_paper_quality_input_accepts_an_explicit_publication_subject(tmp_path: Path) -> None:
+    manuscript = tmp_path / "draft" / "main.tex"
+    _write(
+        manuscript,
         r"""
 \documentclass{article}
 \begin{document}
@@ -1224,25 +1338,7 @@ Done.
     )
     _write(
         tmp_path / "draft" / "ARTIFACT-MANIFEST.json",
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Explicit Subject Title",
-                "journal": "jhep",
-                "created_at": "2026-03-13T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "main-tex",
-                        "category": "tex",
-                        "path": "main.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "paper-compiler",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript, title="Explicit Subject Title", artifact_id="main-tex")),
     )
     _write(
         tmp_path / "draft" / "PAPER-CONFIG.json",
@@ -1442,8 +1538,9 @@ Done.
 
 
 def test_build_paper_quality_input_collects_comparison_verdicts_from_active_manuscript_root(tmp_path: Path) -> None:
+    manuscript = tmp_path / "manuscript" / "curvature_flow_bounds.tex"
     _write(
-        tmp_path / "manuscript" / "curvature_flow_bounds.tex",
+        manuscript,
         "\\documentclass{article}\\begin{document}\\begin{abstract}A.\\end{abstract}\\section{Introduction}Intro.\\section{Conclusion}Done.\\end{document}\n",
     )
     _write(
@@ -1452,25 +1549,7 @@ def test_build_paper_quality_input_collects_comparison_verdicts_from_active_manu
     )
     _write(
         tmp_path / "manuscript" / "ARTIFACT-MANIFEST.json",
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Curvature Flow Bounds",
-                "journal": "jhep",
-                "created_at": "2026-03-13T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "curvature_flow_bounds.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript, title="Curvature Flow Bounds")),
     )
     _write(
         tmp_path / "manuscript" / "BIBLIOGRAPHY-AUDIT.json",

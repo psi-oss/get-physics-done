@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import ast
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-import yaml
 
 import tests.ci_sharding as ci_sharding
 import tests.conftest as tests_conftest
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from tests.ci_sharding import (
     CI_CATEGORY_SHARD_COUNTS,
     CI_HOT_TEST_FILE_SPLITS,
@@ -17,6 +18,7 @@ from tests.ci_sharding import (
     actual_ci_shard_matrix,
     all_test_relpaths,
     assert_ci_workflow_pytest_shard_policy,
+    assert_contributing_documents_current_pytest_commands,
     assert_tests_readme_documents_ci_shard_policy,
     build_ci_work_units,
     category_for_test_relpath,
@@ -25,7 +27,13 @@ from tests.ci_sharding import (
     expected_ci_shard_matrix,
     plan_category_ci_shards,
     synthetic_test_inventory,
+    untracked_non_ignored_test_relpaths,
 )
+from tests.helpers.github_actions import load_github_actions_workflow
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+TESTS_ROOT = REPO_ROOT / "tests"
+TOP_LEVEL_CONFTEST = TESTS_ROOT / "conftest.py"
 
 
 def _read(relpath: str) -> str:
@@ -33,11 +41,35 @@ def _read(relpath: str) -> str:
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parent.parent
+    return REPO_ROOT
+
+
+def _assigned_literal(path: Path, *, name: str) -> object | None:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    for node in tree.body:
+        value_node: ast.AST | None = None
+        if isinstance(node, ast.Assign):
+            if any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+                value_node = node.value
+        elif isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name) and node.target.id == name:
+                value_node = node.value
+        if value_node is not None:
+            return ast.literal_eval(value_node)
+    return None
 
 
 def _workflow_data() -> dict[str, object]:
-    return yaml.safe_load((_repo_root() / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8"))
+    return load_github_actions_workflow(_repo_root() / ".github" / "workflows" / "test.yml")
+
+
+def _catalog_runtime_adapter_test_relpaths() -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            f"adapters/test_{descriptor.adapter_module.rsplit('.', 1)[-1]}.py"
+            for descriptor in iter_runtime_descriptors()
+        )
+    )
 
 
 def test_root_conftest_keeps_default_collection_as_full_suite() -> None:
@@ -46,12 +78,42 @@ def test_root_conftest_keeps_default_collection_as_full_suite() -> None:
 
     assert "_isolate_machine_local_gpd_data" in root_conftest
     assert "pytest_xdist_auto_num_workers" in root_conftest
-    assert "test suite mode: full (default)" in root_conftest
+    assert "test suite mode: full default suite" in root_conftest
+    assert "test suite mode: targeted/sharded args" in root_conftest
+    assert not hasattr(tests_conftest, "FAST_SUITE_EXCLUDES")
+    assert not hasattr(tests_conftest, "pytest_ignore_collect")
     assert "FAST_SUITE_EXCLUDES" not in root_conftest
     assert "--full-suite" not in root_conftest
     assert "GPD_TEST_FULL" not in root_conftest
     assert "pytest_ignore_collect" not in root_conftest
     assert "collect_ignore" not in core_conftest
+
+
+def test_pytest_report_header_distinguishes_default_full_suite_from_targeted_args() -> None:
+    default_config = SimpleNamespace(args=["tests"])
+    targeted_config = SimpleNamespace(args=["tests/test_runtime_cli.py"])
+    sharded_config = SimpleNamespace(args=["tests/test_runtime_cli.py::test_example"])
+    filtered_config = SimpleNamespace(
+        args=["tests"],
+        option=SimpleNamespace(keyword="runtime", markexpr="", lastfailed=False, failedfirst=False, collectonly=False),
+    )
+
+    assert tests_conftest.pytest_report_header(default_config) == "test suite mode: full default suite"
+    assert tests_conftest.pytest_report_header(targeted_config) == "test suite mode: targeted/sharded args"
+    assert tests_conftest.pytest_report_header(sharded_config) == "test suite mode: targeted/sharded args"
+    assert tests_conftest.pytest_report_header(filtered_config) == "test suite mode: targeted/sharded args"
+
+
+def test_nested_test_conftests_do_not_hide_suites_via_collect_ignore() -> None:
+    offenders: list[str] = []
+
+    for path in sorted(TESTS_ROOT.rglob("conftest.py")):
+        if path == TOP_LEVEL_CONFTEST:
+            continue
+        if _assigned_literal(path, name="collect_ignore") is not None:
+            offenders.append(str(path.relative_to(REPO_ROOT)))
+
+    assert offenders == []
 
 
 def test_root_conftest_scales_local_full_suite_auto_workers_toward_ci_fanout(
@@ -78,6 +140,38 @@ def test_root_conftest_scales_local_full_suite_auto_workers_toward_ci_fanout(
     assert tests_conftest.pytest_xdist_auto_num_workers(config) == 12
 
     config.args = ["tests/test_runtime_cli.py"]
+    assert tests_conftest.pytest_xdist_auto_num_workers(config) is None
+
+
+@pytest.mark.parametrize(
+    "option_overrides",
+    [
+        {"keyword": "runtime"},
+        {"markexpr": "not slow"},
+        {"lastfailed": True},
+        {"failedfirst": True},
+        {"collectonly": True},
+    ],
+)
+def test_root_conftest_keeps_filtered_default_suite_xdist_auto_worker_selection_unmodified(
+    monkeypatch: pytest.MonkeyPatch,
+    option_overrides: dict[str, object],
+) -> None:
+    option_values = {
+        "numprocesses": "auto",
+        "maxprocesses": None,
+        "keyword": "",
+        "markexpr": "",
+        "lastfailed": False,
+        "failedfirst": False,
+        "collectonly": False,
+        **option_overrides,
+    }
+    config = SimpleNamespace(args=["tests"], option=SimpleNamespace(**option_values))
+
+    monkeypatch.delenv("PYTEST_XDIST_AUTO_NUM_WORKERS", raising=False)
+    monkeypatch.setattr(tests_conftest.os, "cpu_count", lambda: 16)
+
     assert tests_conftest.pytest_xdist_auto_num_workers(config) is None
 
 
@@ -126,6 +220,14 @@ def test_default_collection_matches_all_checked_in_test_files() -> None:
     _assert_ci_shards_cover_inventory_without_overlap_or_empty_shards(inventory)
     _assert_expected_ci_matrix_rows_resolve_live_non_empty_targets(inventory)
     _assert_live_ci_shard_weight_spread_stays_tight(inventory)
+
+
+def test_no_untracked_non_ignored_tests_can_bypass_checked_in_inventory() -> None:
+    offenders = untracked_non_ignored_test_relpaths(repo_root=_repo_root())
+
+    assert not offenders, "Untracked non-ignored tests are invisible to checked-in CI inventory:\n" + "\n".join(
+        f"- tests/{relpath}" for relpath in offenders
+    )
 
 
 def _assert_hotspot_metadata_references_live_relpaths(all_relpaths: tuple[str, ...]) -> None:
@@ -182,6 +284,16 @@ def test_mcp_hotspot_metadata_tracks_measured_slow_mcp_files() -> None:
     assert measured_slow_mcp_files <= set(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS)
     assert all(CI_HOT_TEST_FILE_SPLITS[rel_path] >= 2 for rel_path in measured_slow_mcp_files)
     assert all(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS[rel_path] > 1.0 for rel_path in measured_slow_mcp_files)
+
+
+def test_adapter_hotspot_metadata_tracks_catalog_runtime_adapter_tests() -> None:
+    runtime_adapter_test_files = set(_catalog_runtime_adapter_test_relpaths())
+
+    assert runtime_adapter_test_files <= set(all_test_relpaths(tests_root=TESTS_ROOT))
+    assert runtime_adapter_test_files <= set(CI_HOT_TEST_FILE_SPLITS)
+    assert runtime_adapter_test_files <= set(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS)
+    assert all(CI_HOT_TEST_FILE_SPLITS[rel_path] >= 2 for rel_path in runtime_adapter_test_files)
+    assert all(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS[rel_path] > 1.0 for rel_path in runtime_adapter_test_files)
 
 
 def _assert_ci_shards_cover_inventory_without_overlap_or_empty_shards(
@@ -276,9 +388,11 @@ def test_ci_collection_ignores_caller_pytest_addopts_and_disables_cache_writes(
         captured["args"] = args
         captured["env"] = kwargs["env"]
         captured["cwd"] = kwargs["cwd"]
+        captured["timeout"] = kwargs["timeout"]
         return SimpleNamespace(stdout="tests/test_sample.py::test_ok\n")
 
     monkeypatch.setenv("PYTEST_ADDOPTS", "-k no_tests --cache-clear")
+    monkeypatch.setattr(ci_sharding, "checked_in_test_relpaths", lambda **_: ("test_sample.py",))
     monkeypatch.setattr(ci_sharding.subprocess, "run", _fake_run)
     ci_sharding._collected_test_inventory_items.cache_clear()
     try:
@@ -297,13 +411,50 @@ def test_ci_collection_ignores_caller_pytest_addopts_and_disables_cache_writes(
         "pytest",
         "-p",
         "no:cacheprovider",
-        "tests/",
+        "tests/test_sample.py",
         "--collect-only",
         "-q",
         "-n",
         "0",
     ]
     assert captured["cwd"] == tmp_path.resolve()
+    assert captured["timeout"] == ci_sharding.CI_PYTEST_COLLECTION_TIMEOUT_SECONDS
+
+
+def test_checked_in_test_inventory_git_call_has_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_run(args: list[str], **kwargs: object) -> SimpleNamespace:
+        captured["args"] = args
+        captured["timeout"] = kwargs["timeout"]
+        return SimpleNamespace(stdout="tests/test_sample.py\n")
+
+    monkeypatch.setattr(ci_sharding.subprocess, "run", _fake_run)
+
+    assert ci_sharding.checked_in_test_relpaths(repo_root=tmp_path) == ("test_sample.py",)
+    assert captured["args"][:3] == ["git", "ls-files", "--full-name"]
+    assert captured["timeout"] == ci_sharding.CI_GIT_INVENTORY_TIMEOUT_SECONDS
+
+
+def test_untracked_test_inventory_git_call_has_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_run(args: list[str], **kwargs: object) -> SimpleNamespace:
+        captured["args"] = args
+        captured["timeout"] = kwargs["timeout"]
+        return SimpleNamespace(stdout="tests/test_sample.py\n")
+
+    monkeypatch.setattr(ci_sharding.subprocess, "run", _fake_run)
+
+    assert untracked_non_ignored_test_relpaths(repo_root=tmp_path) == ("test_sample.py",)
+    assert captured["args"][:4] == ["git", "ls-files", "--full-name", "--others"]
+    assert captured["timeout"] == ci_sharding.CI_GIT_INVENTORY_TIMEOUT_SECONDS
 
 
 def test_ci_shard_target_resolution_collects_only_requested_category(
@@ -315,10 +466,12 @@ def test_ci_shard_target_resolution_collects_only_requested_category(
     def _fake_run(args: list[str], **kwargs: object) -> SimpleNamespace:
         captured["args"] = args
         captured["cwd"] = kwargs["cwd"]
+        captured["timeout"] = kwargs["timeout"]
         return SimpleNamespace(
             stdout="\n".join(f"tests/core/test_sample.py::test_{index}" for index in range(5)) + "\n"
         )
 
+    monkeypatch.setattr(ci_sharding, "checked_in_test_relpaths", lambda **_: ("core/test_sample.py",))
     monkeypatch.setattr(ci_sharding.subprocess, "run", _fake_run)
     ci_sharding._collected_test_inventory_items.cache_clear()
     try:
@@ -337,13 +490,14 @@ def test_ci_shard_target_resolution_collects_only_requested_category(
         "pytest",
         "-p",
         "no:cacheprovider",
-        "tests/core/",
+        "tests/core/test_sample.py",
         "--collect-only",
         "-q",
         "-n",
         "0",
     ]
     assert captured["cwd"] == tmp_path.resolve()
+    assert captured["timeout"] == ci_sharding.CI_PYTEST_COLLECTION_TIMEOUT_SECONDS
     assert targets == ("tests/core/test_sample.py",)
 
 
@@ -352,8 +506,10 @@ def test_ci_and_test_readme_document_default_full_suite_and_category_named_runti
     workflow = _workflow_data()
     pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
     tests_readme = (repo_root / "tests" / "README.md").read_text(encoding="utf-8")
+    contributing = (repo_root / "CONTRIBUTING.md").read_text(encoding="utf-8")
     assert_ci_workflow_pytest_shard_policy(workflow, pyproject_text=pyproject)
     assert_tests_readme_documents_ci_shard_policy(tests_readme)
+    assert_contributing_documents_current_pytest_commands(contributing)
 
 
 def test_hotspot_files_are_split_into_multiple_work_units() -> None:

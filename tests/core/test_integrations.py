@@ -92,6 +92,40 @@ def test_wolfram_descriptor_uses_env_vars_for_configuration(monkeypatch) -> None
     ).get("env", {})
 
 
+def test_wolfram_descriptor_reports_canonical_missing_key_recovery_status() -> None:
+    descriptor = get_managed_integration("wolfram")
+    assert descriptor is not None
+
+    env = {"WOLFRAM_MCP_SERVICE_API_KEY": "legacy-secret"}
+    summary = descriptor.config_summary(env)
+
+    assert summary["api_key_present"] is False
+    assert summary["missing_api_key_env_vars"] == [WOLFRAM_MCP_API_KEY_ENV_VAR]
+    assert "ignored_legacy_api_key_env_vars" not in summary
+    assert summary["api_key_recovery"] == f"Set {WOLFRAM_MCP_API_KEY_ENV_VAR}."
+    assert summary["auth_state"] == "missing-api-key"
+
+
+def test_wolfram_cli_status_projects_missing_key_recovery_without_server_entry(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from gpd.cli import _wolfram_integration_status_payload
+
+    (tmp_path / "GPD").mkdir()
+    monkeypatch.delenv(WOLFRAM_MCP_API_KEY_ENV_VAR, raising=False)
+    monkeypatch.setenv("WOLFRAM_MCP_SERVICE_API_KEY", "legacy-secret")
+
+    payload = _wolfram_integration_status_payload(tmp_path)
+
+    assert payload["state"] == "missing-api-key"
+    assert payload["projection_status"] == "blocked_missing_api_key"
+    assert payload["projected_server"] is None
+    assert payload["missing_api_key_env_vars"] == [WOLFRAM_MCP_API_KEY_ENV_VAR]
+    assert "ignored_legacy_api_key_env_vars" not in payload
+    assert f"Set {WOLFRAM_MCP_API_KEY_ENV_VAR}." in payload["next_step"]
+
+
 def test_managed_optional_mcp_helpers_project_from_registry(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     alpha = _FakeManagedIntegration(
         "alpha",
@@ -318,10 +352,26 @@ def test_wolfram_descriptor_resolves_project_local_config_from_nested_workspace(
     nested_workspace.mkdir(parents=True)
     config_path = project_root / "GPD" / "integrations.json"
     config_path.parent.mkdir(parents=True)
+    (project_root / "GPD" / "state.json").write_text("{}\n", encoding="utf-8")
+    (project_root / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
     config_path.write_text('{"wolfram":{"enabled":false}}', encoding="utf-8")
 
     assert descriptor.project_config_path(nested_workspace) == config_path
     assert descriptor.project_enabled(nested_workspace) is False
+
+
+def test_wolfram_descriptor_ignores_unverified_ancestor_integrations_config(tmp_path) -> None:
+    descriptor = get_managed_integration("wolfram")
+    assert descriptor is not None
+
+    workspace = tmp_path / "scratch" / "work"
+    workspace.mkdir(parents=True)
+    ambient_config = tmp_path / "GPD" / "integrations.json"
+    ambient_config.parent.mkdir()
+    ambient_config.write_text('{"wolfram":{"enabled":false}}', encoding="utf-8")
+
+    assert descriptor.project_config_path(workspace) == workspace / "GPD" / "integrations.json"
+    assert descriptor.project_enabled(workspace) is True
 
 
 def test_wolfram_descriptor_rejects_empty_endpoint_env_override() -> None:

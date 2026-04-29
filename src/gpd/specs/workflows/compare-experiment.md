@@ -21,7 +21,7 @@ Keep this init bound to the workspace the user invoked from. `compare-experiment
 - Run:
 
 ```bash
-INIT=$(gpd --raw init progress --include state --no-project-reentry)
+INIT=$(gpd --raw init progress --include state,protocols --no-project-reentry)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.

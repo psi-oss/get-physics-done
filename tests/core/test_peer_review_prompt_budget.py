@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from gpd.core.workflow_staging import validate_workflow_stage_manifest_payload
-from tests.prompt_metrics_support import measure_prompt_surface
+from tests.prompt_metrics_support import expanded_prompt_text, measure_prompt_surface
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
@@ -27,6 +27,11 @@ def test_peer_review_command_stays_thin_and_only_eagerly_loads_the_workflow() ->
         src_root=SOURCE_ROOT,
         path_prefix=PATH_PREFIX,
     )
+    expanded_command = expanded_prompt_text(
+        COMMANDS_DIR / "peer-review.md",
+        src_root=SOURCE_ROOT,
+        path_prefix=PATH_PREFIX,
+    )
 
     assert metrics.raw_include_count == 1
     assert "@{GPD_INSTALL_DIR}/workflows/peer-review.md" in command_text
@@ -36,6 +41,8 @@ def test_peer_review_command_stays_thin_and_only_eagerly_loads_the_workflow() ->
     assert "@{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md" not in command_text
     assert "Follow the included workflow file exactly." in command_text
+    assert "@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md" not in expanded_command
+    assert "Canonical manuscript-root publication preflight." not in expanded_command
     assert metrics.expanded_line_count > workflow.expanded_line_count
     assert metrics.expanded_char_count > workflow.expanded_char_count
     assert metrics.expanded_line_count < workflow.expanded_line_count + 250

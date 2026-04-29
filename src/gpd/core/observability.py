@@ -450,17 +450,22 @@ def _execution_lane_field_value(payload: object, field: str) -> str | None:
     return None
 
 
+_STRONG_EXECUTION_IDENTITY_FIELDS = ("resume_file", "segment_id", "transition_id")
+_WEAK_EXECUTION_CONTEXT_FIELDS = ("phase", "plan")
+
+
 def _execution_lanes_compatible(left: object, right: object) -> bool:
-    comparisons = 0
-    for field in ("resume_file", "segment_id", "phase", "plan", "transition_id"):
+    strong_overlap = False
+    for field in (*_STRONG_EXECUTION_IDENTITY_FIELDS, *_WEAK_EXECUTION_CONTEXT_FIELDS):
         left_value = _execution_lane_field_value(left, field)
         right_value = _execution_lane_field_value(right, field)
         if left_value is None or right_value is None:
             continue
-        comparisons += 1
         if left_value != right_value:
             return False
-    return comparisons > 0
+        if field in _STRONG_EXECUTION_IDENTITY_FIELDS:
+            strong_overlap = True
+    return strong_overlap
 
 
 def _canonical_result_payload(state_obj: dict[str, object], result_id: str) -> dict[str, object] | None:
@@ -683,6 +688,16 @@ def _persist_durable_bounded_segment(layout: ProjectLayout, next_execution: Curr
         state_clear_continuation_bounded_segment(layout.root)
         return
     state_set_continuation_bounded_segment(layout.root, desired_bounded_segment)
+
+
+def _best_effort_persist_durable_bounded_segment(
+    layout: ProjectLayout,
+    next_execution: CurrentExecutionState | None,
+) -> None:
+    try:
+        _persist_durable_bounded_segment(layout, next_execution)
+    except Exception:
+        return
 
 
 def get_current_execution(cwd: Path | None = None) -> CurrentExecutionState | None:
@@ -1001,7 +1016,7 @@ def _execution_visibility_source_state(
     head_exists = layout.execution_lineage_head.exists()
 
     current_raw = _read_current_execution_raw(layout) if current_exists else None
-    head_payload = load_execution_lineage_head(layout.root) if head_exists else None
+    head_payload = load_execution_lineage_head(layout.root)
     if head_payload is not None:
         head_raw = head_payload.model_dump(mode="json")
     elif head_exists:
@@ -2143,7 +2158,7 @@ def observe_event(
                 previous_execution=previous_execution,
                 next_execution=next_execution,
             )
-            _persist_durable_bounded_segment(layout, next_execution)
+            _best_effort_persist_durable_bounded_segment(layout, next_execution)
     else:
         _append_event(session_log, payload.model_dump(mode="json"))
 

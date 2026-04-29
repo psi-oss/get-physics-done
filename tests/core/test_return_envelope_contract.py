@@ -2,11 +2,28 @@
 
 from __future__ import annotations
 
-from gpd.core.return_contract import validate_gpd_return_markdown
+from dataclasses import fields
+
+from gpd.core.return_contract import (
+    REQUIRED_RETURN_FIELDS,
+    GpdReturnEnvelope,
+    GpdReturnStatusContract,
+    validate_gpd_return_markdown,
+)
 
 
 def _wrap_return_block(yaml_body: str) -> str:
     return f"```yaml\ngpd_return:\n{yaml_body}```\n"
+
+
+def test_status_contract_does_not_carry_dead_required_fields() -> None:
+    assert [field.name for field in fields(GpdReturnStatusContract)] == ["structured_fields"]
+
+
+def test_required_return_fields_derive_from_envelope_model() -> None:
+    assert REQUIRED_RETURN_FIELDS == tuple(
+        field_name for field_name, field_info in GpdReturnEnvelope.model_fields.items() if field_info.is_required()
+    )
 
 
 def test_accepts_nested_state_and_continuation_payloads() -> None:
@@ -14,7 +31,7 @@ def test_accepts_nested_state_and_continuation_payloads() -> None:
         "  status: checkpoint\n"
         "  files_written: [src/main.py]\n"
         "  issues: []\n"
-        "  next_actions: [/gpd:resume-work]\n"
+        "  next_actions: [gpd:resume-work]\n"
         "  state_updates:\n"
         "    advance_plan: true\n"
         "    update_progress: true\n"
@@ -24,8 +41,8 @@ def test_accepts_nested_state_and_continuation_payloads() -> None:
         "      resume_file: GPD/phases/01-test-phase/.continue-here.md\n"
         "    bounded_segment:\n"
         "      resume_file: GPD/phases/01-test-phase/.continue-here.md\n"
-        "      phase: 01\n"
-        "      plan: 01\n"
+        "      phase: \"01\"\n"
+        "      plan: \"01\"\n"
         "      segment_id: seg-01\n"
         "      segment_status: paused\n"
         "      checkpoint_reason: segment_boundary\n"
@@ -45,7 +62,7 @@ def test_accepts_typed_checker_plan_lists() -> None:
         "  status: checkpoint\n"
         "  files_written: []\n"
         "  issues: []\n"
-        "  next_actions: [/gpd:plan-phase]\n"
+        "  next_actions: [gpd:plan-phase]\n"
         "  approved_plans: [plan-01, plan-03]\n"
         "  blocked_plans: [plan-02]\n"
     )
@@ -62,7 +79,7 @@ def test_rejects_scalar_where_list_field_is_required() -> None:
         "  status: completed\n"
         "  files_written: src/main.py\n"
         "  issues: []\n"
-        "  next_actions: [/gpd:verify-work]\n"
+        "  next_actions: [gpd:verify-work]\n"
     )
 
     result = validate_gpd_return_markdown(content)
@@ -91,7 +108,7 @@ def test_rejects_malformed_checker_plan_lists() -> None:
         "  status: checkpoint\n"
         "  files_written: []\n"
         "  issues: []\n"
-        "  next_actions: [/gpd:plan-phase]\n"
+        "  next_actions: [gpd:plan-phase]\n"
         "  approved_plans: plan-01\n"
         "  blocked_plans:\n"
         "    - plan-02\n"
@@ -110,7 +127,7 @@ def test_rejects_state_updates_when_not_a_mapping() -> None:
         "  status: checkpoint\n"
         "  files_written: [src/main.py]\n"
         "  issues: []\n"
-        "  next_actions: [/gpd:resume-work]\n"
+        "  next_actions: [gpd:resume-work]\n"
         "  state_updates:\n"
         "    - advance_plan: true\n"
     )
@@ -121,12 +138,43 @@ def test_rejects_state_updates_when_not_a_mapping() -> None:
     assert any("state_updates" in error and "mapping" in error for error in result.errors)
 
 
+def test_rejects_unknown_top_level_typo_fields() -> None:
+    content = _wrap_return_block(
+        "  status: completed\n"
+        "  file_written: [src/main.py]\n"
+        "  files_written: [src/main.py]\n"
+        "  issues: []\n"
+        "  next_actions: []\n"
+    )
+
+    result = validate_gpd_return_markdown(content)
+
+    assert result.passed is False
+    assert any("Unknown gpd_return top-level field" in error and "file_written" in error for error in result.errors)
+
+
+def test_rejects_status_disallowed_structured_fields() -> None:
+    content = _wrap_return_block(
+        "  status: blocked\n"
+        "  files_written: []\n"
+        "  issues: [missing checkpoint]\n"
+        "  next_actions: [gpd:resume-work]\n"
+        "  state_updates:\n"
+        "    advance_plan: true\n"
+    )
+
+    result = validate_gpd_return_markdown(content)
+
+    assert result.passed is False
+    assert any("status 'blocked'" in error and "state_updates" in error for error in result.errors)
+
+
 def test_rejects_transport_execution_segment_inside_durable_continuation_update() -> None:
     content = _wrap_return_block(
         "  status: checkpoint\n"
         "  files_written: [src/main.py]\n"
         "  issues: []\n"
-        "  next_actions: [/gpd:resume-work]\n"
+        "  next_actions: [gpd:resume-work]\n"
         "  continuation_update:\n"
         "    execution_segment:\n"
         "      current_cursor: 3\n"
@@ -143,7 +191,7 @@ def test_rejects_applicator_owned_handoff_metadata_inside_child_return() -> None
         "  status: checkpoint\n"
         "  files_written: [src/main.py]\n"
         "  issues: []\n"
-        "  next_actions: [/gpd:resume-work]\n"
+        "  next_actions: [gpd:resume-work]\n"
         "  continuation_update:\n"
         "    handoff:\n"
         "      recorded_at: 2026-04-08T12:00:00Z\n"
@@ -155,6 +203,29 @@ def test_rejects_applicator_owned_handoff_metadata_inside_child_return() -> None
 
     assert result.passed is False
     assert any("recorded_at" in error and "recorded_by" in error and "applicator-owned" in error for error in result.errors)
+
+
+def test_rejects_applicator_owned_bounded_segment_metadata_inside_child_return() -> None:
+    content = _wrap_return_block(
+        "  status: checkpoint\n"
+        "  files_written: [src/main.py]\n"
+        "  issues: []\n"
+        "  next_actions: [gpd:resume-work]\n"
+        "  continuation_update:\n"
+        "    bounded_segment:\n"
+        "      resume_file: GPD/phases/01-test-phase/.continue-here.md\n"
+        "      phase: \"01\"\n"
+        "      plan: \"01\"\n"
+        "      segment_id: seg-01\n"
+        "      segment_status: paused\n"
+        "      updated_at: 2026-04-08T12:00:00Z\n"
+        "      recorded_by: execute-plan\n"
+    )
+
+    result = validate_gpd_return_markdown(content)
+
+    assert result.passed is False
+    assert any("updated_at" in error and "recorded_by" in error and "applicator-owned" in error for error in result.errors)
 
 
 def test_rejects_scalar_where_continuation_update_requires_mapping() -> None:

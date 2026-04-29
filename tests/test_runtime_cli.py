@@ -75,7 +75,7 @@ def _mark_complete_install(
 def _mark_incomplete_install(config_dir: Path, *, runtime: str, install_scope: str = "local") -> None:
     config_dir.mkdir(parents=True, exist_ok=True)
     (config_dir / MANIFEST_NAME).write_text(
-        json.dumps({"runtime": runtime, "install_scope": install_scope}),
+        json.dumps({"runtime": runtime, "install_scope": install_scope, "explicit_target": False}),
         encoding="utf-8",
     )
 
@@ -84,7 +84,7 @@ def _mark_lookup_only_install(config_dir: Path, *, runtime: str, install_scope: 
     """Seed only the manifest fields needed by local-config lookup tests."""
     config_dir.mkdir(parents=True, exist_ok=True)
     (config_dir / MANIFEST_NAME).write_text(
-        json.dumps({"runtime": runtime, "install_scope": install_scope}),
+        json.dumps({"runtime": runtime, "install_scope": install_scope, "explicit_target": False}),
         encoding="utf-8",
     )
 
@@ -767,6 +767,45 @@ def test_runtime_cli_bridge_explicit_target_flag_overrides_missing_manifest_meta
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_rejects_complete_manifest_without_explicit_target_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    descriptor,
+) -> None:
+    config_dir = tmp_path / descriptor.config_dir_name
+    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    manifest_path = config_dir / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.pop("explicit_target", None)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "gpd.cli.entrypoint",
+        lambda: (_ for _ in ()).throw(AssertionError("entrypoint should not run for missing explicit_target")),
+    )
+
+    exit_code = main(
+        [
+            "--runtime",
+            descriptor.runtime_name,
+            "--config-dir",
+            f"./{descriptor.config_dir_name}",
+            "--install-scope",
+            "local",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "missing_explicit_target" in captured.err
+    assert "Repair or reinstall with:" in captured.err
+
+
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
 def test_runtime_cli_dispatches_with_runtime_pin(monkeypatch, tmp_path: Path, descriptor) -> None:
     adapter = get_adapter(descriptor.runtime_name)
     config_dir = tmp_path / adapter.config_dir_name
@@ -1289,6 +1328,128 @@ def test_runtime_cli_rejects_corrupt_manifest_before_dispatch(
     assert exit_code == 127
     assert "GPD runtime bridge rejected unreadable install manifest" in captured.err
     assert "must be a JSON object with a non-empty `runtime` field" in captured.err
+
+
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_rejects_untrusted_manifest_path_metadata_before_dispatch(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+    descriptor,
+) -> None:
+    config_dir = tmp_path / descriptor.config_dir_name
+    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    manifest_path = config_dir / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"] = "../../outside"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
+    monkeypatch.setattr(
+        "gpd.cli.entrypoint",
+        lambda: (_ for _ in ()).throw(AssertionError("entrypoint should not run for untrusted manifests")),
+    )
+
+    exit_code = main(
+        [
+            "--runtime",
+            descriptor.runtime_name,
+            "--config-dir",
+            f"./{descriptor.config_dir_name}",
+            "--install-scope",
+            "local",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "GPD runtime bridge rejected untrusted install manifest" in captured.err
+    assert "malformed_files" in captured.err
+
+
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_rejects_malformed_explicit_target_metadata_before_dispatch(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+    descriptor,
+) -> None:
+    config_dir = tmp_path / descriptor.config_dir_name
+    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    manifest_path = config_dir / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["explicit_target"] = "false"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
+    monkeypatch.setattr(
+        "gpd.cli.entrypoint",
+        lambda: (_ for _ in ()).throw(AssertionError("entrypoint should not run for untrusted manifests")),
+    )
+
+    exit_code = main(
+        [
+            "--runtime",
+            descriptor.runtime_name,
+            "--config-dir",
+            f"./{descriptor.config_dir_name}",
+            "--install-scope",
+            "local",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "GPD runtime bridge rejected untrusted install manifest" in captured.err
+    assert "malformed_explicit_target" in captured.err
+
+
+def test_runtime_cli_rejects_unsafe_external_scalar_path_metadata_before_dispatch(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    descriptor = next(descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.manifest_file_prefixes)
+    config_dir = tmp_path / descriptor.config_dir_name
+    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    manifest_path = config_dir / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    scalar_key_suffixes = []
+    for prefix in descriptor.manifest_file_prefixes:
+        root = prefix.replace("\\", "/").strip("/").split("/", 1)[0]
+        scalar_key_suffixes.append(f"_{root}_dir")
+    scalar_keys = [key for key in manifest if any(key.endswith(suffix) for suffix in scalar_key_suffixes)]
+    assert scalar_keys
+    manifest[scalar_keys[0]] = str(tmp_path.parent / "outside" / "skills")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
+    monkeypatch.setattr(
+        "gpd.cli.entrypoint",
+        lambda: (_ for _ in ()).throw(AssertionError("entrypoint should not run for untrusted manifests")),
+    )
+
+    exit_code = main(
+        [
+            "--runtime",
+            descriptor.runtime_name,
+            "--config-dir",
+            f"./{descriptor.config_dir_name}",
+            "--install-scope",
+            "local",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "GPD runtime bridge rejected untrusted install manifest" in captured.err
+    assert "malformed_scalar_path_metadata" in captured.err
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)

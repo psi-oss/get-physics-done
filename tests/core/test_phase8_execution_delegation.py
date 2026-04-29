@@ -45,10 +45,8 @@ def test_execute_phase_fails_closed_on_reverification_and_notation_handoffs() ->
     assert "Stop in a blocked state. Do not mark the phase complete or clear gap-closure state on this path." in (
         execute_phase
     )
-    assert "Then verify `gpd convention check` reports `locked` or `complete`" in execute_phase
-    assert "re-check any phase artifacts flagged for re-execution are still present on disk before continuing" in (
-        execute_phase
-    )
-    assert "If the lock is still open or a flagged artifact is missing, treat the update as incomplete" in (
+    assert "Convention repair is intentionally out-of-line here." in execute_phase
+    assert "The next step is `gpd:validate-conventions`" in execute_phase
+    assert "fresh `gpd:execute-phase {PHASE_NUMBER}` continuation after that workflow reports a typed result" in (
         execute_phase
     )

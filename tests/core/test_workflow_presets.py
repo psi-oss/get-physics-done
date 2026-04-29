@@ -11,7 +11,18 @@ from gpd.core.workflow_presets import (
     preview_workflow_preset_application,
     resolve_workflow_preset_readiness,
 )
+from tests.latex_test_support import PAPER_TOOLCHAIN_CAPABILITY_KEYS
 from tests.latex_test_support import latex_capability_payload as _latex_capability
+
+
+def test_latex_capability_payload_tracks_toolchain_schema_shape() -> None:
+    payload = _latex_capability()
+
+    assert set(payload) == PAPER_TOOLCHAIN_CAPABILITY_KEYS
+    assert payload["available"] is True
+    assert payload["paper_build_ready"] is True
+    assert payload["arxiv_submission_ready"] is True
+    assert payload["pdf_review_ready"] is True
 
 
 def test_workflow_preset_inventory_is_stable_and_non_persisted() -> None:

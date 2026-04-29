@@ -22,7 +22,7 @@ from gpd.core.root_resolution import resolve_project_roots
 from gpd.core.utils import atomic_write, file_lock
 from gpd.hooks.install_context import detect_self_owned_install
 from gpd.hooks.payload_policy import resolve_hook_payload_policy, resolve_hook_surface_runtime
-from gpd.hooks.payload_roots import payload_uses_alias_only_workspace_mapping
+from gpd.hooks.payload_roots import payload_uses_alias_only_workspace_mapping, trusted_payload_project_root
 from gpd.hooks.payload_roots import resolve_payload_roots as _resolve_payload_roots
 from gpd.hooks.runtime_lookup import resolve_runtime_lookup_context_from_payload_roots
 from gpd.hooks.update_resolution import latest_update_cache as _shared_latest_update_cache
@@ -37,19 +37,18 @@ def _debug(msg: str) -> None:
         sys.stderr.write(f"[gpd-debug] {msg}\n")
 
 
-def _mapping(value: object) -> dict[str, object]:
-    """Return *value* when it is a dict, otherwise an empty mapping."""
-    return value if isinstance(value, dict) else {}
-
-
-def _first_string(value: object, *keys: str) -> str:
-    """Return the first non-empty string for *keys* from *value* when it is a mapping."""
-    mapping = _mapping(value)
-    for key in keys:
-        candidate = mapping.get(key)
-        if isinstance(candidate, str) and candidate:
-            return candidate
-    return ""
+def _trusted_side_effect_project_root(
+    data: dict[str, object],
+    *,
+    workspace_dir: str,
+    project_root: str,
+    project_dir_trusted: bool,
+    hook_payload: object,
+) -> str | None:
+    """Return the project root that should own project side effects, when trusted."""
+    if project_dir_trusted and project_root:
+        return str(Path(project_root).expanduser().resolve(strict=False))
+    return trusted_payload_project_root(data, workspace_dir, hook_payload=hook_payload)
 
 
 def _has_project_layout(cwd: str) -> bool:
@@ -155,7 +154,7 @@ def _latest_update_cache(cwd: str | None = None) -> tuple[dict[str, object] | No
     return _shared_latest_update_cache(hook_file=__file__, cwd=cwd, debug=_debug)
 
 
-def _check_and_notify_update(cwd: str | None = None) -> None:
+def _check_and_notify_update(cwd: str | None = None, *, state_cwd: str | None = None) -> None:
     """Read update cache and emit a notification to stderr if update available."""
     latest_cache, latest_candidate = _latest_update_cache(cwd)
 
@@ -164,7 +163,7 @@ def _check_and_notify_update(cwd: str | None = None) -> None:
         if cmd is None:
             return
         fingerprint = _update_notification_fingerprint(latest_cache, cmd)
-        claimed = _claim_last_notification(cwd or str(Path.cwd()), channel="update", fingerprint=fingerprint)
+        claimed = _claim_last_notification(state_cwd or cwd or str(Path.cwd()), channel="update", fingerprint=fingerprint)
         if claimed is False:
             return
         installed = latest_cache.get("installed", "?")
@@ -337,11 +336,23 @@ def main() -> None:
         project_dir_present = roots.project_dir_present
         project_dir_trusted = roots.project_dir_trusted
         payload_policy = _hook_payload_policy(workspace_dir)
-        if project_dir_trusted is True and _workspace_mapping_prefers_local_notify_lookup(
+        prefer_local_notify_lookup = project_dir_trusted is True and _workspace_mapping_prefers_local_notify_lookup(
             data,
             hook_payload=payload_policy,
-        ):
+        )
+        if prefer_local_notify_lookup:
             project_dir_trusted = False
+        side_effect_project_root = (
+            None
+            if prefer_local_notify_lookup
+            else _trusted_side_effect_project_root(
+                data,
+                workspace_dir=workspace_dir,
+                project_root=project_root,
+                project_dir_trusted=project_dir_trusted,
+                hook_payload=payload_policy,
+            )
+        )
         runtime_roots = SimpleNamespace(
             workspace_dir=workspace_dir,
             project_root=project_root,
@@ -356,6 +367,7 @@ def main() -> None:
         )
         runtime_lookup_dir = runtime_lookup.lookup_dir
         hook_payload = _hook_payload_policy(runtime_lookup_dir)
+        notification_state_dir = side_effect_project_root or runtime_lookup_dir
         allowed_event_types = hook_payload.notify_event_types
         event_type = data.get("type")
         if allowed_event_types and event_type not in allowed_event_types:
@@ -363,12 +375,12 @@ def main() -> None:
         _record_usage_telemetry(
             data,
             workspace_dir=workspace_dir,
-            project_root=project_root,
+            project_root=side_effect_project_root or (runtime_lookup_dir if prefer_local_notify_lookup else project_root),
             active_runtime=runtime_lookup.active_runtime,
         )
         _trigger_update_check(runtime_lookup_dir)
-        _check_and_notify_update(runtime_lookup_dir)
-        _emit_execution_notification(runtime_lookup_dir)
+        _check_and_notify_update(runtime_lookup_dir, state_cwd=notification_state_dir)
+        _emit_execution_notification(notification_state_dir)
     except Exception as exc:
         _debug(f"notify handler failed: {exc}")
 

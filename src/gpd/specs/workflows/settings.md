@@ -75,7 +75,7 @@ Parse current values, using the schema defaults noted below when a key is absent
 - `model_profile` -- which agent model profile to use (default: `review`)
 - `model-cost posture` is a qualitative guidance layer only; it maps onto the existing `model_profile` and `model_overrides` choices and does not add a new persisted config key.
 - Optional USD budget guardrails are advisory only; `gpd cost` evaluates them, and missing telemetry keeps the result partial or estimated rather than exact.
-- `git.branching_strategy` -- branching approach (default: `"none"`)
+- `git.branching_strategy` -- `"branching_strategy": "none" | "per-phase" | "per-milestone"` (default: `"none"`)
 
 `research_mode` controls breadth vs focus only. It does **not** by itself authorize git-backed hypothesis branches, branch-like alternative plans, or side investigations; those still require an explicit tangent decision.
 
@@ -87,9 +87,9 @@ Project conventions do **not** live in `GPD/config.json`. Do not invent or prese
   </step>
 
 <step name="determine_runtime_for_model_overrides">
-Infer the active runtime before prompting for explicit model IDs.
+Infer the active runtime identifier before prompting for explicit model IDs.
 
-Use the current command syntax, tool names, environment, and local runtime config directories to infer the active runtime identifier for this install. For GPD-owned model resolution surfaces, prefer the runtime with a concrete GPD install when a higher-priority runtime appears active but is not actually installed for this workspace.
+Shared active-runtime rule: infer the active runtime identifier from command syntax, tool names, environment, and local runtime config directories; for GPD-owned model resolution surfaces, prefer a runtime with a concrete GPD install over a higher-priority hint that is not installed for this workspace.
 
 If the runtime is still ambiguous, ask the user which runtime they want to configure before continuing with model override questions.
 
@@ -100,11 +100,11 @@ If `model_overrides.<runtime>` already exists, surface the current `tier-1` / `t
 
 <step name="present_settings">
 
-> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
+@{GPD_INSTALL_DIR}/references/shared/interactive-choice-fallback.md
 
-Treat this as the primary guided unattended-use flow: explain that autonomy, unattended budgets, runtime permission sync, and conservative preset bundles all live here. GPD is a scalpel, not an autopilot. `Supervised` is the default and matches the advisor/graduate-student cadence: trust the execution, but stay in the loop to verify and redirect. Point users at `Balanced` once they have built intuition for GPD's boundary.
+Treat this as the primary guided unattended-use flow: explain that autonomy, unattended budgets, runtime permission sync, and conservative preset bundles all live here. `Supervised` is the default for frequent checkpoints. Point users at `Balanced` when they want fewer routine pauses after they trust the workflow.
 
-**Checkpoint keystrokes.** Most supervised checkpoints render a one-line summary and resume with `[Y/n/e]`: press **Enter** (or `Y`) to accept the recommended action, `n` to reject, `e` to edit or provide freeform feedback. Enter always means "accept what I just saw." A handful of physics-bearing or destructive checkpoints intentionally do not collapse to a single keystroke (convention lock, destructive rails, blocker triage, claim↔deliverable precheck, first-result gate after firing) — see `@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md`.
+**Checkpoint keystrokes.** Most supervised checkpoints render a one-line summary and resume with `[Y/n/e]`: press **Enter** (or `Y`) to accept the recommended action, `n` to reject, `e` to edit or provide freeform feedback. Enter always means "accept what I just saw." A handful of physics-bearing or destructive checkpoints intentionally do not collapse to a single keystroke (convention lock, destructive rails, blocker triage, claim↔deliverable precheck, first-result gate after firing) — see `{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md`.
 
 Teach one coherent posture-to-inspection loop:
 
@@ -309,50 +309,31 @@ Normalization rules:
 </step>
 
 <step name="update_config">
-Merge new settings into existing config.json:
+Apply each selected setting through the config CLI. This keeps storage canonical and avoids writing nested alias blocks by hand.
 
-```json
-{
-  ...existing_config,
-  "autonomy": "supervised" | "balanced" | "yolo",
-  "research_mode": "explore" | "balanced" | "exploit" | "adaptive",
-  "model_profile": "deep-theory" | "numerical" | "exploratory" | "review" | "paper-writing",
-  "parallelization": true/false,
-  "model_overrides": {
-    ...existing_model_overrides_for_other_runtimes,
-    "<active_runtime>": {
-      "tier-1": "runtime-native model string",
-      "tier-2": "runtime-native model string",
-      "tier-3": "runtime-native model string"
-    }
-  }, // include only non-empty tier values; omit or clear <active_runtime> when using runtime defaults
-  "planning": {
-    "commit_docs": true/false
-  },
-  "workflow": {
-    "research": true/false,
-    "plan_checker": true/false,
-    "verifier": true/false
-  },
-  "execution": {
-    "review_cadence": "dense" | "adaptive" | "sparse",
-    "max_unattended_minutes_per_plan": 15,
-    "max_unattended_minutes_per_wave": 30,
-    "project_usd_budget": 25.0,
-    "session_usd_budget": 5.0,
-    "checkpoint_after_n_tasks": 1,
-    "checkpoint_after_first_load_bearing_result": true/false,
-    "checkpoint_before_downstream_dependent_tasks": true/false
-  },
-  "git": {
-    "branching_strategy": "none" | "per-phase" | "per-milestone",
-    "phase_branch_template": "gpd/phase-{phase}-{slug}",
-    "milestone_branch_template": "gpd/{milestone}-{slug}"
-  }
-}
+```bash
+gpd config set autonomy "$SELECTED_AUTONOMY"
+gpd config set research_mode "$SELECTED_RESEARCH_MODE"
+gpd config set model_profile "$SELECTED_MODEL_PROFILE"
+gpd config set parallelization "$SELECTED_PARALLELIZATION"
+gpd config set planning.commit_docs "$SELECTED_COMMIT_DOCS"
+gpd config set workflow.research "$SELECTED_WORKFLOW_RESEARCH"
+gpd config set workflow.plan_checker "$SELECTED_WORKFLOW_PLAN_CHECKER"
+gpd config set workflow.verifier "$SELECTED_WORKFLOW_VERIFIER"
+gpd config set execution.review_cadence "$SELECTED_REVIEW_CADENCE"
+gpd config set execution.max_unattended_minutes_per_plan "$SELECTED_MAX_UNATTENDED_MINUTES_PER_PLAN"
+gpd config set execution.max_unattended_minutes_per_wave "$SELECTED_MAX_UNATTENDED_MINUTES_PER_WAVE"
+gpd config set execution.project_usd_budget "$SELECTED_PROJECT_USD_BUDGET"
+gpd config set execution.session_usd_budget "$SELECTED_SESSION_USD_BUDGET"
+gpd config set execution.checkpoint_after_n_tasks "$SELECTED_CHECKPOINT_AFTER_N_TASKS"
+gpd config set execution.checkpoint_after_first_load_bearing_result "$SELECTED_CHECKPOINT_AFTER_FIRST_RESULT"
+gpd config set execution.checkpoint_before_downstream_dependent_tasks "$SELECTED_CHECKPOINT_BEFORE_DEPENDENTS"
+gpd config set git.branching_strategy "$SELECTED_BRANCHING_STRATEGY"
+gpd config set git.phase_branch_template "$SELECTED_PHASE_BRANCH_TEMPLATE"
+gpd config set git.milestone_branch_template "$SELECTED_MILESTONE_BRANCH_TEMPLATE"
 ```
 
-Write updated config to `$PROJECT_ROOT/GPD/config.json`.
+For runtime model overrides, first merge the new `<SELECTED_RUNTIME>` tier map with existing `model_overrides` for other runtimes, then write the whole `model_overrides` object with `gpd config set model_overrides "$MODEL_OVERRIDES_JSON"`. Include only non-empty tier values; omit or clear `<SELECTED_RUNTIME>` when using runtime defaults.
 
 Then immediately sync runtime-owned permissions against the selected autonomy:
 

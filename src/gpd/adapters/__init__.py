@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from gpd.adapters.base import RuntimeAdapter
 
 _REGISTRY: dict[str, type[RuntimeAdapter]] = {}
-_LOADED = False
 
 
 def _load_adapter_class(descriptor: RuntimeDescriptor) -> type[RuntimeAdapter]:
@@ -54,24 +53,6 @@ def _load_adapter_class(descriptor: RuntimeDescriptor) -> type[RuntimeAdapter]:
             f"{descriptor.adapter_class!r} with runtime identity {adapter_runtime_name!r}"
         )
     return adapter_class
-
-
-def _ensure_loaded() -> None:
-    global _LOADED  # noqa: PLW0603
-    if _LOADED:
-        return
-
-    registry: dict[str, type[RuntimeAdapter]] = {}
-    seen_runtime_names: set[str] = set()
-    for descriptor in iter_runtime_descriptors():
-        if descriptor.runtime_name in seen_runtime_names:
-            raise RuntimeError(f"Duplicate runtime name in runtime catalog: {descriptor.runtime_name!r}")
-        seen_runtime_names.add(descriptor.runtime_name)
-        registry[descriptor.runtime_name] = _load_adapter_class(descriptor)
-
-    _REGISTRY.clear()
-    _REGISTRY.update(registry)
-    _LOADED = True
 
 
 def _ensure_runtime_loaded(runtime_name: str) -> type[RuntimeAdapter]:

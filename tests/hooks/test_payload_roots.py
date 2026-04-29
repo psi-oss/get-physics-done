@@ -12,8 +12,10 @@ from gpd.hooks.payload_roots import (
     _resolve_with_shared_service,
     normalize_workspace_text,
     payload_uses_alias_only_workspace_mapping,
+    project_dir_hint_from_payload,
     project_root_from_payload,
     resolve_payload_roots,
+    trusted_payload_project_root,
     workspace_dir_from_payload,
 )
 
@@ -147,18 +149,49 @@ def test_payload_uses_alias_only_workspace_mapping_detects_top_level_alias_only_
     )
 
 
-def test_payload_uses_alias_only_workspace_mapping_is_insensitive_to_workspace_key_order(tmp_path) -> None:
+def test_payload_uses_alias_only_workspace_mapping_respects_policy_primary_workspace_key(tmp_path) -> None:
     workspace = tmp_path / "workspace"
     project = tmp_path / "project"
     workspace.mkdir()
     project.mkdir()
 
-    assert payload_uses_alias_only_workspace_mapping(
+    assert not payload_uses_alias_only_workspace_mapping(
         {
             "workspace": {"current_dir": str(workspace)},
             "project_root": str(project),
         },
         hook_payload=_policy(workspace_keys=("current_dir", "cwd"), project_dir_keys=("project_root",)),
+    )
+
+
+def test_payload_uses_alias_only_workspace_mapping_uses_first_policy_workspace_key_as_primary(tmp_path) -> None:
+    workspace = tmp_path / "workspace"
+    project = tmp_path / "project"
+    workspace.mkdir()
+    project.mkdir()
+
+    assert not payload_uses_alias_only_workspace_mapping(
+        {
+            "workspace": {"workspace_dir": str(workspace)},
+            "project_root": str(project),
+        },
+        hook_payload=_policy(workspace_keys=("workspace_dir", "current_dir"), project_dir_keys=("project_root",)),
+    )
+
+
+def test_project_dir_hint_from_payload_requires_policy_owned_keys(tmp_path) -> None:
+    stray = tmp_path / "stray"
+    project = tmp_path / "project"
+
+    payload = {
+        "workspace": {"project_dir": str(stray)},
+        "project_root": str(project),
+    }
+
+    assert project_dir_hint_from_payload(payload, hook_payload=_policy(project_dir_keys=())) == ""
+    assert (
+        project_dir_hint_from_payload(payload, hook_payload=_policy(project_dir_keys=("project_root",)))
+        == str(project)
     )
 
 
@@ -505,6 +538,37 @@ def test_resolve_payload_roots_rejects_unrelated_verified_project_dir_hint(tmp_p
     assert roots.project_root == str(project.resolve(strict=False))
     assert roots.project_dir_present is True
     assert roots.project_dir_trusted is False
+
+
+def test_trusted_payload_project_root_accepts_policy_owned_verified_ancestor(tmp_path) -> None:
+    project = tmp_path / "project"
+    workspace = project / "src" / "notes"
+    workspace.mkdir(parents=True)
+    (project / "GPD").mkdir()
+
+    result = trusted_payload_project_root(
+        {"workspace": {"cwd": str(workspace), "project_dir": str(project)}},
+        str(workspace),
+        hook_payload=_policy(workspace_keys=("cwd",), project_dir_keys=("project_dir",)),
+    )
+
+    assert result == str(project.resolve(strict=False))
+
+
+def test_trusted_payload_project_root_rejects_unrelated_project_hint(tmp_path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    unrelated = tmp_path / "other-project"
+    unrelated.mkdir()
+    (unrelated / "GPD").mkdir()
+
+    result = trusted_payload_project_root(
+        {"workspace": {"cwd": str(workspace), "project_dir": str(unrelated)}},
+        str(workspace),
+        hook_payload=_policy(workspace_keys=("cwd",), project_dir_keys=("project_dir",)),
+    )
+
+    assert result is None
 
 
 def test_resolve_payload_roots_does_not_capture_empty_ancestor_gpd_without_project_dir(tmp_path) -> None:

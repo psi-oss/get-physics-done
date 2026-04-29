@@ -299,6 +299,7 @@ def _write_nested_project_manuscript_review_anchor(project_root: Path) -> Path:
     (manuscript_root / "paper-style.sty").write_text("\\ProvidesPackage{paper-style}\n", encoding="utf-8")
     (manuscript_root / "figures").mkdir(parents=True, exist_ok=True)
     (manuscript_root / "figures" / "summary.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    manuscript_sha256 = compute_sha256(manuscript_path)
     (manuscript_root / "ARTIFACT-MANIFEST.json").write_text(
         json.dumps(
             {
@@ -306,12 +307,14 @@ def _write_nested_project_manuscript_review_anchor(project_root: Path) -> Path:
                 "paper_title": "Nested Paper",
                 "journal": "prl",
                 "created_at": "2026-04-02T00:00:00+00:00",
+                "manuscript_sha256": manuscript_sha256,
+                "manuscript_mtime_ns": manuscript_path.stat().st_mtime_ns,
                 "artifacts": [
                     {
                         "artifact_id": "tex-paper",
                         "category": "tex",
                         "path": "tex/main.tex",
-                        "sha256": "0" * 64,
+                        "sha256": manuscript_sha256,
                         "produced_by": "test",
                         "sources": [],
                         "metadata": {},

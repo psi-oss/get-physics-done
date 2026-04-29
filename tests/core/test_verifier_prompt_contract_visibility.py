@@ -176,7 +176,10 @@ def test_verifier_prompt_surfaces_missing_parameter_proof_audit_and_stale_review
     assert "<!-- Stub detection patterns extracted to reduce context. Load on demand from `references/verification/examples/verifier-worked-examples.md`. -->" in verifier
     assert "proof-audit fields, status vocabularies, ID linkage, and stale-audit handling" in verifier
     assert "Every named theorem parameter or hypothesis is used or explicitly discharged; no theorem symbol may disappear without explanation" not in verifier
+    assert "For `contract_results`, use the referenced `ProjectContract` (`project_contract.claims[]` / `ContractClaim`) semantics" in contract_results_schema
+    assert "Do not substitute the staged peer-review Paper `ClaimRecord` rule here" in contract_results_schema
     assert "A quantified proof-bearing claim must keep `proof_audit.quantifier_status` explicit" in contract_results_schema
+    assert "unquantified proof-bearing claims do not need a non-empty quantifier list" in contract_results_schema
     assert "`proof_artifact_path`, `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, `claim_statement_sha256`" in contract_results_schema
     assert "`proof_audit.proof_artifact_path` must match a declared `proof_deliverables` path" in contract_results_schema
     assert "`proof_audit.audit_artifact_path` must point to a proof-redteam artifact" in contract_results_schema

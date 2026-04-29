@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 
@@ -12,6 +13,21 @@ from gpd.core.state import (
     sync_state_json_core,
 )
 from gpd.core.utils import file_lock
+
+FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
+
+
+def _load_contract_fixture() -> dict:
+    return json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+
+
+def _write_recoverable_state_intent(cwd: Path, state_obj: dict) -> None:
+    planning = cwd / "GPD"
+    json_tmp = planning / ".state-json-tmp"
+    md_tmp = planning / ".state-md-tmp"
+    json_tmp.write_text(json.dumps(state_obj, indent=2) + "\n", encoding="utf-8")
+    md_tmp.write_text("# Recovered State\n", encoding="utf-8")
+    (planning / ".state-write-intent").write_text(f"{json_tmp}\n{md_tmp}\n", encoding="utf-8")
 
 
 class TestSyncStateJson:
@@ -32,9 +48,7 @@ class TestSyncStateJson:
         assert isinstance(stored, dict)
         assert stored["position"]["current_phase"] == "01"
 
-    def test_sync_core_uses_backup_when_primary_json_is_corrupt(
-        self, tmp_path: Path, state_project_factory
-    ) -> None:
+    def test_sync_core_uses_backup_when_primary_json_is_corrupt(self, tmp_path: Path, state_project_factory) -> None:
         cwd = state_project_factory(tmp_path)
         planning = cwd / "GPD"
 
@@ -68,6 +82,57 @@ class TestSaveStateJsonLocked:
         assert stored["position"]["current_phase"] == "01"
         assert "Planning" in markdown
         assert (planning / "state.json.bak").exists()
+
+
+class TestStateProjectContractStorage:
+    def test_set_project_contract_noop_check_happens_after_intent_recovery(
+        self, tmp_path: Path, state_project_factory
+    ) -> None:
+        from gpd.core.state import state_set_project_contract
+
+        cwd = state_project_factory(tmp_path)
+        requested = _load_contract_fixture()
+        initial_result = state_set_project_contract(cwd, requested)
+        assert initial_result.updated is True
+
+        planning = cwd / "GPD"
+        persisted_state = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+        requested_contract = copy.deepcopy(persisted_state["project_contract"])
+        stale_state = copy.deepcopy(persisted_state)
+        stale_state["project_contract"]["scope"]["question"] = "Stale interrupted contract"
+        _write_recoverable_state_intent(cwd, stale_state)
+
+        result = state_set_project_contract(cwd, requested_contract)
+
+        stored = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+        assert result.updated is True
+        assert result.unchanged is False
+        assert stored["project_contract"] == requested_contract
+        assert not (planning / ".state-write-intent").exists()
+
+
+class TestStateValidateStorage:
+    def test_state_validate_is_read_only_by_default(self, tmp_path: Path, state_project_factory) -> None:
+        from gpd.core.state import state_validate
+
+        cwd = state_project_factory(tmp_path)
+        planning = cwd / "GPD"
+        before_state_json = (planning / "state.json").read_text(encoding="utf-8")
+
+        recovered_state = json.loads(before_state_json)
+        recovered_state["position"]["current_phase"] = "05"
+        _write_recoverable_state_intent(cwd, recovered_state)
+        before_intent = (planning / ".state-write-intent").read_text(encoding="utf-8")
+        before_json_tmp = (planning / ".state-json-tmp").read_text(encoding="utf-8")
+        before_md_tmp = (planning / ".state-md-tmp").read_text(encoding="utf-8")
+
+        result = state_validate(cwd)
+
+        assert result.state_source == "state.json"
+        assert (planning / "state.json").read_text(encoding="utf-8") == before_state_json
+        assert (planning / ".state-write-intent").read_text(encoding="utf-8") == before_intent
+        assert (planning / ".state-json-tmp").read_text(encoding="utf-8") == before_json_tmp
+        assert (planning / ".state-md-tmp").read_text(encoding="utf-8") == before_md_tmp
 
 
 class TestStateCompact:

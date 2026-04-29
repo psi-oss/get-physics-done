@@ -168,7 +168,7 @@ gpd commit "wip: append derivation state from session" --files GPD/DERIVATION-ST
 <step name="write">
 **Write the canonical continuation handoff artifact to `GPD/phases/{phase_slug}/.continue-here.md`** (where `{phase_slug}` is the detected phase directory name from the `detect` step, e.g., `03-dispersion`).
 
-Use the shared template at `@{GPD_INSTALL_DIR}/templates/continue-here.md` as the authoritative structure. Do not invent alternate tag names when writing the handoff. The canonical file should keep:
+Use the shared template at `{GPD_INSTALL_DIR}/templates/continue-here.md` as the authoritative structure. Do not invent alternate tag names when writing the handoff. The canonical file should keep:
 
 - YAML frontmatter: `phase`, `task`, `total_tasks`, `status`, `last_updated`
 - `<current_state>` for the immediate physics situation

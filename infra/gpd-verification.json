@@ -1,6 +1,6 @@
 {
   "name": "gpd-verification",
-  "description": "GPD physics verification checks. Tools for running contract-aware checks, dimensional analysis, domain and bundle-specific checklists, limiting case checks, symmetry verification, and coverage gap analysis. Contract-aware request surfaces are closed and schema-driven. The full contract payload rules live on the `contract` input schema. Proof-oriented checks still require an authoritative contract payload. Missing grounding, evidence, or proof artifacts stay explicit and must not be invented. Use `suggest_contract_checks(...)` to surface the exact per-check request metadata before calling `run_contract_check(...)`.",
+  "description": "GPD physics verification checks. Tools for running contract-aware checks, dimensional analysis, domain and bundle-specific checklists, limiting case checks, symmetry verification, and coverage gap analysis. Contract-aware requests are closed and schema-driven; full rules live on the `contract` input schema. Proof checks require authoritative contract payloads. Missing grounding, evidence, or proof artifacts stay explicit. Use `suggest_contract_checks(...)` before `run_contract_check(...)`. Only contract-payload enum case drift is recoverable; observed enums must match source evidence exactly.",
   "transport": "stdio",
   "command": "gpd-mcp-verification",
   "args": [],
@@ -23,6 +23,7 @@
     "Install GPD before enabling built-in MCP servers."
   ],
   "health_check": {
+    "probe_kind": "schema_valid",
     "tool": "get_checklist",
     "input": {
       "domain": "qft"

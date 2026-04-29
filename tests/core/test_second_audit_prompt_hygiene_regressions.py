@@ -18,19 +18,21 @@ PUBLICATION_BOOTSTRAP_PREFLIGHT = REFERENCES_DIR / "publication" / "publication-
 PUBLICATION_PIPELINE_MODES_INCLUDE = (
     "@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md"
 )
+PUBLICATION_PIPELINE_MODES_INLINE = "{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md"
 PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE = (
     "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
 )
 PUBLICATION_ROUND_ARTIFACTS_INCLUDE = (
-    "@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
+    "{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
 )
 PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE = (
     "@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md"
 )
 PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE = (
-    "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
+    "{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
 )
-PUBLICATION_REVIEW_RELIABILITY_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
+PUBLICATION_REVIEW_RELIABILITY_INCLUDE = "{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
+PUBLICATION_REVIEW_RELIABILITY_INLINE = "{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
 OWNED_COMMANDS = (
     COMMANDS_DIR / "debug.md",
     COMMANDS_DIR / "research-phase.md",
@@ -85,8 +87,9 @@ def test_quick_command_and_workflow_keep_the_project_gate_and_drop_the_custom_st
 def test_peer_review_init_fields_are_manifest_owned_and_stage5_bullets_are_space_indented() -> None:
     peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
 
-    assert "Parse bootstrap JSON for: the manifest-owned `bootstrap.required_init_fields`" in peer_review
-    assert "Parse target-aware init JSON for: the same manifest-owned `bootstrap.required_init_fields`" in peer_review
+    assert "Parse bootstrap JSON using the manifest-owned `bootstrap.required_init_fields`" in peer_review
+    assert "Parse target-aware init JSON using the same manifest-owned `bootstrap.required_init_fields`" in peer_review
+    assert "do not duplicate the manifest's required-field list in prose" in peer_review
     assert "peer-review-stage-manifest.json" in peer_review
     assert "Parse bootstrap JSON for: `project_exists`" not in peer_review
     assert "Parse target-aware init JSON for: `project_exists`" not in peer_review
@@ -125,9 +128,15 @@ def test_research_project_templates_point_existing_artifact_analysis_to_map_rese
     for path in sorted((TEMPLATES_DIR / "research-project").glob("*.md")):
         content = path.read_text(encoding="utf-8")
         assert "templates/analysis/" not in content, path.name
+        assert "GPD/research/" not in content, path.name
+        assert f"`GPD/literature/{path.name}`" in content, path.name
         assert "use `map-research`" in content, path.name
         assert "`GPD/research-map/`" in content, path.name
         assert "`references/templates/research-mapper/`" in content, path.name
+
+    shared_protocols = (REFERENCES_DIR / "shared" / "shared-protocols.md").read_text(encoding="utf-8")
+    assert "GPD/research/ (5 files)" not in shared_protocols
+    assert "GPD/literature/ (5 files)" in shared_protocols
 
 
 def test_knowledge_schema_uses_existing_knowledge_review_workflow_id() -> None:
@@ -176,7 +185,8 @@ def test_publication_commands_keep_shared_manuscript_root_preflight_out_of_wrapp
     assert "publication-manuscript-root-preflight.md" in bootstrap_preflight
     assert "publication-review-round-artifacts.md" in bootstrap_preflight
     assert "publication-response-artifacts.md" in bootstrap_preflight
-    assert PUBLICATION_PIPELINE_MODES_INCLUDE in publication_artifact_gates
+    assert PUBLICATION_PIPELINE_MODES_INLINE in publication_artifact_gates
+    assert PUBLICATION_PIPELINE_MODES_INCLUDE not in publication_artifact_gates
     assert "claim full publication-root migration" not in publication_artifact_gates.lower()
     assert "current global `gpd/` / `gpd/review/` round-artifact layout" not in publication_artifact_gates.lower()
 
@@ -192,7 +202,7 @@ def test_publication_commands_keep_shared_manuscript_root_preflight_out_of_wrapp
         assert text.count(PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE) == 0, path
         assert text.count(PUBLICATION_REVIEW_RELIABILITY_INCLUDE) == 0, path
         if path.name in {"write-paper.md", "peer-review.md"}:
-            assert PUBLICATION_PIPELINE_MODES_INCLUDE in text, path
+            assert PUBLICATION_PIPELINE_MODES_INLINE in text, path
             assert "embedded review/submission parity" not in text, path
             assert "current global `GPD/` / `GPD/review/` round-artifact layout" not in text, path
 
@@ -231,8 +241,11 @@ def test_publication_commands_keep_shared_manuscript_root_preflight_out_of_wrapp
             assert text.count(PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE) >= expected_response_handoff_counts[path.name], path
         else:
             assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE not in text, path
-        if path.name in {"peer-review.md", "respond-to-referees.md", "arxiv-submission.md"}:
-            assert text.count(PUBLICATION_REVIEW_RELIABILITY_INCLUDE) >= 1, path
+        if path.name == "arxiv-submission.md":
+            assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE not in text, path
+            assert "staged `peer-review-reliability.md` reference" in text, path
+        elif path.name in {"peer-review.md", "respond-to-referees.md"}:
+            assert text.count(PUBLICATION_REVIEW_RELIABILITY_INLINE) >= 1, path
         else:
             assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE not in text, path
 
@@ -298,7 +311,8 @@ def test_write_paper_command_defers_the_route_list_to_the_workflow() -> None:
     assert "@{GPD_INSTALL_DIR}/workflows/write-paper.md" in write_paper
     assert PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE in write_paper_workflow
     assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in write_paper_workflow
-    assert "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md" in write_paper_workflow
+    assert "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md" not in write_paper_workflow
+    assert "{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md" in write_paper_workflow
 
 
 def test_debug_workflow_path_note_is_not_self_contradictory() -> None:

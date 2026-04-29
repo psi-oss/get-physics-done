@@ -14,11 +14,15 @@ import re
 import shlex
 import sys
 from collections.abc import Callable
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path, PurePosixPath
 
 from gpd.adapters.runtime_catalog import (
+    get_managed_install_surface_policy,
     get_runtime_descriptor,
     get_shared_install_metadata,
+    normalize_manifest_file_entries,
+    normalize_manifest_relpath,
+    paths_equal,
     resolve_global_config_dir,
 )
 from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES
@@ -46,6 +50,20 @@ GPD_INSTALL_DIR_NAME = _SHARED_INSTALL_METADATA.install_root_dir_name
 CACHE_DIR_NAME = "cache"
 UPDATE_CACHE_FILENAME = "gpd-update-check.json"
 
+# Top-level manifest fields owned by the shared install contract. Adapter
+# metadata may add runtime-specific keys, but it must not rewrite these.
+_RESERVED_MANIFEST_METADATA_KEYS = frozenset(
+    {
+        "version",
+        "timestamp",
+        "runtime",
+        "install_scope",
+        "install_target_dir",
+        "explicit_target",
+        "files",
+    }
+)
+
 # Subdirectories of specs/ that make up the installed get-physics-done/ content.
 # Shared by all adapters.
 GPD_CONTENT_DIRS = ("references", "templates", "workflows")
@@ -61,34 +79,6 @@ HOOK_SCRIPTS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 # Path helpers
 # ---------------------------------------------------------------------------
-
-
-def normalize_manifest_relpath(value: object) -> str | None:
-    """Return a safe POSIX manifest relpath, or ``None`` when untrusted.
-
-    Install manifests are local metadata and must never be allowed to redirect
-    cleanup or backup I/O outside the runtime-controlled roots.  Keep this
-    check independent of the host OS so a manifest forged on one platform is
-    still unsafe on another.
-    """
-    if not isinstance(value, str) or not value:
-        return None
-    if "\\" in value:
-        return None
-    if PurePosixPath(value).is_absolute():
-        return None
-    windows_path = PureWindowsPath(value)
-    if windows_path.is_absolute() or windows_path.drive:
-        return None
-    parts = value.split("/")
-    if any(part in {"", ".", ".."} for part in parts):
-        return None
-    return PurePosixPath(*parts).as_posix()
-
-
-def is_safe_manifest_relpath(value: object) -> bool:
-    """Return whether *value* is safe to resolve beneath a managed root."""
-    return normalize_manifest_relpath(value) is not None
 
 
 def expand_tilde(file_path: str | None) -> str | None:
@@ -114,25 +104,6 @@ def _normalize_install_scope_flag(install_scope: str | None) -> str | None:
     if install_scope in ("global", "--global"):
         return "--global"
     return install_scope
-
-
-def _paths_equal(left: Path, right: Path) -> bool:
-    """Return whether two paths refer to the same location when comparable."""
-    try:
-        return left.expanduser().resolve() == right.expanduser().resolve()
-    except OSError:
-        return left.expanduser() == right.expanduser()
-
-
-def _dir_contains_files(path: Path) -> bool:
-    """Return whether *path* contains at least one regular file."""
-    if not path.is_dir():
-        return False
-
-    try:
-        return any(entry.is_file() for entry in path.rglob("*"))
-    except OSError:
-        return True
 
 
 def _default_install_target(runtime: str, scope_flag: str | None) -> Path | None:
@@ -167,7 +138,7 @@ def prune_empty_ancestors(path: Path, *, stop_at: Path | None = None) -> None:
     """Remove *path* and empty ancestor directories until *stop_at* is reached."""
     current = path
     while True:
-        if stop_at is not None and _paths_equal(current, stop_at):
+        if stop_at is not None and paths_equal(current, stop_at):
             return
         if not current.exists() or not current.is_dir():
             return
@@ -327,16 +298,23 @@ def rewrite_gpd_cli_invocations_to_runtime_bridge(
 ) -> str:
     """Rewrite fenced-shell command-position ``gpd`` calls to the runtime bridge."""
     rewritten: list[str] = []
+    active_fence_marker: str | None = None
     in_shell_fence = False
 
     for line in content.splitlines(keepends=True):
         stripped = line.lstrip()
-        if stripped.startswith("```"):
-            if in_shell_fence:
-                in_shell_fence = False
-            else:
-                fence_language = stripped[3:].strip().lower()
-                in_shell_fence = fence_language in shell_fence_languages
+        fence_marker = _markdown_fence_marker(stripped)
+        if fence_marker is not None:
+            if active_fence_marker is not None:
+                if fence_marker == active_fence_marker:
+                    active_fence_marker = None
+                    in_shell_fence = False
+                rewritten.append(line)
+                continue
+
+            active_fence_marker = fence_marker
+            fence_language = _markdown_fence_language(stripped, fence_marker)
+            in_shell_fence = fence_language in shell_fence_languages
             rewritten.append(line)
             continue
 
@@ -558,7 +536,7 @@ _INLINE_MATH_RE = re.compile(r"(?<!\\)\$(?=\S)([^$\n]*?\S)(?<!\\)\$(?![A-Za-z0-9
 _MARKDOWN_FRONTMATTER_RE = re.compile(
     r"^(?P<preamble>\ufeff?(?:[ \t]*\r?\n)*)---[ \t]*\r?\n(?P<frontmatter>[\s\S]*?)(?P<separator>\r?\n)---[ \t]*(?P<body_separator>\r?\n|$)"
 )
-_AT_INCLUDE_LINE_RE = re.compile(r"^(?:[-*+]\s+|\d+\.\s+)?`?(@[^\s`]+)`?(?:\s+.*)?$")
+_AT_INCLUDE_LINE_RE = re.compile(r"^(?:[-*+]\s+|\d+\.\s+)?(@[^\s`]+)(?:\s+.*)?$")
 _COMMON_INLINE_MATH_NAMES = frozenset(
     {
         "sin",
@@ -592,7 +570,8 @@ _TEXT_INSTALL_ARTIFACT_SUFFIXES = frozenset({".md", ".toml"})
 
 def parse_at_include_path(line: str) -> str | None:
     """Return the include path for one installer-recognized ``@`` include line."""
-    include_match = _AT_INCLUDE_LINE_RE.match(line.strip())
+    stripped = line.strip()
+    include_match = _AT_INCLUDE_LINE_RE.match(stripped)
     if include_match is None:
         return None
 
@@ -610,6 +589,23 @@ def parse_at_include_path(line: str) -> str | None:
     if include_path.startswith(("GPD/", "path/")):
         return None
     return include_path
+
+
+def _markdown_fence_marker(stripped_line: str) -> str | None:
+    """Return the markdown fence marker for a stripped line."""
+
+    if stripped_line.startswith("```"):
+        return "```"
+    if stripped_line.startswith("~~~"):
+        return "~~~"
+    return None
+
+
+def _markdown_fence_language(stripped_line: str, marker: str) -> str:
+    """Return the first language token after a markdown fence marker."""
+
+    remainder = stripped_line[len(marker) :].strip().lower()
+    return remainder.split(None, 1)[0] if remainder else ""
 
 
 def protect_runtime_agent_prompt(content: str, runtime: str) -> str:
@@ -854,16 +850,7 @@ def _default_markdown_transform(runtime: str) -> Callable[[str, str, str | None]
     """Resolve the adapter-owned shared-markdown transform for *runtime*."""
     from gpd.adapters import get_adapter
 
-    try:
-        adapter = get_adapter(runtime)
-    except KeyError:
-        return lambda content, path_prefix, install_scope: replace_placeholders(
-            content,
-            path_prefix,
-            runtime,
-            install_scope,
-        )
-    return adapter.translate_shared_markdown
+    return get_adapter(runtime).translate_shared_markdown
 
 
 def _shell_var_placeholder(match: re.Match[str]) -> str:
@@ -1243,6 +1230,7 @@ def compile_markdown_for_runtime(
     workflow_target_dir: Path | None = None,
     explicit_target: bool = False,
     protect_agent_prompt_body: bool = False,
+    inject_skeptical_rigor_guardrails: bool = True,
 ) -> str:
     """Compile canonical markdown into a runtime-specific installed form.
 
@@ -1286,7 +1274,9 @@ def compile_markdown_for_runtime(
         )
 
     content = _inject_command_visibility_sections_from_frontmatter(content)
-    return _inject_skeptical_rigor_guardrails_section(content)
+    if inject_skeptical_rigor_guardrails:
+        content = _inject_skeptical_rigor_guardrails_section(content)
+    return content
 
 
 def project_markdown_for_runtime(
@@ -1301,6 +1291,7 @@ def project_markdown_for_runtime(
     explicit_target: bool = False,
     protect_agent_prompt_body: bool = False,
     command_name: str | None = None,
+    inject_skeptical_rigor_guardrails: bool = True,
 ) -> str:
     """Return the final runtime-visible prompt surface for one markdown source.
 
@@ -1318,6 +1309,7 @@ def project_markdown_for_runtime(
         workflow_target_dir=workflow_target_dir,
         explicit_target=explicit_target,
         protect_agent_prompt_body=protect_agent_prompt_body,
+        inject_skeptical_rigor_guardrails=inject_skeptical_rigor_guardrails,
     )
 
     if surface_kind not in {"agent", "command"}:
@@ -1388,17 +1380,20 @@ def expand_at_includes(
     src_root = Path(src_root)
     lines = content.split("\n")
     result: list[str] = []
-    in_code_fence = False
+    active_fence_marker: str | None = None
 
     for line in lines:
         trimmed = line.strip()
 
-        # Track code fences
-        if trimmed.startswith("```"):
-            in_code_fence = not in_code_fence
+        fence_marker = _markdown_fence_marker(trimmed)
+        if fence_marker is not None:
+            if active_fence_marker is None:
+                active_fence_marker = fence_marker
+            elif fence_marker == active_fence_marker:
+                active_fence_marker = None
             result.append(line)
             continue
-        if in_code_fence:
+        if active_fence_marker is not None:
             result.append(line)
             continue
 
@@ -1518,6 +1513,7 @@ def copy_with_path_replacement(
     workflow_paths: bool = False,
     workflow_target_dir: Path | None = None,
     explicit_target: bool = False,
+    inject_skeptical_rigor_guardrails: bool | None = None,
 ) -> None:
     """Safely copy *src_dir* to *dest_dir* with path replacement in ``.md`` files.
 
@@ -1536,6 +1532,8 @@ def copy_with_path_replacement(
     src_dir = Path(src_dir)
     if not src_dir.is_dir():
         raise FileNotFoundError(f"Source directory does not exist: {src_dir}")
+    if inject_skeptical_rigor_guardrails is None:
+        inject_skeptical_rigor_guardrails = src_dir.name in {COMMANDS_DIR_NAME, AGENTS_DIR_NAME}
     dest_dir = Path(dest_dir)
     pid = os.getpid()
     tmp_dir = dest_dir.with_name(f"{dest_dir.name}.tmp.{pid}")
@@ -1559,6 +1557,7 @@ def copy_with_path_replacement(
             workflow_paths=workflow_paths,
             workflow_target_dir=workflow_target_dir,
             explicit_target=explicit_target,
+            inject_skeptical_rigor_guardrails=inject_skeptical_rigor_guardrails,
         )
 
         # Swap into place
@@ -1596,6 +1595,7 @@ def _copy_dir_contents(
     workflow_paths: bool = False,
     workflow_target_dir: Path | None = None,
     explicit_target: bool = False,
+    inject_skeptical_rigor_guardrails: bool = True,
 ) -> None:
     """Recursively copy directory contents with runtime translation in .md files.
 
@@ -1619,6 +1619,7 @@ def _copy_dir_contents(
                 workflow_paths=workflow_paths,
                 workflow_target_dir=workflow_target_dir,
                 explicit_target=explicit_target,
+                inject_skeptical_rigor_guardrails=inject_skeptical_rigor_guardrails,
             )
         elif entry.suffix == ".md":
             content = entry.read_text(encoding="utf-8")
@@ -1633,7 +1634,8 @@ def _copy_dir_contents(
                     explicit_target=explicit_target,
                 )
             content = _inject_command_visibility_sections_from_frontmatter(content)
-            content = _inject_skeptical_rigor_guardrails_section(content)
+            if inject_skeptical_rigor_guardrails:
+                content = _inject_skeptical_rigor_guardrails_section(content)
             dest.write_text(content, encoding="utf-8")
         else:
             # Binary copy
@@ -1690,6 +1692,47 @@ def generate_manifest(directory: str | Path, base_dir: str | Path | None = None)
     return manifest
 
 
+def _manifest_entries_for_catalog_globs(
+    config_dir: Path,
+    patterns: tuple[str, ...],
+    *,
+    suffixes: tuple[str, ...] | None = None,
+) -> dict[str, str]:
+    """Return manifest entries for files selected by catalog-owned globs."""
+    files: dict[str, str] = {}
+    allowed_suffixes = set(suffixes or ())
+
+    def _include_file(path: Path) -> None:
+        if allowed_suffixes and path.suffix not in allowed_suffixes:
+            return
+        try:
+            rel = path.relative_to(config_dir).as_posix()
+        except ValueError:
+            return
+        if rel in files:
+            return
+        files[rel] = file_hash(path)
+
+    for pattern in patterns:
+        try:
+            matches = sorted(config_dir.glob(pattern))
+        except OSError:
+            continue
+        for match in matches:
+            if match.is_symlink():
+                continue
+            if match.is_file():
+                _include_file(match)
+                continue
+            if not match.is_dir():
+                continue
+            for rel, digest in generate_manifest(match, config_dir).items():
+                if allowed_suffixes and PurePosixPath(rel).suffix not in allowed_suffixes:
+                    continue
+                files.setdefault(rel, digest)
+    return files
+
+
 def write_manifest(
     config_dir: str | Path,
     version: str,
@@ -1709,6 +1752,12 @@ def write_manifest(
 
     Returns the manifest dict.
     """
+    if metadata:
+        colliding_keys = sorted(set(metadata) & _RESERVED_MANIFEST_METADATA_KEYS)
+        if colliding_keys:
+            keys = ", ".join(colliding_keys)
+            raise ValueError(f"Install manifest metadata cannot override reserved keys: {keys}")
+
     config_dir = Path(config_dir)
     gpd_dir = config_dir / GPD_INSTALL_DIR_NAME
     commands_dir = config_dir / "commands" / "gpd"
@@ -1716,6 +1765,12 @@ def write_manifest(
     agents_dir = config_dir / "agents"
     hooks_dir = config_dir / "hooks"
     normalized_runtime = runtime.strip() if isinstance(runtime, str) and runtime.strip() else None
+    managed_surface = None
+    if normalized_runtime is not None:
+        try:
+            managed_surface = get_managed_install_surface_policy(normalized_runtime)
+        except KeyError:
+            managed_surface = None
 
     manifest: dict[str, object] = {
         "version": version,
@@ -1735,7 +1790,7 @@ def write_manifest(
     elif normalized_runtime and normalized_scope in {"--local", "--global"}:
         default_target = _default_install_target(normalized_runtime, normalized_scope)
         if default_target is not None:
-            manifest["explicit_target"] = not _paths_equal(config_dir, default_target)
+            manifest["explicit_target"] = not paths_equal(config_dir, default_target)
     files: dict[str, str] = {}
 
     # Managed install root
@@ -1743,38 +1798,32 @@ def write_manifest(
         files[f"{GPD_INSTALL_DIR_NAME}/" + rel] = h
 
     # commands/gpd/
-    if include_nested_commands and commands_dir.exists():
+    if include_nested_commands and managed_surface is not None:
+        files.update(_manifest_entries_for_catalog_globs(config_dir, managed_surface.nested_command_globs))
+    elif include_nested_commands and commands_dir.exists():
         for rel, h in generate_manifest(commands_dir).items():
             files["commands/gpd/" + rel] = h
 
-    descriptor_prefixes: tuple[str, ...] = ()
-    if normalized_runtime is not None:
-        try:
-            descriptor_prefixes = get_runtime_descriptor(normalized_runtime).manifest_file_prefixes
-        except KeyError:
-            descriptor_prefixes = ()
-    if flat_command_file_names is not None or "command/" in descriptor_prefixes:
-        if flat_command_file_names is None:
-            flat_command_file_names = (
-                tuple(
-                    sorted(
-                        entry.name
-                        for entry in flat_commands_dir.iterdir()
-                        if entry.is_file() and entry.name.startswith("gpd-") and entry.suffix == ".md"
-                    )
-                )
-                if flat_commands_dir.exists()
-                else ()
-            )
+    if flat_command_file_names is not None:
         for name in flat_command_file_names:
             if not isinstance(name, str) or not name.startswith("gpd-") or not name.endswith(".md"):
                 continue
             command_path = flat_commands_dir / name
             if command_path.is_file():
                 files["command/" + name] = file_hash(command_path)
+    elif managed_surface is not None:
+        files.update(_manifest_entries_for_catalog_globs(config_dir, managed_surface.flat_command_globs))
 
     # agents/gpd-*.(md|toml)
-    if agents_dir.exists():
+    if managed_surface is not None:
+        files.update(
+            _manifest_entries_for_catalog_globs(
+                config_dir,
+                managed_surface.managed_agent_globs,
+                suffixes=agent_suffixes,
+            )
+        )
+    elif agents_dir.exists():
         for f in sorted(agents_dir.iterdir()):
             if f.name.startswith("gpd-") and f.suffix in set(agent_suffixes):
                 files["agents/" + f.name] = file_hash(f)
@@ -1883,25 +1932,23 @@ def _managed_install_paths(
     """Return the current managed install paths when a manifest cannot be trusted."""
     managed_paths: list[str] = []
 
-    gpd_dir = config_dir / GPD_INSTALL_DIR_NAME
-    for rel in generate_manifest(gpd_dir).keys():
-        managed_paths.append(f"{GPD_INSTALL_DIR_NAME}/{rel}")
+    try:
+        managed_surface = get_managed_install_surface_policy()
+    except KeyError:
+        managed_surface = None
 
-    commands_dir = config_dir / "commands" / "gpd"
-    for rel in generate_manifest(commands_dir).keys():
-        managed_paths.append(f"commands/gpd/{rel}")
-
-    command_dir = config_dir / "command"
-    if command_dir.exists():
-        for entry in sorted(command_dir.iterdir()):
-            if entry.is_file() and entry.name.startswith("gpd-") and entry.suffix == ".md":
-                managed_paths.append(f"command/{entry.name}")
-
-    agents_dir = config_dir / "agents"
-    if agents_dir.exists():
-        for entry in sorted(agents_dir.iterdir()):
-            if entry.is_file() and entry.name.startswith("gpd-") and entry.suffix in {".md", ".toml"}:
-                managed_paths.append(f"agents/{entry.name}")
+    if managed_surface is not None:
+        catalog_globs = (
+            *managed_surface.gpd_content_globs,
+            *managed_surface.nested_command_globs,
+            *managed_surface.flat_command_globs,
+            *managed_surface.managed_agent_globs,
+        )
+        managed_paths.extend(_manifest_entries_for_catalog_globs(config_dir, catalog_globs).keys())
+    else:
+        gpd_dir = config_dir / GPD_INSTALL_DIR_NAME
+        for rel in generate_manifest(gpd_dir).keys():
+            managed_paths.append(f"{GPD_INSTALL_DIR_NAME}/{rel}")
 
     hooks_dir = config_dir / "hooks"
     for rel in generate_manifest(hooks_dir).keys():
@@ -1922,20 +1969,6 @@ def _managed_install_paths(
 # ---------------------------------------------------------------------------
 # Local patch persistence
 # ---------------------------------------------------------------------------
-
-
-def _validated_manifest_files(raw_files: object) -> dict[str, str] | None:
-    """Return sanitized manifest file entries, or ``None`` for untrusted shape."""
-    if not isinstance(raw_files, dict):
-        return None
-
-    tracked_files: dict[str, str] = {}
-    for rel_path, original_hash in raw_files.items():
-        normalized_relpath = normalize_manifest_relpath(rel_path)
-        if normalized_relpath is None or not isinstance(original_hash, str):
-            return None
-        tracked_files[normalized_relpath] = original_hash
-    return tracked_files
 
 
 def save_local_patches(
@@ -1966,7 +1999,7 @@ def save_local_patches(
         if isinstance(manifest, dict):
             manifest_version = str(manifest.get("version", "unknown"))
             raw_files = manifest.get("files") or {}
-            validated_files = _validated_manifest_files(raw_files)
+            validated_files = normalize_manifest_file_entries(raw_files)
             if validated_files is not None:
                 tracked_files = validated_files
             else:
@@ -2159,6 +2192,7 @@ def install_gpd_content(
                 workflow_paths=subdir_name == "workflows",
                 workflow_target_dir=target_dir,
                 explicit_target=explicit_target,
+                inject_skeptical_rigor_guardrails=False,
             )
 
     if verify_installed(gpd_dest):

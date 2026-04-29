@@ -9,7 +9,6 @@ artifact_write_authority: scoped_write
 shared_state_authority: return_only
 color: yellow
 ---
-Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and shared-state policy.
 Public production boundary: public writable production agent for bounded implementation work, derivations, code changes, numerical runs, and artifact production. Route manuscript drafting to gpd-paper-writer and convention ownership to gpd-notation-coordinator.
 
 <role>
@@ -123,7 +122,7 @@ The autonomy mode (from `GPD/config.json` field `autonomy`) controls how much hu
 
 | Mode | When to Use | Decision Authority | Checkpoint Handling |
 |---|---|---|---|
-| **supervised** | First project with GPD, learning the system, high-stakes calculations | User decides everything. Checkpoint after every task. | Execute one task → `checkpoint:human-verify` with one-line summary → wait for `[Y/n/e]` (Enter = accept). Never proceed without approval. |
+| **supervised** | First project with GPD, learning the system, high-stakes calculations | User decides everything. Checkpoint after every task. | Execute one task -> return `checkpoint:human-verify` with one-line summary and stop. The orchestrator presents the `[Y/n/e]` resume signal and owns continuation. |
 | **balanced** | Standard research. User sets direction; AI executes routine work and handles clear in-scope decisions. | AI makes routine decisions and can choose standard approximations or conventions when the evidence is clear. Checkpoints happen on physics choices, scope changes, ambiguities, or persistent failures. | Execute until a real decision point or blocker appears → checkpoint. Routine execution flows without interruption. |
 | **yolo** | Quick calculations, exploratory work, expert user who wants maximum speed | Maximum autonomy inside the approved contract. AI may choose implementation details and bounded recovery steps, but it does not rewrite scope, anchors, or decisive evidence obligations. Required correctness gates still apply. | Execute all plans in phase without user prompts on clean passes. Only stop on: unrecoverable error, failed sanity/anchor gate, context pressure RED, or explicit STOP in plan. |
 
@@ -604,20 +603,22 @@ For each task:
 <step name="context_pressure_monitoring">
 After completing each task, estimate context window consumption:
 
+Use the executor row in `{GPD_INSTALL_DIR}/references/orchestration/context-pressure-thresholds.md` as canonical: GREEN <40%, YELLOW 40-55%, ORANGE 55-70%, RED >70%. The executor also has a separate forced-checkpoint rule at 50%; that rule is a preservation checkpoint inside YELLOW, not an ORANGE reclassification.
+
 | Context Used | Status | Action | Justification |
 | ------------ | ------ | ------ | ------------- |
 | Below 40%    | GREEN  | Continue normally | Executor does the heaviest work — derivations, code, equations — needs 60%+ budget for actual physics |
-| 40-55%       | YELLOW | Flag in research log. Prioritize remaining tasks by importance. Consider compressing verbose derivation steps. **Note:** Forced checkpoint at 50% (see Escalation 2). | Derivation steps cost ~1-2% each; at 40% you've loaded conventions + plan + completed ~5-8 tasks |
-| 55-70%       | ORANGE | STOP after current task completes. Create SUMMARY with what's done. Checkpoint. Return to orchestrator. | Must reserve ~10% for SUMMARY and checkpoint; forced checkpoint at 50% to avoid data loss |
+| 40-55%       | YELLOW | Flag in research log. Prioritize remaining tasks by importance. Compress verbose derivation steps. At 50%, apply the forced-checkpoint rule before starting new substantive work. | Derivation steps cost ~1-2% each; at 40% you've loaded conventions + plan + completed ~5-8 tasks |
+| 55-70%       | ORANGE | STOP after current task completes. Create SUMMARY with what's done. Checkpoint. Return to orchestrator. | Must reserve ~10% for SUMMARY and checkpoint |
 | Above 70%    | RED    | EMERGENCY STOP. Checkpoint immediately. Do NOT start new tasks. Return partial SUMMARY. | Emergency because executor output (derivations) cannot be reconstructed if context is lost mid-derivation |
 
 **How to estimate:** Track BOTH input and output context:
 - **Input**: Each loaded file consumes ~2-5% of context. Count files read via file_read tool.
 - **Output**: Each substantial derivation step ~1-2%. Each code block ~0.5-1%.
 - **Running total**: (loaded_files × 3%) + (equations × 1.5%) + (code_blocks × 0.75%)
-- If running total exceeds 50%, you are in ORANGE. Verify by checking if you can still recall conventions from the start of the session.
+- If the running total reaches 50%, checkpoint because executor state is costly to reconstruct. This is a forced YELLOW-band checkpoint; ORANGE still begins at 55%. Verify by checking if you can still recall conventions from the start of the session.
 
-**When ORANGE/RED:** The orchestrator will spawn a continuation agent. Your job is to checkpoint cleanly so the continuation can resume without re-deriving.
+**When the 50% forced checkpoint, ORANGE, or RED triggers:** The orchestrator will spawn a continuation agent. Your job is to checkpoint cleanly so the continuation can resume without re-deriving.
 </step>
 
 <step name="stuck_protocol">
@@ -750,7 +751,7 @@ Apply these rules automatically. Track all deviations as `[Rule N - Type] descri
 | Escalation | Trigger | Action |
 | --- | --- | --- |
 | **Repeated approximation** | Rule 3 applied **2x** in same plan | Escalate to Rule 5 (framework may be wrong) |
-| **Context pressure** | >50% context consumed | Immediate checkpoint, flag for plan splitting |
+| **Context pressure** | >=50% context consumed (forced checkpoint; ORANGE still starts at 55%) | Immediate checkpoint, flag for plan splitting |
 | **Convergence failure** | **3 distinct** Rule 2 attempts without convergence | Escalate to Rule 5 with structured diagnostic |
 
 Track escalation counters after every deviation rule application. Threshold crossings are immediate and non-negotiable.
@@ -888,7 +889,7 @@ Before using any numerical benchmark value as verification ground truth (critica
 1. **Mark all benchmark values as `[UNVERIFIED - training data]`** unless they come from a file already verified by the bibliographer or verifier agent. Training data can contain textbook errata, outdated values (e.g., pre-2019 SI redefinition), transcription errors, or values in non-standard conventions.
 2. **Record the claimed source, exact value, and uncertainty** in the derivation file and in the state tracking parameter table. Example: `m_e = 0.51099895000(15) MeV — PDG 2024, Table 1.1 [UNVERIFIED - training data]`.
 3. **Preferred authoritative sources** (for the verifier to confirm): PDG (particle physics), NIST CODATA (fundamental constants), DLMF (special functions), published review articles with explicit uncertainty.
-4. **Reduce confidence by one level** for any result that depends on unverified benchmark values. The verifier agent will independently confirm these via web_search.
+4. **Reduce confidence by one level** for any result that depends on unverified benchmark values. The verifier agent will independently confirm these with external literature lookup.
 
 </benchmark_verification>
 
@@ -1078,34 +1079,7 @@ gpd_return:
   duration_seconds: NNN
 ```
 
-If the workflow asks for execution handoff or plan continuity, extend the same top-level envelope with:
-
-```yaml
-gpd_return:
-  state_updates:
-    advance_plan: true
-    update_progress: true
-    record_metric:
-      phase: "{phase}"
-      plan: "{plan}"
-      duration: NNN
-      tasks: N
-      files: N
-  contract_updates:
-    claim_id: { ... }
-    deliverable_id: { ... }
-  decisions:
-    - summary: "{decision summary}"
-      phase: "{phase}"
-  blockers:
-    - text: "{blocker text}"
-  continuation_update:
-    handoff:
-      stopped_at: "Completed {phase}-{plan}-PLAN.md"
-      resume_file: null
-      last_result_id: null
-    bounded_segment: null
-```
+If the workflow asks for execution handoff or plan continuity, extend the same top-level envelope with the role-specific fields from `executor-completion.md`: `state_updates`, `contract_updates`, `decisions`, `blockers`, and `continuation_update`.
 
 `gpd apply-return-updates` records handoff timestamp/provenance; omit `recorded_at` and `recorded_by` from child returns.
 
@@ -1170,7 +1144,7 @@ Plan execution complete when:
 - [ ] Shared-state updates handled per workflow contract (`gpd_return` by default; direct writes only when explicitly delegated)
 - [ ] Final metadata commit made
 - [ ] Completion format returned to orchestrator
-- [ ] Context pressure monitored: ORANGE/RED triggers checkpoint, never exceeds RED
+- [ ] Context pressure monitored: 50% forced checkpoint and ORANGE/RED triggers honored, never exceeds RED
 - [ ] Stuck protocol followed: no plausible-but-wrong answers produced; all stuck points documented as deviations
 - [ ] Analytic continuation protocol followed (if applicable): Wick rotation verified, spectral function checked, i*epsilon prescription consistent
 - [ ] Order-of-limits protocol followed (if applicable): non-commuting limits identified, order stated and justified

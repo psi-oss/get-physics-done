@@ -43,7 +43,7 @@ def test_bibliographer_prompt_uses_typed_checkpoint_language_and_shorter_heading
     assert "Use `gpd_return.status: checkpoint` as the control surface." not in source
     assert "The markdown headings in this section, including `## BIBLIOGRAPHY UPDATED`, `## CITATION ISSUES FOUND`, and `## CHECKPOINT REACHED`, are presentation only." not in source
     assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in envelope
-    assert "# files_written names references/references.bib and GPD/references-status.json when written." in envelope
+    assert "# files_written names the active bibliography path and GPD/references-status.json when written." in envelope
     assert "entries_added: N" in envelope
     assert "{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" in source
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" not in source

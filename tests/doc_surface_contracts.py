@@ -118,6 +118,7 @@ def _action_surface_fragments(action: str, *, include_bare: bool = False) -> tup
     fragments.extend(_runtime_command_fragments(action))
     return tuple(dict.fromkeys(fragments))
 
+
 __all__ = [
     "DOCTOR_RUNTIME_SCOPE_RE",
     "assert_cost_advisory_contract",
@@ -378,8 +379,8 @@ def assert_help_command_quick_start_extract_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "Start at the workflow-owned `## Quick Start` section.",
-            "workflow-owned `## Quick Start` section",
+            "Extract from `<!-- gpd-help:quick-start:start -->` through `<!-- gpd-help:quick-start:end -->`.",
+            "gpd-help:quick-start:start",
         ),
         label="help command quick-start reference anchor",
     )
@@ -387,16 +388,16 @@ def assert_help_command_quick_start_extract_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "Include the workflow-owned `## Quick Start` section.",
-            "`## Quick Start` section",
+            "Exclude the marker comment lines themselves.",
+            "marker comment lines",
         ),
         label="help command quick-start extract boundary",
     )
     _assert_contains_any(
         content,
         (
-            "Stop before `## Command Index`.",
-            "before `## Command Index`",
+            "Exclude the marker comment lines themselves.",
+            "marker comment lines",
         ),
         label="help command command-index cutoff boundary",
     )
@@ -426,16 +427,16 @@ def assert_help_command_all_extract_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "Include the workflow-owned `## Command Index` section.",
-            "`## Command Index` section",
+            "Extract from `<!-- gpd-help:quick-start:start -->` through `<!-- gpd-help:command-index:end -->`.",
+            "gpd-help:command-index:end",
         ),
         label="help command command-index extract boundary",
     )
     _assert_contains_any(
         content,
         (
-            "Stop before `## Detailed Command Reference`.",
-            "before `## Detailed Command Reference`",
+            "Exclude the marker comment lines themselves.",
+            "marker comment lines",
         ),
         label="help command detailed-reference cutoff boundary",
     )
@@ -546,16 +547,12 @@ def assert_help_workflow_quick_start_taxonomy_contract(content: str) -> None:
     )
     _assert_contains_any(
         content,
-        (
-            *_runtime_command_fragments("tangent"),
-        ),
+        (*_runtime_command_fragments("tangent"),),
         label="quick-start tangent follow-up guidance",
     )
     _assert_contains_any(
         content,
-        (
-            *_runtime_command_fragments("branch-hypothesis"),
-        ),
+        (*_runtime_command_fragments("branch-hypothesis"),),
         label="quick-start branch-hypothesis follow-up guidance",
     )
 
@@ -878,16 +875,12 @@ def assert_beginner_router_bridge_contract(content: str) -> None:
     )
     _assert_contains_any(
         content,
-        (
-            *_action_surface_fragments("map-research", include_bare=True),
-        ),
+        (*_action_surface_fragments("map-research", include_bare=True),),
         label="map-research routing surface",
     )
     _assert_contains_any(
         content,
-        (
-            *_action_surface_fragments("resume-work", include_bare=True),
-        ),
+        (*_action_surface_fragments("resume-work", include_bare=True),),
         label="resume-work routing surface",
     )
     assert "gpd --help" in content
@@ -1198,9 +1191,7 @@ def assert_install_summary_runtime_follow_up_contract(
     assert "Secondary follow-up" not in content
     _assert_contains_any(
         content,
-        (
-            "local diagnostics and later setup",
-        ),
+        ("local diagnostics and later setup",),
         label="install-summary local CLI bridge",
     )
     help_fragments = tuple(fragment for fragment in runtime_help_fragments if fragment)
@@ -1304,6 +1295,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
+            "`peer-review` can review the current project manuscript or one explicit",
             "`gpd:peer-review` can review the current project manuscript or one explicit",
             "`gpd:peer-review` is the project-aware intake step and can review the current project manuscript or one explicit",
         ),
@@ -1357,6 +1349,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
+            "`peer-review` remains the standalone follow-on command",
             "`gpd:peer-review` remains the standalone follow-on command",
             "standalone follow-on command when the bounded external-authoring lane needs review",
             "route authored-manuscript review to standalone `gpd:peer-review`",
@@ -1376,6 +1369,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
+            "`respond-to-referees` stays tied to the resolved manuscript root",
             "`gpd:respond-to-referees` stays tied to the resolved manuscript root",
             "`gpd:respond-to-referees` and `gpd:arxiv-submission` still operate on the resolved manuscript root",
             "`gpd:respond-to-referees` and `gpd:arxiv-submission` stay tied to the resolved manuscript root",
@@ -1388,6 +1382,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
+            "`arxiv-submission` only packages a GPD-owned manuscript root or `.tex` entrypoint",
             "`gpd:arxiv-submission` only packages a GPD-owned manuscript root or `.tex` entrypoint",
             "`gpd:arxiv-submission` packages only a GPD-owned manuscript root or `.tex` entrypoint",
             "resolved GPD-owned manuscript root",

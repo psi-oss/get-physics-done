@@ -5,24 +5,28 @@ Reconcile diverged `STATE.md` and `state.json` with a deterministic, fail-closed
 <required_reading>
 Read all files referenced by the invoking prompt's execution_context before starting.
 
-Canonical reconciliation contract: read `state-json-schema.md` itself.
-@{GPD_INSTALL_DIR}/templates/state-json-schema.md
+Canonical reconciliation contract: later stages load
+`{GPD_INSTALL_DIR}/templates/state-json-schema.md`; do not eager-load it during bootstrap routing.
 </required_reading>
 
 <process>
 
 <step name="inspect" priority="first">
-**Check both state files exist:**
+Load bootstrap and use returned state-file fields as the routing authority:
 
 ```bash
-STATE_MD="GPD/STATE.md"
-STATE_JSON="GPD/state.json"
-
-MD_EXISTS=$(test -f "$STATE_MD" && echo true || echo false)
-JSON_EXISTS=$(test -f "$STATE_JSON" && echo true || echo false)
+SYNC_BOOTSTRAP_INIT=$(gpd --raw init sync-state --stage sync_bootstrap)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd sync-state bootstrap failed: $SYNC_BOOTSTRAP_INIT"
+  # STOP - display the error to the user and do not proceed.
+fi
+export PROJECT_ROOT
+PROJECT_ROOT=$(echo "$SYNC_BOOTSTRAP_INIT" | gpd json get .project_root)
 ```
 
-**If neither exists:**
+Use `sync_bootstrap.required_init_fields` from `SYNC_BOOTSTRAP_INIT`. Use `project_root` from the init payload as the only write/read root; do not use the shell launch directory. Do not re-probe `GPD/STATE.md`, `GPD/state.json`, or `GPD/state.json.bak` by hand during routing.
+
+**If `state_md_exists` and `state_json_exists` are both false:**
 
 ```
 No state files found. Run gpd:new-project to initialize project state.
@@ -30,16 +34,29 @@ No state files found. Run gpd:new-project to initialize project state.
 
 Exit.
 
-**If only STATE.md exists (state.json missing):**
+**If `state_md_exists` is true and `state_json_exists` is false:**
+
+Load single-source recovery before reading state content:
+
+```bash
+SINGLE_SOURCE_RECOVERY_INIT=$(gpd --raw init sync-state --stage single_source_recovery)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd sync-state recovery init failed: $SINGLE_SOURCE_RECOVERY_INIT"
+  exit 1
+fi
+```
+
+Use `single_source_recovery.required_init_fields` from `SINGLE_SOURCE_RECOVERY_INIT`.
 
 Recover `state.json` from the markdown recovery source and preserve the JSON-only state on disk by rebuilding the dual-write pair atomically:
 
 ```bash
 uv run python - <<'PY'
 from pathlib import Path
+import os
 from gpd.core.state import save_state_markdown
 
-cwd = Path(".")
+cwd = Path(os.environ["PROJECT_ROOT"])
 md_path = cwd / "GPD" / "STATE.md"
 save_state_markdown(cwd, md_path.read_text(encoding="utf-8"))
 PY
@@ -47,7 +64,19 @@ PY
 
 Then run `gpd --raw state validate`, report the recovery result, and stop. Do not prompt for a merge decision: markdown recovery is the only allowed source when JSON is absent.
 
-**If only state.json exists (STATE.md missing):**
+**If `state_json_exists` is true and `state_md_exists` is false:**
+
+Load single-source recovery before regenerating the missing markdown projection:
+
+```bash
+SINGLE_SOURCE_RECOVERY_INIT=$(gpd --raw init sync-state --stage single_source_recovery)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd sync-state recovery init failed: $SINGLE_SOURCE_RECOVERY_INIT"
+  exit 1
+fi
+```
+
+Use `single_source_recovery.required_init_fields` from `SINGLE_SOURCE_RECOVERY_INIT`.
 
 `state.json` is authoritative. Rebuild `STATE.md` directly from it:
 
@@ -55,9 +84,10 @@ Then run `gpd --raw state validate`, report the recovery result, and stop. Do no
 uv run python - <<'PY'
 import json
 from pathlib import Path
+import os
 from gpd.core.state import save_state_json
 
-cwd = Path(".")
+cwd = Path(os.environ["PROJECT_ROOT"])
 state = json.loads((cwd / "GPD" / "state.json").read_text(encoding="utf-8"))
 save_state_json(cwd, state)
 PY
@@ -65,16 +95,21 @@ PY
 
 Then run `gpd --raw state validate`, report the regeneration result, and stop.
 
-**If both exist:** Continue to comparison.
+**If `state_md_exists` and `state_json_exists` are both true:** Continue to comparison.
 </step>
 
 <step name="compare">
-**Read both state representations:**
+Load conflict analysis and compare the returned state representations:
 
 ```bash
-cat GPD/STATE.md
-cat GPD/state.json
+CONFLICT_ANALYSIS_INIT=$(gpd --raw init sync-state --stage conflict_analysis)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd sync-state conflict-analysis init failed: $CONFLICT_ANALYSIS_INIT"
+  exit 1
+fi
 ```
+
+Use `conflict_analysis.required_init_fields` from `CONFLICT_ANALYSIS_INIT`. Do not re-read the mirrored files by hand for comparison.
 
 **Parse STATE.md into comparable fields:**
 - Current Phase (number and name)
@@ -115,6 +150,18 @@ This workflow is intentionally fail-closed: no recency heuristics, no user promp
 </step>
 
 <step name="reconcile">
+Load reconcile/validate immediately before writing either state file:
+
+```bash
+RECONCILE_INIT=$(gpd --raw init sync-state --stage reconcile_and_validate)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd sync-state reconcile init failed: $RECONCILE_INIT"
+  exit 1
+fi
+```
+
+Use `reconcile_and_validate.required_init_fields` as the reconciliation inputs.
+
 **If `state.json` is valid:**
 
 Regenerate `STATE.md` from `state.json`:
@@ -123,9 +170,10 @@ Regenerate `STATE.md` from `state.json`:
 uv run python - <<'PY'
 import json
 from pathlib import Path
+import os
 from gpd.core.state import save_state_json
 
-cwd = Path(".")
+cwd = Path(os.environ["PROJECT_ROOT"])
 state = json.loads((cwd / "GPD" / "state.json").read_text(encoding="utf-8"))
 save_state_json(cwd, state)
 PY
@@ -138,9 +186,10 @@ Recover `state.json` from `STATE.md` through the authoritative markdown write pa
 ```bash
 uv run python - <<'PY'
 from pathlib import Path
+import os
 from gpd.core.state import save_state_markdown
 
-cwd = Path(".")
+cwd = Path(os.environ["PROJECT_ROOT"])
 md_path = cwd / "GPD" / "STATE.md"
 save_state_markdown(cwd, md_path.read_text(encoding="utf-8"))
 PY

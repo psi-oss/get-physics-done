@@ -667,6 +667,7 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
         "contract_results_parse_ok": "Contract-results ledger could not be parsed cleanly.",
         "contract_results_alignment_ok": "Contract-results ledger is not aligned with the active contract.",
         "comparison_verdicts_valid": "Comparison verdict ledgers are malformed or inconsistent.",
+        "figure_tracker_parse_ok": "Figure tracker could not be parsed cleanly.",
     }
     for check_name, summary in integrity_blockers.items():
         if check_name in data.journal_extra_checks and not data.journal_extra_checks[check_name]:
@@ -680,6 +681,14 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
                 )
             )
     extra_artifact_blockers = {
+        "manuscript_reference_status_present": (
+            "citations",
+            "Manuscript reference status is missing; bibliography provenance is not connected to the active manuscript.",
+        ),
+        "manuscript_reference_bridge_complete": (
+            "citations",
+            "Manuscript references are not bridged to both BibTeX keys and reference ids.",
+        ),
         "empty_citation_commands_absent": (
             "citations",
             "Empty \\cite{} commands remain in the manuscript.",

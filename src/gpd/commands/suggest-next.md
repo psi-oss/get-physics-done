@@ -60,7 +60,7 @@ Context: Phase {current_phase} | {progress_percent}% complete | {status}
 If there's only one suggestion, present it as the clear next step:
 
 ```
-## >> Next Up
+## > Next Up
 
 **{command}**
 {reason}
@@ -71,7 +71,7 @@ If there's only one suggestion, present it as the clear next step:
 If there are blockers, highlight them before suggestions:
 
 ```
-## !! {active_blockers} Blocker(s)
+## Blockers
 
 Resolve before continuing:
 - {blocker description}

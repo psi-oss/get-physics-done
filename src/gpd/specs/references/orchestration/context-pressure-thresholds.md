@@ -17,7 +17,7 @@ Agents override defaults based on their context consumption patterns. Agents tha
 | gpd-phase-researcher | < 35% | 35-50% | 50-65% | > 65% | research area | web_search results ~2-4% each; synthesize after 8-10 searches |
 | gpd-project-researcher | < 35% | 35-50% | 50-65% | > 65% | research area | Same as phase-researcher; limit to 10-15 searches before synthesizing |
 | gpd-planner | < 35% | 35-50% | 50-65% | > 65% | plan file | Large plan output (~5-8% per plan); keep plans concise |
-| gpd-plan-checker | < 35% | 35-50% | 50-65% | > 65% | plan check | Each verification dimension ~2-3%; exploratory (8 dims) vs comprehensive (15 dims) |
+| gpd-plan-checker | < 35% | 35-50% | 50-65% | > 65% | plan check | Each verification dimension ~2-3%; exploratory mode abbreviates optional depth while comprehensive checks use the full matrix |
 | gpd-executor | < 40% | 40-55% | 55-70% | > 70% | task | Tracks both input and output; forced checkpoint at 50% regardless of task status |
 | gpd-review-reader | < 35% | 35-50% | 50-65% | > 65% | manuscript section | Full-manuscript reading stage; summarize claims early rather than hoarding text |
 | gpd-review-literature | < 35% | 35-50% | 50-60% | > 60% | claim cluster | Literature search results accumulate quickly; synthesize overlap after each claim cluster |

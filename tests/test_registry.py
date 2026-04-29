@@ -24,6 +24,7 @@ from gpd.registry import (
     _parse_agent_file,
     _parse_command_file,
     _parse_frontmatter,
+    _parse_interactive_spawn_contracts,
     _parse_spawn_contracts,
     _parse_tools,
     _RegistryCache,
@@ -435,16 +436,22 @@ class TestParseSpawnContracts:
     ) -> str:
         allowed = allowed_paths if allowed_paths is not None else (output,)
         expected = expected_artifacts if expected_artifacts is not None else (output,)
-        allowed_lines = "".join(f"    - {path}\n" for path in allowed)
-        expected_lines = "".join(f"  - {path}\n" for path in expected)
+        allowed_block = (
+            "  allowed_paths: []\n"
+            if not allowed
+            else "  allowed_paths:\n" + "".join(f"    - {path}\n" for path in allowed)
+        )
+        expected_block = (
+            "expected_artifacts: []\n"
+            if not expected
+            else "expected_artifacts:\n" + "".join(f"  - {path}\n" for path in expected)
+        )
         return (
             "<spawn_contract>\n"
             "write_scope:\n"
             f"  mode: {mode}\n"
-            "  allowed_paths:\n"
-            f"{allowed_lines}"
-            "expected_artifacts:\n"
-            f"{expected_lines}"
+            f"{allowed_block}"
+            f"{expected_block}"
             f"shared_state_policy: {shared_state_policy}\n"
             "</spawn_contract>"
         )
@@ -478,6 +485,22 @@ class TestParseSpawnContracts:
         ):
             _parse_spawn_contracts(
                 self._contract_block(mode="global"),
+                owner_name="gpd:test",
+            )
+
+    def test_parse_spawn_contracts_rejects_unknown_write_scope_fields(self) -> None:
+        with pytest.raises(ValueError, match="unexpected write_scope fields: owner"):
+            _parse_spawn_contracts(
+                "<spawn_contract>\n"
+                "write_scope:\n"
+                "  mode: scoped_write\n"
+                "  allowed_paths:\n"
+                "    - GPD/out.md\n"
+                "  owner: child\n"
+                "expected_artifacts:\n"
+                "  - GPD/out.md\n"
+                "shared_state_policy: return_only\n"
+                "</spawn_contract>",
                 owner_name="gpd:test",
             )
 
@@ -523,6 +546,86 @@ class TestParseSpawnContracts:
                 owner_name="gpd:test",
             )
 
+    def test_parse_interactive_spawn_contracts_validates_no_write_checkpoint_contract(self) -> None:
+        contracts = _parse_interactive_spawn_contracts(
+            "<spawn_contract_interactive>\n"
+            "activation: mode == interactive\n"
+            "write_scope:\n"
+            "  mode: no_write\n"
+            "  allowed_paths: []\n"
+            "expected_artifacts: []\n"
+            "expected_return:\n"
+            "  status: checkpoint\n"
+            "shared_state_policy: none\n"
+            "</spawn_contract_interactive>",
+            owner_name="gpd:test",
+        )
+
+        assert contracts == (
+            {
+                "activation": "mode == interactive",
+                "write_scope": {"mode": "no_write", "allowed_paths": []},
+                "expected_artifacts": [],
+                "expected_return": {"status": "checkpoint"},
+                "shared_state_policy": "none",
+            },
+        )
+
+    def test_parse_interactive_spawn_contracts_rejects_write_contract_shape(self) -> None:
+        with pytest.raises(ValueError, match="invalid write_scope\\.mode 'scoped_write'; expected one of: no_write"):
+            _parse_interactive_spawn_contracts(
+                "<spawn_contract_interactive>\n"
+                "activation: mode == interactive\n"
+                "write_scope:\n"
+                "  mode: scoped_write\n"
+                "  allowed_paths:\n"
+                "    - GPD/CONVENTIONS.md\n"
+                "expected_artifacts:\n"
+                "  - GPD/CONVENTIONS.md\n"
+                "expected_return:\n"
+                "  status: completed\n"
+                "shared_state_policy: direct\n"
+                "</spawn_contract_interactive>",
+                owner_name="gpd:test",
+            )
+
+    def test_parse_interactive_spawn_contracts_rejects_unknown_write_scope_fields(self) -> None:
+        with pytest.raises(ValueError, match="unexpected write_scope fields: owner"):
+            _parse_interactive_spawn_contracts(
+                "<spawn_contract_interactive>\n"
+                "activation: mode == interactive\n"
+                "write_scope:\n"
+                "  mode: no_write\n"
+                "  allowed_paths: []\n"
+                "  owner: child\n"
+                "expected_artifacts: []\n"
+                "expected_return:\n"
+                "  status: checkpoint\n"
+                "shared_state_policy: none\n"
+                "</spawn_contract_interactive>",
+                owner_name="gpd:test",
+            )
+
+    @pytest.mark.parametrize(
+        "field_block",
+        [
+            "write_scope:\n  mode: no_write\n  allowed_paths:\nexpected_artifacts: []\n",
+            "write_scope:\n  mode: no_write\n  allowed_paths: []\nexpected_artifacts:\n",
+        ],
+    )
+    def test_parse_interactive_spawn_contracts_rejects_null_list_fields(self, field_block: str) -> None:
+        with pytest.raises(ValueError, match="must be a list"):
+            _parse_interactive_spawn_contracts(
+                "<spawn_contract_interactive>\n"
+                "activation: mode == interactive\n"
+                f"{field_block}"
+                "expected_return:\n"
+                "  status: checkpoint\n"
+                "shared_state_policy: none\n"
+                "</spawn_contract_interactive>",
+                owner_name="gpd:test",
+            )
+
 
 class TestParseCommandFile:
     """Tests for _parse_command_file with various file contents."""
@@ -553,7 +656,7 @@ class TestParseCommandFile:
         )
         assert cmd.content.startswith("## Command Requirements\n\n")
         assert "Closed schema; no extra keys." in cmd.content
-        assert "Strict booleans only." in cmd.content
+        assert "Strict booleans only" in cmd.content
         assert command_visibility_note() in cmd.content
         assert "GPD/ROADMAP.md" in cmd.content
         assert f"{COMMAND_POLICY_PROMPT_WRAPPER_KEY}:" in cmd.content
@@ -588,7 +691,7 @@ class TestParseCommandFile:
 
         assert cmd.content.startswith("## Command Requirements\n\n")
         assert "Closed schema; no extra keys." in cmd.content
-        assert "Strict booleans only." in cmd.content
+        assert "Strict booleans only" in cmd.content
         assert cmd.content.index("## Review Contract") > cmd.content.index("## Command Requirements")
         assert cmd.content.endswith("Body.")
 
@@ -791,7 +894,9 @@ class TestParseCommandFile:
         ):
             _parse_command_file(f, source="commands")
 
-    def test_publication_command_policy_can_override_companion_supporting_context_metadata(self, tmp_path: Path) -> None:
+    def test_publication_command_policy_can_override_companion_supporting_context_metadata(
+        self, tmp_path: Path
+    ) -> None:
         f = tmp_path / "arxiv-submission.md"
         f.write_text(
             "---\n"
@@ -1251,7 +1356,7 @@ class TestParseCommandFile:
             allow_external_subjects=True,
             allow_interactive_without_subject=True,
             supported_roots=["paper", "manuscript", "draft"],
-            allowed_suffixes=[".tex", ".md", ".txt", ".pdf", ".docx", ".csv", ".tsv", ".xlsx"],
+            allowed_suffixes=[".tex", ".md", ".txt", ".pdf", ".docx", ".csv", ".tsv", ".xlsx", ".xlsm"],
             bootstrap_allowed=False,
         )
 
@@ -1973,9 +2078,13 @@ class TestRegistryPromptIncludeInlining:
         assert agent.path.endswith("gpd-project-researcher.md")
         assert "Checkpoint after the initial survey with scope confirmation." in agent.content
         assert "gpd_return:" in agent.content
-        assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in agent.content
+        assert (
+            "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md."
+            in agent.content
+        )
         assert "commit_authority: orchestrator" in agent.content
-        assert "Authority: use the frontmatter-derived Agent Requirements block" in agent.content
+        assert "Authority: use the frontmatter-derived Agent Requirements block" not in agent.content
+        assert "## Agent Requirements" in agent.content
         assert "wait for confirmation" not in agent.content
         assert "pause here for approval" not in agent.content
         assert "ask the user then continue" not in agent.content
@@ -2105,12 +2214,14 @@ class TestRegistryPromptIncludeInlining:
         assert command.command_policy is not None
         assert command.command_policy.subject_policy is not None
         assert command.command_policy.subject_policy.explicit_input_kinds == subject_policy_meta["explicit_input_kinds"]
-        assert command.command_policy.subject_policy.allow_external_subjects == subject_policy_meta[
-            "allow_external_subjects"
-        ]
-        assert command.command_policy.subject_policy.allow_interactive_without_subject == subject_policy_meta[
-            "allow_interactive_without_subject"
-        ]
+        assert (
+            command.command_policy.subject_policy.allow_external_subjects
+            == subject_policy_meta["allow_external_subjects"]
+        )
+        assert (
+            command.command_policy.subject_policy.allow_interactive_without_subject
+            == subject_policy_meta["allow_interactive_without_subject"]
+        )
         assert command.command_policy.subject_policy.bootstrap_allowed == subject_policy_meta["bootstrap_allowed"]
         assert command.command_policy.supporting_context_policy is not None
         assert (
@@ -2123,9 +2234,7 @@ class TestRegistryPromptIncludeInlining:
         )
 
         assert command.review_contract is not None
-        scope_variants = {
-            str(variant.scope): variant for variant in command.review_contract.scope_variants
-        }
+        scope_variants = {str(variant.scope): variant for variant in command.review_contract.scope_variants}
         scope_variant = scope_variants["explicit_intake_manifest"]
         assert scope_variant.relaxed_preflight_checks == scope_variant_meta["relaxed_preflight_checks"]
         assert scope_variant.optional_preflight_checks == scope_variant_meta["optional_preflight_checks"]
@@ -2697,6 +2806,30 @@ class TestPublicAPI:
         }
         assert {contract["write_scope"]["mode"] for contract in command.spawn_contracts} == {"scoped_write"}
 
+    def test_get_command_new_project_surfaces_notation_auto_and_interactive_contracts(self) -> None:
+        registry.invalidate_cache()
+
+        command = registry.get_command("gpd:new-project")
+        skill = registry.get_skill("gpd-new-project")
+
+        auto_contract = {
+            "activation": "mode == auto",
+            "write_scope": {"mode": "scoped_write", "allowed_paths": ["GPD/CONVENTIONS.md"]},
+            "expected_artifacts": ["GPD/CONVENTIONS.md"],
+            "shared_state_policy": "direct",
+        }
+        interactive_contract = {
+            "activation": "mode == interactive",
+            "write_scope": {"mode": "no_write", "allowed_paths": []},
+            "expected_artifacts": [],
+            "expected_return": {"status": "checkpoint"},
+            "shared_state_policy": "none",
+        }
+
+        assert auto_contract in command.spawn_contracts
+        assert command.interactive_spawn_contracts == (interactive_contract,)
+        assert skill.interactive_spawn_contracts == command.interactive_spawn_contracts
+
     def test_registry_spawn_contract_inventory_dedupes_repeated_continuation_sidecars(self) -> None:
         registry.invalidate_cache()
 
@@ -3055,7 +3188,10 @@ class TestPublicAPI:
         assert "## RESEARCH COMPLETE" in agent.system_prompt
         assert "## RESEARCH BLOCKED" in agent.system_prompt
         assert "gpd_return:" in agent.system_prompt
-        assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in agent.system_prompt
+        assert (
+            "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md."
+            in agent.system_prompt
+        )
         assert "RESEARCH.md" in agent.system_prompt
 
     def test_registry_cache_invalidation_clears_new_project_stage_manifest(self) -> None:

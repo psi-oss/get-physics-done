@@ -57,6 +57,16 @@ def test_protocol_catalog_tools_reject_blank_inputs_up_front() -> None:
     assert list_protocols(domain="") == {"error": "domain must be a non-empty string when provided", "schema_version": 1}
 
 
+def test_list_protocols_docstring_defers_domain_examples_to_live_catalog() -> None:
+    from gpd.mcp.servers.protocols_server import list_protocols
+
+    docstring = list_protocols.__doc__ or ""
+
+    assert "available_domains" in docstring
+    assert "core_derivation" not in docstring
+    assert "quantum_info" not in docstring
+
+
 def test_skill_catalog_tools_reject_blank_and_unknown_filters_up_front() -> None:
     from gpd import registry as content_registry
     from gpd.mcp.servers.skills_server import get_skill, list_skills
@@ -111,6 +121,27 @@ def test_catalog_filter_schemas_publish_authoritative_enum_values() -> None:
 
     assert _collect_enum_values(protocol_schema["properties"]["domain"]) == expected_protocol_domains
     assert _collect_enum_values(skill_schema["properties"]["category"]) == expected_skill_categories
+
+
+def test_add_pattern_title_schema_matches_slug_validation() -> None:
+    from jsonschema import Draft202012Validator
+
+    schema = _tool_schema("gpd.mcp.servers.patterns_server", "add_pattern")
+    title = schema["properties"]["title"]
+    validator = Draft202012Validator(schema)
+    valid_payload = {
+        "domain": "qft",
+        "title": "Test sign error",
+        "category": "sign-error",
+        "severity": "high",
+    }
+
+    assert title["type"] == "string"
+    assert title["minLength"] == 1
+    assert title["pattern"] == r"[A-Za-z0-9]"
+    assert not list(validator.iter_errors(valid_payload))
+    assert list(validator.iter_errors({**valid_payload, "title": "   "}))
+    assert list(validator.iter_errors({**valid_payload, "title": "!!!"}))
 
 
 def test_run_check_schema_publishes_live_identifier_enum() -> None:

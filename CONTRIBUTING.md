@@ -8,9 +8,9 @@ GPD is published by Physical Superintelligence PBC (PSI) as an open-source commu
 
 All contributors must sign a CLA before their pull requests can be merged.
 
-**Individual contributors:** Sign the CLA at https://cla-assistant.io/psi-oss/get-physics-done — the CLA Assistant bot will prompt you automatically when you open a pull request.
-
-**Corporate contributors** (if your employer owns your IP): Download [GPD_CLA_Corporate.pdf](CLA/GPD_CLA_Corporate.pdf), sign it, and email it to legal@psi.inc.
+- Individual contributors should review `CLA/GPD_CLA_Individual.pdf`; signing is handled automatically via the CLA Assistant GitHub flow at https://cla-assistant.io/psi-oss/get-physics-done.
+- Corporate contributors, or contributors whose employer owns their IP, should review `CLA/GPD_CLA_Corporate.pdf` and email the signed PDF to legal@psi.inc.
+- Corporate CLA submissions are collected manually and should be logged by the owner of contributor agreement tracking, Ted Grace.
 
 ## Before You Start
 
@@ -42,33 +42,24 @@ Use `codex`, `claude`, `gemini`, or `opencode` for `<runtime>`. After
 
 The tracked pre-commit hook runs `uv run ruff check --fix --unsafe-fixes` on staged Python files.
 
-## Contributor License Agreements
-
-Before we can accept a contribution, you must complete the applicable CLA:
-
-- Individual contributors should review `CLA/GPD_CLA_Individual.pdf`; signing is handled automatically via the CLA Assistant GitHub flow at https://cla-assistant.io/psi-oss/get-physics-done
-- Corporate contributors, or contributors whose employer owns their IP, should review `CLA/GPD_CLA_Corporate.pdf` and email the signed PDF to legal@psi.inc
-- Corporate CLA submissions are collected manually and should be logged by the owner of contributor agreement tracking, Ted Grace
-- If your employer owns the intellectual property for your work, use the corporate CLA flow instead of the individual one
-
 Useful checks:
 
 ```bash
-uv build
+UV_CACHE_DIR="$(mktemp -d)" UV_NO_CONFIG=1 UV_PYTHON_DOWNLOADS=never uv build
 npm_config_cache="$(mktemp -d)" npm pack --dry-run --json
 pre-commit run --all-files
-python scripts/sync_repo_graph_contract.py
-uv run pytest tests/test_metadata_consistency.py -v
-uv run pytest tests/test_release_consistency.py -v
-uv run pytest tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v
-uv run pytest tests/core/test_cli.py -v
-uv run pytest tests/ -v
-HEAVY_SUITE_IGNORE_ARGS="$(uv run python - <<'PY'
-from tests.conftest import complementary_heavy_suite_ignore_args
-print(' '.join(complementary_heavy_suite_ignore_args()))
-PY
-)" uv run pytest tests/ -v --full-suite $HEAVY_SUITE_IGNORE_ARGS
+uv run python scripts/sync_repo_graph_contract.py --check
+uv run pytest -n 0 tests/test_metadata_consistency.py -v
+uv run pytest -n 0 tests/test_release_consistency.py -v
+uv run pytest -n 0 tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v
+uv run pytest -n 0 tests/core/test_cli.py -v
+uv run pytest tests/ -q
 ```
+
+If the repo graph check reports generated-artifact drift, repair it separately with
+`uv run python scripts/sync_repo_graph_contract.py`, then review and commit the generated changes.
+
+Focused single-file and small targeted checks use `-n 0` so they do not pay xdist startup cost from the global default. `uv run pytest tests/ -q` is the fast local full checked-in suite. GitHub Actions runs the same suite as category-named shards resolved by `tests/ci_sharding.py`; each shard runs `uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"` with a 180 second per-shard budget.
 
 Cross-runtime release checks:
 
@@ -76,7 +67,7 @@ Cross-runtime release checks:
 - `tests/core/test_cli.py` covers the public `gpd` CLI surface.
 - `tests/test_metadata_consistency.py` covers public docs, inventory counts, and CLI/registry metadata alignment.
 - `tests/test_release_consistency.py` covers the public install flow, release artifacts, and release-facing messaging.
-- `uv build` validates the published Python wheel and sdist.
+- `uv build` validates the published Python wheel and sdist. Use an isolated `UV_CACHE_DIR` with `UV_NO_CONFIG=1` and `UV_PYTHON_DOWNLOADS=never` to match release validation.
 - `npm pack --dry-run --json` validates the published `npx` bootstrap package surface before release. Use a temporary cache outside the repo so the worktree does not gain a local `.npm-cache/`.
 - Gemini installs are expected to be complete on disk after `GeminiAdapter.install()`: `.gemini/settings.json` should already exist with `experimental.enableAgents`, GPD hooks, GPD MCP servers, and `policyPaths` configured, and `policies/gpd-auto-edit.toml` should already be present.
 - OpenCode installs are expected to leave `opencode.json` complete on disk with GPD-managed `permission.read` / `permission.external_directory` entries and built-in MCP servers under the `mcp` key.

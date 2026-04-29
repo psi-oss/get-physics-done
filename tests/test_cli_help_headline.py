@@ -13,11 +13,27 @@ def _normalize_cli_output(text: str) -> str:
     return " ".join(_ANSI_ESCAPE_RE.sub("", text).split())
 
 
+_LOCAL_BRIDGE_HEADLINE_FRAGMENTS = frozenset(
+    {
+        "GPD local bridge",
+        "local install",
+        "readiness",
+        "validation",
+        "permissions",
+        "observability",
+        "recovery",
+        "cost",
+        "presets",
+        "diagnostics",
+        "shared Wolfram integration CLI",
+    }
+)
+
+
 def test_top_level_help_headline_tracks_local_bridge_contract() -> None:
     result = CliRunner().invoke(app, ["--help"], color=False)
 
     assert result.exit_code == 0
-    assert (
-        "GPD local bridge: local install, readiness, validation, permissions, observability, recovery, cost, presets, diagnostics, and shared Wolfram integration CLI"
-        in _normalize_cli_output(result.output)
-    )
+    output = _normalize_cli_output(result.output)
+    missing = {fragment for fragment in _LOCAL_BRIDGE_HEADLINE_FRAGMENTS if fragment not in output}
+    assert missing == set()

@@ -440,14 +440,14 @@ def normalize_continuation_reference(
 
     try:
         resolved_target = (resolved_root / candidate).resolve(strict=False)
-        resolved_target.relative_to(resolved_root)
+        normalized_candidate = resolved_target.relative_to(resolved_root)
     except (OSError, ValueError):
         return None
 
     if require_exists and (not resolved_target.exists() or not resolved_target.is_file()):
         return None
 
-    return candidate.as_posix()
+    return normalized_candidate.as_posix()
 
 
 def normalize_continuation_with_issues(

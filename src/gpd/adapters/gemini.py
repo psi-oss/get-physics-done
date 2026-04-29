@@ -48,7 +48,7 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     finish_install as _finish_install,
 )
-from gpd.adapters.runtime_catalog import get_runtime_descriptor
+from gpd.adapters.runtime_catalog import get_manifest_metadata_list_policy_key, get_runtime_descriptor
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.mcp import managed_integrations as _managed_integrations
 
@@ -111,13 +111,28 @@ _GEMINI_STATIC_POLICY_COMMAND_PREFIXES: tuple[str, ...] = (
 )
 _GEMINI_COMMAND_RUNTIME_NOTE = (
     "<gemini_runtime_notes>\n"
+    "Gemini runtime compatibility:\n"
+    "- Keep user-facing command names canonical in prose: `gpd ...` for your normal terminal and `/gpd:...` for Gemini commands.\n"
+    "- When runnable shell steps call the GPD CLI, use {launcher} instead of the ambient `gpd` on PATH.\n"
+    "</gemini_runtime_notes>\n\n"
+)
+_GEMINI_COMMAND_RUNTIME_NOTE_BLOCK_RE = re.compile(
+    r"<gemini_runtime_notes>\n.*?</gemini_runtime_notes>\n*",
+    re.DOTALL,
+)
+_GEMINI_COMMAND_SHELL_ALLOWLIST_NOTE = (
+    "<gemini_shell_runtime_notes>\n"
     "Gemini shell compatibility:\n"
     "- When shell steps call the GPD CLI, use {launcher} instead of the ambient `gpd` on PATH.\n"
     "- Gemini's enforced shell-prefix allowlist for GPD auto-edit mode is:\n{allowlist}\n"
     "- Gemini policy checks are syntactic in headless auto-edit mode. Prefer direct commands and reason over stdout instead of wrapping approved commands in shell variables, `$(...)`, heredocs, or extra chained blocks.\n"
     "- Any remaining `VAR=$(...)` examples in rendered workflow guidance are non-runnable shorthand; do not copy them into Gemini auto-edit mode.\n"
     "- Keep contract JSON in-memory or under `GPD/`. Do not write approved contracts to `/tmp`.\n"
-    "</gemini_runtime_notes>\n\n"
+    "</gemini_shell_runtime_notes>\n\n"
+)
+_GEMINI_COMMAND_SHELL_ALLOWLIST_NOTE_BLOCK_RE = re.compile(
+    r"<gemini_shell_runtime_notes>\n.*?</gemini_shell_runtime_notes>\n*",
+    re.DOTALL,
 )
 _GEMINI_NEW_PROJECT_INIT_REPLACEMENT = """Run the init command as its own shell call in Gemini auto-edit mode. Do not wrap it in `INIT=$(...)` or an `if` block.
 
@@ -130,8 +145,7 @@ _GEMINI_NEW_PROJECT_INIT_BLOCK_RE = re.compile(
     r"```bash\n"
     r"INIT=\$\((?:gpd --raw init new-project(?: --stage [a-z_]+)?)\)\n"
     r"if \[ \$\? -ne 0 \]; then\n"
-    r"  echo \"ERROR: (?:gpd )?[^\n]+: \$INIT\"\n"
-    r"  # STOP — display the error to the user and do not proceed with the workflow\.\n"
+    r"(?:  .*\n)+?"
     r"fi\n"
     r"```",
     re.MULTILINE,
@@ -163,8 +177,7 @@ _GEMINI_SET_PROFILE_BLOCK_RE = re.compile(
     r"(?:#.*\n)*"
     r"INIT=\$\((?:gpd --raw init progress --include state,config(?: --no-project-reentry)?)\)\n"
     r"if \[ \$\? -ne 0 \]; then\n"
-    r"  echo \"ERROR: gpd initialization failed: \$INIT\"\n"
-    r"  # STOP — display the error to the user and do not proceed\.\n"
+    r"(?:  .*\n)+?"
     r"fi\n"
     r"```",
     re.MULTILINE,
@@ -203,6 +216,11 @@ _GEMINI_CONTRACT_FILE_NOTE = (
     f"`{_GEMINI_APPROVED_CONTRACT_PATH}`, then validate and persist from that file using direct `gpd` commands. "
     "Do not stash the approved contract in shell variables, command substitutions, or heredocs."
 )
+
+
+def _manifest_gemini_managed_runtime_files_key() -> str:
+    """Return the catalog-owned manifest key for Gemini managed runtime files."""
+    return get_manifest_metadata_list_policy_key("gemini", value_kind="relpath")
 
 
 def _convert_gemini_tool_name(tool_name: str) -> str | None:
@@ -277,6 +295,8 @@ def _validated_deferred_install_payload(
         raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
     if not isinstance(settings, dict):
         raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
+    if not _gemini_settings_shape_is_valid(settings):
+        raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
     if not isinstance(statusline_command, str):
         raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
     if type(should_install_statusline) is not bool:
@@ -330,16 +350,42 @@ def _rewrite_gpd_cli_invocations(content: str, bridge_command: str) -> str:
     )
 
 
-def _inject_gemini_command_runtime_note(content: str, bridge_command: str) -> str:
+def _contains_gemini_shell_fence(content: str) -> bool:
+    """Return whether content contains a fenced shell block Gemini will execute under policy."""
+    return any(
+        line.lstrip().startswith("```")
+        and line.lstrip()[3:].strip().lower() in DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES
+        for line in content.splitlines()
+    )
+
+
+def _inject_gemini_command_runtime_note(
+    content: str,
+    bridge_command: str,
+    *,
+    include_shell_allowlist: bool = False,
+) -> str:
     """Prepend Gemini-specific shell guidance to installed top-level commands."""
     note = _GEMINI_COMMAND_RUNTIME_NOTE.format(
         launcher=bridge_command,
-        allowlist=_render_gemini_shell_allowlist(bridge_command),
     )
+    if include_shell_allowlist:
+        note += _GEMINI_COMMAND_SHELL_ALLOWLIST_NOTE.format(
+            launcher=bridge_command,
+            allowlist=_render_gemini_shell_allowlist(bridge_command),
+        )
     preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
     if not frontmatter:
+        content = _strip_gemini_command_runtime_note_blocks(content)
         return note + content
+    body = _strip_gemini_command_runtime_note_blocks(body)
     return render_markdown_frontmatter(preamble, frontmatter, separator, note + body)
+
+
+def _strip_gemini_command_runtime_note_blocks(content: str) -> str:
+    """Remove adapter-injected Gemini runtime-note blocks before reinjection."""
+    content = _GEMINI_COMMAND_RUNTIME_NOTE_BLOCK_RE.sub("", content)
+    return _GEMINI_COMMAND_SHELL_ALLOWLIST_NOTE_BLOCK_RE.sub("", content)
 
 
 def _render_gemini_command_prompt(content: str, *, bridge_command: str) -> str:
@@ -347,8 +393,14 @@ def _render_gemini_command_prompt(content: str, *, bridge_command: str) -> str:
     content = strip_sub_tags(content)
     content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
     content = _rewrite_gemini_shell_workflow_guidance(content)
-    content = _rewrite_gpd_cli_invocations(content, bridge_command)
-    return _inject_gemini_command_runtime_note(content, bridge_command)
+    shell_allowlist_required = _contains_gemini_shell_fence(content)
+    rewritten = _rewrite_gpd_cli_invocations(content, bridge_command)
+    shell_allowlist_required = shell_allowlist_required or rewritten != content
+    return _inject_gemini_command_runtime_note(
+        rewritten,
+        bridge_command,
+        include_shell_allowlist=shell_allowlist_required,
+    )
 
 
 def _validate_existing_gemini_managed_state(target_dir: Path) -> None:
@@ -377,7 +429,7 @@ def _validate_existing_gemini_managed_state(target_dir: Path) -> None:
         ):
             raise RuntimeError("Gemini managed_config.policyPaths is malformed.")
 
-    managed_runtime_files = manifest.get("managed_runtime_files")
+    managed_runtime_files = manifest.get(_manifest_gemini_managed_runtime_files_key())
     if managed_runtime_files is not None and not (
         isinstance(managed_runtime_files, list)
         and all(isinstance(path, str) and path for path in managed_runtime_files)
@@ -442,7 +494,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run convention verification directly instead of capturing it in CONV_CHECK.
+# Gemini: run convention verification directly.
 gpd --raw convention check 2>/dev/null
 ```""",
     )
@@ -455,7 +507,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run convention verification directly instead of capturing it in CONV_CHECK.
+# Gemini: run convention verification directly.
 gpd --raw convention check 2>/dev/null
 ```""",
     )
@@ -468,7 +520,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run the command-context validation directly instead of capturing it in CONTEXT.
+# Gemini: run command-context validation directly.
 gpd --raw validate command-context validate-conventions "$ARGUMENTS"
 ```""",
     )
@@ -481,7 +533,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run the command-context validation directly instead of capturing it in CONTEXT.
+# Gemini: run command-context validation directly.
 gpd --raw validate command-context write-paper "$ARGUMENTS"
 ```""",
     )
@@ -490,7 +542,7 @@ gpd --raw validate command-context write-paper "$ARGUMENTS"
 QUALITY=$(gpd --raw validate paper-quality --from-project . 2>/dev/null)
 ```""",
         """```bash
-# Gemini auto-edit: run paper-quality validation directly instead of capturing it in QUALITY.
+# Gemini: run paper-quality validation directly.
 gpd --raw validate paper-quality --from-project . 2>/dev/null
 ```""",
     )
@@ -504,7 +556,7 @@ gpd commit \
   --files "${COMPARISON_OUTPUT_PATH}"
 ```""",
         """```bash
-# Gemini auto-edit: run the pre-check directly; if it fails, inspect the output before committing.
+# Gemini: run the pre-check directly; inspect output before committing.
 gpd pre-commit-check --files "${COMPARISON_OUTPUT_PATH}" 2>&1 || true
 
 gpd commit \
@@ -520,7 +572,7 @@ echo "$PRE_CHECK"
 gpd commit "docs: generate dependency graph" --files GPD/DEPENDENCY-GRAPH.md
 ```""",
         """```bash
-# Gemini auto-edit: run the pre-check directly; if it fails, inspect the output before committing.
+# Gemini: run the pre-check directly; inspect output before committing.
 gpd pre-commit-check --files GPD/DEPENDENCY-GRAPH.md 2>&1 || true
 
 gpd commit "docs: generate dependency graph" --files GPD/DEPENDENCY-GRAPH.md
@@ -535,7 +587,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run initialization directly instead of capturing it in INIT.
+# Gemini: run initialization directly.
 gpd --raw init phase-op
 ```""",
     )
@@ -548,7 +600,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run initialization directly instead of capturing it in INIT.
+# Gemini: run initialization directly.
 gpd --raw init progress --include state,roadmap,config
 ```""",
     )
@@ -561,7 +613,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run initialization directly instead of capturing it in INIT.
+# Gemini: run initialization directly.
 gpd --raw init progress --include state
 ```""",
     )
@@ -574,7 +626,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run initialization directly instead of capturing it in INIT.
+# Gemini: run initialization directly.
 gpd --raw init phase-op --include state,config "${PHASE_ARG:-}"
 ```""",
     )
@@ -587,7 +639,7 @@ if [ $? -ne 0 ]; then
 fi
 ```""",
         """```bash
-# Gemini auto-edit: run initialization directly instead of capturing it in INIT.
+# Gemini: run initialization directly.
 gpd --raw init progress --include state,config
 ```""",
     )
@@ -598,23 +650,53 @@ _GEMINI_CAPTURE_ASSIGNMENT_RE = re.compile(
     r"^(?P<indent>[ \t]*)(?P<var>[A-Z][A-Z0-9_]*)=\$\((?P<command>gpd[^\n]*)\)(?P<suffix>[ \t]*(?:\|\|\s*true)?)$",
     re.MULTILINE,
 )
+_GEMINI_CAPTURED_GPD_STATUS_BLOCK_RE = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<var>[A-Z][A-Z0-9_]*)=\$\((?P<command>gpd[^\n]*)\)(?P<suffix>[ \t]*(?:\|\|\s*true)?)\n"
+    r"(?P=indent)if \[ \$\? -ne 0 \]; then\n"
+    r"(?:(?P=indent)[ \t]+.*\n)+?"
+    r"(?P=indent)fi$",
+    re.MULTILINE,
+)
+_GEMINI_CAPTURED_GPD_ECHO_BLOCK_RE = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<var>[A-Z][A-Z0-9_]*)=\$\((?P<command>gpd[^\n]*)\)(?P<suffix>[ \t]*(?:\|\|\s*true)?)\n"
+    r'(?P=indent)echo "\$(?P=var)"$',
+    re.MULTILINE,
+)
+
+
+def _gemini_direct_command_comment(command: str) -> str:
+    """Return a concise Gemini note for transformed shell-capture examples."""
+    if command.startswith("gpd --raw init"):
+        return "# Gemini: run initialization directly."
+    return "# Gemini: run this command directly."
 
 
 def _rewrite_gemini_capture_assignments(content: str) -> str:
     """Rewrite single-line Gemini shell capture examples into direct commands."""
 
-    def _replace(match: re.Match[str]) -> str:
+    def _replace_capture_block(match: re.Match[str]) -> str:
         indent = match.group("indent")
-        var = match.group("var")
         command = match.group("command").strip()
-        suffix = match.group("suffix") or ""
-        suffix = suffix.strip()
-        comment = f"{indent}# Gemini auto-edit: run the command directly instead of capturing it in {var}."
+        suffix = (match.group("suffix") or "").strip()
+        comment = f"{indent}{_gemini_direct_command_comment(command)}"
         rewritten = f"{indent}{command}"
         if suffix:
             rewritten = f"{rewritten} {suffix}"
         return f"{comment}\n{rewritten}"
 
+    def _replace(match: re.Match[str]) -> str:
+        indent = match.group("indent")
+        command = match.group("command").strip()
+        suffix = match.group("suffix") or ""
+        suffix = suffix.strip()
+        comment = f"{indent}{_gemini_direct_command_comment(command)}"
+        rewritten = f"{indent}{command}"
+        if suffix:
+            rewritten = f"{rewritten} {suffix}"
+        return f"{comment}\n{rewritten}"
+
+    content = _GEMINI_CAPTURED_GPD_STATUS_BLOCK_RE.sub(_replace_capture_block, content)
+    content = _GEMINI_CAPTURED_GPD_ECHO_BLOCK_RE.sub(_replace_capture_block, content)
     return _GEMINI_CAPTURE_ASSIGNMENT_RE.sub(_replace, content)
 
 
@@ -1073,6 +1155,11 @@ class GeminiAdapter(RuntimeAdapter):
             *self._runtime_bridge_only_relpaths(),
         )
 
+    def commit_attribution_config_path(self, *, explicit_config_dir: str | None = None) -> Path | None:
+        """Gemini stores commit attribution in settings.json, not policy TOML."""
+        config_dir = Path(explicit_config_dir).expanduser() if explicit_config_dir else self.resolve_global_config_dir()
+        return config_dir / "settings.json"
+
     def install(
         self,
         gpd_root: Path,
@@ -1111,7 +1198,7 @@ class GeminiAdapter(RuntimeAdapter):
             path_prefix,
             target_dir,
             gpd_root / "specs",
-            attribution=self.get_commit_attribution(),
+            attribution=self.get_commit_attribution(explicit_config_dir=str(target_dir)),
             install_scope=self._current_install_scope_flag(),
             bridge_command=bridge_command,
             explicit_target=getattr(self, "_install_explicit_target", False),
@@ -1131,7 +1218,7 @@ class GeminiAdapter(RuntimeAdapter):
             agents_dest,
             path_prefix,
             gpd_root / "specs",
-            attribution=self.get_commit_attribution(),
+            attribution=self.get_commit_attribution(explicit_config_dir=str(target_dir)),
             install_scope=self._current_install_scope_flag(),
             bridge_command=bridge_command,
         )
@@ -1170,7 +1257,7 @@ class GeminiAdapter(RuntimeAdapter):
 
     def _preflight_runtime_config(self, target_dir: Path, is_global: bool) -> None:
         """Fail before copying files when Gemini-owned config is malformed."""
-        del is_global
+        self._preflight_project_integrations_config(target_dir, is_global)
         settings_path = target_dir / "settings.json"
         _validate_existing_gemini_managed_state(target_dir)
         _, settings_parse_error = _read_gemini_settings_state(settings_path)
@@ -1344,7 +1431,7 @@ class GeminiAdapter(RuntimeAdapter):
         if managed_config:
             metadata["managed_config"] = managed_config
         if getattr(self, "_managed_runtime_files", []):
-            metadata["managed_runtime_files"] = list(self._managed_runtime_files)
+            metadata[_manifest_gemini_managed_runtime_files_key()] = list(self._managed_runtime_files)
         write_manifest(
             target_dir,
             version,
@@ -1360,6 +1447,43 @@ class GeminiAdapter(RuntimeAdapter):
             *self.install_detection_relpaths(),
             f"{_GEMINI_POLICY_DIR_NAME}/{_GEMINI_POLICY_FILE_NAME}",
         )
+
+    def missing_install_artifacts(self, target_dir: Path) -> tuple[str, ...]:
+        """Return missing or malformed Gemini-owned install artifacts."""
+        missing = list(super().missing_install_artifacts(target_dir))
+
+        def _append_once(label: str) -> None:
+            if label not in missing:
+                missing.append(label)
+
+        settings_path = target_dir / "settings.json"
+        if not settings_path.exists():
+            return tuple(missing)
+
+        settings, settings_parse_error = _read_gemini_settings_state(settings_path)
+        if settings_parse_error is not None:
+            _append_once("settings.json")
+            return tuple(missing)
+
+        settings = settings or {}
+        experimental = settings.get("experimental")
+        if not isinstance(experimental, dict) or experimental.get("enableAgents") is not True:
+            _append_once("settings.json experimental.enableAgents")
+
+        mcp_servers = settings.get("mcpServers")
+        if not isinstance(mcp_servers, dict) or not mcp_servers:
+            _append_once("settings.json mcpServers")
+
+        if (target_dir / "hooks" / HOOK_SCRIPTS["check_update"]).is_file():
+            hooks = settings.get("hooks")
+            session_start = hooks.get("SessionStart") if isinstance(hooks, dict) else None
+            if not isinstance(session_start, list) or not any(
+                _entry_has_gpd_hook(entry, target_dir=target_dir, config_dir_name=self.config_dir_name)
+                for entry in session_start
+            ):
+                _append_once("settings.json update hook")
+
+        return tuple(missing)
 
     def finish_install(
         self,
@@ -1420,7 +1544,7 @@ class GeminiAdapter(RuntimeAdapter):
         manifest = read_settings(target_dir / MANIFEST_NAME)
         has_authoritative_manifest = self._has_authoritative_install_manifest(target_dir)
         managed_config = manifest.get("managed_config")
-        managed_runtime_files = manifest.get("managed_runtime_files")
+        managed_runtime_files = manifest.get(_manifest_gemini_managed_runtime_files_key())
         remove_managed_enable_agents = (
             isinstance(managed_config, dict) and managed_config.get("experimental.enableAgents") is True
         )

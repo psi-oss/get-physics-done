@@ -14,6 +14,7 @@ _GENERATED_ARTIFACT_DIRS = {
     ".mypy_cache",
     ".nox",
     ".npm-cache",
+    ".playwright-mcp",
     ".pytest_cache",
     ".ruff_cache",
     ".tox",
@@ -62,7 +63,10 @@ def _tracked_test_python_paths() -> list[Path]:
     return [
         path
         for path in _tracked_paths()
-        if path.parts[:1] == ("tests",) and path.suffix == ".py" and path.name.startswith("test_")
+        if path.parts[:1] == ("tests",)
+        and path.suffix == ".py"
+        and path.name.startswith("test_")
+        and (REPO_ROOT / path).is_file()
     ]
 
 
@@ -203,6 +207,9 @@ def test_gitignore_covers_generated_local_artifact_families(tmp_path: Path) -> N
         "GPD-FIX-REPORT-20260427.md",
         "GPD-FIX-REPORT/report.json",
         "GPD-FIX-REPORT-20260427/details.json",
+        ".playwright-mcp/page-2026-04-28T00-00-00-000Z.yml",
+        "GPD/state.json.bak",
+        "GPD/state.json.lock",
     )
     for relpath in ignored_relpaths:
         path = repo / relpath
@@ -269,7 +276,7 @@ def test_readme_focused_smoke_command_references_existing_tests() -> None:
     match = re.search(r"focused smoke pass, run `uv run pytest (?P<paths>.*?) -q`", readme)
     assert match is not None
 
-    for path in match.group("paths").split():
+    for path in re.findall(r"tests/[^\s`]+\.py", match.group("paths")):
         assert (REPO_ROOT / path).is_file(), f"stale tests/README.md smoke reference: {path}"
 
 

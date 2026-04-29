@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from gpd.adapters.install_utils import expand_at_includes
@@ -11,6 +12,36 @@ COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
 WORKFLOWS_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
 SOURCE_ROOT = REPO_ROOT / "src" / "gpd"
 PATH_PREFIX = "/runtime/"
+
+
+def _extract_step(workflow: str, step_name: str) -> str:
+    start = workflow.index(f'<step name="{step_name}">')
+    end = workflow.index("</step>", start)
+    return workflow[start:end]
+
+
+def _extract_between(content: str, start_marker: str, end_marker: str) -> str:
+    start = content.index(start_marker) + len(start_marker)
+    end = content.index(end_marker, start)
+    return content[start:end]
+
+
+def _displayed_choice_labels(workflow: str) -> set[str]:
+    offer_step = _extract_step(workflow, "offer_relevant_choices")
+    labels: set[str] = set()
+    for line in offer_step.splitlines():
+        match = re.match(r"\s*(?:\d+\.|-)\s+(.+?)\s+- use `", line)
+        if match is not None:
+            labels.add(match.group(1))
+    return labels
+
+
+def _routed_choice_labels(workflow: str) -> set[str]:
+    route_step = _extract_step(workflow, "route_choice")
+    labels: set[str] = set()
+    for match in re.finditer(r"\*\*If the researcher chooses (?P<body>.*?):\*\*", route_step):
+        labels.update(re.findall(r"`([^`]+)`", match.group("body")))
+    return labels
 
 
 def test_start_command_is_registered_and_projectless() -> None:
@@ -43,9 +74,13 @@ def test_start_workflow_routes_to_existing_entrypoints() -> None:
     workflow = (WORKFLOWS_DIR / "start.md").read_text(encoding="utf-8")
 
     assert_start_workflow_router_contract(workflow)
-    assert "gpd --raw init new-project --stage scope_intake" in workflow
+    assert "START_CONTEXT=$(gpd --raw init new-project)" in workflow
+    assert "gpd --raw init new-project --stage scope_intake" not in workflow
     assert "workspace-bound, read-only classifier" in workflow
-    assert "Do not use that file search to override the core classifier." in workflow
+    assert "non-staged raw CLI classifier" in workflow
+    assert "`research_file_samples` is a sorted, bounded list" in workflow
+    assert "If `research_file_samples` is non-empty" in workflow
+    assert "read-only file search" not in workflow
     assert "HAS_GPD_PROJECT=false" not in workflow
     assert "RESEARCH_FILE_COUNT" not in workflow
 
@@ -83,10 +118,12 @@ def test_start_workflow_routes_to_existing_entrypoints() -> None:
             "If the researcher chooses `Resume this project (recommended)` or `Continue where I left off`:",
             "If the researcher chooses `Resume this project` or `Continue where I left off`:",
             "If the researcher chooses `Resume this project (recommended)`, `Continue where I left off`, `Inspect recovery state (recommended)`, or `Inspect recovery state`:",
+            "If the researcher chooses option_id `resume_work`",
         ),
         (
             "If the researcher chooses `Map this folder first (recommended)` or `Refresh the research map`:",
             "If the researcher chooses `Map this folder first` or `Refresh the research map`:",
+            "If the researcher chooses option_id `map_research`",
         ),
         (
             "Use \\`gpd resume --recent\\` in your normal terminal to find the project first.",
@@ -127,3 +164,30 @@ def test_start_workflow_routes_to_existing_entrypoints() -> None:
     assert "Read `{GPD_INSTALL_DIR}/workflows/new-project.md` with the file-read tool." not in workflow
     assert "Read `{GPD_INSTALL_DIR}/workflows/help.md` with the file-read tool." not in workflow
     assert "Read `{GPD_INSTALL_DIR}/workflows/tour.md` with the file-read tool." not in workflow
+    assert "Only list commands whose command-context preflight can pass for the detected state" in workflow
+    assert "When `roadmap_exists=true`, include as the next numbered choice:" in workflow
+    assert "When `state_exists=true`, include as the next numbered choice:" in workflow
+    partial_state_choices = _extract_between(
+        workflow,
+        "**This folder has partial/recoverable GPD state**",
+        "**This folder already has GPD's folder summary",
+    )
+    assert "Build the visible numbered list contiguously after filtering" in partial_state_choices
+    assert "1. Inspect recovery state" not in partial_state_choices
+    assert "2. Reconcile state files" not in partial_state_choices
+    assert "Do not list `gpd:progress` for partial state" in workflow
+    assert "Review visible progress - use `gpd:progress`" not in workflow
+
+
+def test_start_workflow_displayed_choice_labels_route_verbatim() -> None:
+    workflow = (WORKFLOWS_DIR / "start.md").read_text(encoding="utf-8")
+
+    displayed_labels = _displayed_choice_labels(workflow)
+    routed_labels = _routed_choice_labels(workflow)
+
+    assert displayed_labels
+    assert displayed_labels <= routed_labels
+    assert "Do one small bounded task" in displayed_labels
+    assert "Do one small bounded task" in routed_labels
+    assert "Do a small bounded task" not in routed_labels
+    assert "tour" in routed_labels

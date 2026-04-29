@@ -1,6 +1,27 @@
 {
   "schema_version": 1,
   "workflow_id": "map-research",
+  "required_init_field_groups": {
+    "map_bootstrap_context": [
+      "mapper_model",
+      "commit_docs",
+      "autonomy",
+      "research_mode",
+      "map_focus",
+      "map_focus_provided",
+      "parallelization",
+      "research_map_dir",
+      "existing_maps",
+      "has_maps",
+      "planning_exists",
+      "research_map_dir_exists",
+      "platform",
+      "project_contract",
+      "project_contract_gate",
+      "project_contract_load_info",
+      "project_contract_validation"
+    ]
+  },
   "stages": [
     {
       "id": "map_bootstrap",
@@ -9,22 +30,8 @@
       "mode_paths": [
         "workflows/map-research.md"
       ],
-      "required_init_fields": [
-        "mapper_model",
-        "commit_docs",
-        "autonomy",
-        "research_mode",
-        "parallelization",
-        "research_map_dir",
-        "existing_maps",
-        "has_maps",
-        "planning_exists",
-        "research_map_dir_exists",
-        "platform",
-        "project_contract",
-        "project_contract_gate",
-        "project_contract_load_info",
-        "project_contract_validation"
+      "required_init_field_groups": [
+        "map_bootstrap_context"
       ],
       "loaded_authorities": [
         "workflows/map-research.md"
@@ -66,22 +73,10 @@
       "mode_paths": [
         "workflows/map-research.md"
       ],
+      "required_init_field_groups": [
+        "map_bootstrap_context"
+      ],
       "required_init_fields": [
-        "mapper_model",
-        "commit_docs",
-        "autonomy",
-        "research_mode",
-        "parallelization",
-        "research_map_dir",
-        "existing_maps",
-        "has_maps",
-        "planning_exists",
-        "research_map_dir_exists",
-        "platform",
-        "project_contract",
-        "project_contract_gate",
-        "project_contract_load_info",
-        "project_contract_validation",
         "contract_intake",
         "effective_reference_intake",
         "active_reference_context",

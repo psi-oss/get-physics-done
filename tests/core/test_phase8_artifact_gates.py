@@ -25,7 +25,7 @@ def test_plan_phase_requires_plan_artifacts_before_accepting_success() -> None:
 def test_verify_work_rechecks_proof_redteam_artifact_after_repair() -> None:
     verify_work = _read("verify-work.md")
 
-    assert "After the proof critic returns, re-open `${phase_dir}/${phase_number}-PROOF-REDTEAM.md` from disk" in verify_work
+    assert "After the proof critic returns, re-open `${PHASE_DIR_ABS}/${phase_number}-PROOF-REDTEAM.md` from disk" in verify_work
     assert "confirm the artifact exists and is `passed` before finalizing the gap ledger" in verify_work
     assert "start a fresh proof continuation" in verify_work
 

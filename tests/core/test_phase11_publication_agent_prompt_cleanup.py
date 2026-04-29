@@ -66,15 +66,15 @@ def test_bibliographer_prompt_uses_typed_status_and_deferred_base_fields() -> No
     assert "Use `gpd_return.status: checkpoint` as the control surface." not in source
     assert "Return BIBLIOGRAPHY UPDATED or CITATION ISSUES FOUND" not in source
     assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in envelope
-    assert "# files_written names references/references.bib and GPD/references-status.json when written." in envelope
+    assert "# files_written names the active bibliography path and GPD/references-status.json when written." in envelope
     assert "entries_added: N" in envelope
     assert envelope.index(
         "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md."
     ) < envelope.index(
-        "# files_written names references/references.bib and GPD/references-status.json when written."
+        "# files_written names the active bibliography path and GPD/references-status.json when written."
     )
     assert envelope.index(
-        "# files_written names references/references.bib and GPD/references-status.json when written."
+        "# files_written names the active bibliography path and GPD/references-status.json when written."
     ) < envelope.index(
         "entries_added: N"
     )

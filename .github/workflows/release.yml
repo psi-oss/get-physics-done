@@ -68,6 +68,8 @@ jobs:
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.12"
 
       - name: Install development dependencies
         run: |
@@ -104,8 +106,12 @@ jobs:
 
       - name: Run release validation suite
         run: |
-          uv run pytest tests/test_release_consistency.py -v
+          uv run pytest -n 0 tests/test_release_consistency.py -v
           rm -rf dist
+          UV_CACHE_DIR="$(mktemp -d)"
+          export UV_CACHE_DIR
+          export UV_NO_CONFIG=1
+          export UV_PYTHON_DOWNLOADS=never
           uv build --out-dir dist
           uv run --with twine python -m twine check dist/*
           npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack.json

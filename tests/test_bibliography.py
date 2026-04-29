@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from gpd.mcp.paper.bibliography import (
     BibliographyAudit,
+    CitationAuditRecord,
     CitationSource,
     audit_bibliography,
     audit_citation_source,
@@ -414,6 +415,35 @@ class TestStrictBibliographyContracts:
                 }
             )
 
+    def test_bibliography_audit_rejects_summary_counts_that_disagree_with_entries(self) -> None:
+        with pytest.raises(ValidationError, match="summary counts do not match entries"):
+            BibliographyAudit.model_validate(
+                {
+                    "generated_at": "2026-03-10T00:00:00+00:00",
+                    "total_sources": 1,
+                    "resolved_sources": 1,
+                    "partial_sources": 0,
+                    "unverified_sources": 0,
+                    "failed_sources": 0,
+                    "entries": [
+                        {
+                            "key": "einstein1905",
+                            "source_type": "paper",
+                            "reference_id": "ref-einstein",
+                            "title": "Relativity",
+                            "resolution_status": "provided",
+                            "verification_status": "unverified",
+                            "verification_sources": [],
+                            "canonical_identifiers": [],
+                            "missing_core_fields": [],
+                            "enriched_fields": [],
+                            "warnings": [],
+                            "errors": [],
+                        }
+                    ],
+                }
+            )
+
 
 class TestBibliographyAudit:
     def test_audit_citation_source_marks_provided_identifiers_as_partial(self):
@@ -659,7 +689,16 @@ class TestBibliographyAudit:
             partial_sources=1,
             unverified_sources=0,
             failed_sources=0,
-            entries=[],
+            entries=[
+                CitationAuditRecord(
+                    key="einstein1905",
+                    source_type="paper",
+                    reference_id="ref-einstein",
+                    title="Relativity",
+                    resolution_status="incomplete",
+                    verification_status="partial",
+                )
+            ],
         )
         output = tmp_path / "bibliography-audit.json"
 

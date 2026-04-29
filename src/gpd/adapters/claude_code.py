@@ -88,6 +88,8 @@ def _validated_deferred_install_payload(
         raise RuntimeError("Claude Code deferred install result is malformed; refusing to finalize install.")
     if not isinstance(settings, dict):
         raise RuntimeError("Claude Code deferred install result is malformed; refusing to finalize install.")
+    if not _claude_settings_shape_is_valid(settings):
+        raise RuntimeError("Claude Code deferred install result is malformed; refusing to finalize install.")
     if not isinstance(statusline_command, str):
         raise RuntimeError("Claude Code deferred install result is malformed; refusing to finalize install.")
     if type(should_install_statusline) is not bool:
@@ -224,10 +226,6 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             )
         )
 
-    def _install_version(self, target_dir: Path, version: str, failures: list[str]) -> None:
-        """Write VERSION into the shared GPD content tree."""
-        super()._install_version(target_dir, version, failures)
-
     def _verify(self, target_dir: Path) -> None:
         """Verify the Claude Code install satisfies the shared contract."""
         super()._verify(target_dir)
@@ -240,12 +238,23 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         """Defer settings.json validation until finalize_install()."""
         return self.install_detection_relpaths()
 
+    def missing_install_artifacts(self, target_dir: Path) -> tuple[str, ...]:
+        """Return missing or malformed Claude-owned install artifacts."""
+        missing = list(super().missing_install_artifacts(target_dir))
+        settings_path = target_dir / "settings.json"
+        if settings_path.exists():
+            _, settings_parse_error = _read_claude_settings_state(settings_path)
+            if settings_parse_error is not None and "settings.json" not in missing:
+                missing.append("settings.json")
+        return tuple(missing)
+
     def _preflight_runtime_config(self, target_dir: Path, is_global: bool) -> None:
         """Fail before copying files when Claude-owned config is malformed."""
         settings_path = target_dir / "settings.json"
         _, settings_parse_error = _read_claude_settings_state(settings_path)
         if settings_parse_error is not None:
             raise RuntimeError("Claude Code settings.json is malformed; refusing to overwrite it during install.")
+        self._preflight_project_integrations_config(target_dir, is_global)
 
         project_cwd = None if is_global or getattr(self, "_install_explicit_target", False) else target_dir.parent
         mcp_servers = _build_managed_mcp_servers(cwd=project_cwd)
@@ -266,6 +275,12 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             raise RuntimeError(
                 f"{mcp_config_path.name} is malformed; refusing to overwrite Claude MCP config during install."
             )
+
+    def _install_rollback_paths(self, gpd_root: Path, target_dir: Path, is_global: bool) -> tuple[Path, ...]:
+        return (
+            *super()._install_rollback_paths(gpd_root, target_dir, is_global),
+            _mcp_config_path(target_dir, is_global=is_global),
+        )
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         settings_path = target_dir / "settings.json"

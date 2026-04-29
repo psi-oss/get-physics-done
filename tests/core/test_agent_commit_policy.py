@@ -33,11 +33,7 @@ def test_every_agent_frontmatter_declares_commit_authority() -> None:
 
 
 def test_registry_exposes_exact_direct_commit_allowlist() -> None:
-    direct = {
-        name
-        for name in registry.list_agents()
-        if registry.get_agent(name).commit_authority == "direct"
-    }
+    direct = {name for name in registry.list_agents() if registry.get_agent(name).commit_authority == "direct"}
 
     assert direct == DIRECT_AGENTS
 
@@ -59,14 +55,15 @@ def test_agent_infrastructure_commit_policy_uses_frontmatter_inventory_instead_o
     assert not re.search(r"^\| (gpd-[a-z-]+) \| `(?:direct|orchestrator)` \|", infra, re.MULTILINE)
 
 
-def test_agent_prompts_use_frontmatter_derived_commit_authority_surface() -> None:
+def test_agent_prompts_use_generated_agent_requirements_as_single_authority_surface() -> None:
     for name in registry.list_agents():
         agent = registry.get_agent(name)
         path = Path(agent.path)
         content = path.read_text(encoding="utf-8")
 
-        assert content.count(AGENT_FRONTMATTER_AUTHORITY_POINTER) == 1, path.name
+        assert AGENT_FRONTMATTER_AUTHORITY_POINTER not in content, path.name
         assert agent.system_prompt.startswith("## Agent Requirements\n"), path.name
+        assert agent.system_prompt.count("## Agent Requirements") == 1, path.name
         assert f"commit_authority: {agent.commit_authority}" in agent.system_prompt, path.name
         assert f"surface: {agent.surface}" in agent.system_prompt, path.name
         assert f"artifact_write_authority: {agent.artifact_write_authority}" in agent.system_prompt, path.name

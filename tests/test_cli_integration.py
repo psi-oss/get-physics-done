@@ -2243,7 +2243,7 @@ class TestInitIncludeParsing:
         payload = json.loads(result.output)
         assert payload["error"] == (
             "Unknown --include value(s) for gpd init progress: bogus. "
-            "Allowed values: config, project, roadmap, state."
+            "Allowed values: config, project, protocols, references, roadmap, state."
         )
 
     def test_init_resume_is_read_only_and_returns_ranked_candidates(self, gpd_project: Path) -> None:
@@ -2574,8 +2574,8 @@ class TestValidateReturn:
             "      resume_file: GPD/phases/01-test-phase/.continue-here.md\n"
             "    bounded_segment:\n"
             "      resume_file: GPD/phases/01-test-phase/.continue-here.md\n"
-            "      phase: 01\n"
-            "      plan: 01\n"
+            "      phase: \"01\"\n"
+            "      plan: \"01\"\n"
             "      segment_id: seg-01\n"
             "      segment_status: paused\n"
             "      checkpoint_reason: segment_boundary\n```\n", encoding="utf-8"
@@ -2649,7 +2649,11 @@ class TestValidateReturn:
             "  blockers:\n"
             "    - waiting on approval\n"
             "  contract_updates:\n"
-            "    project_contract: retained\n```\n",
+            "    project_contract: retained\n"
+            "  continuation_update:\n"
+            "    bounded_segment:\n"
+            "      resume_file: GPD/STATE.md\n"
+            "      segment_status: paused\n```\n",
             encoding="utf-8",
         )
 
@@ -2659,6 +2663,7 @@ class TestValidateReturn:
         assert parsed["status"] == "checkpoint"
         assert parsed["applied_decisions"] == 1
         assert parsed["applied_blockers"] == 1
+        assert parsed["applied_continuation_operations"] == ["set_bounded_segment"]
         assert parsed["contract_updates"] == {"project_contract": "retained"}
         assert state_path.read_text(encoding="utf-8") != before
         updated_state = state_path.read_text(encoding="utf-8")

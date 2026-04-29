@@ -37,7 +37,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse bootstrap JSON for: the manifest-owned `bootstrap.required_init_fields` in `peer-review-stage-manifest.json`, including `project_contract_gate`, target routing, publication routing fields (`publication_subject_slug`, `publication_lane_kind`, `managed_publication_root`, `selected_publication_root`, `selected_review_root`), manuscript artifact paths, and latest review/response state. Do not maintain a second inline field list here.
+Parse bootstrap JSON using the manifest-owned `bootstrap.required_init_fields` in `peer-review-stage-manifest.json`. Keep `project_contract_gate` visible before authoritative-use decisions; do not duplicate the manifest's required-field list in prose. When later steps need target routing, publication roots, manuscript artifact paths, or review/response state, read them from the staged payload by their manifest names.
 
 **Read mode settings:**
 
@@ -49,7 +49,7 @@ Treat `project_contract_gate` as authoritative. Use `project_contract` and `cont
 If `derived_manuscript_reference_status` is present, use it as a first-pass manuscript-local summary of reference coverage, citation readiness, and audit freshness. Keep the manuscript-root publication artifacts authoritative for strict decisions: `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and the reproducibility manifest still decide pass/fail.
 If `derived_manuscript_proof_review_status` is present, use it as the first-pass manuscript-local summary of theorem/proof freshness and keep the manuscript-root proof-redteam artifacts authoritative for strict decisions.
 The shared manuscript-root bootstrap contract is applied in preflight. The local steps below add only peer-review-specific routing, proof-review, and adjudication rules.
-This workflow is project-aware: it may resolve the active manuscript from the current GPD project or review one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript-directory target supplied in the current workspace. Write review artifacts under the target-aware `selected_review_root`, falling back to `GPD/review`.
+This workflow is project-aware: it may resolve the active manuscript from the current GPD project or review one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or manuscript-directory target supplied in the current workspace. Write review artifacts under the target-aware `selected_review_root`, falling back to `GPD/review`.
 
 If `REVIEW_TARGET` is empty and `project_exists` is true, ask the user which mode they want:
 
@@ -61,11 +61,11 @@ Use ask_user:
 - question: `Review the current GPD project manuscript, or point at a specific manuscript artifact?`
 - options:
   - `Use current project` -- Review the active manuscript resolved from the current GPD project. Recommended when the folder is already a GPD project.
-  - `Pick artifact path` -- Review a specific `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript directory path instead.
+  - `Pick artifact path` -- Review a specific `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or manuscript directory path instead.
 
 If the user chooses `Pick artifact path`, ask for one explicit path and store it in `REVIEW_TARGET`.
 
-If `REVIEW_TARGET` is empty and `project_exists` is false, ask the user for one explicit manuscript path or directory. Accept `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or a manuscript directory path. If the answer is still empty, STOP and ask again for a concrete artifact path.
+If `REVIEW_TARGET` is empty and `project_exists` is false, ask the user for one explicit manuscript path or directory. Accept `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or a manuscript directory path. If the answer is still empty, STOP and ask again for a concrete artifact path.
 
 After the user has chosen a mode or supplied an explicit path, rerun the subject-aware peer-review init surface for the resolved target. Treat this second payload as authoritative for manuscript routing and review-round state; do not keep using current-project manuscript status from the bootstrap call after an explicit artifact target has been chosen.
 
@@ -77,7 +77,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse target-aware init JSON for: the same manifest-owned `bootstrap.required_init_fields` in `peer-review-stage-manifest.json`. Treat the target-aware payload as authoritative after explicit artifact intake; if the manifest changes, follow the manifest instead of stale copied field prose.
+Parse target-aware init JSON using the same manifest-owned `bootstrap.required_init_fields` in `peer-review-stage-manifest.json`. Treat the target-aware payload as authoritative after explicit artifact intake; if the manifest changes, follow the manifest instead of stale copied field prose.
 
 Run centralized context preflight before continuing:
 
@@ -95,7 +95,7 @@ Use centralized target-aware init plus centralized command-context preflight as 
 
 1. In `project-backed manuscript review`, resolve the manuscript entrypoint under `paper/`, `manuscript/`, or `draft/` from `ARTIFACT-MANIFEST.json`, then `PAPER-CONFIG.json`, then the canonical current-manuscript rules for those roots.
 2. In `standalone explicit-artifact review`, the explicit path the user chose is authoritative. Do not fall back to canonical project-manuscript discovery after a standalone explicit artifact has been selected.
-3. When the user explicitly points at `.docx`, `.csv`, `.tsv`, or `.xlsx`, treat it as an explicit external-artifact intake surface only; do not widen the default `paper/`, `manuscript/`, or `draft/` discovery rules.
+3. When the user explicitly points at `.docx`, `.csv`, `.tsv`, `.xlsx`, or `.xlsm`, treat it as an explicit external-artifact intake surface only; do not widen the default `paper/`, `manuscript/`, or `draft/` discovery rules.
 4. Do not re-resolve the review target with ad hoc wildcard discovery or first-match shell globs after init/preflight has selected it.
 
 After resolution, keep all manuscript-local support artifacts rooted at the same explicit manuscript directory:
@@ -105,6 +105,7 @@ After resolution, keep all manuscript-local support artifacts rooted at the same
 - `RESOLVED_REVIEW_TARGET` = `resolved_review_target` from the target-aware `INIT` payload
 - `RESOLVED_REVIEW_ROOT` = `resolved_review_root` from the target-aware `INIT` payload
 - `PUBLICATION_SUBJECT_SLUG` = `publication_subject_slug` from the target-aware `INIT` payload when present
+- `PUBLICATION_LANE_KIND` = `publication_lane_kind` from the target-aware `INIT` payload when present
 - `PUBLICATION_ROOT` = `selected_publication_root` from target-aware `INIT`, otherwise `managed_publication_root` when present, otherwise `GPD`
 - `REVIEW_ROOT` = `selected_review_root` from target-aware `INIT`, otherwise `resolved_review_root`, otherwise `GPD/review`
 - `RESOLVED_MANUSCRIPT` = `manuscript_entrypoint` from the target-aware `INIT` payload
@@ -120,7 +121,7 @@ Prepare a reader-friendly manuscript surface for the staged reviewers:
 - For `.tex` or `.md`, keep the resolved main file plus any nearby section `.tex` / `.md` files under the same manuscript root.
 - For `.txt`, use the `.txt` file directly as the manuscript review surface.
 - For `.csv` or `.tsv`, use the file directly as the explicit-artifact review surface.
-- For `.pdf`, `.docx`, or `.xlsx`, first look for a nearby text companion such as the same basename with `.txt`. If none exists, create `${REVIEW_ROOT}/` if needed, run `gpd validate artifact-text "$RESOLVED_MANUSCRIPT" --output ${REVIEW_ROOT}/MANUSCRIPT-TEXT.txt`, and use that extracted file as the manuscript review surface while keeping the original artifact as the canonical `RESOLVED_MANUSCRIPT`. If extraction fails, STOP and ask the user to point at a `.txt`, `.md`, `.tex`, `.csv`, `.tsv`, or a matching extracted `.txt` companion file.
+- For `.pdf`, `.docx`, `.xlsx`, or `.xlsm`, first look for a nearby text companion such as the same basename with `.txt`. If none exists, create `${REVIEW_ROOT}/` if needed, run `gpd validate artifact-text "$RESOLVED_MANUSCRIPT" --output ${REVIEW_ROOT}/MANUSCRIPT-TEXT.txt`, and use that extracted file as the manuscript review surface while keeping the original artifact as the canonical `RESOLVED_MANUSCRIPT`. If extraction fails, STOP and ask the user to point at a `.txt`, `.md`, `.tex`, `.csv`, `.tsv`, or a matching extracted `.txt` companion file.
 
 Store the reviewer-visible inputs as `MANUSCRIPT_STAGE_FILES`.
 
@@ -129,7 +130,7 @@ Store the reviewer-visible inputs as `MANUSCRIPT_STAGE_FILES`.
 ```
 No review target found. The target-aware peer-review init plus command-context preflight did not resolve a manuscript under `paper/`, `manuscript/`, or `draft/`, and no valid explicit artifact target was accepted.
 
-Run gpd:write-paper first, or provide a `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript directory path to gpd:peer-review.
+Run gpd:write-paper first, or provide a `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or manuscript directory path to gpd:peer-review.
 ```
 
 Exit.
@@ -152,7 +153,7 @@ Use `protocol_bundle_context` from init JSON as additive review guidance.
 - If `selected_protocol_bundle_ids` is non-empty, use the bundle summary as a compact map of decisive artifacts, benchmark anchors, estimator caveats, or specialized comparisons the manuscript should surface.
 - Bundle guidance is additive only: it can sharpen missing-evidence checks, but it cannot invent claims, waive missing comparisons, or overrule the manuscript, `project_contract`, `GPD/comparisons/*-COMPARISON.md`, `${MANUSCRIPT_ROOT}/FIGURE_TRACKER.md`, or phase summary / verification evidence (`GPD/phases/*/*SUMMARY.md`, `GPD/phases/*/*-VERIFICATION.md`).
 - Reader-visible claims and surfaced evidence remain first-class; review-support artifacts are scaffolding, not substitutes for authoritative evidence required by the resolved review target or project contract.
-- Read `@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md` for the canonical failure-recovery and round-suffix conventions that keep this workflow fail-closed.
+- Read `{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md` for the canonical failure-recovery and round-suffix conventions that keep this workflow fail-closed.
 - If no bundle is selected, run the same review pipeline against the resolved review target plus any authoritative project-backed artifacts without any specialized overlay.
 </step>
 
@@ -170,9 +171,7 @@ fi
 INIT="$PREFLIGHT_INIT"
 ```
 
-Apply the shared manuscript-root bootstrap contract exactly:
-
-@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md
+Apply the shared manuscript-root bootstrap contract exactly from `{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md`.
 
 ```bash
 gpd validate review-preflight peer-review "$REVIEW_TARGET" --strict
@@ -232,13 +231,7 @@ mkdir -p ${REVIEW_ROOT}
 <step name="detect_proof_bearing_manuscript">
 Classify whether the manuscript contains theorem-style or `proof_obligation` claims before the staged panel proceeds.
 
-Treat the review target as proof-bearing when any of the following are true:
-
-- the approved project contract includes a claim or observable with kind `proof_obligation`
-- the manuscript text uses theorem-style language (`theorem`, `lemma`, `corollary`, `proposition`, `claim`, `proof`, `we prove`, `show that`)
-- a core claim depends on a formal derivation whose validity turns on named hypotheses, parameters, or quantifiers
-
-If ambiguous, default to proof-bearing.
+@{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-workflow-gate.md
 
 When proof-bearing review is active:
 
@@ -351,7 +344,15 @@ Use one short sentence that names each stage's job, for example:
 <step name="child_return_contract">
 **Peer-review child return contract:**
 
-Every spawned review child must return a typed `gpd_return` envelope with `status: completed | checkpoint | blocked | failed`, `files_written` naming only artifacts that genuinely landed on disk in that child run, `issues`, `next_actions`, and `peer_review_stage`. Human-readable `STAGE X COMPLETE` / `REVIEW COMPLETE` text is presentation only and does not satisfy the handoff without the typed envelope.
+Every spawned review child must return a typed `gpd_return` envelope with `status: completed | checkpoint | blocked | failed`, `files_written` naming only artifacts that genuinely landed on disk in that child run, `issues`, `next_actions`, and `peer_review_stage`. Human-readable completion labels are presentation only and do not satisfy the handoff without the typed envelope.
+
+Panel-stage artifacts use {GPD_INSTALL_DIR}/references/publication/peer-review-panel.md. Final adjudication uses {GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md and {GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md. Load these only in panel or final-adjudication stages.
+</step>
+
+<step name="build_panel_carry_forward">
+Build one compact `REVIEW_CARRY_FORWARD` packet before spawning panel stages.
+
+Include paths and short summaries for: project contract authority/gate/load/validation, approved contract or diagnostics, active references, derived manuscript reference status, contract/effective intake, protocol bundle guidance, and reference-artifact files. Pass `reference_artifacts_content` only as a brief summary; if a stage needs exact source text, pass the artifact path plus the specific section or locator to read. Do not repeat full contract/reference payloads in every child prompt.
 </step>
 
 <step name="stage_1_read">
@@ -365,7 +366,7 @@ READ_MODEL=$(gpd resolve-model gpd-review-reader)
 
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
-> If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> Apply the canonical runtime delegation convention already loaded above.
 
 ```
 task(
@@ -458,7 +459,7 @@ Operate in literature-context stage mode with a fresh context.
 Target journal: {target_journal}
 Round: {round}
 Selected protocol bundles: {selected_protocol_bundle_ids}
-Carry-forward context: protocol bundle guidance {protocol_bundle_context}; project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
+Carry-forward packet: {REVIEW_CARRY_FORWARD}
 Output path: `${REVIEW_ROOT}/STAGE-literature{round_suffix}.json`
 
 <spawn_contract>
@@ -500,7 +501,7 @@ Operate in mathematical-soundness stage mode with a fresh context.
 
 Target journal: {target_journal}
 Round: {round}
-Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
+Carry-forward packet: {REVIEW_CARRY_FORWARD}
 Output path: `${REVIEW_ROOT}/STAGE-math{round_suffix}.json`
 
 <spawn_contract>
@@ -540,11 +541,11 @@ task(
 Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
 
 Operate in adversarial proof-critique mode with a fresh context.
-If the runtime needs user input, return `status: checkpoint` instead of waiting inside this run.
+Follow the proof-redteam protocol's one-shot return semantics.
 
 Target journal: {target_journal}
 Round: {round}
-Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
+Carry-forward packet: {REVIEW_CARRY_FORWARD}
 Write to: `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md`
 
 <spawn_contract>
@@ -638,8 +639,8 @@ Operate in physical-soundness stage mode with a fresh context.
 Target journal: {target_journal}
 Round: {round}
 Selected protocol bundles: {selected_protocol_bundle_ids}
-Additive specialized guidance: {protocol_bundle_context}
-Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
+Additive specialized guidance: use the protocol-bundle summary in `{REVIEW_CARRY_FORWARD}`
+Carry-forward packet: {REVIEW_CARRY_FORWARD}
 Output path: `${REVIEW_ROOT}/STAGE-physics{round_suffix}.json`
 
 <spawn_contract>
@@ -719,7 +720,7 @@ Operate in interestingness-and-venue-fit stage mode with a fresh context.
 
 Target journal: {target_journal}
 Round: {round}
-Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
+Carry-forward packet: {REVIEW_CARRY_FORWARD}
 Output path: `${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json`
 
 <spawn_contract>
@@ -807,8 +808,8 @@ Round: {round}
 <autonomy_mode>{AUTONOMY}</autonomy_mode>
 <research_mode>{RESEARCH_MODE}</research_mode>
 Selected protocol bundles: {selected_protocol_bundle_ids}
-Additive specialized guidance: {protocol_bundle_context}
-Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
+Additive specialized guidance: use the protocol-bundle summary in `{REVIEW_CARRY_FORWARD}`
+Carry-forward packet: {REVIEW_CARRY_FORWARD}
 
 <spawn_contract>
 write_scope:
@@ -869,7 +870,7 @@ Write `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` and the matching `${
 Treat the referee report files as required final-stage artifacts. If either report file is missing after adjudication, the stage is incomplete even if the JSON validators passed.
 Also write `${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md` when applicable.
 
-Use the child return contract with `peer_review_stage: referee`; `files_written` naming only Stage 6-owned artifacts written in this run. Optional prose may say REVIEW COMPLETE with recommendation, confidence, issue counts, and whether prior major concerns are resolved.",
+Use the child return contract with `peer_review_stage: referee`; `files_written` naming only Stage 6-owned artifacts written in this run. Optional prose may summarize the recommendation, confidence, issue counts, and whether prior major concerns are resolved.",
   description="Peer review stage 6: final adjudication"
 )
 ```

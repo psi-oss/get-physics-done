@@ -120,10 +120,12 @@ def test_sync_phase_checkpoints_generates_root_and_phase_docs(tmp_path: Path) ->
     assert "# Phase 01 Checkpoint" in phase_checkpoint
     assert "[01-SUMMARY.md](../phases/01-test-phase/01-SUMMARY.md)" in phase_checkpoint
     assert "[01-VERIFICATION.md](../phases/01-test-phase/01-VERIFICATION.md)" in phase_checkpoint
-    assert "The headline result was straightforward" in phase_checkpoint
+    assert "Result: Set up the project." in phase_checkpoint
+    assert "The headline result was straightforward" not in phase_checkpoint
 
     checkpoints_index = (cwd / "GPD" / "CHECKPOINTS.md").read_text(encoding="utf-8")
     assert "[Phase 01: Test Phase](phase-checkpoints/01-test-phase.md)" in checkpoints_index
+    assert "Generated from canonical SUMMARY and VERIFICATION artifacts" in checkpoints_index
     assert "\\" not in phase_checkpoint
     assert "\\" not in checkpoints_index
 
@@ -148,7 +150,49 @@ def test_sync_phase_checkpoints_renders_canonical_list_provides(tmp_path: Path) 
 
     assert result.phase_count == 1
     phase_checkpoint = (cwd / "GPD" / "phase-checkpoints" / "01-test-phase.md").read_text(encoding="utf-8")
-    assert "In practical terms, this phase now gives the project solver." in phase_checkpoint
+    assert "Provides: solver." in phase_checkpoint
+
+
+def test_sync_phase_checkpoints_accepts_dependency_graph_provides_without_top_level_provides(
+    tmp_path: Path,
+) -> None:
+    cwd = _setup_project(tmp_path)
+    phase_dir = cwd / "GPD" / "phases" / "01-test-phase"
+    phase_dir.mkdir()
+    (phase_dir / "01-SUMMARY.md").write_text(
+        textwrap.dedent(
+            """\
+            ---
+            phase: "01"
+            plan: "01"
+            depth: full
+            dependency-graph:
+              provides:
+                - nested solver
+            completed: "2026-03-17"
+            one-liner: "Set up the project"
+            key-files:
+              - src/model.py
+            key-decisions:
+              - Keep the reduced wedge
+            patterns-established:
+              - Hidden-damage rejection survives
+            ---
+
+            # Summary
+
+            **Set up the project**
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    result = sync_phase_checkpoints(cwd)
+
+    assert result.phase_count == 1
+    assert result.skipped_files == []
+    phase_checkpoint = (cwd / "GPD" / "phase-checkpoints" / "01-test-phase.md").read_text(encoding="utf-8")
+    assert "Provides: nested solver." in phase_checkpoint
 
 
 def test_sync_phase_checkpoints_skips_malformed_summary_and_still_regenerates_other_phases(
@@ -266,9 +310,7 @@ def test_sync_phase_checkpoints_orders_summaries_by_frontmatter_plan_not_filenam
 
     sync_phase_checkpoints(cwd)
 
-    phase_checkpoint = (cwd / "GPD" / "phase-checkpoints" / "04-frontmatter-phase.md").read_text(
-        encoding="utf-8"
-    )
+    phase_checkpoint = (cwd / "GPD" / "phase-checkpoints" / "04-frontmatter-phase.md").read_text(encoding="utf-8")
     assert "Tenth by frontmatter" in phase_checkpoint
     assert "Latest summary (02-SUMMARY.md)" in phase_checkpoint
     assert "Plan 02 summary: [99-SUMMARY.md]" in phase_checkpoint
@@ -286,9 +328,7 @@ def test_sync_phase_checkpoints_keeps_non_numeric_summary_identifiers_before_num
 
     sync_phase_checkpoints(cwd)
 
-    phase_checkpoint = (cwd / "GPD" / "phase-checkpoints" / "05-mixed-identifiers.md").read_text(
-        encoding="utf-8"
-    )
+    phase_checkpoint = (cwd / "GPD" / "phase-checkpoints" / "05-mixed-identifiers.md").read_text(encoding="utf-8")
     assert "Tenth summary" in phase_checkpoint
     assert "Latest summary (10-SUMMARY.md)" in phase_checkpoint
     assert "Plan notes summary: [notes-SUMMARY.md]" in phase_checkpoint

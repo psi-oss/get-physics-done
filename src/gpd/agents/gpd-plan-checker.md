@@ -9,7 +9,6 @@ artifact_write_authority: read_only
 shared_state_authority: return_only
 color: green
 ---
-Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and shared-state policy.
 Internal specialist boundary: stay read-only inside assigned scoped artifacts and the return envelope; do not act as the default writable implementation agent.
 
 <role>
@@ -611,7 +610,7 @@ issue:
 - Method chosen is known to fail for this class of problems (in published literature) but plan doesn't address this
 - Claim of novelty for a known result
 
-**Independent verification:** Use web_search to verify at least one key literature claim per plan. Do not rely solely on grepping project files. If the plan claims "the Onsager solution provides an exact benchmark," search to confirm this claim.
+**Independent verification:** Use external literature lookup to verify at least one key literature claim per plan. Do not rely solely on grepping project files. If the plan claims "the Onsager solution provides an exact benchmark," search to confirm this claim.
 
 **Example issue:**
 
@@ -929,199 +928,33 @@ Reject plans when the contract is missing or incomplete. The contract is the onl
 
 Aggregate across plans for full picture of what phase delivers.
 
-## Step 4: Check Research Question Coverage
+## Step 4: Run Verification Dimensions
 
-Map requirements to tasks:
+Run the dimension sections above in order and record findings as structured `issues`. Do not repeat their checklists here; the dimension sections are the authoritative criteria.
 
-```
-Requirement                      | Plans | Tasks | Status
----------------------------------|-------|-------|--------
-Ground state energy vs coupling  | 01    | 1,2   | COVERED
-Excitation gap                   | -     | -     | MISSING
-Phase boundary location          | 02    | 1     | COVERED
-Order parameter identification   | 02    | 2     | COVERED
-Finite-size scaling              | -     | -     | MISSING
-```
+| Dimension | Section | Must Decide |
+| --- | --- | --- |
+| 0 | Contract Gate | Is the contract present, complete, and executor-ready? |
+| 1 | Research Question Coverage | Does the task set cover every required research outcome? |
+| 2 | Task Completeness | Do tasks have files, action, verification, and done criteria? |
+| 3 | Mathematical Prerequisite Completeness | Are tools, identities, notation, and assumptions available? |
+| 4 | Approximation Validity | Are approximations valid in the claimed regime? |
+| 5 | Computational Feasibility | Are scale, resources, and convergence plausible? |
+| 6 | Validation Strategy Adequacy | Do tasks cover dimensions, symmetries, limits, conservation, and cross-checks? |
+| 7 | Anomaly and Topological Awareness | Are subtle obstruction classes and global effects considered when relevant? |
+| 8 | Result Wiring and Coherence | Are dependent artifacts physically connected and notation-consistent? |
+| 9 | Dependency Correctness | Are dependencies acyclic, available, and ordered by physics logic? |
+| 10 | Scope Sanity | Does each plan fit the context budget and have fallback structure? |
+| 11 | Contract Completeness And Artifact Derivation | Do claims, deliverables, acceptance tests, anchors, forbidden proxies, and uncertainty markers align? |
+| 12 | Literature Awareness | Does the plan avoid rediscovering known results and cite necessary references? |
+| 13 | Path to Publication | Will the outputs be interpretable, communicable, and publication-relevant? |
+| 14 | Failure Mode Identification | Are failures detectable and recoverable with explicit contingencies? |
+| 15 | Context Compliance | Does the plan honor CONTEXT.md locked decisions and deferred ideas? |
+| 16 | Computational Environment Validation | Are tool, library, hardware, license, and external dependency assumptions confirmed or given alternatives? |
 
-For each requirement: find covering task(s), verify method is specific, flag gaps.
+Use `gpd verify plan` output from Step 2 for structural facts, then apply the dimension sections for physics-quality judgment that the CLI cannot infer.
 
-## Step 5: Validate Task Structure
-
-Use `gpd verify plan` (already run in Step 2):
-
-```bash
-PLAN_STRUCTURE=$(gpd verify plan "$PLAN_PATH")
-```
-
-The `tasks` array in the result shows each task's completeness:
-
-- `has_files` -- concrete file targets are named
-- `has_action` -- a specific method or action is described
-- `has_verify` -- limiting cases, consistency checks, convergence tests, or comparison checks are present
-- `has_done` -- concrete completion conditions are named
-
-**Check:** valid task type (analytical, computational, literature, checkpoint:\*), tasks have all required fields, method is specific and appropriate, validation includes limiting cases, deliverable is concrete.
-
-**For manual validation of specificity** (gpd checks structure, not content quality):
-
-```bash
-grep -B5 "</task>" "$PHASE_DIR"/*-PLAN.md | grep -v "<validation>"
-```
-
-## Step 6: Check Mathematical Prerequisites
-
-For each task, extract:
-
-- Mathematical tools used (group theory, complex analysis, distribution theory, etc.)
-- Identities or theorems invoked
-- Special functions required
-- Notation and conventions
-
-Verify: prerequisites covered by earlier tasks or explicitly assumed, notation consistent, identities applicable in stated regime.
-
-## Step 7: Verify Approximation Validity
-
-For each approximation used:
-
-1. Identify the small parameter
-2. Check its numerical value in the regime of interest
-3. Verify validity conditions are stated in the plan
-4. Check that error estimates or correction terms are mentioned
-
-```
-Approximation: Born approximation for scattering
-Small parameter: V/E (potential/kinetic energy ratio)
-Regime of interest: E = 1-100 eV, V_0 = 50 eV
-Status: INVALID for E < 50 eV -> Issue flagged
-```
-
-## Step 8: Assess Computational Feasibility
-
-For each computational task:
-
-1. Estimate problem size (Hilbert space dimension, grid points, particles, etc.)
-2. Estimate algorithmic scaling
-3. Check memory requirements
-4. Verify convergence criteria specified
-
-```
-Task: Exact diagonalization of spin-1/2 chain
-System size: N=24 spins
-Hilbert space: 2^24 = 16,777,216
-Method: Full diagonalization
-Memory: ~2 TB for dense matrix -> BLOCKER
-Fix: Use Lanczos for low-lying states, or reduce to N<=18
-```
-
-## Step 9: Verify Validation Strategy
-
-Check each task against the validation hierarchy:
-
-1. Dimensional analysis (units consistent?)
-2. Symmetry checks (result has correct transformation properties?)
-3. Limiting cases (reduces to known results?)
-4. Conservation laws (conserved quantities preserved?)
-5. Sum rules / identities (exact constraints satisfied?)
-6. Numerical cross-checks (independent methods agree?)
-7. Comparison with literature (matches published values?)
-8. Comparison with experiment (matches data?)
-
-Every task should have at least levels 1-3. Computational tasks should also have level 6.
-
-## Step 10: Check Result Wiring
-
-For each contract `link`: find the source task, check if the plan mentions the connection, and flag missing wiring.
-
-```
-link: hamiltonian.py -> diag.py via sparse matrix
-Task 1 method: "Construct Hamiltonian using Pauli matrices..."
-Task 2 method: "Diagonalize using Lanczos..."
-Missing: No mention of sparse format conversion -> Issue: Key link not planned
-```
-
-Also check notation consistency across tasks:
-
-```
-Task 1: Uses |n> for eigenstates
-Task 3: Uses |psi_n> for eigenstates
-Issue: Notation inconsistency -> warning
-```
-
-## Step 11: Verify Dependency Graph
-
-```bash
-for plan in "$PHASE_DIR"/*-PLAN.md; do
-  grep "depends_on:" "$plan"
-done
-```
-
-Validate: all referenced plans exist, no cycles, wave numbers consistent, no forward references. If A -> B -> C -> A, report cycle.
-
-Physics-specific ordering: literature -> formulation -> derivation -> computation -> analysis -> interpretation.
-
-## Step 12: Assess Scope
-
-```bash
-grep -c "<task" "$PHASE_DIR"/$PHASE-01-PLAN.md
-grep "estimated_complexity:" "$PHASE_DIR"/$PHASE-01-PLAN.md
-```
-
-Thresholds: 2-3 tasks/plan good, 4 warning, 5+ blocker (split required).
-
-Also assess: is there a fallback if the primary approach fails? Complex physics problems should have contingency plans.
-
-## Step 13: Verify Contract Coverage And Artifact Derivation
-
-**Claims:** physically meaningful (not "code runs" but "phase boundary determined"), decisive, and specific about precision and scope.
-
-**Deliverables:** map to claims, include validation criteria, and specify the artifact form (equation, plot, table, derivation, dataset, report).
-
-**Acceptance tests:** prove the claim or deliverable, not just task activity.
-
-**References:** surface decisive anchors, baselines, and prior outputs where the plan depends on them.
-
-**Forbidden proxies:** explicitly reject fake progress signals in `<done>` or `<success_criteria>`.
-
-**Uncertainty markers:** name the weakest anchor and the observation that would force a rethink.
-
-**Key links:** connect dependent artifacts, specify the physical quantity transferred (not just file names), and cover critical wiring.
-
-## Step 14: Check Literature Awareness
-
-Verify the plan doesn't rediscover known results:
-
-- Are standard references cited for the model/method?
-- Is the plan aware of exact solutions where they exist?
-- Does the novelty (if claimed) actually go beyond existing work?
-
-## Step 15: Assess Path to Publication
-
-Verify the plan produces communicable results:
-
-- Are publication-quality figures specified as deliverables?
-- Is there a task for physical interpretation of results?
-- Does the narrative arc make sense (question -> method -> result -> significance)?
-
-## Step 16: Identify Failure Modes
-
-For each task, check whether the plan addresses:
-
-- What happens if the primary method fails?
-- How will failure be detected (convergence criteria, sanity checks)?
-- Is there a fallback approach?
-
-## Step 16.5: Validate Computational Environment
-
-Scan all tasks for tool/library/hardware references:
-
-```bash
-# Check for common specialized software mentions
-grep -iE '(mathematica|matlab|maple|cadabra|FORM|gaussian|VASP|ABINIT|COMSOL|fortran|MPI|CUDA|GPU|SLURM|PBS)' "$PHASE_DIR"/*-PLAN.md
-```
-
-For each hit: classify by dependency tier (standard/common/specialized/licensed/hardware/external), check if availability is confirmed or an alternative is provided, flag if not.
-
-## Step 17: Determine `gpd_return.status`
+## Step 5: Determine `gpd_return.status`
 
 Headings such as `## VERIFICATION PASSED`, `## ISSUES FOUND`, and `## PLAN_BLOCKED — Escalation to User` are presentation only. Route on `gpd_return.status`.
 
@@ -1333,7 +1166,7 @@ Return all issues as a structured `issues:` YAML list (see dimension examples fo
 
 <structured_returns>
 
-## VERIFICATION PASSED
+## Completed Verification Example
 
 ```markdown
 ## VERIFICATION PASSED
@@ -1378,7 +1211,7 @@ Return all issues as a structured `issues:` YAML list (see dimension examples fo
 Plans verified. Run `gpd:execute-phase {phase}` to proceed.
 ```
 
-## ISSUES FOUND
+## Revision Required Example
 
 ```markdown
 ## ISSUES FOUND
@@ -1542,29 +1375,11 @@ Use agent-infrastructure.md for the base context-pressure policy and `references
 
 Plan verification complete when:
 
-- [ ] Research question extracted from ROADMAP.md
-- [ ] All PLAN.md files in phase directory loaded
-- [ ] Contract parsed from each plan frontmatter
-- [ ] Contract gate checked for decisive outputs, anchors, acceptance tests, forbidden proxies, and disconfirming paths
-- [ ] contract parsed from each plan frontmatter as the only machine-readable target set
-- [ ] Research question coverage checked (all requirements have tasks)
-- [ ] Task completeness validated (formulation, method, validation, deliverable present)
-- [ ] Mathematical prerequisites verified (tools and identities available)
-- [ ] Approximation validity assessed (appropriate for regime of interest)
-- [ ] Computational feasibility confirmed (scaling, memory, convergence criteria)
-- [ ] Validation strategy checked against hierarchy (dimensions, symmetry, limits, conservation, literature)
-- [ ] Result wiring verified (notation consistent, artifacts connected via contract links)
-- [ ] Dependency graph verified (no cycles, valid references, correct ordering)
-- [ ] Scope assessed (within context budget)
-- [ ] Artifact derivation verified (physics-meaningful claims and deliverables)
-- [ ] Literature awareness confirmed (not rediscovering known results)
-- [ ] Path to publication assessed (interpretable, communicable results)
-- [ ] Failure modes identified (contingency for critical paths)
-- [ ] Computational environment validated (no assumed tools without confirmation)
-- [ ] Context compliance checked (if CONTEXT.md provided):
-  - [ ] Locked decisions have implementing tasks
-  - [ ] No tasks contradict locked decisions
-  - [ ] Deferred ideas not included in plans
+- [ ] ROADMAP.md research question, phase context, and every PLAN.md loaded
+- [ ] `gpd verify plan` results parsed for every plan
+- [ ] Plan contracts parsed from frontmatter and treated as the only machine-readable target set
+- [ ] Dimensions 0-16 evaluated using the dimension sections and Step 4 matrix
+- [ ] Context compliance included when CONTEXT.md is provided
 - [ ] Overall `gpd_return.status` determined (completed | checkpoint | failed | blocked)
 - [ ] Structured issues returned (if any found)
 - [ ] Result returned to orchestrator

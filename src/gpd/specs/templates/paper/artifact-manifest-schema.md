@@ -5,9 +5,9 @@ type: artifact-manifest-schema
 
 # Artifact Manifest Schema
 
-Canonical source of truth for `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, the machine-readable manifest emitted by `gpd paper-build`.
+Canonical source for `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, the machine-readable manifest emitted by `gpd paper-build`.
 
-This file records the concrete manuscript artifacts the builder actually produced. Treat it as the canonical review/build handoff for the current manuscript root. Do not invent extra keys, prose summaries, or unsupported journal labels.
+Record only artifacts the builder produced. Use this as the review/build handoff for the current manuscript root. Do not invent keys, prose summaries, or unsupported journal labels.
 
 ---
 
@@ -19,6 +19,8 @@ This file records the concrete manuscript artifacts the builder actually produce
   "paper_title": "Benchmark Recovery in a Controlled Regime",
   "journal": "jhep",
   "created_at": "2026-04-04T12:00:00+00:00",
+  "manuscript_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "manuscript_mtime_ns": 1775304000000000000,
   "artifacts": [
     {
       "artifact_id": "tex-paper",
@@ -76,16 +78,18 @@ This file records the concrete manuscript artifacts the builder actually produce
 - `version`: literal integer `1`
 - `paper_title`: non-empty string
 - `journal`: supported builder journal key from `${PAPER_DIR}/PAPER-CONFIG.json`
-- `created_at`: ISO 8601 timestamp string
+- `created_at`: ISO 8601 timestamp
+- `manuscript_sha256`: active manuscript SHA-256
+- `manuscript_mtime_ns`: active manuscript mtime ns
 - `artifacts`: array of artifact records
 
 ## Artifact Records
 
-Each `artifacts[]` entry must include:
+Required:
 
-- `artifact_id`: stable identifier such as `tex-paper`, `bib-references`, `audit-bibliography`, or `pdf-topic_stem`
+- `artifact_id`: non-empty stable identifier such as `tex-paper`, `bib-references`, `audit-bibliography`, or `pdf-topic_stem`
 - `category`: one of `tex`, `bib`, `figure`, `pdf`, `audit`
-- `path`: artifact path string
+- `path`: non-empty artifact path string
 - `sha256`: 64-character lowercase hex digest
 - `produced_by`: non-empty producer label such as `build_paper:render_tex`
 
@@ -98,32 +102,28 @@ Optional:
 
 Each `sources[]` entry may include:
 
-- `path`: original upstream artifact path
-- `role`: short role label such as `source-figure`, `compiled-from`, or `bibliography`
+- `path`: non-empty upstream artifact path
+- `role`: short label such as `source-figure`, `compiled-from`, or `bibliography`
 
 ## Path Rules
 
 - For artifacts inside the manuscript root, keep `path` relative to `${PAPER_DIR}`.
-- Preserve an explicit external path only when the artifact actually lives outside `${PAPER_DIR}`.
-- Keep `sources[].path` aligned with the original upstream input path instead of rewriting it into prose.
+- For external source paths outside `${PAPER_DIR}` and the current project working tree, redact to `external:<name>` using the basename only.
+- Keep `sources[].path` aligned with the original upstream input path when it is portable; otherwise use the builder redaction form above.
 
 ## Journal Rules
 
-The manifest `journal` must stay aligned with the supported builder key in `${PAPER_DIR}/PAPER-CONFIG.json`. The builder currently supports:
-
-- `prl`
-- `apj`
-- `mnras`
-- `nature`
-- `jhep`
-- `jfm`
+The manifest `journal` must match a supported builder key in `${PAPER_DIR}/PAPER-CONFIG.json`: `prl`, `apj`, `mnras`, `nature`, `jhep`, or `jfm`.
 
 Do not write unsupported scoring-only journal labels such as `prd`, `prb`, `prc`, or `nature_physics` into `${PAPER_DIR}/ARTIFACT-MANIFEST.json`.
 
 ## Validation Rules
 
-- Keep `artifacts` as a JSON array, even when only one artifact exists.
+- Keep `artifacts` as a JSON array.
 - Do not add undocumented top-level keys.
-- Keep every `sha256` exact; approximate hashes do not satisfy the manifest contract.
-- Keep `metadata` machine-readable. Do not replace structured fields with prose blocks.
-- If the manuscript entrypoint changes, regenerate this file through `gpd paper-build` rather than editing only one path by hand.
+- Do not repeat `artifact_id` values.
+- Do not emit ambiguous duplicate artifact records with the same `category` and `path`.
+- Keep every `sha256` exact.
+- If `manuscript_sha256` differs from the active manuscript digest, the manifest is stale and cannot drive manuscript resolution or publication preflight.
+- Treat `manuscript_mtime_ns` as diagnostic; regenerate with `gpd paper-build` after manuscript edits.
+- Keep `metadata` structured; regenerate this file instead of hand-editing one path.

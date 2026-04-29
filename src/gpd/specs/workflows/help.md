@@ -65,7 +65,7 @@ This reference lists the canonical in-runtime command names for the installed ru
 - Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly.
 - Use `gpd permissions status --runtime <runtime> --autonomy <mode>` when you want the read-only runtime-owned approval/alignment snapshot from your normal terminal. Use `supervised` unless you intentionally selected a different autonomy mode.
 - Use `gpd doctor` to check the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>` for the unattended or overnight verdict, `gpd permissions sync --runtime <runtime> --autonomy <mode>` when runtime-owned permissions need realignment, and `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `tectonic --version`, or `wolframscript -version`.
-- If you need to validate whether a public runtime command can run in the current workspace, use `gpd validate command-context gpd:<name>`.
+- If you need to validate whether a public runtime command can run in the current workspace, use `gpd validate command-context <name>`.
 - That is the generic typed command-policy check for the public runtime surface. Today, `gpd validate review-contract <command>` and `gpd validate review-preflight <command> [subject] --strict` are specialized typed surfaces for commands that expose review/publication contracts.
 - If a plan declares specialized `tool_requirements`, use `gpd validate plan-preflight <PLAN.md>` from your normal terminal before execution.
 - For a normal-terminal, current-workspace read-only recovery snapshot without launching the runtime, use `gpd resume`.
@@ -73,6 +73,7 @@ This reference lists the canonical in-runtime command names for the installed ru
 - After resuming inside the runtime, use `gpd:suggest-next` when you only need the next action.
 - For a normal-terminal, read-only machine-local usage / cost summary, use `gpd cost`.
 
+<!-- gpd-help:quick-start:start -->
 ## Quick Start
 
 If you only remember one order, use this: `help -> start -> tour -> new-project / map-research -> resume-work`.
@@ -105,6 +106,8 @@ Use the path that matches your current situation:
 
 When a side investigation appears later, use `gpd:tangent` first. It is the chooser for stay / quick / defer / branch. Use `gpd:branch-hypothesis` only when that tangent needs its own git-backed branch.
 
+<!-- gpd-help:quick-start:end -->
+<!-- gpd-help:command-index:start -->
 ## Command Index
 
 This is the compact grouped list of runtime commands. For normal-terminal install, readiness, and diagnostics commands, use `gpd --help`.
@@ -205,6 +208,8 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:update` - Update GPD to the latest version
 - `gpd:reapply-patches` - Reapply local modifications after updating
 
+<!-- gpd-help:command-index:end -->
+<!-- gpd-help:detailed-command-reference:start -->
 ## Detailed Command Reference
 
 Use `gpd:help --command <name>` when you want the detailed notes for one runtime command at a time.
@@ -246,20 +251,23 @@ One command takes you from idea to ready-for-investigation:
 - Research objectives definition with scoping
 - Roadmap creation with phase breakdown and success criteria
 
-Creates all `GPD/` artifacts:
+Full mode creates the main `GPD/` artifacts:
 
 - `PROJECT.md` — research question, theoretical framework, key parameters
 - `config.json` — workflow settings (`autonomy`, `research_mode`, `execution.review_cadence`, `planning.commit_docs`, agent toggles)
-- `research/` — literature survey (if selected)
+- `literature/` — literature survey (if selected)
 - `REQUIREMENTS.md` — scoped research requirements with REQ-IDs
 - `ROADMAP.md` — phases mapped to requirements
 - `STATE.md` — project memory
+- `CONVENTIONS.md` — notation conventions after roadmap approval
+
+All modes build a scoping contract before downstream artifacts. Blocking gaps get one targeted repair prompt, the contract must preserve decisive outputs, anchors, prior outputs, unresolved gaps, and stop/rethink triggers, and scope must be explicitly approved before requirements or roadmap generation.
 
 **Flags:**
 
-- `--minimal` — Skip deep questioning and literature survey. Creates project from a single description. Asks one question ("Describe your research project and phases"), then generates all `GPD/` artifacts with sensible defaults. Same file set as full mode, so all downstream commands work identically.
-- `--minimal @file.md` — Create project directly from a markdown file describing your research and phases. Parses research question, phase list, and key parameters from the file. No interactive questions asked.
-- `--auto` — Automatic mode with full depth. Expects research proposal via @ reference. Runs literature survey, requirements, and roadmap without interaction.
+- `--minimal` — Shortest setup path. Asks one structured intake question, repairs only blocking scoping gaps, requires scope approval, then creates the core startup set: `PROJECT.md`, `config.json`, `REQUIREMENTS.md`, `ROADMAP.md`, `STATE.md`, and `state.json`.
+- `--minimal @file.md` — File-backed minimal intake. Parses research question, decisive outputs, anchors, and work chunks from the file, but still repairs blocking gaps and asks for scoping approval before writing downstream artifacts.
+- `--auto` — Document-backed full-depth mode. Expects a research proposal via @ reference, compresses intake, asks for explicit scope approval, then follows the configured autonomy gates for literature, requirements, roadmap, and conventions.
 
 Usage: `gpd:new-project`
 Usage: `gpd:new-project --minimal`
@@ -726,7 +734,7 @@ Usage: `gpd:error-propagation --phase-range 1:5`
 
 ### Research Publishing
 
-Publication lane boundary: `gpd:write-paper` keeps the current-project manuscript roots and the managed project manuscript lane at `GPD/publication/{subject_slug}/manuscript`, and supports one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`; the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` is the project-aware intake step and can review the current project manuscript or one explicit subject allowed by its command policy (manuscript root/path or publication-artifact path); it remains the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, and `gpd:arxiv-submission` packages only a GPD-owned manuscript root or `.tex` entrypoint. Publication-root handling stays bounded to these resolved manuscript, intake, review, response, and package roots.
+Publication lane boundary: `gpd:write-paper` supports current-project manuscripts plus one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`, the subject-owned publication root at `GPD/publication/{subject_slug}`; `GPD/publication/{subject_slug}/manuscript` is the only manuscript/build root, and `GPD/publication/{subject_slug}/intake/` keeps intake/provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` can review the current project manuscript or one explicit subject allowed by its command policy; it remains the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root; `gpd:arxiv-submission` packages only a GPD-owned manuscript root or `.tex` entrypoint. This is not a full publication-root migration.
 
 **`gpd:write-paper [--intake path/to/write-paper-authoring-input.json]`**
 Structure and write a physics paper from current project research results or one bounded explicit external-authoring intake manifest.
@@ -735,10 +743,8 @@ Structure and write a physics paper from current project research results or one
 - Runs paper-readiness audit (conventions, verification, figures, citations)
 - Spawns gpd-paper-writer agents for each section (Results first, Abstract last)
 - Drafts the manuscript and uses `gpd paper-build` for the canonical scaffold/build contract
-- Uses the current project's GPD-owned manuscript root by default: `paper/`, `manuscript/`, and `draft/` roots remain valid, and resolved publication subjects use the project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`
-- Supports one bounded external-authoring lane through an explicit intake manifest only
-- In that bounded lane, all GPD-authored durable outputs live under `GPD/publication/{subject_slug}/...`; `GPD/publication/{subject_slug}/manuscript` is the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` keeps intake/provenance state
-- Does not mine arbitrary folders or infer claim/evidence bindings from loose notes
+- Uses the current project's GPD-owned manuscript root by default: `paper/`, `manuscript/`, `draft/`, or the managed lane resolved by preflight
+- Supports the bounded external-authoring lane described above
 - Keeps project-backed auxiliary review/response/package artifacts on the workflow-owned `GPD/` paths
 - Routes bounded external-authoring review follow-up to `gpd:peer-review`; embedded external staged-review parity is out of scope
 - Spawns gpd-bibliographer to verify all references
@@ -854,8 +860,8 @@ Create or update a current-workspace knowledge document draft from a topic, pape
 - Use canonical `GPD/knowledge/{knowledge_id}.md` targets for existing knowledge docs; new draft targets are created under the current workspace `GPD/knowledge/` tree.
 
 - Example topic: `gpd:digest-knowledge "renormalization group fixed points"`
-- Example modern arXiv: `gpd:digest-knowledge 2401.12345v2`
-- Example legacy arXiv: `gpd:digest-knowledge hep-th/9901001`
+- Example arXiv identifier: `gpd:digest-knowledge 2401.12345v2`
+- Example prefixed arXiv identifier: `gpd:digest-knowledge hep-th/9901001`
 - Example source file: `gpd:digest-knowledge ./notes/rg-notes.md`
 - Example document source: `gpd:digest-knowledge ./drafts/review-notes.docx`
 - Example tabular source: `gpd:digest-knowledge ./data/critical-exponents.csv`
@@ -987,7 +993,7 @@ Export observability sessions and optional traces to files for review, sharing, 
 Usage: `gpd:export-logs`
 Usage: `gpd:export-logs --format markdown`
 Usage: `gpd:export-logs --last 5`
-Usage: `gpd:export-logs --command gpd:execute-phase --phase 3 --category workflow`
+Usage: `gpd:export-logs --command execute-phase --phase 3 --category workflow`
 
 **`gpd:slides [topic, audience, or source path]`**
 Create presentation slides from a GPD project or the current folder.
@@ -1109,7 +1115,7 @@ Archive historical entries from STATE.md to keep it lean.
 
 - Moves old decisions, metrics, and resolved blockers to STATE-ARCHIVE.md
 - Keeps STATE.md under the target line budget (~150 lines)
-- Triggered automatically when STATE.md exceeds 1500 lines
+- Suggested by `gpd:progress` when STATE.md grows large; transition workflows may compact during phase changes
 
 Usage: `gpd:compact-state`
 Usage: `gpd:compact-state --force` (skip line-count check)
@@ -1152,6 +1158,8 @@ Usage: `gpd:reapply-patches`
 
 **`gpd:help`**
 Show this command reference.
+
+<!-- gpd-help:detailed-command-reference:end -->
 
 ## Files & Structure
 
@@ -1201,7 +1209,7 @@ GPD/
 
 ## Workflow Modes
 
-GPD is a scalpel, not an autopilot. Treat each agent turn like a graduate student's work: trust the execution, but stay in the loop to verify and redirect. Supervised mode gives you the frequent checkpoints that match that advisor role; graduate to Balanced once you trust GPD's boundary on your specific research.
+GPD keeps you in the loop. Use Supervised for frequent checkpoints, Balanced for fewer routine pauses after you trust the workflow, and YOLO only after runtime permissions are ready.
 
 Set during `gpd:new-project` or changed later with `gpd:settings`:
 
@@ -1278,8 +1286,8 @@ gpd:execute-phase 1    # Execute all plans in phase
 **Fast project bootstrap (skip deep questioning):**
 
 ```
-gpd:new-project --minimal              # One question, then auto-generate everything
-gpd:new-project --minimal @plan.md     # Generate from existing research plan file
+gpd:new-project --minimal              # One structured intake plus scope approval
+gpd:new-project --minimal @plan.md     # Parse a plan file, then repair/approve scope
 ```
 
 **Leaving and returning after a break:**

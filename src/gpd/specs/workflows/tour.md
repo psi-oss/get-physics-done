@@ -32,12 +32,7 @@ When you first use an official GPD term such as `runtime`, `read-only`, or
 Close the opening with one sentence that says this tour explains the common
 commands without executing them.
 
-Also add one short sentence near the opening that frames a common first pass
-without turning it into a rigid startup ladder, for example:
-
-`A common first pass is help -> start -> tour, then the path that fits the folder.`
-
-GPD is a scalpel, not an autopilot. Treat each agent turn like a graduate student's work: trust the execution, but stay in the loop to verify and redirect. Supervised mode gives you the frequent checkpoints that match that advisor role; graduate to Balanced once you trust GPD's boundary on your specific research.
+@{GPD_INSTALL_DIR}/references/shared/onboarding-command-boundaries.md
 </step>
 
 <step name="explain_the_core_paths">
@@ -79,10 +74,10 @@ the main capability groups GPD supports once a project is underway:
 
 - project work: `gpd:discuss-phase`, `gpd:plan-phase`, `gpd:execute-phase`, `gpd:verify-work`
 - writing and review: `gpd:write-paper`, `gpd:peer-review`, `gpd:respond-to-referees`, `gpd:arxiv-submission`
-- side investigations and preferences: `gpd:tangent`, `gpd:branch-hypothesis`, `gpd:set-profile`, `gpd:set-tier-models`, `gpd:settings`
+- side investigations and preferences: `gpd:tangent`, `gpd:branch-hypothesis`, `gpd:set-profile`, and the settings/model commands from the startup table
 
 Keep this section high-level. Do not turn it into a second full command
-reference. Keep `settings` visibly in the post-startup group, not in the
+reference. Keep configuration commands visibly in the post-startup group, not in the
 initial first-run path.
 </step>
 
@@ -99,14 +94,12 @@ Explain in plain language:
   workspace.
 - `resume-work` is the in-runtime continue command after you are back in the
   right project.
-- `settings` is the guided runtime command for changing autonomy,
-  permission-sync behavior, and other GPD preferences after your first
-  successful start or later.
+- `settings` is the guided runtime command for changing autonomy, permission-sync behavior, and other GPD preferences after your first successful start or later.
 - `set-tier-models` is the direct runtime command for pinning concrete
   `tier-1`, `tier-2`, and `tier-3` model ids without changing the broader
   settings bundle.
 - `tour` only explains; it does not run `start`, `new-project`, `map-research`,
-  `resume-work`, `set-tier-models`, or `settings` for you.
+  `resume-work`, or configuration commands for you.
 - `Use \`gpd resume\` first if you need to reopen the project before using \`gpd:resume-work\`.`
 </step>
 
@@ -119,10 +112,7 @@ Call out beginner traps in a gentle, plain-English way:
 - Use `map-research` for an existing folder with papers, notes, or code, not an
   empty folder
 - Use `resume-work` only when the project already has GPD state
-- Use `set-tier-models` when you want to pin concrete runtime model ids only
 - Use `set-profile` when you want to change the abstract research profile
-- Use `settings` when you want to change autonomy, permissions, or runtime
-  preferences after your first successful start or later
 - Use `help` when you want the command reference, not a setup wizard
 
 Keep the tone explanatory, not corrective.
@@ -149,8 +139,6 @@ End with a short wrap-up that says:
 
 - `If you are still unsure, run gpd:start.`
 - `If you want the reference list again later, run gpd:help.`
-- `If you want to pin concrete tier-1, tier-2, and tier-3 model ids, run \`gpd:set-tier-models\`.`
-- `If you want to change permissions, autonomy, or runtime preferences after your first successful start or later, run \`gpd:settings\`.`
 - `If you already know your path, use the matching command from the table
   above.`
 

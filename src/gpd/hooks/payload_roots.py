@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from inspect import Parameter, signature
 from pathlib import Path
 
+from gpd.core.constants import ProjectLayout
 from gpd.core.root_resolution import ProjectRootResolution, resolve_project_roots
 
 
@@ -69,12 +70,18 @@ def normalize_optional_path_text(value: str | None, *, base_dir: str | None = No
         return str(path)
 
 
-def _project_dir_from_payload(data: dict[str, object], *, hook_payload: object) -> str:
+def project_dir_hint_from_payload(data: dict[str, object], *, hook_payload: object) -> str:
+    """Return a project-root hint only from runtime-catalog-owned payload keys."""
     workspace_value = data.get("workspace")
-    return _first_string(workspace_value, *hook_payload.project_dir_keys) or _first_string(
+    project_dir_keys = tuple(getattr(hook_payload, "project_dir_keys", ()) or ())
+    return _first_string(workspace_value, *project_dir_keys) or _first_string(
         data,
-        *hook_payload.project_dir_keys,
+        *project_dir_keys,
     )
+
+
+def _project_dir_from_payload(data: dict[str, object], *, hook_payload: object) -> str:
+    return project_dir_hint_from_payload(data, hook_payload=hook_payload)
 
 
 def _target_path_from_payload(
@@ -123,6 +130,7 @@ def payload_uses_alias_only_workspace_mapping(
     if not workspace_keys or not project_dir_keys:
         return False
 
+    primary_workspace_key = workspace_keys[0]
     workspace_value = data.get("workspace")
     if isinstance(workspace_value, dict):
         candidate_mapping: dict[str, object] = workspace_value
@@ -134,7 +142,7 @@ def payload_uses_alias_only_workspace_mapping(
     return bool(
         _first_string(candidate_mapping, *workspace_keys)
         and _project_dir_from_payload(data, hook_payload=hook_payload)
-        and not _first_string(candidate_mapping, "cwd")
+        and not _first_string(candidate_mapping, primary_workspace_key)
     )
 
 
@@ -162,6 +170,39 @@ def _project_dir_is_trusted(workspace_dir: str, project_dir: str) -> bool:
         and resolution.project_root == normalized_project
         and (resolution.has_project_layout or (normalized_project / "GPD").is_dir())
     )
+
+
+def trusted_payload_project_root(
+    data: dict[str, object],
+    workspace_dir: str,
+    *,
+    hook_payload: object,
+) -> str | None:
+    """Return a policy-owned payload project root when it is a real ancestor project."""
+    project_dir = project_dir_hint_from_payload(data, hook_payload=hook_payload)
+    if not project_dir:
+        return None
+
+    workspace_path = Path(workspace_dir).expanduser()
+    project_path = Path(project_dir).expanduser()
+    try:
+        resolved_workspace = workspace_path.resolve(strict=False)
+        resolved_project = project_path.resolve(strict=False)
+    except OSError:
+        resolved_workspace = workspace_path
+        resolved_project = project_path
+
+    try:
+        resolved_workspace.relative_to(resolved_project)
+    except ValueError:
+        return None
+
+    resolution = resolve_project_roots(str(resolved_workspace), project_dir=str(resolved_project))
+    if resolution is None or resolution.project_root != resolved_project:
+        return None
+    if resolution.has_project_layout or ProjectLayout(resolved_project).gpd.is_dir():
+        return str(resolved_project)
+    return None
 
 
 def _is_hook_project_anchor(resolution: ProjectRootResolution) -> bool:

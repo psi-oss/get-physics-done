@@ -13,28 +13,30 @@ Restore the selected project's full context so "Where were we?" has an immediate
 </purpose>
 
 <required_reading>
-@{GPD_INSTALL_DIR}/references/orchestration/continuation-format.md
-@{GPD_INSTALL_DIR}/references/orchestration/state-portability.md
-@{GPD_INSTALL_DIR}/templates/state-json-schema.md
+Bootstrap loads only immediate resume vocabulary. Later staged payloads name
+`{GPD_INSTALL_DIR}/references/orchestration/continuation-format.md`,
+`{GPD_INSTALL_DIR}/references/orchestration/state-portability.md`, and
+`{GPD_INSTALL_DIR}/templates/state-json-schema.md`; read them when entering those stages.
 </required_reading>
 
 <process>
 
 <step name="initialize">
-Load the shared resume context in one call. `gpd:resume-work` is the guided runtime path, `gpd resume` is the public local read-only summary, `gpd resume --recent` is the cross-project discovery surface and workspace picker, and `gpd --raw resume` returns the canonical public view:
+Load the shared resume bootstrap stage. `gpd:resume-work` is the guided runtime path, `gpd resume` is the public local read-only summary, `gpd resume --recent` is the cross-project discovery surface, and `gpd --raw resume` is the raw local view:
 
 ```bash
-INIT=$(gpd --raw resume)
+INIT=$(gpd --raw init resume --stage resume_bootstrap)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 ```
 
-Parse JSON once and read it semantically:
+Parse JSON semantically:
 
 - **Requested workspace availability:** `workspace_state_exists`, `workspace_roadmap_exists`, `workspace_project_exists`, `workspace_planning_exists`
-- **Availability and contract authority:** `state_exists`, `roadmap_exists`, `project_exists`, `planning_exists`, `commit_docs`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`
+- **Selected project availability:** `state_exists`, `state_json_backup_exists`, `roadmap_exists`, `project_exists`, `planning_exists`
+- **Availability and contract authority:** `project_contract_gate` and peers are loaded by `STATE_RESTORE_INIT` before use
 - **Canonical continuation and recovery authority:** `resume_surface_schema_version`, `active_resume_kind`, `active_resume_origin`, `active_resume_pointer`, `active_bounded_segment`, `derived_execution_head`, `active_resume_result`, `continuity_handoff_file`, `recorded_continuity_handoff_file`, `missing_continuity_handoff_file`, `has_continuity_handoff`, `resume_candidates`, `execution_resumable`, `execution_paused_at`, `execution_review_pending`, `execution_pre_fanout_review_pending`, `execution_skeptical_requestioning_required`, `execution_downstream_locked`, `has_interrupted_agent`, `interrupted_agent_id`
 - **Machine advisory state:** `machine_change_detected`, `machine_change_notice`, `current_hostname`, `current_platform`, `session_hostname`, `session_platform`
 
@@ -74,6 +76,17 @@ If `active_bounded_segment.first_result_gate_pending` is true, do not treat late
 </step>
 
 <step name="load_state">
+Load state-restore before using contract, reference, or readable state fields:
+
+```bash
+STATE_RESTORE_INIT=$(gpd --raw init resume --stage state_restore)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd state-restore initialization failed: $STATE_RESTORE_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```
+
+Use `state_restore.required_init_fields` as the state/contract/reference payload.
 
 **machine_change_detection:** Compare the current hostname/platform with `state.json.continuation.machine.hostname` and `state.json.continuation.machine.platform`. If they differ, display the non-blocking machine-change notice from INIT and recommend rerunning the installer so runtime-local config stays current.
 
@@ -117,6 +130,18 @@ cat GPD/PROJECT.md
 </step>
 
 <step name="restore_persistent_state">
+Load derivation-restore before reconstructing derivation history:
+
+```bash
+DERIVATION_RESTORE_INIT=$(gpd --raw init resume --stage derivation_restore)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd derivation-restore initialization failed: $DERIVATION_RESTORE_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```
+
+Use `derivation_restore.required_init_fields` as the derivation-history payload.
+
 **Read cumulative derivation history from `GPD/DERIVATION-STATE.md`:**
 
 This step reconstructs the full derivation history that has accumulated across
@@ -134,49 +159,21 @@ fi
 
 **If DERIVATION-STATE.md exists:**
 
-### Enforce Session Cap (Last 5 Sessions)
+### Check Session Cap (Last 5 Sessions)
 
-Before loading DERIVATION-STATE.md into context, enforce the hard cap to keep the file bounded:
+During read-only restoration, count session blocks and warn if the file exceeds the recommended cap. Do not prune, rewrite, replace, or otherwise modify `GPD/DERIVATION-STATE.md` from `gpd:resume-work`.
 
 ```bash
 SESSION_COUNT=$(grep -c "^## Session:" GPD/DERIVATION-STATE.md 2>/dev/null || echo 0)
 
 if [ "$SESSION_COUNT" -gt 5 ]; then
-  echo "DERIVATION-STATE.md has ${SESSION_COUNT} session blocks (cap: 5). Pruning oldest..."
-
-  # Atomic read-modify-write: write to PID-unique .tmp, validate, then replace
-  TMP_FILE="GPD/DERIVATION-STATE.md.tmp.$$"
-  trap "rm -f '$TMP_FILE'" EXIT
-
-  KEEP_FROM=$(grep -n "^## Session:" GPD/DERIVATION-STATE.md | tail -5 | head -1 | cut -d: -f1)
-  HEADER_END=$(grep -n "^## Session:" GPD/DERIVATION-STATE.md | head -1 | cut -d: -f1)
-  HEADER_END=$((HEADER_END - 1))
-  {
-    head -n "$HEADER_END" GPD/DERIVATION-STATE.md
-    echo ""
-    echo "> Older session entries archived in git history."
-    echo "> Use \`git log -p -- GPD/DERIVATION-STATE.md\` to recover."
-    echo ""
-    tail -n +"$KEEP_FROM" GPD/DERIVATION-STATE.md
-  } > "$TMP_FILE"
-
-  TMP_LINES=$(wc -l < "$TMP_FILE")
-  if [ "$TMP_LINES" -lt 5 ]; then
-    echo "WARNING: Pruned file suspiciously small (${TMP_LINES} lines). Keeping original."
-    rm -f "$TMP_FILE"
-  elif ! grep -q "^# Derivation State" "$TMP_FILE"; then
-    echo "WARNING: Pruned file missing required header. Keeping original."
-    rm -f "$TMP_FILE"
-  else
-    cp "$TMP_FILE" GPD/DERIVATION-STATE.md && \
-      rm -f "$TMP_FILE" || \
-      echo "WARNING: Failed to replace DERIVATION-STATE.md. Original preserved."
-  fi
-  trap - EXIT
+  echo "WARNING: DERIVATION-STATE.md has ${SESSION_COUNT} session blocks (recommended cap: 5)."
+  echo "Read and summarize the file as-is; do not prune, rewrite, or replace it during resume restoration."
+  echo "After restoration, suggest gpd:pause-work or an explicit maintenance pass if the researcher wants capping."
 fi
 ```
 
-This is the same cap enforcement logic used by pause-work.md. It keeps the 5 most recent `## Session:` blocks and archives older entries via git history.
+This is a report-only check. `gpd:resume-work` restores and summarizes the file as-is; mutating cap enforcement belongs to explicit write/maintenance workflows, not read-only resume restoration.
 
 1. **Read the full file** to reconstruct the complete equation/convention/result history across all sessions. If the latest handoff or session continuity metadata already carries a canonical `last_result_id`, prefer that value as the rerun anchor before rediscovering the target from prose or older summaries.
 2. **Cross-reference against state.json intermediate_results** to find any gaps:
@@ -223,6 +220,18 @@ If convention check fails, flag in the status presentation (step present_status)
 </step>
 
 <step name="check_incomplete_work">
+Load resume-routing before deciding what work is incomplete or resumable:
+
+```bash
+RESUME_ROUTING_INIT=$(gpd --raw init resume --stage resume_routing)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd resume-routing initialization failed: $RESUME_ROUTING_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```
+
+Use `resume_routing.required_init_fields` as the routing payload.
+
 Look for incomplete work that needs attention:
 
 ```bash
@@ -344,7 +353,7 @@ Present complete research project status to user:
     Task: [task description from agent-history.json]
     Interrupted: [timestamp]
 
-    Resume with: task tool (resume parameter with agent ID)
+    Continue with: a fresh handoff built from the interrupted-agent record, or the canonical bounded segment if one has been recorded
 
 [If pending todos exist:]
 [N] pending todos -- gpd:check-todos to review
@@ -378,7 +387,7 @@ Based on project state, determine the most logical next action:
 -> Option: Inspect the live gate state without claiming the bounded segment is directly resumable
 
 **If interrupted agent exists:**
--> Primary: Resume interrupted agent (Task tool with resume parameter)
+-> Primary: Recreate the interrupted work as a fresh handoff, or continue the canonical bounded segment when one exists
 -> Option: Start fresh (abandon agent work)
 
 **If `continuity_handoff_file` exists and `execution_resumable` is false and no interrupted agent exists:**
@@ -453,7 +462,7 @@ Based on user selection, route to appropriate workflow:
   ```
   ---
 
-  ## Next Up
+  ## > Next Up
 
   **{phase}-{plan}: [Plan Name]** -- [objective from PLAN.md]
 
@@ -469,7 +478,7 @@ Based on user selection, route to appropriate workflow:
   ```
   ---
 
-  ## Next Up
+  ## > Next Up
 
   **Phase [N]: [Name]** -- [Goal from ROADMAP.md]
 
@@ -486,7 +495,7 @@ Based on user selection, route to appropriate workflow:
   ---
   ```
 
-- **Transition** -> ./transition.md
+- **Transition** -> `{GPD_INSTALL_DIR}/workflows/transition.md`
 - **Check todos** -> Read GPD/todos/pending/, present summary
 - **Review alignment** -> Read PROJECT.md, compare to current state
 - **Something else** -> Ask what they need
@@ -544,7 +553,7 @@ Resume is complete when:
 
 - [ ] STATE.md loaded (or reconstructed)
 - [ ] DERIVATION-STATE.md read and cross-referenced with state.json (if it exists)
-- [ ] DERIVATION-STATE.md pruned and capped to last 5 sessions (if applicable)
+- [ ] DERIVATION-STATE.md session count checked and any cap warning surfaced (if applicable)
 - [ ] Persistent derivation history restored and summarized (equations, conventions, results, approximations)
 - [ ] Any gaps between DERIVATION-STATE.md and state.json flagged to user
 - [ ] Incomplete work detected and flagged

@@ -35,7 +35,7 @@ review_ledger: ${selected_review_root}/REVIEW-LEDGER{round_suffix}.json
 referee_decision: ${selected_review_root}/REFEREE-DECISION{round_suffix}.json
 ```
 
-The runtime treats missing or mismatched response frontmatter as incomplete for explicit active manuscript gates. Default current-project response files without frontmatter remain valid for backwards compatibility, but new files should carry the binding metadata.
+The runtime treats missing or mismatched response frontmatter as incomplete for explicit active manuscript gates. Default current-project response files without frontmatter remain accepted for existing project-root response rounds, but new files should carry the binding metadata.
 
 ## Delegation Rule
 

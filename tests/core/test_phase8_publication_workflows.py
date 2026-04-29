@@ -10,14 +10,23 @@ AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 def test_write_paper_balanced_mode_keeps_outline_as_working_draft_and_threads_mode_context() -> None:
     workflow = (WORKFLOWS_DIR / "write-paper.md").read_text(encoding="utf-8")
     bootstrap_parse_line = next(
-        line for line in workflow.splitlines() if line.startswith("Parse bootstrap JSON for:")
+        line for line in workflow.splitlines() if line.startswith("Parse bootstrap JSON using")
     )
 
     assert "paper_bootstrap.required_init_fields" in bootstrap_parse_line
-    assert "selected_publication_root" in bootstrap_parse_line
-    assert "selected_review_root" in bootstrap_parse_line
+    assert "do not duplicate the manifest's required-field list in prose" in bootstrap_parse_line
+    assert "selected_publication_root" not in bootstrap_parse_line
+    assert "selected_review_root" not in bootstrap_parse_line
     assert "Do not force a routine outline-approval pause in balanced mode." in workflow
-    assert 'WRITE_PAPER_ARGUMENTS="$ARGUMENTS"' in workflow
+    assert 'WRITE_PAPER_ARGUMENTS="${ARGUMENTS:-}"' in workflow
+    assert 'gpd --raw init write-paper --stage paper_bootstrap -- "$WRITE_PAPER_ARGUMENTS"' in workflow
+    for stage in (
+        "outline_and_scaffold",
+        "figure_and_section_authoring",
+        "consistency_and_references",
+        "publication_review",
+    ):
+        assert f'gpd --raw init write-paper --stage {stage} -- "${{WRITE_PAPER_ARGUMENTS:-}}"' in workflow
     assert "explicit `--intake path/to/write-paper-authoring-input.json`" in workflow
     assert "For `external_authoring_intake`, use the strict command preflight's managed subject handoff" in workflow
     assert (
@@ -31,7 +40,7 @@ def test_write_paper_balanced_mode_keeps_outline_as_working_draft_and_threads_mo
     assert workflow.count("<research_mode>{RESEARCH_MODE}</research_mode>") >= 3
     assert "Treat the emitted `.tex` file as the success artifact gate for each section." in workflow
     assert (
-        "Treat `${PAPER_DIR}/CITATION-AUDIT.md`, the refreshed `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, and the bibliographer's typed `gpd_return` envelope as the bibliography success gate; all three must be present, and the typed return must name the bibliography outputs, before the pass is accepted."
+        "The typed return must name `${PAPER_DIR}/CITATION-AUDIT.md` and `GPD/references-status.json`, and must name `{ACTIVE_BIBLIOGRAPHY_PATH}` only when the bibliography changed"
         in workflow
     )
     assert "Confirm `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` exists after the refresh before proceeding to reproducibility or strict review." in workflow
@@ -70,7 +79,7 @@ def test_respond_to_referees_balanced_mode_does_not_force_parse_confirmation() -
 def test_peer_review_stage_six_requires_report_artifacts_and_threads_mode_context() -> None:
     workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
 
-    assert "Parse bootstrap JSON for: the manifest-owned `bootstrap.required_init_fields`" in workflow
+    assert "Parse bootstrap JSON using the manifest-owned `bootstrap.required_init_fields`" in workflow
     assert "peer-review-stage-manifest.json" in workflow
     assert "RESEARCH_MODE=$(echo \"$BOOTSTRAP\" | gpd json get .research_mode --default balanced)" in workflow
     assert "<autonomy_mode>{AUTONOMY}</autonomy_mode>" in workflow

@@ -122,6 +122,52 @@ def test_run_contract_check_schema_allows_optional_fields_alongside_required_bra
     assert _schema_error_messages(schema, {"request": request}) == []
 
 
+def test_run_contract_check_schema_allows_empty_proof_arrays_on_generic_claims() -> None:
+    schema = _run_contract_check_input_schema()
+    contract = _load_project_contract_fixture()
+    claim = contract["claims"][0]
+    claim.update(
+        {
+            "claim_kind": "result",
+            "proof_deliverables": [],
+            "parameters": [],
+            "hypotheses": [],
+            "quantifiers": [],
+            "conclusion_clauses": [],
+        }
+    )
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "binding": {"claim_ids": ["claim-benchmark"]},
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+
+    assert _schema_error_messages(schema, {"request": request}) == []
+
+
+def test_contract_check_schema_allows_empty_context_intake_arrays_for_early_contracts() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    contract = _load_project_contract_fixture()
+    for field_name in tuple(contract["context_intake"]):
+        contract["context_intake"][field_name] = []
+
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "binding": {"claim_ids": ["claim-benchmark"]},
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+
+    assert _schema_error_messages(_run_contract_check_input_schema(), {"request": request}) == []
+    assert _schema_error_messages(_suggest_contract_checks_input_schema(), {"contract": contract}) == []
+    assert "error" not in suggest_contract_checks(contract)
+    assert run_contract_check(request)["status"] in {"pass", "fail", "warning"}
+
+
 def test_contract_check_schemas_require_non_empty_scope_in_scope() -> None:
     contract = _load_project_contract_fixture()
     contract["scope"]["in_scope"] = []
@@ -145,6 +191,45 @@ def test_contract_check_schemas_require_non_empty_scope_in_scope() -> None:
         list(error.absolute_path)[-2:] == ["scope", "in_scope"] and "non-empty" in error.message
         for error in suggest_errors
     )
+
+
+def test_contract_check_schemas_require_must_surface_reference_surface_fields() -> None:
+    contract = _load_project_contract_fixture()
+    reference = contract["references"][0]
+    assert isinstance(reference, dict)
+    reference.pop("applies_to")
+    reference["required_actions"] = []
+
+    request = {
+        "request": {
+            "check_key": "contract.benchmark_reproduction",
+            "contract": contract,
+            "binding": {"claim_ids": ["claim-benchmark"]},
+            "metadata": {"source_reference_id": "ref-benchmark"},
+            "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+        }
+    }
+
+    run_errors = _schema_errors_with_context(_run_contract_check_input_schema(), request)
+    suggest_errors = _schema_errors_with_context(_suggest_contract_checks_input_schema(), {"contract": contract})
+
+    for schema_errors in (run_errors, suggest_errors):
+        assert any(
+            list(error.absolute_path)[-2:] == ["references", 0]
+            and "'applies_to' is a required property" in error.message
+            for error in schema_errors
+        )
+        assert any(
+            list(error.absolute_path)[-3:] == ["references", 0, "required_actions"] and "non-empty" in error.message
+            for error in schema_errors
+        )
+
+    result = _call_verification_tool("run_contract_check", request)
+
+    assert result["contract_error_details"] == [
+        "reference ref-benchmark is must_surface but missing applies_to",
+        "reference ref-benchmark is must_surface but missing required_actions",
+    ]
 
 
 def test_contract_tools_reject_empty_scope_in_scope() -> None:
@@ -648,6 +733,18 @@ def _proof_obligation_contract() -> dict[str, object]:
 def _proof_claim_without_proof_fields_contract() -> dict[str, object]:
     contract = _proof_contract()
     claim = contract["claims"][0]
+    for key in ("proof_deliverables", "parameters", "hypotheses", "conclusion_clauses"):
+        claim.pop(key, None)
+    return contract
+
+
+def _quantifier_only_proof_field_contract() -> dict[str, object]:
+    contract = _proof_contract()
+    claim = contract["claims"][0]
+    claim["statement"] = "The bounded profile follows from the declared domain."
+    claim["claim_kind"] = "result"
+    claim["observables"] = []
+    claim["acceptance_tests"] = ["test-proof-quant"]
     for key in ("proof_deliverables", "parameters", "hypotheses", "conclusion_clauses"):
         claim.pop(key, None)
     return contract
@@ -1408,6 +1505,64 @@ def test_contract_tools_surface_recoverable_enum_case_drift() -> None:
     assert expected_finding in suggest_result["contract_salvage_findings"]
 
 
+def test_project_contract_salvage_recovers_proof_hypothesis_category_case_drift() -> None:
+    from gpd.contracts import parse_project_contract_data_salvage
+
+    contract = _load_project_contract_fixture()
+    contract["claims"][0].update(
+        {
+            "claim_kind": "theorem",
+            "deliverables": ["deliv-figure", "deliv-proof"],
+            "acceptance_tests": ["test-benchmark", "test-proof"],
+            "parameters": [
+                {
+                    "symbol": "k",
+                    "domain_or_type": "benchmark index",
+                    "aliases": [],
+                    "required_in_proof": True,
+                }
+            ],
+            "hypotheses": [
+                {
+                    "id": "hyp-main",
+                    "text": "The benchmark convention is fixed.",
+                    "symbols": ["k"],
+                    "category": "Lemma",
+                    "required_in_proof": True,
+                }
+            ],
+            "conclusion_clauses": [{"id": "conclusion-main", "text": "The benchmark is recovered."}],
+            "proof_deliverables": ["deliv-proof"],
+        }
+    )
+    contract["deliverables"].append(
+        {
+            "id": "deliv-proof",
+            "kind": "derivation",
+            "path": "proof.md",
+            "description": "Proof artifact",
+            "must_contain": [],
+        }
+    )
+    contract["acceptance_tests"].append(
+        {
+            "id": "test-proof",
+            "subject": "claim-benchmark",
+            "kind": "claim_to_proof_alignment",
+            "procedure": "Check the proof fields.",
+            "pass_condition": "All proof fields are covered.",
+            "evidence_required": ["deliv-proof"],
+            "automation": "human",
+        }
+    )
+
+    result = parse_project_contract_data_salvage(contract)
+
+    assert result.contract is not None
+    assert result.contract.claims[0].hypotheses[0].category == "lemma"
+    assert result.recoverable_errors == ["claims.0.hypotheses.0.category must use exact canonical value: lemma"]
+
+
 def test_contract_tools_preserve_non_string_list_member_parse_error() -> None:
     contract = _load_project_contract_fixture()
     contract["context_intake"]["must_read_refs"] = [{"id": "ref-benchmark"}]
@@ -1872,6 +2027,72 @@ def test_run_contract_check_backfills_contract_impacts_for_decisive_passes_witho
     assert estimator["contract_impacts"] == ["bootstrap"]
 
 
+def test_run_contract_check_fit_family_failure_impacts_observed_forbidden_family() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    forbidden_result = run_contract_check(
+        {
+            "check_key": "contract.fit_family_mismatch",
+            "contract": _derived_template_contract(),
+            "observed": {
+                "selected_family": "polynomial",
+                "competing_family_checked": True,
+            },
+        }
+    )
+    outside_result = run_contract_check(
+        {
+            "check_key": "contract.fit_family_mismatch",
+            "contract": _derived_template_contract(),
+            "observed": {
+                "selected_family": "spline",
+                "competing_family_checked": True,
+            },
+        }
+    )
+
+    assert forbidden_result["status"] == "fail"
+    assert forbidden_result["contract_impacts"] == ["polynomial"]
+    assert "Selected fit family is explicitly forbidden" in forbidden_result["automated_issues"]
+    assert outside_result["status"] == "fail"
+    assert outside_result["contract_impacts"] == ["spline"]
+    assert "Selected fit family is outside the allowed family set" in outside_result["automated_issues"]
+
+
+def test_run_contract_check_estimator_family_failure_impacts_observed_forbidden_family() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    forbidden_result = run_contract_check(
+        {
+            "check_key": "contract.estimator_family_mismatch",
+            "contract": _derived_template_contract(),
+            "observed": {
+                "selected_family": "jackknife",
+                "bias_checked": True,
+                "calibration_checked": True,
+            },
+        }
+    )
+    outside_result = run_contract_check(
+        {
+            "check_key": "contract.estimator_family_mismatch",
+            "contract": _derived_template_contract(),
+            "observed": {
+                "selected_family": "posterior",
+                "bias_checked": True,
+                "calibration_checked": True,
+            },
+        }
+    )
+
+    assert forbidden_result["status"] == "fail"
+    assert forbidden_result["contract_impacts"] == ["jackknife"]
+    assert "Selected estimator family is explicitly forbidden" in forbidden_result["automated_issues"]
+    assert outside_result["status"] == "fail"
+    assert outside_result["contract_impacts"] == ["posterior"]
+    assert "Selected estimator family is outside the allowed family set" in outside_result["automated_issues"]
+
+
 def test_run_contract_check_limit_recovery_uses_bound_acceptance_test_pass_condition() -> None:
     from gpd.mcp.servers.verification_server import run_contract_check
 
@@ -2238,6 +2459,36 @@ def test_run_contract_check_schema_rejects_soft_missing_proof_audit_fields() -> 
                 }
             },
             False,
+        ),
+        (
+            lambda: {
+                "request": {
+                    "check_key": "contract.proof_quantifier_domain",
+                    "contract": _quantifier_only_proof_field_contract(),
+                    "observed": {"quantifier_status": "matched", "scope_status": "matched"},
+                }
+            },
+            False,
+        ),
+        (
+            lambda: {
+                "request": {
+                    "check_key": "contract.proof_parameter_coverage",
+                    "contract": {
+                        **_proof_contract(),
+                        "claims": [
+                            {
+                                **_proof_contract()["claims"][0],
+                                "claim_kind": "result",
+                                "statement": "The bounded profile follows from the declared domain.",
+                            }
+                        ],
+                    },
+                    "metadata": {"theorem_parameter_symbols": ["r_0", "n"]},
+                    "observed": {"covered_parameter_symbols": ["r0", "n"]},
+                }
+            },
+            True,
         ),
     ],
 )
@@ -3090,6 +3341,14 @@ def test_run_contract_check_rejects_non_mapping_payloads(payload: object) -> Non
             {
                 "check_key": "contract.fit_family_mismatch",
                 "metadata": {"allowed_families": "power_law"},
+                "observed": {"selected_family": "power_law", "competing_family_checked": True},
+            },
+            "metadata.allowed_families must be a list of strings",
+        ),
+        (
+            {
+                "check_key": "contract.fit_family_mismatch",
+                "metadata": {"allowed_families": None},
                 "observed": {"selected_family": "power_law", "competing_family_checked": True},
             },
             "metadata.allowed_families must be a list of strings",

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from gpd.core.recent_projects import list_recent_projects, record_recent_project
+from gpd.core.recent_projects import list_recent_projects, recent_projects_index_path, record_recent_project
 from gpd.core.recovery_advice import (
     build_recovery_advice,
     serialize_recovery_advice,
@@ -624,6 +624,22 @@ def test_build_recovery_advice_uses_no_recovery_when_nothing_is_available(tmp_pa
     assert advice.continue_command is None
     assert advice.fast_next_command is None
     assert advice.actions == []
+
+
+def test_build_recovery_advice_degrades_when_recent_project_index_is_malformed(tmp_path: Path) -> None:
+    workspace = _project(tmp_path)
+    data_root = tmp_path / "data"
+    index_path = recent_projects_index_path(data_root)
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text("{ not-json", encoding="utf-8")
+
+    advice = build_recovery_advice(workspace, data_root=data_root)
+
+    assert advice.status == "no-recovery"
+    assert advice.project_reentry_mode == "no-recovery"
+    assert advice.recent_projects_count == 0
+    assert len(advice.project_reentry_diagnostics) == 1
+    assert "Malformed recent-project index" in advice.project_reentry_diagnostics[0]
 
 
 def test_build_recovery_advice_keeps_missing_handoff_in_current_workspace_priority(tmp_path: Path) -> None:

@@ -26,6 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import (
+    PROJECT_CONTRACT_REQUIRED_UNCERTAINTY_MARKER_FIELDS,
     ConventionLock,
     ProjectContractParseResult,
     ResearchContract,
@@ -83,7 +84,7 @@ from gpd.core.recent_projects import (
 from gpd.core.recent_projects import (
     recent_projects_index_path as _recent_projects_index_path_impl,
 )
-from gpd.core.results import IntermediateResult
+from gpd.core.results import IntermediateResult, state_has_canonical_result_id
 from gpd.core.utils import (
     _replace_with_retry,
     atomic_write,
@@ -139,8 +140,10 @@ __all__ = [
     "state_compact",
     "state_extract_field",
     "state_get",
+    "state_get_readonly",
     "state_has_field",
     "state_load",
+    "state_load_readonly",
     "state_patch",
     "state_record_contract_alignment",
     "state_record_metric",
@@ -163,9 +166,9 @@ __all__ = [
 EM_DASH = "\u2014"
 
 # Inactive-state sentinel rendered into STATE.md when a field has no value.
-# `_strip_placeholder` and `state_extract_field` treat EM_DASH, "none", "no",
-# "not set", and "[not set]" as semantic null on re-parse, so round-trip
-# stability is preserved regardless of which form is on disk.
+# `_strip_placeholder` and `state_extract_field` treat exact placeholder values
+# as semantic null on re-parse, so round-trip stability is preserved regardless
+# of which placeholder form is on disk.
 INACTIVE_FIELD_SENTINEL = "none"
 
 
@@ -306,7 +309,7 @@ def _project_recent_project_entry(
         active_bounded_segment.last_result_id if active_bounded_segment is not None else None,
         handoff.last_result_id if target_kind == "handoff" else None,
         session.get("last_result_id") if isinstance(session, dict) else None,
-        existing.last_result_id if existing is not None else None,
+        existing.last_result_id if existing is not None and target_kind is not None else None,
     )
     resume_file = projection.active_resume_file
     if resume_file is None and target_kind == "handoff":
@@ -563,6 +566,7 @@ class AdvancePlanResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     advanced: bool
+    state_mutated: bool = False
     error: str | None = None
     reason: str | None = None
     previous_plan: int | None = None
@@ -681,7 +685,6 @@ class StateSnapshotResult(BaseModel):
     decisions: list[dict] | None = None
     blockers: list[str | dict] | None = None
     paused_at: str | None = None
-    session: dict | None = None
     error: str | None = None
 
 
@@ -726,19 +729,6 @@ def _optional_state_text(value: object) -> str | None:
         return None
     stripped = value.strip()
     return stripped or None
-
-
-def _state_has_canonical_result_id(state_obj: dict[str, object], result_id: str) -> bool:
-    """Return whether the state tracks a canonical intermediate result with this ID."""
-    results = state_obj.get("intermediate_results")
-    if not isinstance(results, list):
-        return False
-    for item in results:
-        if isinstance(item, dict) and _optional_state_text(item.get("id")) == result_id:
-            return True
-        if isinstance(item, IntermediateResult) and _optional_state_text(item.id) == result_id:
-            return True
-    return False
 
 
 def _blank_session_payload() -> dict[str, str | None]:
@@ -806,7 +796,7 @@ def _project_contract_missing_required_schema_errors(raw_contract: object) -> li
     else:
         uncertainty_markers = raw_contract.get("uncertainty_markers")
         if isinstance(uncertainty_markers, dict):
-            for field_name in ("weakest_anchors", "disconfirming_observations"):
+            for field_name in PROJECT_CONTRACT_REQUIRED_UNCERTAINTY_MARKER_FIELDS:
                 if field_name not in uncertainty_markers:
                     errors.append(f"uncertainty_markers.{field_name} is required")
 
@@ -828,6 +818,7 @@ def _load_raw_project_contract_payload(cwd: Path) -> tuple[Path, object] | None:
         cwd,
         recover_intent=False,
         surface_blocked_project_contract=True,
+        acquire_lock=False,
     )
     if state_source == "state.json":
         source_path = layout.state_json
@@ -985,6 +976,7 @@ def _load_project_contract_for_runtime_context(cwd: Path) -> tuple[ResearchContr
         cwd,
         recover_intent=False,
         surface_blocked_project_contract=True,
+        acquire_lock=False,
     )
     default_source = _project_contract_source_path(cwd, layout.state_json)
     if not isinstance(state, dict):
@@ -1199,6 +1191,23 @@ def _continuation_payload_has_values(payload: object) -> bool:
         return not ContinuationState.model_validate(_normalize_continuation_payload(payload)).is_empty
     except PydanticValidationError:
         return False
+
+
+def _bounded_segment_payload_from_continuation_payload(
+    payload: object,
+    *,
+    project_root: Path | None = None,
+) -> dict[str, object] | None:
+    """Return a normalized non-empty bounded segment from a continuation payload."""
+
+    try:
+        continuation = normalize_continuation(project_root, payload)
+    except PydanticValidationError:
+        return None
+    segment = continuation.bounded_segment
+    if segment is None or segment.is_empty:
+        return None
+    return segment.model_dump(mode="python")
 
 
 def _session_payload_has_recovery_values(payload: object) -> bool:
@@ -1423,20 +1432,15 @@ def validate_state_transition(current_status: str, new_status: str) -> str | Non
 def state_extract_field(content: str, field_name: str) -> str | None:
     """Extract a **Field:** value from STATE.md content.
 
-    Placeholder forms (EM_DASH, "none", "no", "not set", "[not set]") are
-    returned as ``None`` so inactive-state snapshots round-trip cleanly.
+    Exact placeholder forms are returned as ``None`` so inactive-state
+    snapshots round-trip cleanly.
     """
     escaped = re.escape(field_name)
     pattern = re.compile(rf"\*\*{escaped}:\*\*[ \t]*(.+)", re.IGNORECASE)
     match = pattern.search(content)
     if not match:
         return None
-    value = match.group(1).strip()
-    if value == "\u2014":
-        return None
-    if value.lower() in {"none", "no", "not set", "[not set]"}:
-        return None
-    return value
+    return _strip_placeholder(match.group(1))
 
 
 def state_replace_field(content: str, field_name: str, new_value: str) -> str:
@@ -1506,6 +1510,29 @@ def _unescape_pipe(v: str) -> str:
     return v.replace("\\|", "|")
 
 
+def _placeholder_comparison_text(value: str) -> str:
+    stripped = value.strip()
+    if stripped.endswith(".") and not stripped.endswith(".."):
+        stripped = stripped[:-1].rstrip()
+    return stripped.casefold()
+
+
+def _is_state_placeholder(value: str | None) -> bool:
+    """Return whether a STATE.md value is an exact empty placeholder."""
+    if value is None:
+        return True
+    stripped = value.strip()
+    if stripped in {"-", "\u2013", "\u2014"}:
+        return True
+    return _placeholder_comparison_text(stripped) in {
+        "none",
+        "none yet",
+        "no",
+        "not set",
+        "[not set]",
+    }
+
+
 def _extract_bullets(content: str, section_name: str) -> list[str]:
     """Extract bullet list items from a ## Section."""
     escaped = re.escape(section_name)
@@ -1514,7 +1541,7 @@ def _extract_bullets(content: str, section_name: str) -> list[str]:
     if not match:
         return []
     bullets = re.findall(r"^\s*-\s+(.+)$", match.group(1), re.MULTILINE)
-    return [b.strip() for b in bullets if b.strip() and not re.match(r"^none", b.strip(), re.IGNORECASE)]
+    return [b.strip() for b in bullets if b.strip() and not _is_state_placeholder(b)]
 
 
 def _extract_subsection(content: str, heading: str) -> str | None:
@@ -1612,7 +1639,7 @@ def _parse_table_rows(section: str | None) -> list[list[str]]:
         cells = [_unescape_pipe(cell.strip()) for cell in re.split(r"(?<!\\)\|", row) if cell.strip()]
         if not cells:
             continue
-        if cells[0] == "-" or re.match(r"^none", cells[0], re.IGNORECASE):
+        if _is_state_placeholder(cells[0]):
             continue
         parsed_rows.append(cells)
     return parsed_rows
@@ -1673,7 +1700,7 @@ def parse_state_md(content: str) -> dict:
         items = re.findall(r"^\s*-\s+(.+)$", dec_bullet_match.group(1), re.MULTILINE)
         for item in items:
             text = item.strip()
-            if not text or re.match(r"^none", text, re.IGNORECASE):
+            if not text or _is_state_placeholder(text):
                 continue
             phase_match = re.match(r"^\[Phase\s+([^\]]+)\]:\s*(.*)", text, re.IGNORECASE)
             if phase_match:
@@ -1702,7 +1729,7 @@ def parse_state_md(content: str) -> dict:
         items = re.findall(r"^\s*-\s+(.+)$", blockers_match.group(1), re.MULTILINE)
         for item in items:
             text = item.strip()
-            if text and not re.match(r"^none", text, re.IGNORECASE):
+            if text and not _is_state_placeholder(text):
                 blockers.append(text)
 
     # Session
@@ -1751,7 +1778,7 @@ def parse_state_md(content: str) -> dict:
         rows = [r for r in metrics_match.group(1).strip().split("\n") if "|" in r]
         for row in rows:
             cells = [_unescape_pipe(c.strip()) for c in re.split(r"(?<!\\)\|", row) if c.strip()]
-            if len(cells) >= 2 and cells[0] != "-" and not re.match(r"none yet", cells[0], re.IGNORECASE):
+            if len(cells) >= 2 and not _is_state_placeholder(cells[0]):
                 metrics.append(
                     {
                         "label": cells[0],
@@ -1768,7 +1795,7 @@ def parse_state_md(content: str) -> dict:
     pending_todos = [
         bullet.strip()
         for bullet in re.findall(r"^\s*-\s+(.+)$", _extract_subsection(content, "Pending Todos") or "", re.MULTILINE)
-        if bullet.strip() and not re.match(r"^none", bullet.strip(), re.IGNORECASE)
+        if bullet.strip() and not _is_state_placeholder(bullet)
     ]
 
     approximations: list[dict[str, str]] = []
@@ -1804,7 +1831,7 @@ def parse_state_md(content: str) -> dict:
     label_to_key = {label.lower(): key for key, label in _CONVENTION_LABELS.items()}
     for entry in re.findall(r"^\s*-\s+(.+)$", _extract_bold_block(content, "Convention Lock") or "", re.MULTILINE):
         text = entry.strip()
-        if not text or re.match(r"^(?:none|no conventions locked yet)", text, re.IGNORECASE):
+        if not text or _is_state_placeholder(text) or _placeholder_comparison_text(text) == "no conventions locked yet":
             continue
         label, separator, value = text.partition(":")
         if not separator:
@@ -1839,15 +1866,14 @@ def parse_state_md(content: str) -> dict:
 def _strip_placeholder(value: str | None) -> str | None:
     """Return None if *value* is a markdown placeholder.
 
-    Recognized placeholders: EM_DASH, 'none', 'no', 'not set',
-    '[not set]'. Case-insensitive for word forms.
+    Recognized placeholders are exact markdown empty values such as EM_DASH,
+    "-", "none", "none yet", "no", "not set", and "[not set]".
+    Case-insensitive for word forms.
     """
     if value is None:
         return None
     stripped = value.strip()
-    if stripped == "\u2014":
-        return None
-    if stripped.lower() in {"none", "no", "not set", "[not set]"}:
+    if _is_state_placeholder(stripped):
         return None
     return stripped
 
@@ -2949,6 +2975,12 @@ def _valid_intent_temp_path(cwd: Path, raw_path: str, *, expected: str) -> Path 
     return candidate
 
 
+def _markdown_comparable_continuation_payload(payload: object) -> dict[str, object]:
+    comparable = _normalize_continuation_payload(payload)
+    comparable["bounded_segment"] = None
+    return comparable
+
+
 def _backup_is_stale_for_markdown(backup_path: Path, md_path: Path) -> bool:
     """Return whether ``state.json.bak`` is older than the markdown state mirror."""
 
@@ -2986,11 +3018,14 @@ def _backup_is_stale_for_markdown(backup_path: Path, md_path: Path) -> bool:
         "approximations",
         "propagated_uncertainties",
         "pending_todos",
-        "continuation",
     )
     for field in comparable_fields:
         if field in md_payload and backup_normalized.get(field) != md_payload.get(field):
             return True
+    if "continuation" in md_payload and _markdown_comparable_continuation_payload(
+        backup_normalized.get("continuation")
+    ) != _markdown_comparable_continuation_payload(md_payload.get("continuation")):
+        return True
     if md_payload.get("convention_lock") and backup_normalized.get("convention_lock") != md_payload.get(
         "convention_lock"
     ):
@@ -3181,6 +3216,7 @@ def _build_state_from_markdown(
 
     existing = None
     primary_unreadable = False
+    stale_backup_bounded_segment: dict[str, object] | None = None
     try:
         existing = json.loads(json_path.read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -3201,6 +3237,15 @@ def _build_state_from_markdown(
         backup_existing = _load_state_backup_payload(cwd, backup_path)
         if backup_existing is not None:
             existing = copy.deepcopy(backup_existing)
+        else:
+            stale_backup_existing = _load_state_backup_payload(cwd, backup_path, require_fresh=False)
+            if stale_backup_existing is not None:
+                stale_backup_bounded_segment = _bounded_segment_payload_from_continuation_payload(
+                    stale_backup_existing.get("continuation"),
+                    project_root=cwd,
+                )
+                if stale_backup_bounded_segment is not None:
+                    existing = {"continuation": {"bounded_segment": copy.deepcopy(stale_backup_bounded_segment)}}
 
     if existing and isinstance(existing, dict):
         if primary_unreadable and existing.get("project_contract") is not None:
@@ -3260,7 +3305,16 @@ def _build_state_from_markdown(
 
         existing_continuation = existing.get("continuation")
         parsed_continuation = parsed.get("continuation")
-        if _continuation_payload_has_values(existing_continuation):
+        if (
+            stale_backup_bounded_segment is not None
+            and allow_markdown_continuation
+            and _continuation_payload_has_values(parsed_continuation)
+        ):
+            merged_continuation = _normalize_continuation_payload(parsed_continuation, project_root=cwd)
+            if merged_continuation.get("bounded_segment") is None:
+                merged_continuation["bounded_segment"] = copy.deepcopy(stale_backup_bounded_segment)
+            merged["continuation"] = merged_continuation
+        elif _continuation_payload_has_values(existing_continuation):
             merged["continuation"] = copy.deepcopy(existing_continuation)
         elif allow_markdown_continuation and _continuation_payload_has_values(parsed_continuation):
             merged["continuation"] = copy.deepcopy(parsed_continuation)
@@ -3827,6 +3881,7 @@ def _project_contract_runtime_payload_for_state(
     if contract is not None:
         from gpd.core.context import (
             _canonicalize_project_contract,
+            _empty_reference_intake,
             _merge_active_references,
             _merge_reference_intake,
             _serialize_active_references,
@@ -3835,14 +3890,7 @@ def _project_contract_runtime_payload_for_state(
         active_references = _merge_active_references(_serialize_active_references(contract), [])
         effective_reference_intake = _merge_reference_intake(
             contract,
-            {
-                "must_read_refs": [],
-                "must_include_prior_outputs": [],
-                "user_asserted_anchors": [],
-                "known_good_baselines": [],
-                "context_gaps": [],
-                "crucial_inputs": [],
-            },
+            _empty_reference_intake(),
             active_references,
         )
         contract, canonicalization_warnings = _canonicalize_project_contract(
@@ -4075,6 +4123,8 @@ def save_state_markdown(cwd: Path, md_content: str) -> dict:
 @instrument_gpd_function("state.load")
 def state_load(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
     """Load full state with config and file-existence metadata."""
+    with _state_lock(cwd):
+        _recover_intent_locked(cwd)
     preloaded_project_contract, preloaded_project_contract_load_info = _load_project_contract_for_runtime_context(cwd)
     state_obj, load_integrity_issues, state_source = _load_state_json_with_integrity_issues(
         cwd,
@@ -4126,16 +4176,68 @@ def state_load(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
     )
 
 
-@instrument_gpd_function("state.get")
-def state_get(cwd: Path, section: str | None = None) -> StateGetResult:
-    """Get full STATE.md content or a specific field/section."""
-    md_path = _state_md_path(cwd)
-    with _state_lock(cwd):
-        _recover_intent_locked(cwd)
-        content = _load_or_rebuild_state_markdown_locked(cwd)
-        if content is None:
-            raise StateError(f"STATE.md not found at {md_path}. Run 'gpd init' to create the project state file.")
+@instrument_gpd_function("state.load_readonly")
+def state_load_readonly(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
+    """Load full state metadata without recovery writes or lockfile creation."""
+    preloaded_project_contract, preloaded_project_contract_load_info = _load_project_contract_for_runtime_context(cwd)
+    state_obj, load_integrity_issues, state_source = peek_state_json(
+        cwd,
+        integrity_mode=integrity_mode,
+        recover_intent=False,
+        surface_blocked_project_contract=True,
+        acquire_lock=False,
+    )
+    validation = state_validate(
+        cwd,
+        integrity_mode=integrity_mode,
+        recover_intent=False,
+        acquire_lock=False,
+        surface_blocked_project_contract=True,
+    )
+    combined_issues: list[str] = []
+    for issue in [*load_integrity_issues, *validation.issues]:
+        if issue not in combined_issues:
+            combined_issues.append(issue)
+    integrity_issues = list(combined_issues)
+    if integrity_mode == "standard" and validation.warnings:
+        for warning in validation.warnings:
+            if warning not in integrity_issues:
+                integrity_issues.append(warning)
+    integrity_status = _integrity_status_from(
+        combined_issues if integrity_mode == "review" else validation.issues,
+        [*load_integrity_issues, *validation.warnings] if integrity_mode == "standard" else validation.warnings,
+        integrity_mode,
+    )
 
+    layout = ProjectLayout(cwd)
+    state_raw = safe_read_file(layout.state_md) or ""
+    project_contract_load_info, project_contract_validation, project_contract_gate = (
+        _project_contract_runtime_payload_for_state(
+            cwd,
+            state_obj=state_obj,
+            state_source=state_source,
+            preloaded_contract=preloaded_project_contract,
+            preloaded_load_info=preloaded_project_contract_load_info,
+        )
+    )
+
+    return StateLoadResult(
+        state=state_obj or {},
+        state_raw=state_raw,
+        state_exists=state_obj is not None,
+        roadmap_exists=layout.roadmap.exists(),
+        config_exists=layout.config_json.exists(),
+        integrity_mode=integrity_mode,
+        integrity_status=integrity_status,
+        integrity_issues=integrity_issues,
+        state_source=state_source,
+        project_contract_load_info=project_contract_load_info,
+        project_contract_validation=project_contract_validation,
+        project_contract_gate=project_contract_gate,
+    )
+
+
+def _state_get_from_content(cwd: Path, section: str | None, content: str) -> StateGetResult:
     if not section:
         return StateGetResult(content=content)
 
@@ -4167,6 +4269,30 @@ def state_get(cwd: Path, section: str | None = None) -> StateGetResult:
         return StateGetResult(value=section_match.group(1).strip(), section_name=section)
 
     return StateGetResult(error=f'Section or field "{section}" not found')
+
+
+@instrument_gpd_function("state.get")
+def state_get(cwd: Path, section: str | None = None) -> StateGetResult:
+    """Get full STATE.md content or a specific field/section."""
+    md_path = _state_md_path(cwd)
+    with _state_lock(cwd):
+        _recover_intent_locked(cwd)
+        content = _load_or_rebuild_state_markdown_locked(cwd)
+        if content is None:
+            raise StateError(f"STATE.md not found at {md_path}. Run 'gpd init' to create the project state file.")
+
+    return _state_get_from_content(cwd, section, content)
+
+
+@instrument_gpd_function("state.get_readonly")
+def state_get_readonly(cwd: Path, section: str | None = None) -> StateGetResult:
+    """Get STATE.md content without recovery writes or lockfile creation."""
+    md_path = _state_md_path(cwd)
+    content = safe_read_file(md_path)
+    if content is None:
+        raise StateError(f"STATE.md not found at {md_path}. Run 'gpd init' to create the project state file.")
+
+    return _state_get_from_content(cwd, section, content)
 
 
 @instrument_gpd_function("state.update")
@@ -4355,17 +4481,18 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
             warning_messages.append(warning)
 
     contract_payload = parsed.model_dump()
-    if _raw_persisted_project_contract(cwd) == contract_payload:
-        return StateUpdateResult(
-            updated=False,
-            unchanged=True,
-            reason="Project contract already matches requested value",
-            warnings=warning_messages,
-        )
 
     with _state_lock(cwd):
         _recover_intent_locked(cwd)
+        raw_project_contract = _raw_persisted_project_contract(cwd)
         state_obj = _load_state_snapshot_for_mutation(cwd, recover_intent=False)
+        if raw_project_contract == contract_payload:
+            return StateUpdateResult(
+                updated=False,
+                unchanged=True,
+                reason="Project contract already matches requested value",
+                warnings=warning_messages,
+            )
 
         state_obj["project_contract"] = contract_payload
 
@@ -4419,6 +4546,18 @@ def state_set_continuation_bounded_segment(
     with _state_lock(cwd):
         _recover_intent_locked(cwd)
         state_obj = _load_state_snapshot_for_mutation(cwd, recover_intent=False)
+        normalized_last_result_id = _optional_state_text(normalized_segment.last_result_id)
+        if normalized_last_result_id is not None and not state_has_canonical_result_id(
+            state_obj,
+            normalized_last_result_id,
+        ):
+            return StateUpdateResult(
+                updated=False,
+                reason=(
+                    f'last_result_id "{normalized_last_result_id}" does not match any canonical result in '
+                    "intermediate_results"
+                ),
+            )
         current_continuation = normalize_continuation(cwd, state_obj.get("continuation")).model_dump(mode="python")
         desired_continuation = normalize_continuation(
             cwd,
@@ -4452,7 +4591,7 @@ def state_carry_forward_continuation_last_result_id(
         return StateUpdateResult(updated=False, reason="last_result_id must be a non-empty string when provided")
 
     def _apply(loaded_state_obj: dict[str, object]) -> StateUpdateResult:
-        if not _state_has_canonical_result_id(loaded_state_obj, requested_last_result_id):
+        if not state_has_canonical_result_id(loaded_state_obj, requested_last_result_id):
             return StateUpdateResult(
                 updated=False,
                 reason=(
@@ -4565,6 +4704,7 @@ def state_advance_plan(cwd: Path) -> AdvancePlanResult:
             _write_state_markdown_locked(cwd, content)
             return AdvancePlanResult(
                 advanced=False,
+                state_mutated=True,
                 reason="last_plan",
                 current_plan=current_plan,
                 total_plans_in_phase=total_plans,
@@ -4581,6 +4721,7 @@ def state_advance_plan(cwd: Path) -> AdvancePlanResult:
         _write_state_markdown_locked(cwd, content)
         return AdvancePlanResult(
             advanced=True,
+            state_mutated=True,
             previous_plan=current_plan,
             current_plan=new_plan,
             total_plans_in_phase=total_plans,
@@ -5038,15 +5179,16 @@ def state_record_session(
             and resume_file.strip().casefold() not in {"none", "null"}
         ):
             raise StateError("resume_file must be a repo-relative path inside the project root")
+        effective_clear_last_result_id = clear_last_result_id or clear_resume_file
         requested_last_result_id = (
             None
-            if clear_last_result_id
+            if effective_clear_last_result_id
             else (_optional_state_text(last_result_id) if last_result_id is not None else None)
         )
-        if last_result_id is not None:
+        if last_result_id is not None and not effective_clear_last_result_id:
             if requested_last_result_id is None:
                 raise StateError("last_result_id must be a non-empty string when provided")
-            if not _state_has_canonical_result_id(state_obj, requested_last_result_id):
+            if not state_has_canonical_result_id(state_obj, requested_last_result_id):
                 raise StateError(
                     f'last_result_id "{requested_last_result_id}" does not match any canonical result in intermediate_results'
                 )
@@ -5056,7 +5198,7 @@ def state_record_session(
             if current_bounded_segment is not None
             else None
         )
-        if bounded_segment_last_result_id is not None and not _state_has_canonical_result_id(
+        if bounded_segment_last_result_id is not None and not state_has_canonical_result_id(
             state_obj, bounded_segment_last_result_id
         ):
             bounded_segment_last_result_id = None
@@ -5070,7 +5212,7 @@ def state_record_session(
         desired_stopped_at = stopped_at if stopped_at is not None else existing_handoff.stopped_at
         desired_last_result_id = (
             None
-            if clear_last_result_id
+            if effective_clear_last_result_id
             else (
                 requested_last_result_id
                 if last_result_id is not None
@@ -5157,7 +5299,7 @@ def state_record_contract_alignment(
 @instrument_gpd_function("state.snapshot")
 def state_snapshot(cwd: Path) -> StateSnapshotResult:
     """Fast snapshot of state for progress/routing commands."""
-    state_obj, _issues, _state_source = peek_state_json(cwd, recover_intent=False)
+    state_obj, _issues, _state_source = peek_state_json(cwd, recover_intent=False, acquire_lock=False)
     if state_obj is None:
         return StateSnapshotResult(error="STATE.md not found")
 
@@ -5178,7 +5320,6 @@ def state_snapshot(cwd: Path) -> StateSnapshotResult:
         decisions=state_obj.get("decisions"),
         blockers=state_obj.get("blockers"),
         paused_at=pos.get("paused_at"),
-        session=None,
     )
 
 
@@ -5190,11 +5331,15 @@ def state_validate(
     cwd: Path,
     integrity_mode: str = "standard",
     *,
-    recover_intent: bool = True,
-    acquire_lock: bool = True,
+    recover_intent: bool = False,
+    acquire_lock: bool = False,
     surface_blocked_project_contract: bool = False,
 ) -> StateValidateResult:
-    """Validate state consistency between state.json and STATE.md."""
+    """Validate state consistency between state.json and STATE.md.
+
+    The default path is read-only: callers that want crash-intent recovery must
+    opt in with ``recover_intent=True`` and usually ``acquire_lock=True``.
+    """
     from gpd.core.contract_validation import validate_project_contract
 
     md_path = _state_md_path(cwd)

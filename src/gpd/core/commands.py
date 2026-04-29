@@ -336,9 +336,7 @@ def _require_non_empty_string_list(
     normalized: list[str] = []
     for index, item in enumerate(value):
         if not isinstance(item, str) or not item.strip():
-            raise ValidationError(
-                f"Invalid {field_name} in {summary_path}: entry {index} must be a non-empty string"
-            )
+            raise ValidationError(f"Invalid {field_name} in {summary_path}: entry {index} must be a non-empty string")
         normalized.append(item.strip())
     return normalized
 
@@ -348,9 +346,7 @@ def _extract_key_files(value: object, *, summary_path: str) -> tuple[list[str], 
     if isinstance(value, dict):
         extra_keys = sorted(str(key) for key in value if key not in {"created", "modified"})
         if extra_keys:
-            raise ValidationError(
-                f"Invalid key-files in {summary_path}: unexpected key(s) {', '.join(extra_keys)}"
-            )
+            raise ValidationError(f"Invalid key-files in {summary_path}: unexpected key(s) {', '.join(extra_keys)}")
         created = _require_non_empty_string_list(
             value.get("created"),
             field_name="key-files.created",
@@ -407,6 +403,16 @@ def _parse_comparison_verdicts(value: object, summary_path: str) -> list[Compari
 _BODY_ONE_LINER_RE = re.compile(r"\A---[\s\S]*?---\s*(?:#[^\n]*\n\s*)?\*\*(.+?)\*\*")
 
 
+def _has_dependency_graph_provides(frontmatter: dict[str, object]) -> bool:
+    """Return whether summary frontmatter declares nested provides."""
+
+    dependency_graph = frontmatter.get("dependency-graph")
+    if not isinstance(dependency_graph, dict):
+        return False
+    nested_provides = dependency_graph.get("provides")
+    return nested_provides is not None and nested_provides != ""
+
+
 @instrument_gpd_function("commands.summary_extract")
 def cmd_summary_extract(
     cwd: Path,
@@ -435,11 +441,12 @@ def cmd_summary_extract(
         raise ValidationError(f"YAML parse error in {summary_path}: {exc}") from exc
 
     validation = validate_frontmatter(content, "summary", source_path=full_path)
-    if not validation.valid:
-        problems = [*validation.missing, *validation.errors]
-        raise ValidationError(
-            f"Invalid summary frontmatter in {summary_path}: {'; '.join(problems)}"
-        )
+    missing = list(validation.missing)
+    if "provides" in missing and _has_dependency_graph_provides(fm):
+        missing = [field for field in missing if field != "provides"]
+    if missing or validation.errors:
+        problems = [*missing, *validation.errors]
+        raise ValidationError(f"Invalid summary frontmatter in {summary_path}: {'; '.join(problems)}")
 
     # Extract one-liner: frontmatter first, fall back to body bold text
     one_liner = fm.get("one-liner")
@@ -658,7 +665,9 @@ def cmd_regression_check(cwd: Path, *, phase: str | None = None, quick: bool = F
             key=cmp_to_key(lambda a, b: compare_phase_numbers(a.name, b.name)),
         )
     except FileNotFoundError:
-        return RegressionCheckResult(passed=True, issues=[], phases_checked=0, warning="No completed phases found to check")
+        return RegressionCheckResult(
+            passed=True, issues=[], phases_checked=0, warning="No completed phases found to check"
+        )
 
     layout = ProjectLayout(cwd)
     completed_dirs: list[Path] = []
@@ -670,10 +679,14 @@ def cmd_regression_check(cwd: Path, *, phase: str | None = None, quick: bool = F
             completed_dirs.append(d)
 
     if not completed_dirs:
-        return RegressionCheckResult(passed=True, issues=[], phases_checked=0, warning="No completed phases found to check")
+        return RegressionCheckResult(
+            passed=True, issues=[], phases_checked=0, warning="No completed phases found to check"
+        )
     completed_dirs = [d for d in completed_dirs if _matches_phase_scope(d.name, phase)]
     if not completed_dirs:
-        return RegressionCheckResult(passed=True, issues=[], phases_checked=0, warning="No completed phases found to check")
+        return RegressionCheckResult(
+            passed=True, issues=[], phases_checked=0, warning="No completed phases found to check"
+        )
 
     if quick and len(completed_dirs) > 2:
         completed_dirs = completed_dirs[-2:]
@@ -830,4 +843,6 @@ def cmd_apply_return_updates(cwd: Path, file_path: Path) -> ApplyChildReturnResu
     if validation.warnings:
         result.warnings.extend(warning for warning in validation.warnings if warning not in result.warnings)
     return result
+
+
 _MISSING = object()

@@ -109,6 +109,42 @@ class TestReadInstalledVersion:
         ):
             assert _read_installed_version() == "7.7.7"
 
+    def test_self_owned_missing_version_reads_manifest_not_imported_package_version(self, tmp_path: Path) -> None:
+        explicit_target = tmp_path / "custom-runtime-dir"
+        hook_path = explicit_target / "hooks" / "check_update.py"
+        hook_path.parent.mkdir(parents=True)
+        hook_path.write_text("# hook\n", encoding="utf-8")
+        _mark_complete_install(explicit_target, runtime="codex")
+        (explicit_target / "get-physics-done" / "VERSION").unlink()
+        manifest_path = explicit_target / _SHARED_INSTALL.manifest_name
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["version"] = "8.8.8"
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        with (
+            patch("gpd.version.__version__", "9.9.9"),
+            patch("gpd.hooks.check_update.__file__", str(hook_path)),
+        ):
+            assert _read_installed_version() == "8.8.8"
+
+    def test_self_owned_missing_version_and_manifest_version_returns_zero(self, tmp_path: Path) -> None:
+        explicit_target = tmp_path / "custom-runtime-dir"
+        hook_path = explicit_target / "hooks" / "check_update.py"
+        hook_path.parent.mkdir(parents=True)
+        hook_path.write_text("# hook\n", encoding="utf-8")
+        _mark_complete_install(explicit_target, runtime="codex")
+        (explicit_target / "get-physics-done" / "VERSION").unlink()
+        manifest_path = explicit_target / _SHARED_INSTALL.manifest_name
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest.pop("version", None)
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        with (
+            patch("gpd.version.__version__", "9.9.9"),
+            patch("gpd.hooks.check_update.__file__", str(hook_path)),
+        ):
+            assert _read_installed_version() == "0.0.0"
+
     def test_fallback_to_version_file(self, tmp_path: Path) -> None:
         """When metadata returns dev version, falls back to VERSION file."""
         version_file = tmp_path / "VERSION"

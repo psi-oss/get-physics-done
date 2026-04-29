@@ -8,12 +8,14 @@ Supports cross-platform LaTeX detection including Windows (MiKTeX, TeX Live).
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import os
 import platform
 import re
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,6 +33,8 @@ from gpd.mcp.paper.bibliography import (
 from gpd.mcp.paper.figures import _prepare_figures_with_sources
 from gpd.mcp.paper.journal_map import get_journal_spec
 from gpd.mcp.paper.models import (
+    ArtifactManifest,
+    ArtifactRecord,
     FigureRef,
     JournalSpec,
     PaperConfig,
@@ -393,6 +397,147 @@ _NOCITE_STAR_RE = re.compile(r"\\nocite\{\s*\*\s*\}")
 _BIB_KEY_RE = re.compile(r"@\w+\s*\{\s*([^,\s]+)\s*,")
 
 
+def _path_is_under(path: Path, root: Path) -> bool:
+    resolved_path = path.resolve(strict=False)
+    resolved_root = root.resolve(strict=False)
+    return resolved_path == resolved_root or resolved_path.is_relative_to(resolved_root)
+
+
+def _validate_manifest_sidecar_location(path: Path, output_dir: Path, *, label: str, is_directory: bool) -> None:
+    if not _path_is_under(path, output_dir):
+        raise ValueError(
+            f"{label} must stay inside output_dir when emitting ARTIFACT-MANIFEST.json; "
+            "external sidecars would make the portable manifest reference paths outside the paper package"
+        )
+
+    resolved_path = path.resolve(strict=False)
+    resolved_output_dir = output_dir.resolve(strict=False)
+    relative_path = resolved_path.relative_to(resolved_output_dir)
+    metadata_parts = relative_path.parts if is_directory else relative_path.parent.parts
+    if not metadata_parts or metadata_parts[0].startswith("."):
+        return
+    if is_directory:
+        expected_location = "output_dir or under a hidden metadata directory inside output_dir"
+    else:
+        expected_location = "a direct child of output_dir or under a hidden metadata directory inside output_dir"
+    raise ValueError(f"{label} must be {expected_location}; non-hidden nested sidecars are not discoverable")
+
+
+def _callable_accepts_keyword(callback: object, keyword: str) -> bool:
+    side_effect = getattr(callback, "side_effect", None)
+    if callable(side_effect):
+        callback = side_effect
+    try:
+        signature = inspect.signature(callback)
+    except (TypeError, ValueError):
+        return True
+    return any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in signature.parameters.values()) or (
+        keyword in signature.parameters
+    )
+
+
+def _remove_failed_build_output(path: Path | None, output_dir: Path) -> None:
+    if path is None or not _path_is_under(path, output_dir):
+        return
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def _mark_artifact_manifest_failed(
+    manifest: ArtifactManifest | None,
+    *,
+    stage: str,
+    errors: list[str],
+) -> ArtifactManifest | None:
+    if manifest is None or not manifest.artifacts:
+        return manifest
+
+    anchor = manifest.artifacts[0]
+    displayed_errors = errors[:5]
+    error_summary = "; ".join(displayed_errors)
+    if len(errors) > len(displayed_errors):
+        error_summary = f"{error_summary}; ... {len(errors) - len(displayed_errors)} more"
+
+    failure_record = ArtifactRecord(
+        artifact_id=f"build-failure-{stage}",
+        category="audit",
+        path=anchor.path,
+        sha256=anchor.sha256,
+        produced_by=f"build_paper:{stage}",
+        metadata={
+            "build_success": False,
+            "failure_stage": stage,
+            "error_count": len(errors),
+            "errors": error_summary,
+        },
+    )
+    return manifest.model_copy(update={"artifacts": [*manifest.artifacts, failure_record]})
+
+
+@dataclass(frozen=True)
+class _PublicationGate:
+    """Result of the strict final publication gate for compiled artifacts."""
+
+    success: bool
+    pdf_path: Path | None
+    failure_stage: str | None
+
+
+def _publication_gate(
+    result: CompilationResult,
+    *,
+    figures_prepared_successfully: bool,
+    errors: list[str],
+) -> _PublicationGate:
+    """Gate the externally visible PDF on every build precondition."""
+
+    success = result.success and figures_prepared_successfully and not errors
+    if success:
+        return _PublicationGate(success=True, pdf_path=result.pdf_path, failure_stage=None)
+    return _PublicationGate(
+        success=False,
+        pdf_path=None,
+        failure_stage="compile" if not result.success else "build",
+    )
+
+
+async def _build_and_emit_artifact_manifest(
+    config: PaperConfig,
+    output_dir: Path,
+    *,
+    tex_path: Path,
+    bib_path: Path | None,
+    bib_entry_source: str | None,
+    bibliography_audit_path: Path | None,
+    bibliography_audit: BibliographyAudit | None,
+    figure_source_pairs: list[tuple[FigureRef, FigureRef]],
+    manifest_path: Path | None,
+    pdf_path: Path | None = None,
+    failure_stage: str | None = None,
+    errors: list[str] | None = None,
+) -> ArtifactManifest:
+    """Build, failure-mark, and persist a paper artifact manifest."""
+
+    manifest = build_artifact_manifest(
+        config,
+        output_dir,
+        tex_path=tex_path,
+        bib_path=bib_path,
+        bib_entry_source=bib_entry_source,
+        bibliography_audit_path=bibliography_audit_path,
+        bibliography_audit=bibliography_audit,
+        figure_source_pairs=figure_source_pairs,
+        pdf_path=pdf_path,
+    )
+    if failure_stage is not None:
+        manifest = _mark_artifact_manifest_failed(manifest, stage=failure_stage, errors=errors or [])
+    if manifest_path is not None:
+        await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
+    return manifest
+
+
 def check_citation_bib_coherence(
     tex_content: str,
     bib_content: str,
@@ -563,12 +708,41 @@ class CompilationResult:
     warning: str | None = None
 
 
+class _CompilationLaunchFailure(Exception):
+    """Internal signal that a subprocess could not be started."""
+
+    def __init__(self, command_label: str, original: OSError) -> None:
+        super().__init__(str(original))
+        self.command_label = command_label
+        self.original = original
+
+
+def _command_label(command: str) -> str:
+    label = Path(command).name
+    return label or command
+
+
+def _launch_failure_error(command_label: str, exc: OSError) -> str:
+    return f"failed to launch {command_label}: {exc}"
+
+
+def _file_signature(path: Path) -> tuple[int, int] | None:
+    if not path.exists():
+        return None
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return stat.st_size, stat.st_mtime_ns
+
+
 async def compile_paper(
     tex_path: Path,
     output_dir: Path,
     compiler: str = "pdflatex",
     *,
     prefer_tectonic: bool = True,
+    apply_latex_autofix: bool = False,
 ) -> CompilationResult:
     """Compile a .tex file to PDF.
 
@@ -583,6 +757,9 @@ async def compile_paper(
             available (``"pdflatex"`` or ``"xelatex"``).
         prefer_tectonic: When ``True``, route through Tectonic if it is found
             on the system PATH (or in well-known install locations on Windows).
+        apply_latex_autofix: When ``True``, validated manual-multipass autofix
+            content may be written back to ``tex_path``. Defaults to ``False``
+            so direct compiler calls never mutate manuscript source.
 
     Uses :func:`find_latex_compiler` for cross-platform compiler detection,
     including Windows MiKTeX and TeX Live installations that may not be on
@@ -609,6 +786,13 @@ async def compile_paper(
     latexmk_path = find_latex_compiler("latexmk")
     if latexmk_path:
         return await _compile_with_latexmk(tex_path, output_dir, compiler, latexmk_path=latexmk_path)
+    if apply_latex_autofix:
+        return await _compile_manual_multipass(
+            tex_path,
+            output_dir,
+            compiler,
+            apply_latex_autofix=True,
+        )
     return await _compile_manual_multipass(tex_path, output_dir, compiler)
 
 
@@ -635,17 +819,7 @@ async def _compile_with_tectonic(
     logger.info("Compiling with Tectonic: %s", " ".join(cmd))
 
     pdf_path = output_dir / f"{tex_path.stem}.pdf"
-
-    def _pdf_signature() -> tuple[int, int] | None:
-        if not pdf_path.exists():
-            return None
-        try:
-            stat = pdf_path.stat()
-        except OSError:
-            return None
-        return stat.st_size, stat.st_mtime_ns
-
-    initial_signature = _pdf_signature()
+    initial_signature = _file_signature(pdf_path)
 
     try:
         process = await asyncio.create_subprocess_exec(
@@ -663,7 +837,7 @@ async def _compile_with_tectonic(
 
         log_content = stdout.decode(errors="replace") + stderr.decode(errors="replace")
 
-        current_signature = _pdf_signature()
+        current_signature = _file_signature(pdf_path)
         pdf_is_fresh = current_signature is not None and (
             initial_signature is None or current_signature != initial_signature
         )
@@ -672,9 +846,9 @@ async def _compile_with_tectonic(
             if process.returncode == 0:
                 return CompilationResult(success=True, pdf_path=pdf_path)
             return CompilationResult(
-                success=True,
+                success=False,
                 pdf_path=pdf_path,
-                warning=f"tectonic exited with code {process.returncode} — PDF was produced but check the log for issues",
+                error=f"tectonic exited with code {process.returncode}",
                 log=log_content[-5000:],
             )
 
@@ -685,6 +859,8 @@ async def _compile_with_tectonic(
         return CompilationResult(success=False, error=error, log=log_content[-5000:])
     except FileNotFoundError:
         return CompilationResult(success=False, error="tectonic not found")
+    except OSError as exc:
+        return CompilationResult(success=False, error=_launch_failure_error("tectonic", exc))
 
 
 async def _compile_with_latexmk(
@@ -703,18 +879,7 @@ async def _compile_with_latexmk(
     logger.info("Compiling with latexmk: %s", " ".join(cmd))
 
     pdf_path = output_dir / f"{tex_path.stem}.pdf"
-
-    def _pdf_signature() -> tuple[int, int] | None:
-        """Return (size, mtime_ns) if the PDF exists, else None."""
-        if not pdf_path.exists():
-            return None
-        try:
-            stat = pdf_path.stat()
-        except OSError:
-            return None
-        return stat.st_size, stat.st_mtime_ns
-
-    initial_signature = _pdf_signature()
+    initial_signature = _file_signature(pdf_path)
 
     try:
         process = await asyncio.create_subprocess_exec(
@@ -733,7 +898,7 @@ async def _compile_with_latexmk(
         log_content = stdout.decode(errors="replace") + stderr.decode(errors="replace")
 
         # Freshness check: PDF must exist and differ from the pre-run snapshot.
-        current_signature = _pdf_signature()
+        current_signature = _file_signature(pdf_path)
         pdf_is_fresh = current_signature is not None and (
             initial_signature is None or current_signature != initial_signature
         )
@@ -772,21 +937,32 @@ async def _compile_with_latexmk(
         return CompilationResult(success=False, error=error, log=log_content[-5000:])
     except FileNotFoundError:
         return CompilationResult(success=False, error="latexmk not found")
+    except OSError as exc:
+        return CompilationResult(success=False, error=_launch_failure_error("latexmk", exc))
 
 
-async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: str) -> CompilationResult:
+async def _compile_manual_multipass(
+    tex_path: Path,
+    output_dir: Path,
+    compiler: str,
+    *,
+    apply_latex_autofix: bool = False,
+) -> CompilationResult:
     """Manual multi-pass: pdflatex -> bibtex -> pdflatex -> pdflatex."""
     compiler_path = find_latex_compiler(compiler)
     if not compiler_path:
         return CompilationResult(success=False, error=f"Compiler '{compiler}' not found")
 
     async def run_cmd(cmd: list[str], cwd: str) -> tuple[int, str]:
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=cwd,
-        )
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=cwd,
+            )
+        except OSError as exc:
+            raise _CompilationLaunchFailure(_command_label(cmd[0]), exc) from exc
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
         except TimeoutError:
@@ -801,17 +977,10 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
     compile_errors: list[str] = []
     fatal_errors: list[str] = []
     pdf_path = output_dir / f"{tex_path.stem}.pdf"
+    autofix_scratch_tex_path: Path | None = None
+    autofix_scratch_pdf_path: Path | None = None
 
-    def pdf_build_signature() -> tuple[int, int] | None:
-        if not pdf_path.exists():
-            return None
-        try:
-            stat = pdf_path.stat()
-        except OSError:
-            return None
-        return stat.st_size, stat.st_mtime_ns
-
-    initial_pdf_signature = pdf_build_signature()
+    initial_pdf_signature = _file_signature(pdf_path)
 
     def record_result(step: str, returncode: int, log: str, *, fatal: bool = False) -> None:
         combined_log_parts.append(log)
@@ -821,11 +990,48 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
             if fatal:
                 fatal_errors.append(error)
 
-    def fresh_pdf_was_generated(initial_signature: tuple[int, int] | None) -> bool:
-        current_signature = pdf_build_signature()
+    def fresh_pdf_was_generated(
+        initial_signature: tuple[int, int] | None,
+        path: Path = pdf_path,
+    ) -> bool:
+        current_signature = _file_signature(path)
         if current_signature is None:
             return False
         return initial_signature is None or current_signature != initial_signature
+
+    def write_autofix_scratch(content: str) -> Path:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            suffix=".tex",
+            prefix=f".{tex_path.stem}-gpd-autofix-",
+            dir=tex_path.parent,
+            delete=False,
+        ) as handle:
+            handle.write(content)
+            return Path(handle.name)
+
+    def cleanup_autofix_scratch(scratch_tex_path: Path, scratch_pdf_path: Path | None = None) -> None:
+        scratch_output_dir = output_dir
+        scratch_stem = scratch_tex_path.stem
+        scratch_paths = [
+            scratch_tex_path,
+            scratch_output_dir / f"{scratch_stem}.aux",
+            scratch_output_dir / f"{scratch_stem}.bbl",
+            scratch_output_dir / f"{scratch_stem}.blg",
+            scratch_output_dir / f"{scratch_stem}.fdb_latexmk",
+            scratch_output_dir / f"{scratch_stem}.fls",
+            scratch_output_dir / f"{scratch_stem}.log",
+            scratch_output_dir / f"{scratch_stem}.out",
+            scratch_output_dir / f"{scratch_stem}.synctex.gz",
+        ]
+        if scratch_pdf_path is not None:
+            scratch_paths.append(scratch_pdf_path)
+        for path in scratch_paths:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                logger.debug("Could not remove autofix scratch artifact %s", path, exc_info=True)
 
     def aux_requires_bibliography(aux_path: Path) -> bool:
         try:
@@ -874,6 +1080,10 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         if fresh_pdf_was_generated(initial_pdf_signature) and returncode == 0 and not fatal_errors:
             return CompilationResult(success=True, pdf_path=pdf_path)
 
+        if not apply_latex_autofix:
+            error = fatal_errors[0] if fatal_errors else compile_errors[0] if compile_errors else "Compilation failed"
+            return CompilationResult(success=False, error=error, log="".join(combined_log_parts)[-5000:])
+
         # Try autofix
         from gpd.utils.latex import try_autofix
 
@@ -881,35 +1091,70 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         tex_content = await asyncio.to_thread(tex_path.read_text, encoding="utf-8")
         fix_result = try_autofix(tex_content, combined_log)
         if fix_result.was_modified and fix_result.fixed_content:
-            await asyncio.to_thread(tex_path.write_text, fix_result.fixed_content, encoding="utf-8")
-            logger.info("Applied autofix: %s", fix_result.fixes_applied)
-            autofix_initial_pdf_signature = pdf_build_signature()
+            autofix_scratch_tex_path = await asyncio.to_thread(write_autofix_scratch, fix_result.fixed_content)
+            scratch_tex_path = autofix_scratch_tex_path
+            autofix_scratch_pdf_path = output_dir / f"{scratch_tex_path.stem}.pdf"
+            scratch_pdf_path = autofix_scratch_pdf_path
+            logger.info("Testing autofix on scratch TeX: %s", fix_result.fixes_applied)
+            autofix_initial_pdf_signature = _file_signature(scratch_pdf_path)
+            autofix_base_cmd = [
+                compiler_path,
+                "-interaction=nonstopmode",
+                f"-output-directory={output_dir}",
+                str(scratch_tex_path),
+            ]
+            autofix_aux_path = output_dir / f"{scratch_tex_path.stem}.aux"
 
             combined_log_parts = []
             compile_errors = []
             fatal_errors = []
 
-            returncode, log = await run_cmd(base_cmd, cwd)
+            returncode, log = await run_cmd(autofix_base_cmd, cwd)
             record_result("pdflatex autofix pass 1", returncode, log)
-            if bibtex and aux_path.exists():
-                returncode, log = await run_cmd([bibtex, str(aux_path)], cwd)
+            if bibtex and autofix_aux_path.exists():
+                returncode, log = await run_cmd([bibtex, str(autofix_aux_path)], cwd)
                 record_result("bibtex autofix", returncode, log, fatal=True)
             if not bibtex:
+                aux_path = autofix_aux_path
                 record_missing_bibtex_requirement()
-            returncode, log = await run_cmd(base_cmd, cwd)
+            returncode, log = await run_cmd(autofix_base_cmd, cwd)
             record_result("pdflatex autofix pass 2", returncode, log)
-            returncode, log = await run_cmd(base_cmd, cwd)
+            returncode, log = await run_cmd(autofix_base_cmd, cwd)
             record_result("pdflatex autofix pass 3", returncode, log)
-            if fresh_pdf_was_generated(autofix_initial_pdf_signature) and (
+            if fresh_pdf_was_generated(autofix_initial_pdf_signature, scratch_pdf_path) and (
                 not compile_errors or (returncode == 0 and not fatal_errors)
             ):
+                await asyncio.to_thread(shutil.copy2, scratch_pdf_path, pdf_path)
+                await asyncio.to_thread(tex_path.write_text, fix_result.fixed_content, encoding="utf-8")
+                await asyncio.to_thread(cleanup_autofix_scratch, scratch_tex_path, scratch_pdf_path)
+                logger.info("Applied autofix: %s", fix_result.fixes_applied)
                 return CompilationResult(success=True, pdf_path=pdf_path)
+            await asyncio.to_thread(cleanup_autofix_scratch, scratch_tex_path, scratch_pdf_path)
 
         error = fatal_errors[0] if fatal_errors else compile_errors[0] if compile_errors else "Compilation failed"
         return CompilationResult(success=False, error=error, log="".join(combined_log_parts)[-5000:])
 
     except TimeoutError:
+        if autofix_scratch_tex_path is not None:
+            await asyncio.to_thread(
+                cleanup_autofix_scratch,
+                autofix_scratch_tex_path,
+                autofix_scratch_pdf_path,
+            )
         return CompilationResult(success=False, error="Compilation timed out")
+    except _CompilationLaunchFailure as exc:
+        if autofix_scratch_tex_path is not None:
+            await asyncio.to_thread(
+                cleanup_autofix_scratch,
+                autofix_scratch_tex_path,
+                autofix_scratch_pdf_path,
+            )
+        if isinstance(exc.original, FileNotFoundError):
+            error = f"{exc.command_label} not found"
+        else:
+            error = _launch_failure_error(exc.command_label, exc.original)
+        log = "".join(combined_log_parts)[-5000:] or None
+        return CompilationResult(success=False, error=error, log=log)
 
 
 # ---- Full pipeline ----
@@ -927,6 +1172,8 @@ async def build_paper(
     bibliography_audit_output_path: Path | None = None,
     emit_artifact_manifest: bool = True,
     emit_bibliography_audit: bool = True,
+    prefer_tectonic: bool = True,
+    apply_latex_autofix: bool = True,
 ) -> PaperOutput:
     """Orchestrate the full paper build pipeline.
 
@@ -938,11 +1185,32 @@ async def build_paper(
 
     Sidecar files (ARTIFACT-MANIFEST.json, BIBLIOGRAPHY-AUDIT.json) are written
     to ``sidecar_root`` when provided, otherwise to ``output_dir`` alongside
-    the manuscript. ``emit_artifact_manifest`` and ``emit_bibliography_audit``
-    can be set to ``False`` to suppress those files entirely (minimal mode).
-    File-specific output paths override the shared sidecar root so callers can
-    promote one sidecar without moving the other.
+    the manuscript. Nested sidecars must live under a hidden metadata directory
+    so manuscript discovery can find them. ``emit_artifact_manifest`` and
+    ``emit_bibliography_audit`` can be set to ``False`` to suppress those files
+    entirely (minimal mode). File-specific output paths override the shared
+    sidecar root so callers can promote one sidecar without moving the other.
+    Generated TeX builds opt into validated LaTeX autofix by default; preserved
+    manual TeX is not autofixed.
     """
+    if sidecar_root is not None and (emit_artifact_manifest or emit_bibliography_audit):
+        _validate_manifest_sidecar_location(sidecar_root, output_dir, label="sidecar_root", is_directory=True)
+    if emit_artifact_manifest:
+        if artifact_manifest_output_path is not None:
+            _validate_manifest_sidecar_location(
+                artifact_manifest_output_path,
+                output_dir,
+                label="artifact_manifest_output_path",
+                is_directory=False,
+            )
+    if emit_bibliography_audit and bibliography_audit_output_path is not None:
+        _validate_manifest_sidecar_location(
+            bibliography_audit_output_path,
+            output_dir,
+            label="bibliography_audit_output_path",
+            is_directory=False,
+        )
+
     output_dir.mkdir(parents=True, exist_ok=True)
     if sidecar_root is not None:
         sidecar_root.mkdir(parents=True, exist_ok=True)
@@ -1037,15 +1305,26 @@ async def build_paper(
     bib_stem = config.bib_file.removesuffix(".bib")
     if bib_stem != config.bib_file:
         config = config.model_copy(update={"bib_file": bib_stem})
-    tex_content = render_paper(config)
+    rendered_tex_content = render_paper(config)
+    tex_content = rendered_tex_content
     output_stem = derive_output_filename(config)
     tex_path = output_dir / f"{output_stem}.tex"
+    preserved_tex_differs_from_config = False
     if tex_path.exists():
         logger.warning("Skipping .tex write — %s already exists. Delete it to regenerate.", tex_path)
         # Read on-disk content so the coherence check audits the file that
         # will actually be compiled, not the freshly rendered string which
         # may differ after manual edits or scaffold-once reruns.
         tex_content = await asyncio.to_thread(tex_path.read_text, encoding="utf-8")
+        preserved_tex_differs_from_config = tex_content != rendered_tex_content
+        if preserved_tex_differs_from_config and emit_artifact_manifest:
+            errors.append(
+                f"Existing TeX file {tex_path} differs from the current PaperConfig render; "
+                "ARTIFACT-MANIFEST.json was not refreshed because it would claim metadata for stale preserved TeX. "
+                "Delete the TeX file to regenerate it, or run with sidecar emission disabled when intentionally "
+                "compiling manual edits."
+            )
+            manifest_path = None
     else:
         await asyncio.to_thread(tex_path.write_text, tex_content, encoding="utf-8")
 
@@ -1057,24 +1336,30 @@ async def build_paper(
             logger.warning("Citation coherence: %s", w)
         citation_warnings = coherence.warnings
 
-    manifest = build_artifact_manifest(
-        config,
-        output_dir,
-        tex_path=tex_path,
-        bib_path=bib_path,
-        bib_entry_source=bib_entry_source,
-        bibliography_audit_path=bibliography_audit_path,
-        bibliography_audit=bibliography_audit,
-        figure_source_pairs=figure_source_pairs,
-    )
-    if emit_artifact_manifest and manifest_path is not None:
-        await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
-
     # 4. Check required TeX resources (blocking subprocess; run in thread to avoid stalling the loop)
     spec = get_journal_spec(config.journal)
-    dependencies_available, dependency_errors = await asyncio.to_thread(check_journal_dependencies, spec)
+    tectonic_will_handle_resources = prefer_tectonic and find_tectonic() is not None
+    if tectonic_will_handle_resources:
+        dependencies_available, dependency_errors = True, []
+    else:
+        dependencies_available, dependency_errors = await asyncio.to_thread(check_journal_dependencies, spec)
     if not dependencies_available:
         errors.extend(dependency_errors)
+        await asyncio.to_thread(_remove_failed_build_output, output_dir / f"{output_stem}.pdf", output_dir)
+        if emit_artifact_manifest and not preserved_tex_differs_from_config:
+            manifest = await _build_and_emit_artifact_manifest(
+                config,
+                output_dir,
+                tex_path=tex_path,
+                bib_path=bib_path,
+                bib_entry_source=bib_entry_source,
+                bibliography_audit_path=bibliography_audit_path,
+                bibliography_audit=bibliography_audit,
+                figure_source_pairs=figure_source_pairs,
+                manifest_path=manifest_path,
+                failure_stage="dependency",
+                errors=errors,
+            )
         return PaperOutput(
             tex_content=tex_content,
             bib_content=bib_content,
@@ -1084,7 +1369,7 @@ async def build_paper(
             bibliography_audit_path=bibliography_audit_path,
             bibliography_audit=bibliography_audit,
             reference_bibtex_keys=reference_bibtex_keys,
-            manifest_path=manifest_path,
+            manifest_path=manifest_path if manifest is not None else None,
             manifest=manifest,
             success=False,
             errors=errors,
@@ -1092,39 +1377,52 @@ async def build_paper(
         )
 
     # 5. Compile
-    result = await compile_paper(tex_path, output_dir, compiler=spec.compiler)
+    compile_kwargs = {} if prefer_tectonic else {"prefer_tectonic": False}
+    effective_apply_latex_autofix = apply_latex_autofix and not preserved_tex_differs_from_config
+    if effective_apply_latex_autofix and _callable_accepts_keyword(compile_paper, "apply_latex_autofix"):
+        compile_kwargs["apply_latex_autofix"] = True
+    result = await compile_paper(tex_path, output_dir, compiler=spec.compiler, **compile_kwargs)
 
     if not result.success and result.error:
         errors.append(result.error)
 
-    manifest = build_artifact_manifest(
-        config,
-        output_dir,
-        tex_path=tex_path,
-        bib_path=bib_path,
-        bib_entry_source=bib_entry_source,
-        bibliography_audit_path=bibliography_audit_path,
-        bibliography_audit=bibliography_audit,
-        figure_source_pairs=figure_source_pairs,
-        pdf_path=result.pdf_path,
+    publication_gate = _publication_gate(
+        result,
+        figures_prepared_successfully=figures_prepared_successfully,
+        errors=errors,
     )
-    if emit_artifact_manifest and manifest_path is not None:
-        await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
+    if not publication_gate.success:
+        await asyncio.to_thread(_remove_failed_build_output, result.pdf_path, output_dir)
+        await asyncio.to_thread(_remove_failed_build_output, output_dir / f"{output_stem}.pdf", output_dir)
 
-    final_success = result.success and figures_prepared_successfully and not errors
+    if emit_artifact_manifest and not preserved_tex_differs_from_config:
+        manifest = await _build_and_emit_artifact_manifest(
+            config,
+            output_dir,
+            tex_path=tex_path,
+            bib_path=bib_path,
+            bib_entry_source=bib_entry_source,
+            bibliography_audit_path=bibliography_audit_path,
+            bibliography_audit=bibliography_audit,
+            figure_source_pairs=figure_source_pairs,
+            pdf_path=publication_gate.pdf_path,
+            manifest_path=manifest_path,
+            failure_stage=publication_gate.failure_stage,
+            errors=errors,
+        )
 
     return PaperOutput(
         tex_content=tex_content,
         bib_content=bib_content,
         tex_path=tex_path,
         figures_dir=figures_dir,
-        pdf_path=result.pdf_path,
+        pdf_path=publication_gate.pdf_path,
         bibliography_audit_path=bibliography_audit_path,
         bibliography_audit=bibliography_audit,
         reference_bibtex_keys=reference_bibtex_keys,
-        manifest_path=manifest_path,
+        manifest_path=manifest_path if manifest is not None else None,
         manifest=manifest,
-        success=final_success,
+        success=publication_gate.success,
         errors=errors,
         citation_warnings=citation_warnings,
     )

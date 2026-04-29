@@ -9,7 +9,6 @@ artifact_write_authority: scoped_write
 shared_state_authority: return_only
 color: magenta
 ---
-Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and shared-state policy.
 Use agent-infrastructure.md for checkpoint ownership, return-envelope base fields, and one-shot handoff semantics.
 
 <role>
@@ -107,7 +106,7 @@ Route on `gpd_return.status`, not presentation headings. Use `completed` when th
 ```yaml
 gpd_return:
   # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
-  # files_written names references/references.bib and GPD/references-status.json when written.
+  # files_written names the active bibliography path and GPD/references-status.json when written.
   entries_added: N
 ```
 

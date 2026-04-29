@@ -13,6 +13,23 @@ def _is_default_full_suite_invocation(args: list[str]) -> bool:
     return normalized in {(), ("tests",)}
 
 
+def _has_pytest_selection_filter(config: pytest.Config) -> bool:
+    option = getattr(config, "option", None)
+    if option is None:
+        return False
+    if getattr(option, "keyword", None):
+        return True
+    if getattr(option, "markexpr", None):
+        return True
+    return any(bool(getattr(option, name, False)) for name in ("lastfailed", "failedfirst", "collectonly"))
+
+
+def _is_default_full_suite_config(config: pytest.Config) -> bool:
+    return _is_default_full_suite_invocation([str(arg) for arg in config.args]) and not _has_pytest_selection_filter(
+        config
+    )
+
+
 def _full_suite_auto_worker_count(*, cpu_count: int, ci_shard_total: int) -> int:
     cpu_count = max(cpu_count, 1)
     return min(max(cpu_count, ci_shard_total), cpu_count * 2)
@@ -27,7 +44,7 @@ def pytest_xdist_auto_num_workers(config: pytest.Config) -> int | None:
     numprocesses = getattr(config.option, "numprocesses", None)
     if numprocesses not in {"auto", "logical"}:
         return None
-    if not _is_default_full_suite_invocation([str(arg) for arg in config.args]):
+    if not _is_default_full_suite_config(config):
         return None
 
     worker_count = _full_suite_auto_worker_count(
@@ -64,4 +81,6 @@ def _isolate_machine_local_gpd_data(tmp_path_factory) -> Iterator[None]:
 
 
 def pytest_report_header(config) -> str:
-    return "test suite mode: full (default)"
+    if _is_default_full_suite_config(config):
+        return "test suite mode: full default suite"
+    return "test suite mode: targeted/sharded args"

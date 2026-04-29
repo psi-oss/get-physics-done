@@ -177,8 +177,18 @@ def test_docs_onboarding_hub_surfaces_release_source_policy() -> None:
             "latest unreleased GitHub `main` source",
         ),
     )
-    assert "Supervised mode is the default" in content
-    assert "Graduate to Balanced" in content
+    assert "review autonomy, workflow defaults, model-cost posture, runtime permission sync, and preset/tier overrides" in content
+    assert "safest model-cost starting point is `review` plus runtime defaults" in content
+    assert "Graduate to Balanced" not in content
+
+
+def test_root_readme_settings_short_wording_matches_model_profile_contract() -> None:
+    content = _read("README.md")
+    quick_start = _markdown_section(content, "## Quick Start")
+
+    assert "review autonomy, workflow defaults, model-cost posture, runtime permission sync, and preset/tier overrides" in quick_start
+    assert "Safest model-cost start: `review` plus runtime defaults." in quick_start
+    assert "graduate to Balanced (`balanced`)" not in quick_start
 
 
 def test_root_readme_start_here_links_to_docs_onboarding_hub() -> None:
@@ -188,8 +198,8 @@ def test_root_readme_start_here_links_to_docs_onboarding_hub() -> None:
     _assert_fragments(
         start_here,
         (
-            "[Beginner Onboarding Hub](./docs/README.md)",
-            "If you are new to terminals, start with the [Beginner Onboarding Hub](./docs/README.md).",
+            "[Beginner Onboarding Hub](https://github.com/psi-oss/get-physics-done/blob/main/docs/README.md)",
+            "If you are new to terminals, start with the [Beginner Onboarding Hub](https://github.com/psi-oss/get-physics-done/blob/main/docs/README.md).",
             "Use the hub as the single beginner path",
             "There are two places you type commands:",
             "In your normal system terminal:",
@@ -248,6 +258,14 @@ def test_root_readme_runtime_workflow_examples_are_prefixless_and_uninstall_link
     assert "gpd:write-paper ->" not in content
     assert "matching uninstall command from [Start Here]" not in uninstall
     assert "npx -y get-physics-done --uninstall" in uninstall
+
+
+def test_root_readme_project_contract_validation_placeholder_is_current() -> None:
+    content = _read("README.md")
+    validation_commands = _markdown_section(content, "## Advanced CLI Utilities")
+
+    assert "`gpd validate project-contract <file.json|-> [--mode approved|draft]`" in validation_commands
+    assert "`gpd validate project-contract <file.json or -> [--mode approved|draft]`" not in validation_commands
 
 
 def test_root_readme_supported_runtimes_table_matches_beginner_runtime_surfaces() -> None:

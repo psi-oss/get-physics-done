@@ -2,20 +2,34 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from math import ceil
 from pathlib import Path
 
-from gpd.adapters.install_utils import expand_at_includes, parse_at_include_path
+from gpd.adapters import get_adapter
+from gpd.adapters.install_utils import expand_at_includes, parse_at_include_path, project_markdown_for_runtime
+from gpd.core.model_visible_text import command_visibility_note
+
+DEFAULT_PROMPT_BUDGET_MARGIN = 0.03
 
 __all__ = [
+    "DEFAULT_PROMPT_BUDGET_MARGIN",
     "PromptSurfaceMetrics",
+    "budget_from_baseline",
     "count_raw_includes",
+    "count_unfenced_heading",
+    "expanded_include_markers",
     "expanded_prompt_text",
     "first_line_containing_any",
+    "iter_unfenced_lines",
     "line_number_for_fragment",
     "measure_prompt_surface",
+    "measure_projected_prompt_surface",
     "parse_at_include_path",
+    "projected_prompt_text",
+    "runtime_command_visibility_note",
 ]
 
 
@@ -31,6 +45,23 @@ class PromptSurfaceMetrics:
     first_question_marker: str | None = None
 
 
+def budget_from_baseline(
+    value: int,
+    *,
+    minimum_margin: int,
+    margin: float = DEFAULT_PROMPT_BUDGET_MARGIN,
+) -> int:
+    """Return a stable prompt budget with a small growth allowance."""
+
+    return value + max(minimum_margin, ceil(value * margin))
+
+
+def runtime_command_visibility_note(runtime: str) -> str:
+    """Return the canonical command wrapper note after runtime command translation."""
+
+    return get_adapter(runtime).translate_shared_command_references(command_visibility_note())
+
+
 def expanded_prompt_text(
     path: Path,
     *,
@@ -44,22 +75,90 @@ def expanded_prompt_text(
     return expand_at_includes(content, src_root, path_prefix, runtime=runtime)
 
 
+def projected_prompt_text(
+    path: Path,
+    *,
+    runtime: str,
+    src_root: Path,
+    path_prefix: str,
+    surface_kind: str = "command",
+    command_name: str | None = None,
+) -> str:
+    """Return one prompt file as the final runtime-visible projected text."""
+
+    content = path.read_text(encoding="utf-8")
+    return project_markdown_for_runtime(
+        content,
+        runtime=runtime,
+        path_prefix=path_prefix,
+        surface_kind=surface_kind,
+        src_root=src_root,
+        protect_agent_prompt_body=surface_kind == "agent",
+        command_name=command_name or path.stem,
+    )
+
+
+def _markdown_fence_marker(stripped_line: str) -> str | None:
+    if stripped_line.startswith("```"):
+        return "```"
+    if stripped_line.startswith("~~~"):
+        return "~~~"
+    return None
+
+
 def count_raw_includes(text: str) -> int:
     """Count raw ``@`` include lines recognized by the installer."""
 
     include_count = 0
-    in_code_fence = False
+    active_fence_marker: str | None = None
 
     for line in text.splitlines():
         stripped = line.strip()
-        if stripped.startswith("```"):
-            in_code_fence = not in_code_fence
+        fence_marker = _markdown_fence_marker(stripped)
+        if fence_marker is not None:
+            if active_fence_marker is None:
+                active_fence_marker = fence_marker
+            elif fence_marker == active_fence_marker:
+                active_fence_marker = None
             continue
-        if in_code_fence:
+        if active_fence_marker is not None:
             continue
         if parse_at_include_path(stripped) is not None:
             include_count += 1
     return include_count
+
+
+def expanded_include_markers(text: str) -> tuple[str, ...]:
+    """Return include marker filenames from an expanded prompt surface."""
+
+    return tuple(re.findall(r"<!-- \[included: ([^\]]+)\] -->", text))
+
+
+def iter_unfenced_lines(text: str) -> Sequence[str]:
+    """Return lines outside fenced code blocks."""
+
+    lines: list[str] = []
+    active_fence_marker: str | None = None
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        fence_marker = _markdown_fence_marker(stripped)
+        if fence_marker is not None:
+            if active_fence_marker is None:
+                active_fence_marker = fence_marker
+            elif fence_marker == active_fence_marker:
+                active_fence_marker = None
+            continue
+        if active_fence_marker is not None:
+            continue
+        lines.append(line)
+    return lines
+
+
+def count_unfenced_heading(text: str, heading: str) -> int:
+    """Count exact markdown heading lines outside fenced code blocks."""
+
+    return sum(1 for line in iter_unfenced_lines(text) if line.strip() == heading)
 
 
 def line_number_for_fragment(text: str, fragment: str, *, start: int = 1) -> int | None:
@@ -114,4 +213,32 @@ def measure_prompt_surface(
         expanded_char_count=len(expanded_text),
         first_question_line=first_question_line,
         first_question_marker=first_question_marker,
+    )
+
+
+def measure_projected_prompt_surface(
+    path: Path,
+    *,
+    runtime: str,
+    src_root: Path,
+    path_prefix: str,
+    surface_kind: str = "command",
+    command_name: str | None = None,
+) -> PromptSurfaceMetrics:
+    """Measure the final runtime-visible projected prompt surface."""
+
+    raw_text = path.read_text(encoding="utf-8")
+    projected_text = projected_prompt_text(
+        path,
+        runtime=runtime,
+        src_root=src_root,
+        path_prefix=path_prefix,
+        surface_kind=surface_kind,
+        command_name=command_name,
+    )
+    return PromptSurfaceMetrics(
+        source_path=path,
+        raw_include_count=count_raw_includes(raw_text),
+        expanded_line_count=len(projected_text.splitlines()),
+        expanded_char_count=len(projected_text),
     )

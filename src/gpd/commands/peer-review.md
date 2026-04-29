@@ -29,6 +29,7 @@ command-policy:
       - .csv
       - .tsv
       - .xlsx
+      - .xlsm
     bootstrap_allowed: false
   output_policy:
     output_mode: managed
@@ -141,7 +142,7 @@ allowed-tools:
 Conduct a skeptical peer review of a completed manuscript from the current GPD project or an explicit external artifact, using whatever supporting research artifacts are actually available.
 Peer review supports two intake modes: `project-backed manuscript review` and `standalone explicit-artifact review`.
 
-See `@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md` for the canonical publication boundary. Keep the wrapper focused on the manuscript target, review prerequisites, and final routing. When announcing the panel to the user, say what each stage does in one concise sentence: Stage 1 maps the paper's claims; Stages 2-3 check prior work and mathematical soundness in parallel; theorem-bearing claims also trigger the auxiliary gpd-check-proof critic; Stage 4 checks whether the physical interpretation is supported; Stage 5 judges significance and venue fit; Stage 6 synthesizes everything into the final recommendation.
+See `{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md` for the canonical publication boundary. Keep the wrapper focused on the manuscript target, review prerequisites, and final routing. When announcing the panel to the user, say what each stage does in one concise sentence: Stage 1 maps the paper's claims; Stages 2-3 check prior work and mathematical soundness in parallel; theorem-bearing claims also trigger the auxiliary gpd-check-proof critic; Stage 4 checks whether the physical interpretation is supported; Stage 5 judges significance and venue fit; Stage 6 synthesizes everything into the final recommendation.
 Keep GPD-authored auxiliary review artifacts under `GPD/` in the invoking workspace. The manuscript itself and any manuscript-local publication manifests stay rooted at the resolved manuscript directory.
 
 **Why subagent:** Staged manuscript review burns context fast. Fresh context keeps the orchestrator lean.
@@ -161,7 +162,7 @@ If centralized preflight exposes a subject-owned publication root for an explici
 
 The default in-project manuscript family is limited to `paper/`, `manuscript/`, and `draft/`.
 Centralized preflight may also hand you a resolved project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`. Treat that as the active current-project manuscript subject, but do not relocate the staged review outputs beside the manuscript.
-Let centralized preflight resolve the active manuscript entrypoint from the explicit argument when provided, otherwise from the manuscript-root `ARTIFACT-MANIFEST.json`, then `PAPER-CONFIG.json`, then the canonical current manuscript entrypoint rules for those roots. Explicit external artifact intake may also target `.tex`, `.md`, `.txt`, or `.pdf`. Additional supported external artifact formats also include `.docx`, `.csv`, `.tsv`, and `.xlsx`. Keep canonical in-project manuscript-root discovery on the manifest/config-resolved `.tex` / `.md` entrypoint path for those roots. Do not use ad hoc wildcard discovery.
+Let centralized preflight resolve the active manuscript entrypoint from the explicit argument when provided, otherwise from the manuscript-root `ARTIFACT-MANIFEST.json`, then `PAPER-CONFIG.json`, then the canonical current manuscript entrypoint rules for those roots. Explicit external artifact intake may also target `.tex`, `.md`, `.txt`, or `.pdf`. Additional supported external artifact formats also include `.docx`, `.csv`, `.tsv`, `.xlsx`, and `.xlsm`. Keep canonical in-project manuscript-root discovery on the manifest/config-resolved `.tex` / `.md` entrypoint path for those roots. Do not use ad hoc wildcard discovery.
 If no explicit target is supplied, the workflow may either use the current GPD project manuscript when available or ask the user to point at a specific artifact path.
 
 </context>

@@ -33,6 +33,7 @@ from gpd.core.constants import (
     PLANNING_DIR_NAME,
     REQUIREMENTS_FILENAME,
     RESEARCH_SUFFIX,
+    ROADMAP_FILENAME,
     STANDALONE_CONTEXT,
     STANDALONE_PLAN,
     STANDALONE_RESEARCH,
@@ -224,6 +225,40 @@ def _restore_text_file(path: Path, previous_content: str | None) -> None:
             path.unlink()
         return
     atomic_write(path, previous_content)
+
+
+def _snapshot_text_file(path: Path) -> str | None:
+    """Return the current text file content, or None when the file is absent."""
+    return path.read_text(encoding="utf-8") if path.exists() else None
+
+
+def _restore_state_pair(
+    layout: ProjectLayout,
+    state_md_before: str | None,
+    state_json_before: str | None,
+    state_json_backup_before: str | None,
+) -> None:
+    """Restore canonical state files captured before a phase lifecycle mutation."""
+    _restore_text_file(layout.state_md, state_md_before)
+    _restore_text_file(layout.state_json, state_json_before)
+    _restore_text_file(layout.state_json_backup, state_json_backup_before)
+
+
+def _snapshot_checkpoint_shelf(layout: ProjectLayout) -> tuple[str | None, Path | None, Path | None]:
+    """Snapshot generated checkpoint index and shelf files for rollback."""
+    checkpoints_md_before = _snapshot_text_file(layout.checkpoints_md)
+    checkpoint_backup_root, checkpoint_backup_path = _backup_directory_tree(layout.phase_checkpoints_dir)
+    return checkpoints_md_before, checkpoint_backup_root, checkpoint_backup_path
+
+
+def _restore_checkpoint_shelf(
+    layout: ProjectLayout,
+    checkpoints_md_before: str | None,
+    checkpoint_backup_path: Path | None,
+) -> None:
+    """Restore generated checkpoint index and shelf files captured before sync."""
+    _restore_text_file(layout.checkpoints_md, checkpoints_md_before)
+    _restore_directory_tree(layout.phase_checkpoints_dir, checkpoint_backup_path)
 
 
 def _backup_directory_tree(path: Path) -> tuple[Path | None, Path | None]:
@@ -559,6 +594,7 @@ class PlanEntry(BaseModel):
     depends_on: list[str] = Field(default_factory=list)
     files_modified: list[str] = Field(default_factory=list)
     interactive: bool = False
+    gap_closure: bool = False
     objective: str | None = None
     task_count: int = 0
     has_summary: bool = False
@@ -1103,6 +1139,23 @@ def roadmap_get_phase(cwd: Path, phase_num: str) -> RoadmapPhaseResult:
 # ─── Phase Next Decimal ────────────────────────────────────────────────────────
 
 
+def _roadmap_decimal_children(content: str | None, normalized_base: str) -> list[str]:
+    """Return immediate decimal children for *normalized_base* declared in ROADMAP.md."""
+
+    if not content:
+        return []
+    base_parts = normalized_base.split(".")
+    children: list[str] = []
+    for heading in _roadmap_phase_headings(content):
+        normalized_heading = phase_normalize(heading.number)
+        parts = normalized_heading.split(".")
+        if len(parts) != len(base_parts) + 1:
+            continue
+        if parts[:-1] == base_parts and parts[-1].isdigit():
+            children.append(normalized_heading)
+    return children
+
+
 def next_decimal_phase(cwd: Path, base_phase: str) -> NextDecimalResult:
     """Calculate the next decimal sub-phase number.
 
@@ -1111,27 +1164,32 @@ def next_decimal_phase(cwd: Path, base_phase: str) -> NextDecimalResult:
     with gpd_span("phases.next_decimal", base_phase=base_phase):
         normalized = phase_normalize(base_phase)
         phases_dir = _phases_dir(cwd)
+        roadmap_content = safe_read_file(_roadmap_path(cwd))
+        roadmap_numbers = (
+            {phase_normalize(heading.number) for heading in _roadmap_phase_headings(roadmap_content)}
+            if roadmap_content
+            else set()
+        )
 
-        if not _is_real_directory(phases_dir):
-            return NextDecimalResult(found=False, base_phase=normalized, next=f"{normalized}.1")
-
-        dirs = [d.name for d in phases_dir.iterdir() if _is_real_directory(d)]
-        base_exists = any(d.startswith(normalized + "-") or d == normalized for d in dirs)
+        dirs = [d.name for d in phases_dir.iterdir() if _is_real_directory(d)] if _is_real_directory(phases_dir) else []
+        base_exists = (
+            any(d.startswith(normalized + "-") or d == normalized for d in dirs) or normalized in roadmap_numbers
+        )
 
         escaped = re.escape(normalized)
         decimal_pattern = re.compile(rf"^{escaped}\.(\d+)")
-        existing_decimals: list[str] = []
+        existing_decimals: set[str] = set(_roadmap_decimal_children(roadmap_content, normalized))
         for d in dirs:
             m = decimal_pattern.match(d)
             if m:
-                existing_decimals.append(f"{normalized}.{m.group(1)}")
+                existing_decimals.add(f"{normalized}.{m.group(1)}")
 
-        existing_decimals = _sorted_phases(existing_decimals)
+        sorted_existing_decimals = _sorted_phases(list(existing_decimals))
 
-        if not existing_decimals:
+        if not sorted_existing_decimals:
             next_decimal = f"{normalized}.1"
         else:
-            last = existing_decimals[-1]
+            last = sorted_existing_decimals[-1]
             last_num = int(last.split(".")[-1])
             next_decimal = f"{normalized}.{last_num + 1}"
 
@@ -1139,7 +1197,7 @@ def next_decimal_phase(cwd: Path, base_phase: str) -> NextDecimalResult:
             found=base_exists,
             base_phase=normalized,
             next=next_decimal,
-            existing=existing_decimals,
+            existing=sorted_existing_decimals,
         )
 
 
@@ -1345,6 +1403,9 @@ def phase_plan_index(cwd: Path, phase: str) -> PhasePlanIndex:
             interactive = False
             if "interactive" in fm:
                 interactive = fm["interactive"] in (True, "true")
+            gap_closure = False
+            if "gap_closure" in fm:
+                gap_closure = fm["gap_closure"] in (True, "true")
 
             if interactive or _CHECKPOINT_TASK_RE.search(content):
                 has_checkpoints = True
@@ -1357,6 +1418,7 @@ def phase_plan_index(cwd: Path, phase: str) -> PhasePlanIndex:
                 id=plan_id,
                 wave=wave,
                 interactive=interactive,
+                gap_closure=gap_closure,
                 objective=fm.get("objective"),
                 depends_on=depends_on,
                 files_modified=files_modified,
@@ -2108,6 +2170,11 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
             normalized_base = phase_normalize(after_phase)
             phases_dir = _phases_dir(cwd)
             existing_decimals: list[int] = []
+            for decimal_child in _roadmap_decimal_children(content, normalized_base):
+                try:
+                    existing_decimals.append(int(decimal_child.split(".")[-1]))
+                except ValueError:
+                    continue
 
             if _is_real_directory(phases_dir):
                 escaped_base = re.escape(normalized_base)
@@ -2216,6 +2283,7 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
             None,
         )
 
+        state_updated = False
         renamed_dirs: list[RenameEntry] = []
         renamed_files: list[RenameEntry] = []
 
@@ -2240,8 +2308,22 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
 
             phases_backup_root: Path | None = None
             phases_backup_path: Path | None = None
+            state_md_before: str | None = None
+            state_json_before: str | None = None
+            state_json_backup_before: str | None = None
+            checkpoints_md_before: str | None = None
+            checkpoint_backup_root: Path | None = None
+            checkpoint_backup_path: Path | None = None
+            state_snapshot_captured = False
             try:
                 phases_backup_root, phases_backup_path = _backup_directory_tree(phases_dir)
+                state_md_before = _snapshot_text_file(layout.state_md)
+                state_json_before = _snapshot_text_file(layout.state_json)
+                state_json_backup_before = _snapshot_text_file(layout.state_json_backup)
+                checkpoints_md_before, checkpoint_backup_root, checkpoint_backup_path = _snapshot_checkpoint_shelf(
+                    layout
+                )
+                state_snapshot_captured = True
 
                 # Step 1: Update ROADMAP.md
                 roadmap_content = roadmap_before
@@ -2280,13 +2362,20 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
                         updated_roadmap=updated_roadmap,
                     ),
                 )
+
+                sync_phase_checkpoints(cwd)
             except Exception:
                 atomic_write(roadmap_path, roadmap_before)
                 _restore_directory_tree(phases_dir, phases_backup_path)
+                _restore_checkpoint_shelf(layout, checkpoints_md_before, checkpoint_backup_path)
+                if state_snapshot_captured:
+                    _restore_state_pair(layout, state_md_before, state_json_before, state_json_backup_before)
                 raise
             finally:
                 if phases_backup_root is not None and phases_backup_root.exists():
                     shutil.rmtree(phases_backup_root, ignore_errors=True)
+                if checkpoint_backup_root is not None and checkpoint_backup_root.exists():
+                    shutil.rmtree(checkpoint_backup_root, ignore_errors=True)
 
         result = PhaseRemoveResult(
             removed=target_phase,
@@ -2297,7 +2386,6 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
             state_updated=state_updated,
         )
 
-    sync_phase_checkpoints(cwd)
     return result
 
 
@@ -2471,6 +2559,7 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
     _validate_phase_number(phase_num)
 
     roadmap_path = _roadmap_path(cwd)
+    layout = ProjectLayout(cwd)
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
     next_phase_num: str | None = None
@@ -2496,19 +2585,24 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
 
             # Update ROADMAP.md
             roadmap_before = roadmap_path.read_text(encoding="utf-8") if roadmap_path.exists() else None
-            if roadmap_path.exists():
-                roadmap_content = roadmap_before or ""
-                roadmap_content = _mark_roadmap_phase_complete(roadmap_content, phase_num, today)
-                roadmap_content = _update_roadmap_phase_table_status(roadmap_content, phase_num, today)
-                roadmap_content = _update_roadmap_phase_plan_count(
-                    roadmap_content,
-                    phase_num,
-                    summary_count,
-                    plan_count,
-                )
-                atomic_write(roadmap_path, roadmap_content)
+            state_md_before = _snapshot_text_file(layout.state_md)
+            state_json_before = _snapshot_text_file(layout.state_json)
+            state_json_backup_before = _snapshot_text_file(layout.state_json_backup)
+            checkpoints_md_before, checkpoint_backup_root, checkpoint_backup_path = _snapshot_checkpoint_shelf(layout)
 
             try:
+                if roadmap_path.exists():
+                    roadmap_content = roadmap_before or ""
+                    roadmap_content = _mark_roadmap_phase_complete(roadmap_content, phase_num, today)
+                    roadmap_content = _update_roadmap_phase_table_status(roadmap_content, phase_num, today)
+                    roadmap_content = _update_roadmap_phase_plan_count(
+                        roadmap_content,
+                        phase_num,
+                        summary_count,
+                        plan_count,
+                    )
+                    atomic_write(roadmap_path, roadmap_content)
+
                 # Find next phase from ROADMAP, even if no directory exists yet.
                 next_phase = _get_next_roadmap_phase(cwd, phase_num)
                 if next_phase is not None:
@@ -2529,15 +2623,19 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
                         is_last_phase=is_last_phase,
                     ),
                 )
-            except Exception:
-                if roadmap_before is not None:
-                    atomic_write(roadmap_path, roadmap_before)
-                raise
 
-            # sync_phase_checkpoints() already degrades gracefully for malformed
-            # or unreadable summaries. Let unexpected render/write failures
-            # surface here instead of silently completing the lifecycle step.
-            sync_phase_checkpoints(cwd)
+                # sync_phase_checkpoints() already degrades gracefully for malformed
+                # or unreadable summaries. Let unexpected render/write failures
+                # surface here instead of silently completing the lifecycle step.
+                sync_phase_checkpoints(cwd)
+            except Exception:
+                _restore_text_file(roadmap_path, roadmap_before)
+                _restore_checkpoint_shelf(layout, checkpoints_md_before, checkpoint_backup_path)
+                _restore_state_pair(layout, state_md_before, state_json_before, state_json_backup_before)
+                raise
+            finally:
+                if checkpoint_backup_root is not None and checkpoint_backup_root.exists():
+                    shutil.rmtree(checkpoint_backup_root, ignore_errors=True)
 
         return PhaseCompleteResult(
             completed_phase=phase_num,
@@ -2569,6 +2667,10 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
     if not version:
         raise PhaseValidationError("version required for milestone complete (e.g., v1.0)")
 
+    layout = ProjectLayout(cwd)
+    if not layout.roadmap.exists():
+        raise PhaseValidationError(f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME} required for milestone complete")
+
     roadmap_path = _roadmap_path(cwd)
     req_path = _planning_path(cwd) / REQUIREMENTS_FILENAME
     milestones_path = _planning_path(cwd) / MILESTONES_FILENAME
@@ -2587,6 +2689,8 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
             accomplishments: list[str] = []
 
             completion_snapshot = _milestone_completion_snapshot(cwd)
+            if completion_snapshot.phase_count == 0:
+                raise PhaseValidationError("cannot complete milestone with no phases")
 
             for phase_number in completion_snapshot.phase_numbers:
                 phase_info = find_phase(cwd, phase_number)
@@ -2625,11 +2729,20 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
                     completion_snapshot.phase_count,
                 )
 
+            archive_dir_existed = archive_dir.exists()
             milestones_before = milestones_path.read_text(encoding="utf-8") if milestones_path.exists() else None
             roadmap_archive_path = archive_dir / f"{version}-ROADMAP.md"
             requirements_archive_path = archive_dir / f"{version}-REQUIREMENTS.md"
             archived_audit_path = archive_dir / f"{version}-MILESTONE-AUDIT.md"
             audit_file = _planning_path(cwd) / f"{version}-MILESTONE-AUDIT.md"
+            roadmap_archive_before = _snapshot_text_file(roadmap_archive_path)
+            requirements_archive_before = _snapshot_text_file(requirements_archive_path)
+            archived_audit_before = _snapshot_text_file(archived_audit_path)
+            audit_file_before = _snapshot_text_file(audit_file)
+            state_md_before = _snapshot_text_file(layout.state_md)
+            state_json_before = _snapshot_text_file(layout.state_json)
+            state_json_backup_before = _snapshot_text_file(layout.state_json_backup)
+            checkpoints_md_before, checkpoint_backup_root, checkpoint_backup_path = _snapshot_checkpoint_shelf(layout)
             archive_dir.mkdir(parents=True, exist_ok=True)
             try:
                 if roadmap_path.exists():
@@ -2694,21 +2807,25 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
                         version=version,
                     ),
                 )
+
+                # sync_phase_checkpoints() already handles malformed or unreadable
+                # summaries non-fatally. Let unexpected sync failures propagate
+                # after restoring the full milestone completion transaction.
+                sync_phase_checkpoints(cwd)
             except Exception:
                 _restore_text_file(milestones_path, milestones_before)
-                if archived_audit_path.exists() and not audit_file.exists():
-                    shutil.move(str(archived_audit_path), str(audit_file))
-                if roadmap_archive_path.exists():
-                    roadmap_archive_path.unlink()
-                if requirements_archive_path.exists():
-                    requirements_archive_path.unlink()
-                if archive_dir.exists() and not any(archive_dir.iterdir()):
+                _restore_text_file(roadmap_archive_path, roadmap_archive_before)
+                _restore_text_file(requirements_archive_path, requirements_archive_before)
+                _restore_text_file(archived_audit_path, archived_audit_before)
+                _restore_text_file(audit_file, audit_file_before)
+                _restore_checkpoint_shelf(layout, checkpoints_md_before, checkpoint_backup_path)
+                _restore_state_pair(layout, state_md_before, state_json_before, state_json_backup_before)
+                if not archive_dir_existed and archive_dir.exists() and not any(archive_dir.iterdir()):
                     archive_dir.rmdir()
                 raise
-
-            # sync_phase_checkpoints() already handles malformed or unreadable
-            # summaries non-fatally. Let unexpected sync failures propagate.
-            sync_phase_checkpoints(cwd)
+            finally:
+                if checkpoint_backup_root is not None and checkpoint_backup_root.exists():
+                    shutil.rmtree(checkpoint_backup_root, ignore_errors=True)
 
         return MilestoneCompleteResult(
             version=version,
@@ -2815,8 +2932,13 @@ def progress_render(cwd: Path, fmt: str = "json") -> ProgressJsonResult | Progre
                 pos = raw.get("position") or {}
                 val = pos.get("progress_percent")
                 if val is not None:
-                    state_pct = int(val)
-                    if state_pct != percent:
+                    state_pct = strict_parse_int(val, default=None)
+                    if state_pct is None:
+                        progress_warnings.append(
+                            "state.json progress_percent is non-integer; ignoring advisory value. "
+                            "Run 'gpd state update-progress' to reconcile."
+                        )
+                    elif state_pct != percent:
                         diverged = True
                         progress_warnings.append(
                             f"state.json progress_percent ({state_pct}%) differs from "

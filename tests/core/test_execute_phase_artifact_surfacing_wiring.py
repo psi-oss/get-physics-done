@@ -14,7 +14,7 @@ EXECUTION_REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references/execution"
 def test_execute_phase_loads_artifact_surfacing_before_using_it() -> None:
     execute_phase = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
 
-    required_reading = "@{GPD_INSTALL_DIR}/references/orchestration/artifact-surfacing.md"
+    required_reading = "{GPD_INSTALL_DIR}/references/orchestration/artifact-surfacing.md"
     later_reference = "See `references/orchestration/artifact-surfacing.md` for artifact class definitions and review priority rules."
 
     assert required_reading in execute_phase
@@ -83,5 +83,5 @@ def test_execute_phase_loader_does_not_silently_fallback_to_full_init() -> None:
     execute_phase = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
 
     assert "staged gpd initialization failed for stage" in execute_phase
-    assert 'if [ $? -ne 0 ] || [ -z "$init_payload" ]; then' in execute_phase
+    assert 'if [ "$init_status" -ne 0 ] || [ -z "$init_payload" ]; then' in execute_phase
     assert 'if [ $? -eq 0 ] && [ -n "$init_payload" ]; then' not in execute_phase

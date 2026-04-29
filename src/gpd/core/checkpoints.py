@@ -259,23 +259,22 @@ def _phase_summary_docs(cwd: Path, phase_dir: Path) -> _PhaseSummaryScanResult:
             continue
 
         phase_number, phase_title = _title_from_phase_dir(phase_dir.name)
+        raw_dependency_graph = frontmatter.get("dependency-graph")
+        nested_provides = raw_dependency_graph.get("provides") if isinstance(raw_dependency_graph, dict) else None
+        has_nested_provides = nested_provides is not None and nested_provides != ""
+        has_top_level_provides = "provides" in frontmatter and frontmatter["provides"] not in (None, "")
+        raw_provides = nested_provides if has_nested_provides else frontmatter.get("provides")
+        provides = _normalize_string_list(raw_provides)
         missing_summary_fields = [
             field
             for field in ("phase", "plan", "depth", "provides", "completed")
-            if field not in frontmatter or frontmatter[field] in (None, "")
+            if (field != "provides" and (field not in frontmatter or frontmatter[field] in (None, "")))
+            or (field == "provides" and not (has_top_level_provides or has_nested_provides))
         ]
         if missing_summary_fields:
             skipped_files.append(summary_relpath)
-            errors.append(
-                f"{summary_relpath} is missing required summary fields: {', '.join(missing_summary_fields)}"
-            )
+            errors.append(f"{summary_relpath} is missing required summary fields: {', '.join(missing_summary_fields)}")
             continue
-        raw_dependency_graph = frontmatter.get("dependency-graph")
-        if isinstance(raw_dependency_graph, dict):
-            raw_provides = raw_dependency_graph.get("provides")
-        else:
-            raw_provides = frontmatter.get("provides")
-        provides = _normalize_string_list(raw_provides)
         docs.append(
             _PhaseSummaryDoc(
                 phase_number=phase_number,
@@ -298,7 +297,11 @@ def _verification_paths(cwd: Path, phase_dir: Path) -> list[str]:
     return [
         path.relative_to(cwd).as_posix()
         for path in sorted(
-            [candidate for candidate in phase_dir.iterdir() if candidate.is_file() and layout.is_verification_file(candidate.name)],
+            [
+                candidate
+                for candidate in phase_dir.iterdir()
+                if candidate.is_file() and layout.is_verification_file(candidate.name)
+            ],
             key=_verification_sort_key,
         )
     ]
@@ -310,22 +313,20 @@ def _render_story_paragraphs(doc: _PhaseSummaryDoc, plan_count: int) -> list[str
     if doc.completed:
         intro += f" It closed on {doc.completed}."
     if doc.one_liner:
-        intro += f" The headline result was straightforward: {_clean_sentence(doc.one_liner)}"
+        intro += f" Result: {_clean_sentence(doc.one_liner)}"
     if plan_count > 1:
-        intro += f" This checkpoint reflects the latest of {plan_count} recorded plan summaries for the phase."
+        intro += f" Latest of {plan_count} recorded plan summaries."
     paragraphs.append(intro)
 
     decisions = [
-        _clean_sentence(
-            decision.summary if not decision.rationale else f"{decision.summary}: {decision.rationale}"
-        )
+        _clean_sentence(decision.summary if not decision.rationale else f"{decision.summary}: {decision.rationale}")
         for decision in doc.summary_extract.decisions[:4]
     ]
     if decisions:
-        paragraphs.append(f"The main project decisions were concrete. {_natural_join(decisions)}")
+        paragraphs.append(f"Decisions: {_natural_join(decisions)}")
 
     provides = _prefixed_summary(
-        "In practical terms, this phase now gives the project ",
+        "Provides: ",
         doc.provides or doc.summary_extract.affects or doc.summary_extract.key_files or [],
         limit=4,
     )
@@ -334,7 +335,7 @@ def _render_story_paragraphs(doc: _PhaseSummaryDoc, plan_count: int) -> list[str
 
     patterns = _natural_join(doc.summary_extract.patterns[:3])
     if patterns:
-        paragraphs.append(f"What this phase clarified was simple. {patterns}")
+        paragraphs.append(f"Patterns: {patterns}")
 
     next_step = _extract_next_step(doc.body)
     if next_step:
@@ -424,11 +425,7 @@ def _render_root_index(cwd: Path, entries: list[_CheckpointIndexEntry]) -> str:
         "",
         "# Phase Checkpoints",
         "",
-        "This is the human-facing checkpoint shelf for the project.",
-        "Each phase note is generated from the canonical SUMMARY and VERIFICATION artifacts under `GPD/phases/`.",
-        "",
-        "Read one checkpoint file when you want the end-of-phase story in plain English.",
-        "Use the linked summary and verification artifacts when you want the full underlying record.",
+        "Generated from canonical SUMMARY and VERIFICATION artifacts under `GPD/phases/`.",
         "",
         "## Phase Index",
         "",
@@ -517,18 +514,11 @@ def sync_phase_checkpoints(cwd: Path) -> SyncPhaseCheckpointsResult:
             if _write_if_changed(checkpoint_path, content):
                 updated_files.append(checkpoint_path.relative_to(cwd).as_posix())
 
-    expected_checkpoint_paths = {
-        layout.phase_checkpoint_file(phase_dir.name).resolve()
-        for phase_dir, _docs in grouped
-    }
+    expected_checkpoint_paths = {layout.phase_checkpoint_file(phase_dir.name).resolve() for phase_dir, _docs in grouped}
     expected_checkpoint_paths.update(preserved_checkpoint_paths)
     if layout.phase_checkpoints_dir.is_dir():
         for existing in sorted(
-            [
-                path
-                for path in layout.phase_checkpoints_dir.glob("*.md")
-                if not path.name.startswith("._")
-            ]
+            [path for path in layout.phase_checkpoints_dir.glob("*.md") if not path.name.startswith("._")]
         ):
             if existing.resolve() in expected_checkpoint_paths:
                 continue

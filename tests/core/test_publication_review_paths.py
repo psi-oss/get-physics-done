@@ -38,3 +38,36 @@ def test_manuscript_matches_review_artifact_path_accepts_relative_and_normalized
 
 def test_normalize_review_path_label_trims_and_normalizes_separators() -> None:
     assert normalize_review_path_label("  .\\paper\\subdir\\..\\main.tex  ") == "paper/main.tex"
+
+
+def test_publication_core_modules_delegate_review_roots_to_layout_helpers() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    checked_paths = (
+        repo_root / "src" / "gpd" / "core" / "publication_rounds.py",
+        repo_root / "src" / "gpd" / "core" / "publication_runtime.py",
+        repo_root / "src" / "gpd" / "core" / "proof_review.py",
+    )
+    forbidden_snippets = (
+        'layout.gpd / "review"',
+        "layout.gpd / 'review'",
+        'publication_root / "review"',
+        "publication_root / 'review'",
+    )
+    offenders: list[str] = []
+    for path in checked_paths:
+        source = path.read_text(encoding="utf-8")
+        offenders.extend(
+            f"{path.relative_to(repo_root).as_posix()}: {snippet}"
+            for snippet in forbidden_snippets
+            if snippet in source
+        )
+
+    assert offenders == []
+
+
+def test_proof_review_managed_publication_lane_uses_layout_manuscript_constant() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    source = (repo_root / "src" / "gpd" / "core" / "proof_review.py").read_text(encoding="utf-8")
+
+    assert 'relative.parts[3] == "manuscript"' not in source
+    assert "PUBLICATION_MANUSCRIPT_DIR_NAME" in source

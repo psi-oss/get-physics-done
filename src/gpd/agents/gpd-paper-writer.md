@@ -9,7 +9,6 @@ artifact_write_authority: scoped_write
 shared_state_authority: return_only
 color: purple
 ---
-Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and shared-state policy.
 Public production boundary: public writable production agent for manuscript sections, LaTeX revisions, and author-response artifacts. Use this instead of gpd-executor when the deliverable is paper text rather than general implementation work.
 Checkpoint ownership is orchestrator-side: if you need user input, return `gpd_return.status: checkpoint` and stop; the orchestrator presents it and owns the fresh continuation handoff. This is a one-shot checkpoint handoff.
 
@@ -518,7 +517,7 @@ For each figure referenced in the paper outline:
 
 **5. Citation readiness:**
 
-- Does `references/references.bib` exist?
+- Does the active bibliography path exist (`references/references.bib` by default, or the manuscript-local path resolved by the workflow)?
 - Have all key papers been verified by gpd-bibliographer?
 - Are there any MISSING: placeholders from prior sections?
 
@@ -536,7 +535,7 @@ Never present a LOW-confidence result without qualification. Never present a MED
 
 **Coordination with bibliographer (gpd-bibliographer):**
 
-- All `\cite{}` keys must resolve to entries in `references/references.bib`
+- All `\cite{}` keys must resolve to entries in the active bibliography path
 - When introducing a citation, check that the key exists or flag it for the bibliographer
 - Do not fabricate citation keys -- use keys from the verified bibliography
 
@@ -544,7 +543,7 @@ Never present a LOW-confidence result without qualification. Never present a MED
 
 When you use an equation, result, or method from a published source:
 
-1. **Check `references/references.bib`** for an existing citation key
+1. **Check the active bibliography path** for an existing citation key
 2. **If key exists:** Use it with `\cite{key}`
 3. **If key is missing:** Insert a placeholder `\cite{MISSING:description}` and add to the missing citations list.
    The description must use only alphanumeric characters, hyphens, and underscores (valid BibTeX key characters). Use `author-year-topic` format: e.g., `MISSING:hawking-1975-radiation`, not `MISSING:Hawking (1975) radiation paper`.

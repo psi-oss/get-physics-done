@@ -35,6 +35,14 @@ def test_execute_phase_command_stays_thin_and_only_eagerly_loads_the_workflow() 
 def test_execute_phase_workflow_refreshes_stage_context_in_order() -> None:
     workflow_text = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
 
+    assert 'PHASE_ARG=""' in workflow_text
+    assert "EXECUTE_FLAGS=()" in workflow_text
+    assert "GAPS_ONLY=false" in workflow_text
+    assert '[ "$flag" = "--gaps-only" ] && GAPS_ONLY=true' in workflow_text
+    assert '*) [ -z "$PHASE_ARG" ] && PHASE_ARG="$token" ;;' in workflow_text
+    assert workflow_text.index("<step name=\"normalize_arguments\"") < workflow_text.index(
+        "BOOTSTRAP_INIT=$(load_execute_phase_stage phase_bootstrap)"
+    )
     assert "BOOTSTRAP_INIT=$(load_execute_phase_stage phase_bootstrap)" in workflow_text
     assert "WAVE_PLANNING_INIT=$(load_execute_phase_stage wave_planning)" in workflow_text
     assert "PRE_EXECUTION_INIT=$(load_execute_phase_stage pre_execution_specialists)" in workflow_text
@@ -49,6 +57,13 @@ def test_execute_phase_workflow_refreshes_stage_context_in_order() -> None:
         "WAVE_DISPATCH_INIT=$(load_execute_phase_stage wave_dispatch)"
     )
     assert 'gpd --raw init execute-phase "${PHASE_ARG}" --include state,config' not in workflow_text
+    assert 'gpd --raw init execute-phase "${PHASE_ARG}" --stage "${stage_name}" 2>/dev/null' not in workflow_text
+    assert 'echo "stderr: $(cat "$init_stderr")"' in workflow_text
+    assert "`gap_closure`" in next(
+        line for line in workflow_text.splitlines() if line.startswith("Parse JSON for: `phase`, `plans[]`")
+    )
+    assert "If `$GAPS_ONLY` is true, also skip non-gap_closure plans." in workflow_text
+    assert "**After gap closure execution completes (`$GAPS_ONLY` is true):**" in workflow_text
     assert "execute-plan.md owns plan-local execution semantics" in workflow_text
     assert "# task(subagent_type=\"gpd-notation-coordinator\"" not in workflow_text
     assert "# task(subagent_type=\"gpd-experiment-designer\"" not in workflow_text
@@ -60,5 +75,5 @@ def test_execute_phase_single_sources_runtime_delegation_boilerplate() -> None:
     assert workflow_text.count("@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md") == 1
     assert "Canonical runtime delegation convention for every `task()` block in this workflow:" in workflow_text
     assert "Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism." not in workflow_text
-    assert "owns empty-model omission, file-producing `readonly=false`, artifact-gated completion" in workflow_text
+    assert "owns runtime-neutral task construction and handoff gates" in workflow_text
     assert workflow_text.count("Apply the canonical runtime delegation convention above.") == 6

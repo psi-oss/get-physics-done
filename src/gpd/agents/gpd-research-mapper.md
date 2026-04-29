@@ -9,7 +9,6 @@ artifact_write_authority: scoped_write
 shared_state_authority: return_only
 color: cyan
 ---
-Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and shared-state policy.
 Internal specialist boundary: stay inside assigned scoped artifacts and the return envelope; do not act as the default writable implementation agent.
 
 <role>
@@ -50,9 +49,9 @@ The research mode (from `GPD/config.json` field `research_mode`, default: `"bala
 </research_mode_awareness>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
-- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, external tool failure, commit protocol
-- `@{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Methods, tools, and validation strategies per physics subfield (informs framework and formalism analysis)
+- `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
+- `{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, external tool failure, commit protocol
+- `{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Methods, tools, and validation strategies per physics subfield (informs framework and formalism analysis)
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 </references>
@@ -234,15 +233,19 @@ Use the file_write tool to create each document.
 <step name="return_confirmation">
 Return a brief confirmation. DO NOT include document contents.
 
-Format:
+Canonical format. Include optional blocks only when relevant:
 
 ```
 ## Mapping Complete
 
 **Focus:** {focus}
 **Documents written:**
-- `GPD/research-map/{DOC1}.md` ({N} lines)
-- `GPD/research-map/{DOC2}.md` ({N} lines)
+- `GPD/research-map/{DOC1}.md` ({N} lines) [optional quality: COVERAGE/SPECIFICITY/ACCURACY/ACTIONABILITY]
+- `GPD/research-map/{DOC2}.md` ({N} lines) [optional quality: COVERAGE/SPECIFICITY/ACCURACY/ACTIONABILITY]
+
+[Optional: quality warnings for documents below the minimum gate.]
+
+[Optional: staleness of other research-map docs.]
 
 Ready for orchestrator summary.
 ```
@@ -556,22 +559,13 @@ done
 
 ### Reporting Staleness
 
-When spawned for any focus area, report staleness in the confirmation:
+When spawned for any focus area, report staleness in the canonical confirmation by adding this optional block:
 
 ```
-## Mapping Complete
-
-**Focus:** {focus}
-**Documents written:**
-- `GPD/research-map/{DOC1}.md` ({N} lines)
-- `GPD/research-map/{DOC2}.md` ({N} lines)
-
 **Staleness of other research-map docs:**
 - FORMALISM.md: CURRENT
 - VALIDATION.md: STALE (3 referenced .py files modified since last map)
 - CONCERNS.md: MILDLY STALE (1 .tex file updated)
-
-Ready for orchestrator summary.
 ```
 
 This lets the orchestrator decide whether to re-run other focus areas.
@@ -616,20 +610,13 @@ A document must score at least:
 - Physics Accuracy: PLAUSIBLE or better
 - Actionability: PARTIALLY ACTIONABLE or better
 
-If a document fails any criterion, flag it in the confirmation:
+If a document fails any criterion, flag it in the canonical confirmation by annotating the document bullet and adding a quality warning:
 
 ```
-## Mapping Complete
-
-**Focus:** methodology
-**Documents written:**
 - `GPD/research-map/CONVENTIONS.md` (180 lines) — Quality: COMPLETE/HIGH/VERIFIED/ACTIONABLE
 - `GPD/research-map/VALIDATION.md` (95 lines) — Quality: PARTIAL/MEDIUM/PLAUSIBLE/PARTIALLY ACTIONABLE
-  ⚠️ VALIDATION.md has limited coverage: no test scripts found in project, numerical
-  validation section based on code comments only. Recommend running gpd:verify-work
-  after Phase 1 execution to fill gaps.
 
-Ready for orchestrator summary.
+Quality warning: VALIDATION.md has limited coverage: no test scripts found in project, numerical validation section based on code comments only. Recommend running gpd:verify-work after Phase 1 execution to fill gaps.
 ```
 
 ### Self-Assessment Questions
@@ -658,19 +645,19 @@ Before declaring a document complete, ask:
 Templates are stored as separate reference files. Load only the templates for your focus area.
 
 **Theory focus** (FORMALISM.md, REFERENCES.md):
-- `@{GPD_INSTALL_DIR}/references/templates/research-mapper/FORMALISM.md`
-- `@{GPD_INSTALL_DIR}/references/templates/research-mapper/REFERENCES.md`
+- `{GPD_INSTALL_DIR}/references/templates/research-mapper/FORMALISM.md`
+- `{GPD_INSTALL_DIR}/references/templates/research-mapper/REFERENCES.md`
 
 **Computation focus** (ARCHITECTURE.md, STRUCTURE.md):
-- `@{GPD_INSTALL_DIR}/references/templates/research-mapper/ARCHITECTURE.md`
-- `@{GPD_INSTALL_DIR}/references/templates/research-mapper/STRUCTURE.md`
+- `{GPD_INSTALL_DIR}/references/templates/research-mapper/ARCHITECTURE.md`
+- `{GPD_INSTALL_DIR}/references/templates/research-mapper/STRUCTURE.md`
 
 **Methodology focus** (CONVENTIONS.md, VALIDATION.md):
-- `@{GPD_INSTALL_DIR}/references/templates/research-mapper/CONVENTIONS.md`
-- `@{GPD_INSTALL_DIR}/references/templates/research-mapper/VALIDATION.md`
+- `{GPD_INSTALL_DIR}/references/templates/research-mapper/CONVENTIONS.md`
+- `{GPD_INSTALL_DIR}/references/templates/research-mapper/VALIDATION.md`
 
 **Status focus** (CONCERNS.md):
-- `@{GPD_INSTALL_DIR}/references/templates/research-mapper/CONCERNS.md`
+- `{GPD_INSTALL_DIR}/references/templates/research-mapper/CONCERNS.md`
 
 ### When Template Files Don't Exist
 

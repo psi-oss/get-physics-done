@@ -7,7 +7,7 @@ template_version: 1
 Template for `GPD/phases/01-benchmark/{phase}-VERIFICATION.md` -- persistent research verification session tracking.
 
 A conversational walkthrough of research results, checking derivation logic, physical intuition, edge cases, and overall soundness.
-Use `@{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract. This template only adds the researcher-session body scaffold (`Current Check`, conversational logs, and diagnosis flow), so its verification-side `suggested_contract_checks` entries are part of the same canonical schema surface and must stay aligned with that shared schema instead of inventing a second checklist format.
+Use `{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract. Use `{GPD_INSTALL_DIR}/templates/contract-results-schema.md` for the canonical ledger field rules. This template only adds the researcher-session body scaffold (`Current Check`, conversational logs, and diagnosis flow), so its verification-side `suggested_contract_checks` entries are part of the same canonical schema surface and must stay aligned with that shared schema instead of inventing a second checklist format.
 Keep the contract-backed frontmatter explicit: `uncertainty_markers` stay non-empty, theorem/proof claims remain `partial` or `blocked` until the proof audit is complete and every declared proof-specific acceptance test passes, and any active convention lock still requires a machine-readable `ASSERT_CONVENTION` comment after the YAML frontmatter.
 Non-canonical frontmatter aliases are forbidden in model-facing output; use only the canonical contract-ledger fields from `contract_results`.
 
@@ -137,16 +137,6 @@ comparison_reference_id: "reference-main"
 expected: |
   The derived benchmark should match the reference within 1%.
 # Use `comparison_kind: benchmark` for benchmark acceptance tests and `comparison_kind: cross_method` for cross-method acceptance tests.
-suggested_contract_checks:
-  # If you cannot bind the gap to a known contract target yet, omit both
-  # `suggested_subject_kind` and `suggested_subject_id` instead of leaving one blank.
-  - check: "missing decisive check"
-    reason: "The decisive benchmark comparison still needs an explicit contract target."
-    suggested_subject_kind: acceptance_test
-    suggested_subject_id: "acceptance-test-main"
-    evidence_path: "GPD/phases/01-benchmark/benchmark-comparison.csv"
-  # Add a reference-backed decisive gap here whenever a benchmark reference or
-  # a reference with required_actions including `compare` is still incomplete.
 awaiting: researcher response
 
 ## Checks
@@ -160,14 +150,6 @@ reference_ids: ["reference-main"]
 comparison_kind: benchmark
 comparison_reference_id: "reference-main"
 expected: "The benchmark comparison should land within the 1% tolerance."
-suggested_contract_checks:
-  # If you cannot bind the gap to a known contract target yet, omit both
-  # `suggested_subject_kind` and `suggested_subject_id` instead of leaving one blank.
-  - check: "missing decisive check"
-    reason: "The decisive benchmark comparison still needs an explicit contract target."
-    suggested_subject_kind: acceptance_test
-    suggested_subject_id: "acceptance-test-main"
-    evidence_path: "GPD/phases/01-benchmark/benchmark-comparison.csv"
 result: "pending"
 
 ### 2. Benchmark Pass
@@ -222,16 +204,6 @@ Allowed `verdict` values: `pass|tension|fail|inconclusive`.
 
 Only `subject_role: decisive` closes a required decisive comparison; the other roles are informative context only.
 
-## Suggested Contract Checks
-
-<!-- APPEND if the verifier finds missing decisive checks that should be added to the contract -->
-
-- check: "Add decisive normalization benchmark comparison"
-  reason: "The phase conclusion depends on an explicit benchmark acceptance test that is not yet named in the contract."
-  suggested_subject_kind: acceptance_test
-  suggested_subject_id: "acceptance-test-main"
-  evidence_path: "GPD/phases/01-benchmark/benchmark-comparison.csv"
-
 ## Gaps
 
 <!-- YAML format for plan-phase --gaps consumption. Keep this export surface schema-tight. -->
@@ -250,7 +222,6 @@ and `forbidden_proxy_id` fields instead of leaving blanks. -->
   comparison_reference_id: "reference-main"
   status: failed
   reason: "Researcher reported: the benchmark comparison still needs one more reference point."
-  suggested_contract_checks: []
   severity: major
   check: 1
 ```
@@ -265,7 +236,7 @@ and `forbidden_proxy_id` fields instead of leaving blanks. -->
 - `phase`: IMMUTABLE - set on creation
 - `verified`: OVERWRITE - latest verification timestamp
 - `score`: OVERWRITE - contract-backed verification progress summary
-- `plan_contract_ref`, `contract_results`, `comparison_verdicts`, `suggested_contract_checks`: must follow `verification-report.md` / `contract-results-schema.md`
+- `plan_contract_ref`, `contract_results`, `comparison_verdicts`, `suggested_contract_checks`: must follow `verification-report.md` / `contract-results-schema.md`; do not restate their closed schema here
 - `source`: IMMUTABLE - SUMMARY files being validated; keep this as a YAML list even when only one SUMMARY path is present
 - `started`: IMMUTABLE - set on creation
 - `updated`: OVERWRITE - update on every change
@@ -289,7 +260,7 @@ and `forbidden_proxy_id` fields instead of leaving blanks. -->
 - Use `forbidden_proxy_id` for explicit proxy-rejection checks
 - Use `comparison_kind` / `comparison_reference_id` when the check should later emit a comparison verdict
 - Use `suggested_contract_checks` only when the verifier believes the contract omitted a decisive check, or when a decisive benchmark / cross-method check remains partial, not attempted, or still lacks a decisive verdict
-- Keep `suggested_contract_checks` schema-tight: only `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path` are valid keys, and when the entry comes from `suggest_contract_checks(contract)` the `check` value must copy the returned `check_key`
+- Keep `suggested_contract_checks` schema-tight by following `contract-results-schema.md`; when the entry comes from `suggest_contract_checks(contract)`, the frontmatter `check` value must copy the returned `check_key`
 - `suggested_subject_kind` and `suggested_subject_id` travel together; if the missing check is not bound to a known contract target yet, omit both keys instead of leaving one blank
 
 **Summary:**
@@ -388,27 +359,7 @@ Probe how sensitive results are to assumptions and approximations.
 5. `session_status` -> "diagnosed" while final `status` stays in verification-report vocabulary (typically `gaps_found` until every gap is explicitly closed)
 6. Ready for gpd:plan-phase --gaps without schema drift
 
-**If you also keep a richer local diagnosis note, keep it explicitly separate from the `gpd:plan-phase --gaps` export:**
-
-```yaml
-## Gaps
-
-- gap_subject_kind: "claim"
-  subject_id: "claim-critical-decay"
-  expectation: "Correlation function decays as power law at criticality"
-  expected_check: "Correlation function decays as power law at criticality"
-  status: failed
-  reason: "Researcher reported: decay looks exponential, not power-law - probably not at the critical point"
-  severity: major
-  check: 4
-  root_cause: "Critical temperature T_c computed with wrong normalization of coupling constant"
-  artifacts:
-    - path: "src/critical_point.py"
-      issue: "J_eff = J / sqrt(N) but should be J / sqrt(N-1) for this convention"
-  missing:
-    - "Correct T_c calculation with proper coupling normalization"
-  debug_session: "GPD/debug/wrong-critical-temp.md"
-```
+If you also keep richer local diagnosis notes, keep them explicitly separate from the `gpd:plan-phase --gaps` export.
 
 </diagnosis_lifecycle>
 
@@ -466,117 +417,11 @@ Default: **major** (safe default, researcher can clarify if wrong)
 
 </severity_guide>
 
-<good_example>
-
-```markdown
----
-status: gaps_found
-verified: 2026-03-15T14:45:00Z
-score: 3/4 contract targets verified
-phase: 03-phase-diagram
+Multi-source `source` frontmatter stays a YAML list:
 source:
   - "03-01-SUMMARY.md"
   - "03-02-SUMMARY.md"
   - "03-03-SUMMARY.md"
-started: 2026-03-15T14:00:00Z
-updated: 2026-03-15T14:45:00Z
-session_status: diagnosed
----
-
-## Current Check
-
-[verification complete]
-
-## Checks
-
-### 1. Derivation: Effective action saddle-point validity
-
-expected: The saddle-point approximation for the partition function requires large N. For our N=32, the correction should be O(1/N) ~ 3%. Is the 5% discrepancy with exact diag consistent with this?
-result: pass
-note: "Researcher confirmed: 5% is within expected 1/N corrections plus statistical error from disorder averaging"
-
-### 2. Intuition: Order parameter behavior near T_c
-
-expected: The order parameter should vanish continuously at T_c (second-order transition) with mean-field exponent beta=1/2 or appropriate universality class exponent
-result: pass
-
-### 3. Limiting case: High-temperature limit of susceptibility
-
-expected: chi(T) ~ 1/T (Curie law) for T >> T_c
-result: pass
-
-### 4. Limiting case: Zero-temperature order parameter
-
-expected: Order parameter should saturate to maximum value at T=0
-result: issue
-reported: "Order parameter at T=0 is 0.87, but for this model the exact ground state has order parameter 1.0. Something is off - maybe not enough cooling in the Monte Carlo?"
-severity: major
-
-### 5. Edge case: Behavior at phase boundary for large system
-
-expected: Finite-size scaling collapse should work with known critical exponents
-result: pass
-
-### 6. Consistency: Specific heat from energy vs from partition function
-
-expected: C_v computed as dE/dT should match C_v = -T d^2F/dT^2
-result: pass
-
-### 7. Robustness: Sensitivity to Monte Carlo equilibration
-
-expected: Results should be insensitive to doubling the equilibration time
-result: issue
-reported: "When I doubled equilibration from 10^4 to 2x10^4 sweeps, the order parameter at T=0 changed from 0.87 to 0.94. Not equilibrated."
-severity: blocker
-
-## Summary
-
-total: 7
-passed: 5
-issues: 2
-pending: 0
-skipped: 0
-comparison_verdicts_recorded: 0
-forbidden_proxies_rejected: 0
-
-## Gaps
-
-- gap_subject_kind: "claim"
-  subject_id: "claim-order-parameter-zero-T"
-  expectation: "Order parameter reaches saturation value 1.0 at T=0"
-  expected_check: "Order parameter reaches saturation value 1.0 at T=0"
-  status: failed
-  reason: "Researcher reported: Order parameter at T=0 is 0.87 but exact is 1.0. Not fully equilibrated."
-  severity: major
-  check: 4
-  root_cause: "Monte Carlo equilibration too short - 10^4 sweeps insufficient for low-T phase"
-  artifacts:
-
-  - path: "src/monte_carlo.py"
-    issue: "N_equil = 10000 is too few sweeps at low temperature"
-    missing:
-  - "Increase equilibration to 10^5 sweeps minimum, add autocorrelation analysis"
-    debug_session: "GPD/debug/mc-equilibration.md"
-
-- gap_subject_kind: "acceptance_test"
-  subject_id: "test-equilibration-convergence"
-  expectation: "Results are insensitive to doubling the equilibration time"
-  expected_check: "Results are insensitive to doubling the equilibration time"
-  status: failed
-  reason: "Researcher reported: doubling equilibration changed order parameter from 0.87 to 0.94"
-  severity: blocker
-  check: 7
-  root_cause: "Same root cause as check 4 - insufficient equilibration at low T"
-  artifacts:
-  - path: "src/monte_carlo.py"
-    issue: "Fixed equilibration length doesn't adapt to critical slowing down near T_c"
-    missing:
-  - "Implement adaptive equilibration with autocorrelation time measurement"
-  - "Add convergence diagnostic: run until autocorrelation time is measured and N_equil > 20 \* tau_auto"
-    debug_session: "GPD/debug/mc-equilibration.md"
-```
-
-</good_example>
 
 <guidelines>
 

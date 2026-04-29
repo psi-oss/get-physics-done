@@ -105,7 +105,9 @@ def test_peer_review_detailed_help_uses_command_policy_instead_of_suffix_invento
 def test_help_workflow_paper_toolchain_doctor_row_is_single_sourced() -> None:
     help_workflow = _read("src/gpd/specs/workflows/help.md")
 
-    assert help_workflow.count("`gpd doctor --runtime <runtime> --local` / `gpd doctor --runtime <runtime> --global`") == 1
+    assert (
+        help_workflow.count("`gpd doctor --runtime <runtime> --local` / `gpd doctor --runtime <runtime> --global`") == 1
+    )
     assert len(re.findall(r"(?m)^\s*gpd doctor --runtime <runtime> --local\|--global\b.*$", help_workflow)) == 0
 
 
@@ -129,27 +131,26 @@ def test_public_docs_explain_publication_lane_boundary_and_follow_on_command_arg
     assert_publication_lane_boundary_contract(help_workflow)
     assert "bounded external-authoring lane driven by an explicit intake manifest only" in readme
     assert "bounded external-authoring lane driven by an explicit intake manifest only" in help_workflow
-    assert (
-        "subject-owned publication root at `GPD/publication/{subject_slug}`" in readme
-        or "subject-owned publication root at `GPD/publication/{subject_slug}/...`" in readme
-    )
-    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in help_workflow
-    assert (
-        "`GPD/publication/{subject_slug}/intake/` for intake and provenance state only" in readme
-        or "`GPD/publication/{subject_slug}/intake/` keeps intake/provenance state only" in readme
-    )
-    assert "`GPD/publication/{subject_slug}/intake/` for intake and provenance state only" in help_workflow
+    assert "GPD/publication/{subject_slug}" in readme
+    assert "GPD-authored outputs live under `GPD/publication/{subject_slug}/...`" in help_workflow
+    assert "`GPD/publication/{subject_slug}/intake/` keeps intake/provenance state only" in help_workflow
     assert "Project-backed review/response/package outputs stay on the `GPD/` and `GPD/review/` paths" in readme
-    assert "Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths." in help_workflow
-    assert "The later publication commands stay stricter:" in readme
+    assert (
+        "Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths"
+        in help_workflow
+    )
+    assert "`respond-to-referees` stays tied to the resolved manuscript root" in readme
     assert "**`gpd:respond-to-referees [--manuscript PATH --report PATH | report path | paste]`**" in help_workflow
     assert "**`gpd:arxiv-submission [manuscript root or .tex entrypoint]`**" in help_workflow
-    assert "Usage: `gpd:respond-to-referees --manuscript paper/main.tex --report reports/referee-report.md`" in help_workflow
+    assert (
+        "Usage: `gpd:respond-to-referees --manuscript paper/main.tex --report reports/referee-report.md`"
+        in help_workflow
+    )
     assert "Usage: `gpd:respond-to-referees reports/referee-report.md`" in help_workflow
     assert "Usage: `gpd:respond-to-referees paste`" in help_workflow
     assert "Usage: `gpd:arxiv-submission paper/`" in help_workflow
     assert "Usage: `gpd:write-paper --intake intake/write-paper-authoring-input.json`" in help_workflow
-    assert "`gpd:arxiv-submission` only packages a GPD-owned manuscript root or `.tex` entrypoint" in readme
+    assert "`arxiv-submission` only packages a GPD-owned manuscript root or `.tex` entrypoint" in readme
     assert "`gpd:arxiv-submission` packages only a GPD-owned manuscript root or `.tex` entrypoint" in help_workflow
 
 
@@ -163,7 +164,8 @@ def test_public_write_paper_help_surfaces_match_supported_command_metadata() -> 
         assert "gpd:write-paper [title or topic]" not in content
         assert "--from-phases" not in content
         assert 'gpd:write-paper "' not in content
-        assert "gpd:write-paper --intake intake/write-paper-authoring-input.json" in content
+    assert "write-paper --intake intake/write-paper-authoring-input.json" in readme
+    assert "gpd:write-paper --intake intake/write-paper-authoring-input.json" in help_workflow
 
     assert "Usage: `gpd:write-paper`" in help_workflow
     assert "--from-phases" not in write_paper_workflow
@@ -179,7 +181,7 @@ def test_help_workflow_export_logs_surfaces_passthrough_filters() -> None:
     for flag in ("--command <label>", "--phase <phase>", "--category <name>"):
         assert flag in help_workflow
     assert "Supports passthrough filters" in help_workflow
-    assert "Usage: `gpd:export-logs --command gpd:execute-phase --phase 3 --category workflow`" in help_workflow
+    assert "Usage: `gpd:export-logs --command execute-phase --phase 3 --category workflow`" in help_workflow
 
 
 def test_help_workflow_error_patterns_uses_pattern_library_categories() -> None:
@@ -211,7 +213,12 @@ def test_help_command_uses_one_shared_extract_warning() -> None:
     help_command = _read("src/gpd/commands/help.md")
 
     assert help_command.count("Shared wrapper rule for every extract below") == 1
-    assert help_command.count("Return the requested section without rewriting, summarizing, or inventing alternate wording") == 1
+    assert (
+        help_command.count(
+            "Return the requested section without rewriting, summarizing, or inventing alternate wording"
+        )
+        == 1
+    )
 
 
 def test_help_command_keeps_one_shared_workflow_authority_note() -> None:
@@ -224,7 +231,10 @@ def test_help_command_keeps_one_shared_workflow_authority_note() -> None:
 def test_help_workflow_keeps_concise_local_cli_surface_note() -> None:
     help_workflow = _read("src/gpd/specs/workflows/help.md")
 
-    assert "Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly." in help_workflow
+    assert (
+        "Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly."
+        in help_workflow
+    )
     assert "The bootstrap installer owns Node.js / Python / `venv` prerequisites; use `gpd --help`" not in help_workflow
 
 
@@ -237,10 +247,19 @@ def test_help_workflow_files_and_structure_and_knowledge_lifecycle_coverages() -
     assert "reviews/" in files_section
     assert "research/" not in files_section
 
-    assert "The literature survey lives under `GPD/literature/`, and reviewed knowledge docs live under `GPD/knowledge/` with review artifacts in `GPD/knowledge/reviews/`." in help_workflow
-    assert "Drafts stay `draft` until reviewed, and they move into `in_review` while a review round is open" in help_workflow
+    assert (
+        "The literature survey lives under `GPD/literature/`, and reviewed knowledge docs live under `GPD/knowledge/` with review artifacts in `GPD/knowledge/reviews/`."
+        in help_workflow
+    )
+    assert (
+        "Drafts stay `draft` until reviewed, and they move into `in_review` while a review round is open"
+        in help_workflow
+    )
     assert "If the target is `stable` or `superseded`, route the user to `gpd:review-knowledge`" in help_workflow
-    assert "Stable knowledge is already visible through the shared runtime reference surfaces, but it remains reviewed background synthesis rather than a separate authority tier" in help_workflow
+    assert (
+        "Stable knowledge is already visible through the shared runtime reference surfaces, but it remains reviewed background synthesis rather than a separate authority tier"
+        in help_workflow
+    )
     assert (
         "Use canonical `GPD/knowledge/{knowledge_id}.md` targets for existing knowledge docs; "
         "new draft targets are created under the current workspace `GPD/knowledge/` tree."
@@ -251,12 +270,25 @@ def test_help_workflow_files_and_structure_and_knowledge_lifecycle_coverages() -
         )
         == 1
     )
-    assert "stable` docs can later become `superseded`; superseded docs remain addressable and traceable rather than disappearing" in help_workflow
-    assert "Example topic: `gpd:digest-knowledge \"renormalization group fixed points\"`" in help_workflow
-    assert "Example modern arXiv: `gpd:digest-knowledge 2401.12345v2`" in help_workflow
-    assert "Example legacy arXiv: `gpd:digest-knowledge hep-th/9901001`" in help_workflow
-    assert "Example source file: `gpd:digest-knowledge ./notes/rg-notes.md`" in help_workflow
-    assert "Example explicit knowledge path: `gpd:digest-knowledge GPD/knowledge/K-renormalization-group-fixed-points.md`" in help_workflow
+    assert (
+        "stable` docs can later become `superseded`; superseded docs remain addressable and traceable rather than disappearing"
+        in help_workflow
+    )
+    digest_detail = _section(
+        help_workflow,
+        "**`gpd:digest-knowledge [topic|arXiv id|source file|knowledge path]`**",
+        "**`gpd:review-knowledge",
+    )
+    for sample in (
+        '`gpd:digest-knowledge "renormalization group fixed points"`',
+        "`gpd:digest-knowledge 2401.12345v2`",
+        "`gpd:digest-knowledge hep-th/9901001`",
+        "`gpd:digest-knowledge ./notes/rg-notes.md`",
+        "`gpd:digest-knowledge GPD/knowledge/K-renormalization-group-fixed-points.md`",
+    ):
+        assert sample in digest_detail
+    assert "arXiv identifier with accepted prefixes" in digest_detail
+    assert "legacy arxiv" not in digest_detail.lower()
     assert "Stable knowledge is already visible through the shared runtime reference surfaces" in help_workflow
     assert "Stable knowledge is available through the shared runtime reference surfaces" in help_workflow
 
@@ -264,17 +296,46 @@ def test_help_workflow_files_and_structure_and_knowledge_lifecycle_coverages() -
 def test_help_workflow_current_workspace_helpers_and_discover_quick_mode_wording() -> None:
     help_workflow = _read("src/gpd/specs/workflows/help.md")
 
-    assert "- `gpd:discover [phase or topic]` - Survey methods, literature, and tools before planning; `quick` is verification-only" in help_workflow
-    assert "- `quick` is verification-only and writes no file; `medium` and `deep` write discovery artifacts" in help_workflow
+    assert (
+        "- `gpd:discover [phase or topic]` - Survey methods, literature, and tools before planning; `quick` is verification-only"
+        in help_workflow
+    )
+    assert (
+        "- `quick` is verification-only and writes no file; `medium` and `deep` write discovery artifacts"
+        in help_workflow
+    )
     assert "- Written discovery artifacts feed planning or standalone analysis" in help_workflow
-    assert "- Writes the decisive comparison artifact under `GPD/comparisons/` in the current workspace" in help_workflow
-    assert "Create or update a current-workspace knowledge document draft from a topic, paper, source file, or explicit knowledge path." in help_workflow
-    assert "- Resolves one canonical `GPD/knowledge/{knowledge_id}.md` target in the current workspace or stops on ambiguity" in help_workflow
-    assert "Review one canonical current-workspace knowledge document, record typed approval evidence, and promote a fresh approved draft to stable." in help_workflow
-    assert "- Resolves an exact existing current-workspace knowledge target by canonical path or knowledge id" in help_workflow
-    assert "- Writes a deterministic review artifact under `GPD/knowledge/reviews/` in the current workspace" in help_workflow
-    assert "Structured literature review for a physics research topic from the current project or one explicit topic or research question." in help_workflow
-    assert "- Writes the review and citation-source sidecar under `GPD/literature/` in the current workspace" in help_workflow
+    assert (
+        "- Writes the decisive comparison artifact under `GPD/comparisons/` in the current workspace" in help_workflow
+    )
+    assert (
+        "Create or update a current-workspace knowledge document draft from a topic, paper, source file, or explicit knowledge path."
+        in help_workflow
+    )
+    assert (
+        "- Resolves one canonical `GPD/knowledge/{knowledge_id}.md` target in the current workspace or stops on ambiguity"
+        in help_workflow
+    )
+    assert (
+        "Review one canonical current-workspace knowledge document, record typed approval evidence, and promote a fresh approved draft to stable."
+        in help_workflow
+    )
+    assert (
+        "- Resolves an exact existing current-workspace knowledge target by canonical path or knowledge id"
+        in help_workflow
+    )
+    assert (
+        "- Writes a deterministic review artifact under `GPD/knowledge/reviews/` in the current workspace"
+        in help_workflow
+    )
+    assert (
+        "Structured literature review for a physics research topic from the current project or one explicit topic or research question."
+        in help_workflow
+    )
+    assert (
+        "- Writes the review and citation-source sidecar under `GPD/literature/` in the current workspace"
+        in help_workflow
+    )
 
 
 def test_help_workflow_relaxed_technical_analysis_lane_stays_honest() -> None:
@@ -286,4 +347,7 @@ def test_help_workflow_relaxed_technical_analysis_lane_stays_honest() -> None:
         "`gpd:numerical-convergence`, and `gpd:sensitivity-analysis`"
     ) in help_workflow
     assert "durable outputs under the invoking workspace's `GPD/analysis/` tree" in help_workflow
-    assert "`gpd:graph` and `gpd:error-propagation` are separate commands and are not part of this relaxed current-workspace lane." in help_workflow
+    assert (
+        "`gpd:graph` and `gpd:error-propagation` are separate commands and are not part of this relaxed current-workspace lane."
+        in help_workflow
+    )

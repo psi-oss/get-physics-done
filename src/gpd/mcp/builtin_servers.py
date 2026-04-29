@@ -15,6 +15,8 @@ import subprocess
 import sys
 from copy import deepcopy
 
+from gpd.mcp.descriptor_text import SKILLS_SERVER_DESCRIPTION
+from gpd.mcp.servers.arxiv_bridge import ADVERTISED_TOOL_NAMES, DOWNLOAD_SOURCE_TOOL_NAME, UPSTREAM_CORE_TOOL_NAMES
 from gpd.mcp.verification_contract_policy import verification_server_description
 
 logger = logging.getLogger(__name__)
@@ -24,6 +26,7 @@ _PUBLIC_PYTHON_PLACEHOLDER = "${GPD_PYTHON}"
 _PYTHON_LAUNCH_NOTES = (
     f"Replace `{_PUBLIC_PYTHON_PLACEHOLDER}` with a Python >=3.11 interpreter that has GPD installed."
 )
+_OPTIONAL_MODULE_CHECK_TIMEOUT_SECONDS = 5
 
 # Canonical definition of all GPD built-in MCP servers.
 # Mirrors infra/*.json but lives inside the package so it ships with the wheel.
@@ -75,7 +78,13 @@ _BUILTIN_SERVERS: dict[str, _ServerDef] = {
 }
 
 _PUBLIC_BOOTSTRAP_PREREQUISITE = "Install GPD before enabling built-in MCP servers."
+_ARXIV_EXTRA_PREREQUISITE = (
+    "Install GPD with the `arxiv` Python extra in the same environment before enabling gpd-arxiv."
+)
 _ENTRY_POINT_NOTES = _PYTHON_LAUNCH_NOTES
+_ARXIV_UPSTREAM_CAPABILITIES = list(UPSTREAM_CORE_TOOL_NAMES)
+_ARXIV_LOCAL_CAPABILITIES = [DOWNLOAD_SOURCE_TOOL_NAME]
+_ARXIV_CAPABILITIES = list(ADVERTISED_TOOL_NAMES)
 
 _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
     "gpd-conventions": {
@@ -95,6 +104,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         ],
         "registry_prefix": "gpd_conventions",
         "health_check": {
+            "probe_kind": "schema_valid",
             "tool": "subfield_defaults",
             "input": {"domain": "qft"},
             "expect": "contains metric_signature",
@@ -114,6 +124,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         ],
         "registry_prefix": "gpd_errors",
         "health_check": {
+            "probe_kind": "schema_valid",
             "tool": "list_error_classes",
             "input": {},
             "expect": "count >= 100 error classes loaded",
@@ -133,6 +144,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         ],
         "registry_prefix": "gpd_patterns",
         "health_check": {
+            "probe_kind": "schema_valid",
             "tool": "list_domains",
             "input": {},
             "expect": "contains qft",
@@ -152,17 +164,14 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         ],
         "registry_prefix": "gpd_protocols",
         "health_check": {
+            "probe_kind": "schema_valid",
             "tool": "list_protocols",
             "input": {},
             "expect": "count >= 40 protocols loaded",
         },
     },
     "gpd-skills": {
-        "description": (
-            "GPD skill discovery and routing. Tools for listing, retrieving, auto-routing, "
-            "and indexing GPD workflow skills for runtime context assembly. Treat missing evidence or artifacts as "
-            "missing, blocked, failed, or inconclusive; never fabricate fallback outputs."
-        ),
+        "description": SKILLS_SERVER_DESCRIPTION,
         "capabilities": [
             "list_skills",
             "get_skill",
@@ -171,6 +180,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         ],
         "registry_prefix": "gpd_skills",
         "health_check": {
+            "probe_kind": "schema_valid",
             "tool": "list_skills",
             "input": {},
             "expect": "contains gpd-execute-phase and gpd-research-phase",
@@ -190,8 +200,13 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
             "run_health_check",
             "get_config",
         ],
+        "mutating_capabilities": [
+            "advance_plan",
+            "run_health_check",
+        ],
         "registry_prefix": "gpd_state",
         "health_check": {
+            "probe_kind": "expected_error",
             "tool": "get_state",
             "input": {},
             "expect": "returns a stable validation error envelope for missing required project_dir",
@@ -212,6 +227,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         ],
         "registry_prefix": "gpd_verification",
         "health_check": {
+            "probe_kind": "schema_valid",
             "tool": "get_checklist",
             "input": {"domain": "qft"},
             "expect": "contains Ward identities",
@@ -219,19 +235,22 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
     },
     "gpd-arxiv": {
         "description": (
-            "Optional/conditional arXiv paper search, retrieval, and source-archive download via arxiv-mcp-server. "
-            "Available only when the optional arxiv-mcp-server dependency is installed; "
-            "search for physics papers, fetch abstracts, download full text, and download raw source archives."
+            "Optional arXiv bridge for arxiv-mcp-server. Advertises the baseline upstream tools "
+            f"{', '.join(_ARXIV_UPSTREAM_CAPABILITIES)}, forwards only tools exposed "
+            f"by the live upstream server, and adds GPD {DOWNLOAD_SOURCE_TOOL_NAME} for raw source archives."
         ),
-        "capabilities": [
-            "search_papers",
-            "download_paper",
-            "list_papers",
-            "read_paper",
-            "download_source",
-        ],
+        "capability_surface": "baseline_dynamic_upstream",
+        "dynamic_upstream_capabilities": True,
+        "baseline_upstream_capabilities": _ARXIV_UPSTREAM_CAPABILITIES,
+        "local_capabilities": _ARXIV_LOCAL_CAPABILITIES,
+        "capabilities": _ARXIV_CAPABILITIES,
         "registry_prefix": "gpd_arxiv",
+        "prerequisites": [
+            _PUBLIC_BOOTSTRAP_PREREQUISITE,
+            _ARXIV_EXTRA_PREREQUISITE,
+        ],
         "health_check": {
+            "probe_kind": "network_required",
             "tool": "search_papers",
             "input": {"query": "quantum field theory", "max_results": 1},
             "expect": "contains paper",
@@ -275,8 +294,9 @@ def _is_module_available(module_name: str, *, python_path: str | None = None) ->
             check=False,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            timeout=_OPTIONAL_MODULE_CHECK_TIMEOUT_SECONDS,
         ).returncode == 0
-    except (FileNotFoundError, ModuleNotFoundError, OSError, ValueError):
+    except (FileNotFoundError, ModuleNotFoundError, OSError, ValueError, subprocess.TimeoutExpired):
         return False
 
 
@@ -320,6 +340,15 @@ def build_public_descriptor(name: str) -> dict[str, object]:
         "prerequisites": list(metadata.get("prerequisites", [_PUBLIC_BOOTSTRAP_PREREQUISITE])),
         "health_check": dict(metadata["health_check"]) if isinstance(metadata["health_check"], dict) else {},
     }
+    for optional_key in (
+        "mutating_capabilities",
+        "capability_surface",
+        "dynamic_upstream_capabilities",
+        "baseline_upstream_capabilities",
+        "local_capabilities",
+    ):
+        if optional_key in metadata:
+            descriptor[optional_key] = deepcopy(metadata[optional_key])
     alternatives = _build_public_alternatives(name)
     if alternatives:
         descriptor["alternatives"] = alternatives

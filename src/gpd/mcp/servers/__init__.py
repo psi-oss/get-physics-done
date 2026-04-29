@@ -7,10 +7,12 @@ import copy
 import importlib
 import logging
 import os
+import re
 import sys
 from collections.abc import Mapping
 from pathlib import Path
 
+from mcp.types import ToolAnnotations
 from pydantic import ConfigDict, create_model
 from pydantic import ValidationError as PydanticValidationError
 
@@ -25,6 +27,50 @@ ABSOLUTE_PROJECT_DIR_SCHEMA = {
     "pattern": r"^(?:[A-Za-z]:[\\/](?:.*)?|\\\\[^\\/]+[\\/][^\\/]+(?:[\\/].*)?)" if os.name == "nt" else r"^/",
     "description": "Absolute filesystem path to the project root directory on the current host OS.",
 }
+
+
+def mcp_tool_annotations(
+    *,
+    read_only: bool,
+    destructive: bool,
+    idempotent: bool,
+    open_world: bool = False,
+) -> ToolAnnotations:
+    """Return MCP tool annotations with one shared naming convention."""
+
+    return ToolAnnotations(
+        readOnlyHint=read_only,
+        destructiveHint=destructive,
+        idempotentHint=idempotent,
+        openWorldHint=open_world,
+    )
+
+
+def read_only_tool_annotations(*, open_world: bool = False) -> ToolAnnotations:
+    """Return annotations for deterministic read-only built-in MCP tools."""
+
+    return mcp_tool_annotations(
+        read_only=True,
+        destructive=False,
+        idempotent=True,
+        open_world=open_world,
+    )
+
+
+def mutating_tool_annotations(
+    *,
+    destructive: bool,
+    idempotent: bool,
+    open_world: bool = False,
+) -> ToolAnnotations:
+    """Return annotations for MCP tools that may change local or external state."""
+
+    return mcp_tool_annotations(
+        read_only=False,
+        destructive=destructive,
+        idempotent=idempotent,
+        open_world=open_world,
+    )
 
 
 class StableMCPEnvelope(dict[str, object]):
@@ -49,6 +95,9 @@ def stable_mcp_response(
     response = StableMCPEnvelope()
     if payload is not None:
         response.update(payload)
+        payload_schema_version = payload.get("schema_version")
+        if payload_schema_version is not None and payload_schema_version != MCP_SCHEMA_VERSION:
+            response["payload_schema_version"] = payload_schema_version
     if error is not None:
         response["error"] = str(error)
     response["schema_version"] = MCP_SCHEMA_VERSION
@@ -97,6 +146,12 @@ def resolve_absolute_project_dir(project_dir: str) -> Path | None:
 
 def parse_frontmatter_with_error(text: str) -> tuple[dict[str, object], str, str | None]:
     """Split YAML frontmatter from markdown body and surface parse failures."""
+    candidate = re.sub(r"^(?:[ \t]*\r?\n)+(?=---[ \t]*\r?\n)", "", text.lstrip("\ufeff"), count=1)
+    if re.match(r"^---[ \t]*(?:\r?\n|$)", candidate) and not re.match(
+        r"^---[ \t]*\r?\n(?:[\s\S]*?\r?\n)?---[ \t]*(?:\r?\n|$)",
+        candidate,
+    ):
+        return {}, text, "Unclosed frontmatter block"
     try:
         meta, body = extract_frontmatter(text)
     except FrontmatterParseError as exc:
@@ -222,7 +277,9 @@ def tighten_registered_tool_contracts(mcp: object) -> None:
     strict_schemas_by_name: dict[str, dict[str, object]] = {}
 
     def _build_strict_call(original_call, allowed_keys):
-        async def _strict_call_fn_with_arg_validation(fn, fn_is_async, arguments_to_validate, arguments_to_pass_directly):
+        async def _strict_call_fn_with_arg_validation(
+            fn, fn_is_async, arguments_to_validate, arguments_to_pass_directly
+        ):
             unknown_keys = sorted(str(key) for key in arguments_to_validate if key not in allowed_keys)
             if unknown_keys:
                 return stable_mcp_error(f"Unsupported arguments: {', '.join(unknown_keys)}")
@@ -250,7 +307,9 @@ def tighten_registered_tool_contracts(mcp: object) -> None:
             if key is not None
         }
         original_call = tool.fn_metadata.call_fn_with_arg_validation
-        object.__setattr__(tool.fn_metadata, "call_fn_with_arg_validation", _build_strict_call(original_call, allowed_keys))
+        object.__setattr__(
+            tool.fn_metadata, "call_fn_with_arg_validation", _build_strict_call(original_call, allowed_keys)
+        )
 
     original_list_tools = mcp.list_tools
 

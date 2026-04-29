@@ -8,11 +8,10 @@ VERIFICATION_SERVER_DESCRIPTION_INTRO = (
     "symmetry verification, and coverage gap analysis."
 )
 VERIFICATION_CONTRACT_SURFACE_SUMMARY_TEXT = (
-    "Contract-aware request surfaces are closed and schema-driven. The full contract payload "
-    "rules live on the `contract` input schema. Proof-oriented checks still require an "
-    "authoritative contract payload. Missing grounding, evidence, or proof artifacts stay explicit "
-    "and must not be invented. Use `suggest_contract_checks(...)` to surface the exact per-check "
-    "request metadata before calling `run_contract_check(...)`."
+    "Contract-aware requests are closed and schema-driven; full rules live on the `contract` input schema. "
+    "Proof checks require authoritative contract payloads. Missing grounding, evidence, or proof artifacts "
+    "stay explicit. Use `suggest_contract_checks(...)` before `run_contract_check(...)`. "
+    "Only contract-payload enum case drift is recoverable; observed enums must match source evidence exactly."
 )
 
 VERIFICATION_BINDING_TARGETS = (
@@ -37,7 +36,7 @@ _VERIFICATION_CONTRACT_POLICY_CLAUSES = (
     "Nested object schemas are closed at every level: unknown top-level or nested keys, "
     "non-object sections, blank strings, and malformed members are hard errors; "
     "recoverable normalization is limited to singleton string/list drift and "
-    "closed-enum case drift.",
+    "contract-payload closed-enum case drift, while observed enum-like source values must match exactly.",
     "Plan-style contracts need non-empty `context_intake`, explicit non-empty "
     "`uncertainty_markers.weakest_anchors` and "
     "`uncertainty_markers.disconfirming_observations`, and project-scoping payloads "

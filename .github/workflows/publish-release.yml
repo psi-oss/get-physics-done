@@ -73,6 +73,8 @@ jobs:
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.12"
 
       - name: Install development dependencies
         run: |
@@ -123,13 +125,17 @@ jobs:
 
       - name: Run release validation suite
         run: |
-          uv run pytest tests/test_release_consistency.py -v
+          uv run pytest -n 0 tests/test_release_consistency.py -v
           rm -rf dist
           npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack.json
 
       - name: Build Python distributions
         run: |
           rm -rf dist
+          UV_CACHE_DIR="$(mktemp -d)"
+          export UV_CACHE_DIR
+          export UV_NO_CONFIG=1
+          export UV_PYTHON_DOWNLOADS=never
           uv build --out-dir dist
           uv run --with twine python -m twine check dist/*
 
@@ -147,21 +153,55 @@ jobs:
     environment:
       name: PyPI
       url: https://pypi.org/p/get-physics-done
+    outputs:
+      status: ${{ steps.pypi_status.outputs.status }}
     permissions:
+      contents: read
       id-token: write
 
     steps:
+      - name: Check out release helper
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.build-release.outputs.release_sha }}
+          fetch-depth: 1
+
       - name: Download Python distributions
         uses: actions/download-artifact@v8
         with:
           name: python-dists
           path: dist
 
+      - name: Check whether PyPI version already exists
+        id: pypi_preflight
+        env:
+          VERSION: ${{ needs.build-release.outputs.version }}
+        run: |
+          python3 scripts/release_workflow.py pypi-preflight \
+            --version "$VERSION" \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Publish package distributions to PyPI
+        id: pypi_publish
+        if: ${{ steps.pypi_preflight.outputs.status != 'already-published' }}
+        continue-on-error: true
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
           skip-existing: true
+
+      - name: Record PyPI publish status
+        id: pypi_status
+        env:
+          VERSION: ${{ needs.build-release.outputs.version }}
+          PRE_PUBLISH_STATUS: ${{ steps.pypi_preflight.outputs.status }}
+          PYPI_PUBLISH_OUTCOME: ${{ steps.pypi_publish.outcome }}
+        run: |
+          python3 scripts/release_workflow.py pypi-publish-status \
+            --version "$VERSION" \
+            --pre-publish-status "$PRE_PUBLISH_STATUS" \
+            --publish-outcome "$PYPI_PUBLISH_OUTCOME" \
+            --github-output "$GITHUB_OUTPUT"
 
   publish-npm-and-github-release:
     name: publish npm and create GitHub release
@@ -192,6 +232,8 @@ jobs:
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.12"
 
       - name: Install development dependencies
         run: |
@@ -209,7 +251,7 @@ jobs:
 
       - name: Run stamped release validation
         run: |
-          uv run pytest tests/test_release_consistency.py -v
+          uv run pytest -n 0 tests/test_release_consistency.py -v
           rm -rf dist
           npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack-publish.json
 
@@ -319,20 +361,50 @@ jobs:
             git commit -m "docs: stamp v${VERSION} publish date"
           }
 
-          if git ls-remote --exit-code --heads origin "$FOLLOWUP_BRANCH" >/dev/null 2>&1; then
-            PR_URL=$(gh pr list --state open --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH" --json url --jq '.[0].url // ""')
-            if [ -n "$PR_URL" ]; then
-              echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
-              exit 0
+          remote_followup_branch_sha() {
+            git ls-remote --heads origin "$FOLLOWUP_BRANCH" | awk '{print $1}'
+          }
+
+          fetch_followup_branch() {
+            git fetch --no-tags origin "refs/heads/${FOLLOWUP_BRANCH}:refs/remotes/origin/${FOLLOWUP_BRANCH}"
+          }
+
+          verify_followup_branch_matches_fresh_stamp() {
+            EXPECTED_TREE="$(git rev-parse HEAD^{tree})"
+            fetch_followup_branch
+            REMOTE_TREE="$(git rev-parse "refs/remotes/origin/${FOLLOWUP_BRANCH}^{tree}")"
+            if [ "$REMOTE_TREE" != "$EXPECTED_TREE" ]; then
+              echo "::error::Follow-up branch ${FOLLOWUP_BRANCH} does not match freshly stamped publish-date metadata."
+              exit 1
             fi
-            EXISTING_BRANCH_SHA="$(git ls-remote --heads origin "$FOLLOWUP_BRANCH" | awk '{print $1}')"
+          }
+
+          refresh_followup_branch() {
+            EXISTING_BRANCH_SHA="$(remote_followup_branch_sha)"
             if [ -z "$EXISTING_BRANCH_SHA" ]; then
               echo "::error::Follow-up branch ${FOLLOWUP_BRANCH} was reported as existing, but its remote SHA could not be resolved."
               exit 1
             fi
-            echo "::warning::Follow-up branch ${FOLLOWUP_BRANCH} already exists, but no open PR was found; restamping and updating the branch before recreating the PR."
             prepare_followup_branch
-            git push --force-with-lease="refs/heads/${FOLLOWUP_BRANCH}:${EXISTING_BRANCH_SHA}" origin "HEAD:${FOLLOWUP_BRANCH}"
+            REFRESHED_BRANCH_SHA="$(git rev-parse HEAD)"
+            if [ "$REFRESHED_BRANCH_SHA" = "$EXISTING_BRANCH_SHA" ]; then
+              echo "::notice::Follow-up branch ${FOLLOWUP_BRANCH} already points at freshly stamped publish-date metadata."
+            else
+              git push --force-with-lease="refs/heads/${FOLLOWUP_BRANCH}:${EXISTING_BRANCH_SHA}" origin "HEAD:${FOLLOWUP_BRANCH}"
+            fi
+            verify_followup_branch_matches_fresh_stamp
+          }
+
+          if git ls-remote --exit-code --heads origin "$FOLLOWUP_BRANCH" >/dev/null 2>&1; then
+            PR_URL=$(gh pr list --state open --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH" --json url --jq '.[0].url // ""')
+            if [ -n "$PR_URL" ]; then
+              echo "::notice::Follow-up PR ${PR_URL} already exists; refreshing stamped metadata before returning its URL."
+              refresh_followup_branch
+              echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::warning::Follow-up branch ${FOLLOWUP_BRANCH} already exists, but no open PR was found; restamping and updating the branch before recreating the PR."
+            refresh_followup_branch
             gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH" --title "docs: stamp v${VERSION} publish date" --body-file /tmp/publish-date-pr-body.md
             PR_URL=$(gh pr list --state open --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH" --json url --jq '.[0].url // ""')
             if [ -z "$PR_URL" ]; then
@@ -365,7 +437,7 @@ jobs:
             echo "status=skipped" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          curl -sf -X POST \
+          curl -sf --retry 3 --retry-delay 5 --connect-timeout 10 --max-time 30 -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${GPD_WEB_TOKEN}" \
             https://api.github.com/repos/physicalsuperintelligence/gpd-web/dispatches \
@@ -376,6 +448,7 @@ jobs:
       - name: Write publish summary
         env:
           RELEASE_URL: ${{ steps.github_release.outputs.release_url }}
+          PYPI_PUBLISH_STATUS: ${{ needs.publish-pypi.outputs.status }}
           NPM_PUBLISH_STATUS: ${{ steps.npm_publish.outputs.status }}
           METADATA_PR_URL: ${{ steps.metadata_pr.outputs.pr_url }}
           GPD_WEB_REBUILD_STATUS: ${{ steps.gpd_web_rebuild.outputs.status }}
@@ -390,7 +463,13 @@ jobs:
             echo "- Version: \`v${VERSION}\`"
             echo "- Commit: \`${RELEASE_SHA}\`"
             echo "- Publish date: \`${RELEASE_DATE}\`"
-            echo "- PyPI: published via trusted publishing from environment \`PyPI\`"
+            if [ "${PYPI_PUBLISH_STATUS}" = "already-published" ]; then
+              echo "- PyPI: already published; skipped trusted-publishing rerun"
+            elif [ "${PYPI_PUBLISH_STATUS}" = "recovered" ]; then
+              echo "- PyPI: publish recovery completed; version is present on PyPI"
+            else
+              echo "- PyPI: published via trusted publishing from environment \`PyPI\`"
+            fi
             if [ "${NPM_PUBLISH_STATUS}" = "already-published" ]; then
               echo "- npm: already published; skipped trusted-publishing rerun"
             else

@@ -58,11 +58,7 @@ def test_autonomy_prompt_defaults_preserve_supervised_default() -> None:
     )
 
     for name in fallback_workflows:
-        autonomy_lines = [
-            line
-            for line in _read_workflow(name).splitlines()
-            if line.startswith("AUTONOMY=")
-        ]
+        autonomy_lines = [line for line in _read_workflow(name).splitlines() if line.startswith("AUTONOMY=")]
         assert autonomy_lines, name
         assert all("--default supervised" in line for line in autonomy_lines), name
         assert all('|| echo "balanced"' not in line for line in autonomy_lines), name
@@ -109,6 +105,8 @@ def test_publication_workflows_read_mode_state_from_init_context() -> None:
     assert "gpd --raw config get autonomy" not in write_paper
     assert "gpd --raw config get research_mode" not in write_paper
 
-    assert "INIT=$(gpd --raw init phase-op --include config)" in respond
+    assert 'gpd --raw init respond-to-referees --stage bootstrap -- "$ARGUMENTS"' in respond
+    assert "INIT=$(gpd --raw init respond-to-referees --stage bootstrap)" in respond
     assert 'AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default supervised)' in respond
+    assert 'RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)' in respond
     assert "gpd --raw config get autonomy" not in respond

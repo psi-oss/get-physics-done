@@ -76,6 +76,14 @@ class ManagedInstallSurfacePolicy:
 
 
 @dataclass(frozen=True, slots=True)
+class ManifestMetadataListPolicy:
+    key: str
+    value_kind: str
+    item_prefix: str | None = None
+    item_suffix: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class RuntimeCapabilityPolicy:
     permissions_surface: str = "unsupported"
     permission_surface_kind: str = "none"
@@ -119,6 +127,7 @@ class RuntimeDescriptor:
     capabilities: RuntimeCapabilityPolicy = RuntimeCapabilityPolicy()
     managed_install_surface: ManagedInstallSurfacePolicy = ManagedInstallSurfacePolicy()
     manifest_file_prefixes: tuple[str, ...] = ()
+    manifest_metadata_list_policies: tuple[ManifestMetadataListPolicy, ...] = ()
     native_include_support: bool = False
     agent_prompt_uses_dollar_templates: bool = False
     installer_help_example_scope: str | None = None
@@ -146,6 +155,7 @@ _RUNTIME_CONFIG_SURFACE_LABEL_RE = re.compile(r"^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]
 _RUNTIME_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _RUNTIME_FLAG_RE = re.compile(r"^--[a-z0-9][a-z0-9-]*$")
 _RUNTIME_ENV_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_MANIFEST_METADATA_KEY_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 _PYTHON_MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
 _PYTHON_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _RUNTIME_CAPABILITY_BOOL_FIELDS = frozenset(
@@ -167,18 +177,6 @@ _RUNTIME_CAPABILITY_RUNTIME_SURFACE_LABEL_FIELDS = (
     "notify_config_surface",
 )
 _RUNTIME_CAPABILITY_OPTIONAL_STRING_FIELDS = frozenset({"prompt_free_mode_value"})
-_RUNTIME_CAPABILITY_ENUM_REQUIRED_FIELDS = frozenset(
-    {
-        "permissions_surface",
-        "statusline_surface",
-        "notify_surface",
-        "telemetry_source",
-        "telemetry_completeness",
-        "child_artifact_persistence_reliability",
-        "continuation_surface",
-        "checkpoint_stop_semantics",
-    }
-)
 _USAGE_TOKEN_HOOK_PAYLOAD_FIELDS = ("usage_keys", "input_tokens_keys", "output_tokens_keys")
 
 
@@ -242,6 +240,80 @@ def _require_relative_catalog_path(value: object, *, label: str, allow_slash: bo
         path_kind = "relative path" if allow_slash else "relative path segment"
         raise ValueError(f"{label} must be a safe {path_kind} without traversal")
     return _require_string(value, label=label)
+
+
+def normalize_manifest_relpath(value: object) -> str | None:
+    """Return a safe POSIX manifest relpath, or ``None`` when untrusted."""
+    if not isinstance(value, str) or not value:
+        return None
+    if "\\" in value:
+        return None
+    if PurePosixPath(value).is_absolute():
+        return None
+    windows_path = PureWindowsPath(value)
+    if windows_path.is_absolute() or windows_path.drive:
+        return None
+    parts = value.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        return None
+    return PurePosixPath(*parts).as_posix()
+
+
+def normalize_manifest_file_entries(raw_files: object) -> dict[str, str] | None:
+    """Return normalized manifest ``files`` entries, or ``None`` for untrusted shape."""
+    if not isinstance(raw_files, dict):
+        return None
+
+    entries: dict[str, str] = {}
+    for rel_path, original_hash in raw_files.items():
+        normalized_relpath = normalize_manifest_relpath(rel_path)
+        if normalized_relpath is None or not isinstance(original_hash, str):
+            return None
+        entries[normalized_relpath] = original_hash
+    return entries
+
+
+def paths_equal(left: Path, right: Path) -> bool:
+    """Return whether two paths refer to the same location when comparable."""
+    try:
+        return left.expanduser().resolve(strict=False) == right.expanduser().resolve(strict=False)
+    except OSError:
+        return left.expanduser() == right.expanduser()
+
+
+def path_contains_regular_file(path: Path, *, on_error: bool) -> bool:
+    """Return whether *path* contains at least one regular file."""
+    if not path.is_dir():
+        return False
+
+    try:
+        return any(entry.is_file() for entry in path.rglob("*"))
+    except OSError:
+        return on_error
+
+
+def managed_install_glob_static_root(pattern: str) -> str:
+    """Return the non-glob parent/root portion of a managed catalog pattern."""
+    parts: list[str] = []
+    for part in pattern.replace("\\", "/").strip("/").split("/"):
+        if not part or any(char in part for char in "*?["):
+            break
+        parts.append(part)
+    return "/".join(parts)
+
+
+def managed_install_globs_have_files(root: Path, patterns: tuple[str, ...], *, on_error: bool) -> bool:
+    """Return whether any managed install-surface glob selects installed files."""
+    try:
+        for pattern in patterns:
+            for match in root.glob(pattern):
+                if match.is_file():
+                    return True
+                if path_contains_regular_file(match, on_error=on_error):
+                    return True
+    except OSError:
+        return on_error
+    return False
 
 
 def _require_relative_catalog_path_tuple(
@@ -375,9 +447,7 @@ def _validated_capability_values(
 
     for field_name in _RUNTIME_CAPABILITY_RUNTIME_SURFACE_LABEL_FIELDS:
         special_values = (
-            launch_wrapper_permission_surface_kinds
-            if field_name == "permission_surface_kind"
-            else frozenset()
+            launch_wrapper_permission_surface_kinds if field_name == "permission_surface_kind" else frozenset()
         )
         values[field_name] = _require_runtime_surface_label(
             _capability_value(field_name),
@@ -390,9 +460,7 @@ def _validated_capability_values(
 
     for field_name in sorted(_RUNTIME_CAPABILITY_OPTIONAL_STRING_FIELDS):
         raw_value = _capability_value(field_name)
-        values[field_name] = (
-            None if raw_value is None else _require_string(raw_value, label=f"{label}.{field_name}")
-        )
+        values[field_name] = None if raw_value is None else _require_string(raw_value, label=f"{label}.{field_name}")
 
     validated_fields = set(values)
     for field_name in sorted(capability_keys - validated_fields):
@@ -483,10 +551,17 @@ def _validate_capability_policy_coherence(
             f"{label}.prompt_free_mode_value must be a non-empty string when supports_prompt_free_mode=true"
         )
     if policy.permissions_surface == "config-file":
-        if policy.permission_surface_kind == "none" or policy.permission_surface_kind in launch_wrapper_permission_surface_kinds:
-            raise ValueError(f"{label}.permission_surface_kind must be a config surface label when permissions_surface=config-file")
+        if (
+            policy.permission_surface_kind == "none"
+            or policy.permission_surface_kind in launch_wrapper_permission_surface_kinds
+        ):
+            raise ValueError(
+                f"{label}.permission_surface_kind must be a config surface label when permissions_surface=config-file"
+            )
         if not policy.supports_runtime_permission_sync:
-            raise ValueError(f"{label}.supports_runtime_permission_sync must be true when permissions_surface=config-file")
+            raise ValueError(
+                f"{label}.supports_runtime_permission_sync must be true when permissions_surface=config-file"
+            )
     elif policy.permissions_surface == "launch-wrapper":
         if policy.permission_surface_kind not in launch_wrapper_permission_surface_kinds:
             raise ValueError(
@@ -494,22 +569,26 @@ def _validate_capability_policy_coherence(
                 "when permissions_surface=launch-wrapper"
             )
         if not policy.supports_runtime_permission_sync:
-            raise ValueError(f"{label}.supports_runtime_permission_sync must be true when permissions_surface=launch-wrapper")
+            raise ValueError(
+                f"{label}.supports_runtime_permission_sync must be true when permissions_surface=launch-wrapper"
+            )
     else:
         if policy.permission_surface_kind != "none":
             raise ValueError(f'{label}.permission_surface_kind must be "none" when permissions_surface=unsupported')
         if policy.supports_runtime_permission_sync:
-            raise ValueError(f"{label}.supports_runtime_permission_sync must be false when permissions_surface=unsupported")
+            raise ValueError(
+                f"{label}.supports_runtime_permission_sync must be false when permissions_surface=unsupported"
+            )
         if policy.supports_prompt_free_mode:
             raise ValueError(f"{label}.supports_prompt_free_mode must be false when permissions_surface=unsupported")
         if policy.prompt_free_requires_relaunch:
-            raise ValueError(f"{label}.prompt_free_requires_relaunch must be false when permissions_surface=unsupported")
+            raise ValueError(
+                f"{label}.prompt_free_requires_relaunch must be false when permissions_surface=unsupported"
+            )
     if not policy.supports_prompt_free_mode and policy.prompt_free_requires_relaunch:
         raise ValueError(f"{label}.prompt_free_requires_relaunch requires supports_prompt_free_mode=true")
     if policy.supports_structured_child_results and policy.continuation_surface != "explicit":
-        raise ValueError(
-            f"{label}.continuation_surface must be explicit when supports_structured_child_results=true"
-        )
+        raise ValueError(f"{label}.continuation_surface must be explicit when supports_structured_child_results=true")
     if policy.statusline_surface == "explicit":
         if policy.statusline_config_surface == "none":
             raise ValueError(f'{label}.statusline_config_surface must not be "none" when statusline_surface=explicit')
@@ -546,10 +625,12 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
         "capability_keys",
         "capability_defaults",
         "capability_enums",
+        "capability_enum_required_keys",
         "hook_payload_keys",
         "hook_payload_defaults",
         "managed_install_surface_keys",
         "managed_install_surface_defaults",
+        "manifest_metadata_list_value_kinds",
         "install_help_example_scopes",
         "launch_wrapper_permission_surface_kinds",
     }
@@ -568,16 +649,22 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
         return value
 
     entry_required_keys = frozenset(
-        _require_string_tuple(raw_schema.get("entry_required_keys"), label="runtime catalog schema.entry_required_keys", allow_empty=False)
+        _require_string_tuple(
+            raw_schema.get("entry_required_keys"), label="runtime catalog schema.entry_required_keys", allow_empty=False
+        )
     )
     entry_optional_keys = frozenset(
-        _require_string_tuple(raw_schema.get("entry_optional_keys"), label="runtime catalog schema.entry_optional_keys", allow_empty=True)
+        _require_string_tuple(
+            raw_schema.get("entry_optional_keys"), label="runtime catalog schema.entry_optional_keys", allow_empty=True
+        )
     )
     if entry_required_keys & entry_optional_keys:
         overlap = ", ".join(sorted(entry_required_keys & entry_optional_keys))
         raise ValueError(f"runtime catalog schema entry key overlap is not allowed: {overlap}")
 
-    global_config_keys_raw = _require_schema_mapping(raw_schema.get("global_config_keys"), label="runtime catalog schema.global_config_keys")
+    global_config_keys_raw = _require_schema_mapping(
+        raw_schema.get("global_config_keys"), label="runtime catalog schema.global_config_keys"
+    )
     global_config_keys: dict[str, frozenset[str]] = {}
     for strategy, keys in global_config_keys_raw.items():
         if not isinstance(strategy, str) or not strategy or strategy.strip() != strategy:
@@ -591,7 +678,9 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
         )
 
     capability_keys = frozenset(
-        _require_string_tuple(raw_schema.get("capability_keys"), label="runtime catalog schema.capability_keys", allow_empty=False)
+        _require_string_tuple(
+            raw_schema.get("capability_keys"), label="runtime catalog schema.capability_keys", allow_empty=False
+        )
     )
     capability_defaults_raw = _require_schema_mapping(
         raw_schema.get("capability_defaults"),
@@ -601,24 +690,39 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
     missing_default_keys = sorted(key for key in capability_keys if key not in capability_defaults_raw)
     if unknown_default_keys:
         raise ValueError(
-            "runtime catalog schema.capability_defaults contains unknown key(s): "
-            + ", ".join(unknown_default_keys)
+            "runtime catalog schema.capability_defaults contains unknown key(s): " + ", ".join(unknown_default_keys)
         )
     if missing_default_keys:
         raise ValueError(
-            "runtime catalog schema.capability_defaults is missing key(s): "
-            + ", ".join(missing_default_keys)
+            "runtime catalog schema.capability_defaults is missing key(s): " + ", ".join(missing_default_keys)
         )
 
-    capability_enums_raw = _require_schema_mapping(raw_schema.get("capability_enums"), label="runtime catalog schema.capability_enums")
+    capability_enums_raw = _require_schema_mapping(
+        raw_schema.get("capability_enums"), label="runtime catalog schema.capability_enums"
+    )
+    capability_enum_required_keys = frozenset(
+        _require_string_tuple(
+            raw_schema.get("capability_enum_required_keys"),
+            label="runtime catalog schema.capability_enum_required_keys",
+            allow_empty=False,
+        )
+    )
     unknown_capability_enum_keys = sorted(key for key in capability_enums_raw if key not in capability_keys)
+    unknown_required_capability_enum_keys = sorted(
+        key for key in capability_enum_required_keys if key not in capability_keys
+    )
     missing_required_capability_enum_keys = sorted(
-        key for key in _RUNTIME_CAPABILITY_ENUM_REQUIRED_FIELDS if key not in capability_enums_raw
+        key for key in capability_enum_required_keys if key not in capability_enums_raw
     )
     if unknown_capability_enum_keys:
         raise ValueError(
             "runtime catalog schema.capability_enums contains unknown key(s): "
             + ", ".join(unknown_capability_enum_keys)
+        )
+    if unknown_required_capability_enum_keys:
+        raise ValueError(
+            "runtime catalog schema.capability_enum_required_keys contains unknown key(s): "
+            + ", ".join(unknown_required_capability_enum_keys)
         )
     if missing_required_capability_enum_keys:
         raise ValueError(
@@ -659,7 +763,9 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
     )
 
     hook_payload_keys = frozenset(
-        _require_string_tuple(raw_schema.get("hook_payload_keys"), label="runtime catalog schema.hook_payload_keys", allow_empty=False)
+        _require_string_tuple(
+            raw_schema.get("hook_payload_keys"), label="runtime catalog schema.hook_payload_keys", allow_empty=False
+        )
     )
     hook_payload_defaults_raw = _require_schema_mapping(
         raw_schema.get("hook_payload_defaults"),
@@ -716,6 +822,13 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
         policy_keys=managed_install_surface_keys,
         policy_defaults=None,
     )
+    manifest_metadata_list_value_kinds = frozenset(
+        _require_string_tuple(
+            raw_schema.get("manifest_metadata_list_value_kinds"),
+            label="runtime catalog schema.manifest_metadata_list_value_kinds",
+            allow_empty=False,
+        )
+    )
     install_help_example_scopes = frozenset(
         _require_string_tuple(
             raw_schema.get("install_help_example_scopes"),
@@ -732,10 +845,12 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
         "capability_keys": capability_keys,
         "capability_defaults": default_capability_values,
         "capability_enums": capability_enums,
+        "capability_enum_required_keys": capability_enum_required_keys,
         "hook_payload_keys": hook_payload_keys,
         "hook_payload_defaults": hook_payload_defaults,
         "managed_install_surface_keys": managed_install_surface_keys,
         "managed_install_surface_defaults": managed_install_surface_defaults,
+        "manifest_metadata_list_value_kinds": manifest_metadata_list_value_kinds,
         "install_help_example_scopes": install_help_example_scopes,
         "launch_wrapper_permission_surface_kinds": launch_wrapper_permission_surface_kinds,
     }
@@ -761,6 +876,7 @@ _RUNTIME_HOOK_PAYLOAD_KEYS = _RUNTIME_CATALOG_SHAPE["hook_payload_keys"]
 _RUNTIME_HOOK_PAYLOAD_DEFAULTS = _RUNTIME_CATALOG_SHAPE["hook_payload_defaults"]
 _RUNTIME_MANAGED_INSTALL_SURFACE_KEYS = _RUNTIME_CATALOG_SHAPE["managed_install_surface_keys"]
 _RUNTIME_MANAGED_INSTALL_SURFACE_DEFAULTS = _RUNTIME_CATALOG_SHAPE["managed_install_surface_defaults"]
+_RUNTIME_MANIFEST_METADATA_LIST_VALUE_KINDS = _RUNTIME_CATALOG_SHAPE["manifest_metadata_list_value_kinds"]
 _RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS = _RUNTIME_CATALOG_SHAPE["launch_wrapper_permission_surface_kinds"]
 
 
@@ -832,6 +948,7 @@ def _validate_runtime_catalog_uniqueness(descriptors: list[RuntimeDescriptor]) -
     install_flags: dict[str, str] = {}
     selection_flags: dict[str, str] = {}
     selection_tokens: dict[str, str] = {}
+    manifest_metadata_list_policies: dict[str, tuple[str, ManifestMetadataListPolicy]] = {}
 
     for descriptor in descriptors:
         if descriptor.runtime_name in runtime_names:
@@ -872,6 +989,18 @@ def _validate_runtime_catalog_uniqueness(descriptors: list[RuntimeDescriptor]) -
                     f"{existing_token_runtime!r} and {descriptor.runtime_name!r}"
                 )
             selection_tokens[normalized_token] = descriptor.runtime_name
+
+        for policy in descriptor.manifest_metadata_list_policies:
+            existing = manifest_metadata_list_policies.get(policy.key)
+            if existing is not None:
+                existing_runtime, existing_policy = existing
+                if existing_policy != policy:
+                    raise ValueError(
+                        f"runtime catalog contains conflicting manifest_metadata_list_policies.key {policy.key!r} "
+                        f"for {existing_runtime!r} and {descriptor.runtime_name!r}"
+                    )
+                continue
+            manifest_metadata_list_policies[policy.key] = (descriptor.runtime_name, policy)
 
 
 def _validate_runtime_catalog_help_example_scopes(descriptors: list[RuntimeDescriptor]) -> None:
@@ -948,9 +1077,68 @@ def _parse_managed_install_surface(entry: object, *, label: str) -> ManagedInsta
         policy_defaults=_RUNTIME_MANAGED_INSTALL_SURFACE_DEFAULTS,
     )
     _validate_managed_install_surface_globs(values, label=label)
-    return ManagedInstallSurfacePolicy(
-        **values
-    )
+    return ManagedInstallSurfacePolicy(**values)
+
+
+def _require_manifest_metadata_item_affix(value: object, *, label: str) -> str:
+    affix = _require_string(value, label=label)
+    if "/" in affix or "\\" in affix:
+        raise ValueError(f"{label} must not contain path separators")
+    return affix
+
+
+def _parse_manifest_metadata_list_policies(entry: object, *, label: str) -> tuple[ManifestMetadataListPolicy, ...]:
+    if entry is None:
+        return ()
+    if not isinstance(entry, list):
+        raise ValueError(f"{label} must be a list")
+
+    policies: list[ManifestMetadataListPolicy] = []
+    seen_keys: set[str] = set()
+    allowed_keys = frozenset({"key", "value_kind", "item_prefix", "item_suffix"})
+    required_keys = frozenset({"key", "value_kind"})
+    for index, raw_policy in enumerate(entry):
+        policy_label = f"{label}[{index}]"
+        payload = _require_mapping(raw_policy, label=policy_label)
+        _require_allowed_keys(payload, label=policy_label, allowed_keys=allowed_keys)
+        _require_keys(payload, label=policy_label, required_keys=required_keys)
+        key = _require_pattern(
+            payload["key"],
+            label=f"{policy_label}.key",
+            pattern=_MANIFEST_METADATA_KEY_RE,
+            description="a lowercase manifest metadata key",
+        )
+        if key in seen_keys:
+            raise ValueError(f"{policy_label}.key duplicates manifest metadata key {key!r}")
+        seen_keys.add(key)
+
+        value_kind = _require_string(payload["value_kind"], label=f"{policy_label}.value_kind")
+        if value_kind not in _RUNTIME_MANIFEST_METADATA_LIST_VALUE_KINDS:
+            allowed = ", ".join(sorted(_RUNTIME_MANIFEST_METADATA_LIST_VALUE_KINDS))
+            raise ValueError(f"{policy_label}.value_kind must be one of: {allowed}")
+
+        item_prefix = (
+            _require_manifest_metadata_item_affix(payload["item_prefix"], label=f"{policy_label}.item_prefix")
+            if "item_prefix" in payload
+            else None
+        )
+        item_suffix = (
+            _require_manifest_metadata_item_affix(payload["item_suffix"], label=f"{policy_label}.item_suffix")
+            if "item_suffix" in payload
+            else None
+        )
+        if value_kind != "path_segment" and (item_prefix is not None or item_suffix is not None):
+            raise ValueError(f"{policy_label}.item_prefix/item_suffix require value_kind=path_segment")
+
+        policies.append(
+            ManifestMetadataListPolicy(
+                key=key,
+                value_kind=value_kind,
+                item_prefix=item_prefix,
+                item_suffix=item_suffix,
+            )
+        )
+    return tuple(policies)
 
 
 def _validate_runtime_descriptor_capability_contract(
@@ -970,7 +1158,9 @@ def _validate_runtime_descriptor_capability_contract(
         _require_hook_payload_fields("notify_surface", ("notify_event_types",))
     if descriptor.capabilities.telemetry_source == "notify-hook":
         if descriptor.capabilities.notify_surface != "explicit":
-            raise ValueError(f"{label}.capabilities.telemetry_source requires {label}.capabilities.notify_surface=explicit")
+            raise ValueError(
+                f"{label}.capabilities.telemetry_source requires {label}.capabilities.notify_surface=explicit"
+            )
         _require_hook_payload_fields("telemetry_source", ("notify_event_types",))
     if descriptor.capabilities.supports_usage_tokens:
         if descriptor.capabilities.telemetry_source == "none":
@@ -986,7 +1176,9 @@ def _validate_runtime_descriptor_capability_contract(
         _require_hook_payload_fields("supports_cost_usd", ("cost_usd_keys",))
     if descriptor.capabilities.supports_context_meter:
         if descriptor.capabilities.statusline_surface != "explicit":
-            raise ValueError(f"{label}.capabilities.supports_context_meter requires {label}.capabilities.statusline_surface=explicit")
+            raise ValueError(
+                f"{label}.capabilities.supports_context_meter requires {label}.capabilities.statusline_surface=explicit"
+            )
         _require_hook_payload_fields(
             "supports_context_meter",
             ("context_window_size_keys", "context_remaining_keys"),
@@ -1082,11 +1274,13 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
                 label=f"{label}.managed_install_surface",
             ),
             manifest_file_prefixes=_require_relative_catalog_path_tuple(
-                payload["manifest_file_prefixes"]
-                if "manifest_file_prefixes" in payload
-                else [],
+                payload["manifest_file_prefixes"] if "manifest_file_prefixes" in payload else [],
                 label=f"{label}.manifest_file_prefixes",
                 allow_empty=True,
+            ),
+            manifest_metadata_list_policies=_parse_manifest_metadata_list_policies(
+                payload.get("manifest_metadata_list_policies", []),
+                label=f"{label}.manifest_metadata_list_policies",
             ),
             native_include_support=_require_bool(
                 payload.get("native_include_support", False),
@@ -1158,6 +1352,40 @@ def get_managed_install_surface_policy(runtime: str | None = None) -> ManagedIns
     )
 
 
+def get_manifest_metadata_list_policies(runtime: str | None = None) -> tuple[ManifestMetadataListPolicy, ...]:
+    """Return manifest list metadata validation policies declared by one runtime or the catalog."""
+    descriptors = (get_runtime_descriptor(runtime),) if runtime is not None else iter_runtime_descriptors()
+    policies: list[ManifestMetadataListPolicy] = []
+    seen_keys: set[str] = set()
+    for descriptor in descriptors:
+        for policy in descriptor.manifest_metadata_list_policies:
+            if policy.key in seen_keys:
+                continue
+            seen_keys.add(policy.key)
+            policies.append(policy)
+    return tuple(policies)
+
+
+def get_manifest_metadata_list_policy_key(
+    runtime: str,
+    *,
+    value_kind: str | None = None,
+    item_prefix: str | None = None,
+    item_suffix: str | None = None,
+) -> str:
+    """Return the single manifest list metadata key matching a runtime policy."""
+    policies = [
+        policy
+        for policy in get_runtime_descriptor(runtime).manifest_metadata_list_policies
+        if (value_kind is None or policy.value_kind == value_kind)
+        and (item_prefix is None or policy.item_prefix == item_prefix)
+        and (item_suffix is None or policy.item_suffix == item_suffix)
+    ]
+    if len(policies) != 1:
+        raise ValueError(f"{runtime} must declare exactly one matching manifest metadata list policy")
+    return policies[0].key
+
+
 def iter_runtime_descriptors() -> tuple[RuntimeDescriptor, ...]:
     return _load_catalog()
 
@@ -1226,13 +1454,6 @@ def get_runtime_capabilities(runtime: str) -> RuntimeCapabilityPolicy:
     return get_runtime_descriptor(runtime).capabilities
 
 
-def _paths_equal(left: Path, right: Path) -> bool:
-    try:
-        return left.expanduser().resolve(strict=False) == right.expanduser().resolve(strict=False)
-    except OSError:
-        return left.expanduser() == right.expanduser()
-
-
 def _normalize_global_config_dir(path: Path) -> Path:
     return path.expanduser().resolve(strict=False)
 
@@ -1273,6 +1494,23 @@ def resolve_global_config_dir(
     raise ValueError(f"Unsupported global config strategy: {policy.strategy}")
 
 
+def has_global_config_env_override(
+    descriptor: RuntimeDescriptor,
+    *,
+    environ: dict[str, str] | None = None,
+) -> bool:
+    """Return whether the environment explicitly overrides a runtime global config dir."""
+    env = os.environ if environ is None else environ
+    policy = descriptor.global_config
+    env_names = (
+        policy.env_var,
+        policy.env_dir_var,
+        policy.env_file_var,
+        "XDG_CONFIG_HOME" if policy.strategy == "xdg_app" and policy.xdg_subdir else None,
+    )
+    return any(bool(env.get(env_name)) for env_name in env_names if env_name)
+
+
 def resolve_global_config_dir_candidates(
     descriptor: RuntimeDescriptor,
     *,
@@ -1292,7 +1530,7 @@ def resolve_global_config_dir_candidates(
         resolve_global_config_dir(descriptor, home=home, environ=environ),
         resolve_global_config_dir(descriptor, home=home, environ={}),
     ):
-        if any(_paths_equal(candidate, existing) for existing in candidates):
+        if any(paths_equal(candidate, existing) for existing in candidates):
             continue
         candidates.append(candidate)
     return tuple(candidates)
@@ -1301,19 +1539,29 @@ def resolve_global_config_dir_candidates(
 __all__ = [
     "GlobalConfigPolicy",
     "HookPayloadPolicy",
+    "ManifestMetadataListPolicy",
     "ManagedInstallSurfacePolicy",
     "RuntimeCapabilityPolicy",
     "RuntimeDescriptor",
     "SharedInstallMetadata",
     "get_hook_payload_policy",
+    "get_manifest_metadata_list_policy_key",
+    "get_manifest_metadata_list_policies",
     "get_managed_install_surface_policy",
     "get_runtime_capabilities",
     "get_runtime_descriptor",
     "get_runtime_help_example_runtime",
     "get_shared_install_metadata",
+    "has_global_config_env_override",
     "iter_runtime_descriptors",
     "list_runtime_names",
+    "managed_install_glob_static_root",
+    "managed_install_globs_have_files",
+    "normalize_manifest_file_entries",
+    "normalize_manifest_relpath",
     "normalize_runtime_name",
+    "path_contains_regular_file",
+    "paths_equal",
     "resolve_global_config_dir_candidates",
     "resolve_global_config_dir",
 ]

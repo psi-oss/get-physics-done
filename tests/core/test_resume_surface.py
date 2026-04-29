@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from gpd.core.context import init_resume
+from gpd.core.context import init_progress, init_resume
+from gpd.core.recent_projects import recent_projects_index_path
 from gpd.core.recovery_advice import RecoveryAdvice, serialize_recovery_advice
 from gpd.core.resume_surface import (
     RESUME_SURFACE_SCHEMA_VERSION,
@@ -39,6 +40,44 @@ def test_resume_surface_schema_version_uses_shared_constant(tmp_path) -> None:
 
     assert advice_payload["resume_surface_schema_version"] == RESUME_SURFACE_SCHEMA_VERSION
     assert resume_payload["resume_surface_schema_version"] == RESUME_SURFACE_SCHEMA_VERSION
+
+
+def test_init_resume_and_progress_degrade_when_recent_project_index_is_malformed(tmp_path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    data_root = tmp_path / "data"
+    index_path = recent_projects_index_path(data_root)
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text("{ not-json", encoding="utf-8")
+
+    resume_payload = init_resume(workspace, data_root=data_root)
+    progress_payload = init_progress(workspace, data_root=data_root)
+
+    assert resume_payload["project_reentry_mode"] == "no-recovery"
+    assert resume_payload["project_reentry_candidates"] == []
+    assert len(resume_payload["project_reentry_diagnostics"]) == 1
+    assert "Malformed recent-project index" in resume_payload["project_reentry_diagnostics"][0]
+    assert resume_payload["project_root"] is None
+    assert progress_payload["project_reentry_mode"] == "no-recovery"
+    assert progress_payload["project_reentry_candidates"] == []
+    assert len(progress_payload["project_reentry_diagnostics"]) == 1
+    assert "Malformed recent-project index" in progress_payload["project_reentry_diagnostics"][0]
+    assert progress_payload["project_root"] is None
+
+
+def test_init_resume_does_not_recover_state_json_only_ancestor(tmp_path) -> None:
+    project = tmp_path / "project"
+    planning = project / "GPD"
+    nested = project / "workspace" / "notes"
+    planning.mkdir(parents=True)
+    nested.mkdir(parents=True)
+    (planning / "state.json").write_text("{}\n", encoding="utf-8")
+
+    resume_payload = init_resume(nested, data_root=tmp_path / "data")
+
+    assert resume_payload["project_reentry_mode"] == "no-recovery"
+    assert resume_payload["project_reentry_candidates"] == []
+    assert resume_payload["project_root"] is None
 
 
 def test_resume_candidate_helpers_normalize_raw_and_canonical_shapes_to_canonical_origins() -> None:

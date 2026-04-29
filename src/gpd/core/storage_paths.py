@@ -13,6 +13,7 @@ import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from enum import StrEnum
+from functools import lru_cache
 from pathlib import Path
 
 from gpd.core.constants import (
@@ -291,6 +292,25 @@ _SUSPICIOUS_DURABLE_SUFFIXES: frozenset[str] = frozenset(
 )
 _SCRATCH_TEMP_SUFFIXES: frozenset[str] = frozenset({".tmp", ".lock", ".bak"})
 _PROJECT_SCRATCH_SEGMENTS: frozenset[str] = frozenset({"tmp", "temp", "scratch"})
+_CANONICAL_TEMP_ROOT_ALIASES: tuple[Path, ...] = (Path("/tmp"), Path("/private/tmp"), Path("/var/tmp"))
+_STORAGE_AUDIT_PRUNED_DIR_NAMES: frozenset[str] = frozenset(
+    {
+        ".cache",
+        ".git",
+        ".hg",
+        ".mypy_cache",
+        ".npm-cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".svn",
+        ".uv-cache",
+        ".venv",
+        "__pycache__",
+        "node_modules",
+        "venv",
+    }
+)
+_GENERIC_PROJECT_OUTPUT_ROOT_DIR_NAMES: frozenset[str] = frozenset({"build", "cache", "dist"})
 _OUTPUT_SUBTREE_PLACEHOLDER_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
@@ -303,12 +323,7 @@ def _is_relative_to(path: Path, parent: Path) -> bool:
 
 
 def _safe_component(value: str) -> str:
-    cleaned = "".join(
-        char
-        if (char.isascii() and char.isalnum()) or char in "._-"
-        else "-"
-        for char in value.strip()
-    )
+    cleaned = "".join(char if (char.isascii() and char.isalnum()) or char in "._-" else "-" for char in value.strip())
     collapsed = cleaned.strip("-")
     return collapsed or "unnamed"
 
@@ -322,6 +337,68 @@ def _dedupe_paths(paths: list[Path]) -> tuple[Path, ...]:
         seen.add(path)
         unique.append(path)
     return tuple(unique)
+
+
+@lru_cache(maxsize=1)
+def _runtime_config_dir_lookup() -> tuple[tuple[str, ...], str | None]:
+    try:
+        from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+
+        return tuple(descriptor.config_dir_name for descriptor in iter_runtime_descriptors()), None
+    except Exception as exc:
+        return (), f"{type(exc).__name__}: {exc}"
+
+
+def _runtime_config_dir_names() -> tuple[str, ...]:
+    names, _error = _runtime_config_dir_lookup()
+    return names
+
+
+def _runtime_config_dir_lookup_error() -> str | None:
+    _names, error = _runtime_config_dir_lookup()
+    return error
+
+
+def _iter_storage_audit_files(root: Path, *, skip_roots: tuple[Path, ...] = ()) -> tuple[Path, ...]:
+    if not root.exists():
+        return ()
+
+    pruned_dir_names = _STORAGE_AUDIT_PRUNED_DIR_NAMES
+    root_pruned_dir_names = frozenset(_runtime_config_dir_names())
+    resolved_root = root.resolve(strict=False)
+    resolved_skip_roots = tuple(path.resolve(strict=False) for path in skip_roots)
+    files: list[Path] = []
+    stack = [root]
+    while stack:
+        current = stack.pop()
+        resolved_current = current.resolve(strict=False)
+        try:
+            entries = sorted(current.iterdir(), key=lambda path: path.name)
+        except OSError:
+            continue
+        for entry in entries:
+            try:
+                if entry.is_symlink():
+                    if entry.is_file():
+                        files.append(entry)
+                    continue
+                if entry.is_dir():
+                    resolved_entry = entry.resolve(strict=False)
+                    if (
+                        entry.name in pruned_dir_names
+                        or (resolved_current == resolved_root and entry.name in root_pruned_dir_names)
+                        or any(
+                            resolved_entry == skip_root or _is_relative_to(resolved_entry, skip_root)
+                            for skip_root in resolved_skip_roots
+                        )
+                    ):
+                        continue
+                    stack.append(entry)
+                elif entry.is_file():
+                    files.append(entry)
+            except OSError:
+                continue
+    return tuple(files)
 
 
 def _normalize_output_subtree(parts: tuple[str, ...]) -> tuple[str, ...]:
@@ -363,19 +440,18 @@ def _bind_output_subtree_placeholders(
             )
         return normalized_value[0]
 
-    substituted = tuple(
-        _OUTPUT_SUBTREE_PLACEHOLDER_RE.sub(_replace_placeholder, component) for component in parts
-    )
+    substituted = tuple(_OUTPUT_SUBTREE_PLACEHOLDER_RE.sub(_replace_placeholder, component) for component in parts)
     return _normalize_output_subtree(substituted)
 
 
 class ProjectStorageLayout:
     """Storage policy view over a single project root."""
 
-    __slots__ = ("root", "gpd")
+    __slots__ = ("root", "gpd", "gpd_dir_name")
 
     def __init__(self, root: Path, gpd_dir: str = PLANNING_DIR_NAME) -> None:
         self.root = root.resolve(strict=False)
+        self.gpd_dir_name = gpd_dir
         self.gpd = ProjectLayout(self.root, gpd_dir=gpd_dir).gpd.resolve(strict=False)
 
     @property
@@ -402,11 +478,7 @@ class ProjectStorageLayout:
         )
 
     def phase_artifacts_dir(self, phase_name: str) -> Path:
-        return (
-            self.output_dir(DurableOutputKind.ARTIFACTS)
-            / "phases"
-            / _safe_component(phase_name)
-        )
+        return self.output_dir(DurableOutputKind.ARTIFACTS) / "phases" / _safe_component(phase_name)
 
     def phase_operation_dir(self, phase_name: str, operation: str, *, slug: str | None = None) -> Path:
         path = self.phase_artifacts_dir(phase_name) / _safe_component(operation)
@@ -420,6 +492,12 @@ class ProjectStorageLayout:
             candidate = self.root / candidate
         return candidate.resolve(strict=False)
 
+    def anchor(self, path: Path | str) -> Path:
+        candidate = Path(path)
+        if not candidate.is_absolute():
+            candidate = self.root / candidate
+        return candidate.absolute()
+
     def _display_path(self, path: Path) -> str:
         if _is_relative_to(path, self.root):
             return path.relative_to(self.root).as_posix()
@@ -432,6 +510,8 @@ class ProjectStorageLayout:
         return any(segment.lower() in _PROJECT_SCRATCH_SEGMENTS for segment in rel.parts)
 
     def _internal_storage_violation(self, path: Path) -> str | None:
+        if not _is_relative_to(path, self.root):
+            return None
         rel = path.relative_to(self.root)
         suffix = path.suffix.lower()
 
@@ -439,12 +519,21 @@ class ProjectStorageLayout:
             return f"Suspicious durable-artifact path under {self.gpd.as_posix()}: {rel.as_posix()}"
 
         if (
-            (_is_relative_to(path, self.gpd / "phases") or _is_relative_to(path, self.gpd / "paper"))
-            and suffix in _SUSPICIOUS_DURABLE_SUFFIXES
-        ):
+            _is_relative_to(path, self.gpd / "phases") or _is_relative_to(path, self.gpd / "paper")
+        ) and suffix in _SUSPICIOUS_DURABLE_SUFFIXES:
             return f"Artifact-like file stored under internal metadata directories: {rel.as_posix()}"
 
         return None
+
+    def _generic_root_output_warning(self, path: Path) -> str | None:
+        if not _is_relative_to(path, self.root) or _is_relative_to(path, self.gpd):
+            return None
+        rel = path.relative_to(self.root)
+        if not rel.parts or rel.parts[0] not in _GENERIC_PROJECT_OUTPUT_ROOT_DIR_NAMES:
+            return None
+        if path.suffix.lower() not in _SUSPICIOUS_DURABLE_SUFFIXES:
+            return None
+        return f"Project-local generic root may hide durable output: {rel.as_posix()}"
 
     def temp_roots(self) -> tuple[Path, ...]:
         candidates: list[Path] = []
@@ -457,6 +546,7 @@ class ProjectStorageLayout:
             if not raw.is_absolute():
                 continue
             candidates.append(raw.resolve(strict=False))
+        candidates.extend(path.resolve(strict=False) for path in _CANONICAL_TEMP_ROOT_ALIASES)
         return _dedupe_paths(candidates)
 
     def project_root_is_temporary(self) -> bool:
@@ -488,12 +578,14 @@ class ProjectStorageLayout:
         *,
         managed_output_policies: tuple[ManagedOutputPolicy, ...] = (),
     ) -> StoragePathAssessment:
-        resolved = self.resolve(path)
-        classification = self.classify(resolved)
+        anchored = self.anchor(path)
+        resolved = anchored.resolve(strict=False)
+        path_for_policy = anchored if anchored.is_symlink() else resolved
+        classification = self.classify(path_for_policy)
 
-        if classification == StorageClass.SCRATCH or self._is_project_local_scratch_path(resolved):
+        if classification == StorageClass.SCRATCH or self._is_project_local_scratch_path(path_for_policy):
             return StoragePathAssessment(
-                path=resolved,
+                path=path_for_policy,
                 classification=classification,
                 managed_output_class=ManagedOutputClass.SCRATCH,
             )
@@ -511,9 +603,9 @@ class ProjectStorageLayout:
             )
 
         for policy in managed_output_policies:
-            if self._matches_managed_output_policy(resolved, policy):
+            if self._matches_managed_output_policy(path_for_policy, policy):
                 return StoragePathAssessment(
-                    path=resolved,
+                    path=path_for_policy,
                     classification=classification,
                     managed_output_class=policy.output_class,
                     matched_policy=policy,
@@ -527,7 +619,7 @@ class ProjectStorageLayout:
             managed_output_class = ManagedOutputClass.GPD_INTERNAL_OTHER
 
         return StoragePathAssessment(
-            path=resolved,
+            path=path_for_policy,
             classification=classification,
             managed_output_class=managed_output_class,
         )
@@ -574,9 +666,13 @@ class ProjectStorageLayout:
         display_path = self._display_path(assessment.path)
 
         if assessment.managed_output_class == ManagedOutputClass.GPD_INTERNAL_OTHER:
-            raise StoragePathError(f"Final durable outputs must not be written under {self.gpd.as_posix()}: {display_path}")
+            raise StoragePathError(
+                f"Final durable outputs must not be written under {self.gpd.as_posix()}: {display_path}"
+            )
         if assessment.managed_output_class == ManagedOutputClass.SCRATCH:
-            raise StoragePathError(f"Final durable outputs must not be written under scratch directories: {display_path}")
+            raise StoragePathError(
+                f"Final durable outputs must not be written under scratch directories: {display_path}"
+            )
         if assessment.managed_output_class == ManagedOutputClass.TEMP_ROOT:
             raise StoragePathError(f"Final durable outputs must not be written under an OS temp root: {display_path}")
         if assessment.managed_output_class == ManagedOutputClass.EXTERNAL:
@@ -633,7 +729,9 @@ class ProjectStorageLayout:
                 f"got {resolved.as_posix()}."
             )
         elif assessment.managed_output_class == ManagedOutputClass.PROJECT_LOCAL_OTHER:
-            preferred_label = ", ".join(path.relative_to(self.root).as_posix() for path in preferred_dirs) or "named durable roots"
+            preferred_label = (
+                ", ".join(path.relative_to(self.root).as_posix() for path in preferred_dirs) or "named durable roots"
+            )
             warnings.append(
                 f"Output is in a custom project directory; prefer {preferred_label} for discoverability, got {resolved.as_posix()}."
             )
@@ -657,7 +755,9 @@ class ProjectStorageLayout:
             and kind is not None
             and not _is_relative_to(resolved, self.output_dir(kind))
         ):
-            warnings.append(f"Expected a {kind.value} output under {self.output_dir(kind).as_posix()}, got {resolved.as_posix()}.")
+            warnings.append(
+                f"Expected a {kind.value} output under {self.output_dir(kind).as_posix()}, got {resolved.as_posix()}."
+            )
 
         return StoragePathCheck(
             path=resolved,
@@ -676,16 +776,26 @@ class ProjectStorageLayout:
         warnings: list[str] = []
         if self.project_root_is_temporary():
             warnings.append(f"Project root is under a temporary directory: {self.root.as_posix()}")
+        runtime_config_dir_lookup_error = _runtime_config_dir_lookup_error()
+        if runtime_config_dir_lookup_error is not None:
+            warnings.append(
+                "Runtime config directory pruning skipped because validated runtime catalog lookup failed: "
+                f"{runtime_config_dir_lookup_error}"
+            )
+        raw_gpd = self.root / self.gpd_dir_name
+        if raw_gpd.exists() and not _is_relative_to(self.gpd, self.root):
+            warnings.append(
+                "GPD storage root resolves outside the project root: "
+                f"{raw_gpd.relative_to(self.root).as_posix()} -> {self.gpd.as_posix()}"
+            )
 
         if self.gpd.exists():
-            for path in self.gpd.rglob("*"):
-                if not path.is_file():
-                    continue
-                rel = path.relative_to(self.root)
+            for path in _iter_storage_audit_files(self.gpd):
+                rel_label = self._display_path(path)
                 suffix = path.suffix.lower()
 
                 if _is_relative_to(path, self.scratch_dir) and suffix not in _SCRATCH_TEMP_SUFFIXES:
-                    warnings.append(f"Scratch file should not be treated as durable output: {rel.as_posix()}")
+                    warnings.append(f"Scratch file should not be treated as durable output: {rel_label}")
                     continue
 
                 assessment = self.assess_output_path(path, managed_output_policies=managed_output_policies)
@@ -696,13 +806,17 @@ class ProjectStorageLayout:
                 if violation is not None:
                     warnings.append(violation)
 
-        for path in self.root.rglob("*"):
-            if not path.is_file() or _is_relative_to(path, self.gpd):
+        for path in _iter_storage_audit_files(self.root, skip_roots=(self.gpd,)):
+            generic_root_warning = self._generic_root_output_warning(path)
+            if generic_root_warning is not None:
+                warnings.append(generic_root_warning)
                 continue
             if not self._is_project_local_scratch_path(path):
                 continue
             if path.suffix.lower() in _SCRATCH_TEMP_SUFFIXES:
                 continue
-            warnings.append(f"Project scratch directory should not hold final outputs: {path.relative_to(self.root).as_posix()}")
+            warnings.append(
+                f"Project scratch directory should not hold final outputs: {path.relative_to(self.root).as_posix()}"
+            )
 
         return tuple(dict.fromkeys(warnings))

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -27,6 +28,20 @@ def test_resolve_api_key_rejects_compatibility_alias() -> None:
 
     with pytest.raises(RuntimeError, match="GPD_WOLFRAM_MCP_API_KEY"):
         resolve_api_key({"WOLFRAM_MCP_SERVICE_API_KEY": "legacy-token"})
+
+
+def test_managed_wolfram_summary_only_reports_canonical_api_key_env() -> None:
+    from gpd.mcp.managed_integrations import WOLFRAM_MANAGED_INTEGRATION, WOLFRAM_MCP_API_KEY_ENV_VAR
+
+    summary = WOLFRAM_MANAGED_INTEGRATION.config_summary({"WOLFRAM_MCP_SERVICE_API_KEY": "legacy-token"})
+    serialized = json.dumps(summary)
+
+    assert summary["api_key_env_var"] == WOLFRAM_MCP_API_KEY_ENV_VAR
+    assert summary["api_key_env_vars"] == [WOLFRAM_MCP_API_KEY_ENV_VAR]
+    assert summary["missing_api_key_env_vars"] == [WOLFRAM_MCP_API_KEY_ENV_VAR]
+    assert summary["api_key_recovery"] == f"Set {WOLFRAM_MCP_API_KEY_ENV_VAR}."
+    assert "ignored_legacy_api_key_env_vars" not in summary
+    assert "WOLFRAM_MCP_SERVICE_API_KEY" not in serialized
 
 
 def test_module_entrypoint_invokes_main_without_eager_package_import_warning() -> None:

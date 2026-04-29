@@ -5,7 +5,7 @@ type: verification-report-template
 
 # Verification Report Template
 
-Verification reports are the decisive readout of the same contract-backed ledger. Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing and apply it literally.
+Verification reports are the decisive readout of the same contract-backed ledger. Reload `{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing and apply it literally.
 
 ## Canonical Report Surface
 

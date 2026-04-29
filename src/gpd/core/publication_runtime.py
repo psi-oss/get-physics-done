@@ -30,6 +30,8 @@ from gpd.core.peer_review_mode import (
 )
 from gpd.core.proof_review import (
     ProofReviewStatus,
+    _read_proof_redteam_status,
+    manuscript_requires_theorem_bearing_review,
     publication_lineage_mode,
     publication_lineage_roots,
     resolve_manuscript_proof_review_status,
@@ -43,8 +45,11 @@ from gpd.core.publication_rounds import (
     publication_response_round_path_maps,
     publication_review_round_path_maps,
 )
+from gpd.core.referee_policy import evaluate_referee_decision, validate_referee_decision_ledger_consistency
 from gpd.core.reference_ingestion import ManuscriptReferenceStatusIngestion, ingest_manuscript_reference_status
+from gpd.core.reproducibility import compute_sha256
 from gpd.core.state import load_state_json
+from gpd.mcp.paper.models import ReviewIssueStatus
 from gpd.mcp.paper.review_artifacts import read_referee_decision, read_review_ledger
 
 __all__ = [
@@ -134,13 +139,21 @@ class PublicationReviewArtifacts:
     referee_report_md: Path | None = None
     referee_report_tex: Path | None = None
     proof_redteam: Path | None = None
+    proof_redteam_required: bool = False
     state: str = "missing"
     detail: str = ""
     missing_artifacts: tuple[str, ...] = ()
 
     @property
     def complete(self) -> bool:
-        return self.review_ledger is not None and self.referee_decision is not None and self.state == "complete"
+        return (
+            self.review_ledger is not None
+            and self.referee_decision is not None
+            and self.referee_report_md is not None
+            and self.referee_report_tex is not None
+            and (not self.proof_redteam_required or self.proof_redteam is not None)
+            and self.state == "complete"
+        )
 
     def to_context_dict(self, project_root: Path) -> dict[str, object]:
         return {
@@ -151,6 +164,7 @@ class PublicationReviewArtifacts:
             "referee_report_md": _relative_path(project_root, self.referee_report_md),
             "referee_report_tex": _relative_path(project_root, self.referee_report_tex),
             "proof_redteam": _relative_path(project_root, self.proof_redteam),
+            "proof_redteam_required": self.proof_redteam_required,
             "state": self.state,
             "detail": self.detail,
             "complete": self.complete,
@@ -500,15 +514,30 @@ def _first_existing_path(*candidates: Path) -> Path | None:
     return None
 
 
+def _proof_redteam_claim_ids(path: Path) -> tuple[tuple[str, ...], str | None]:
+    try:
+        meta, _body = extract_frontmatter(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, FrontmatterParseError) as exc:
+        return (), str(exc)
+    claim_ids = meta.get("claim_ids")
+    if not isinstance(claim_ids, list) or any(not isinstance(item, str) or not item.strip() for item in claim_ids):
+        return (), "top-level frontmatter `claim_ids` must be a list of strings"
+    return tuple(dict.fromkeys(item.strip() for item in claim_ids)), None
+
+
 def _review_artifact_state(
     *,
     review_ledger: Path | None,
     referee_decision: Path | None,
+    referee_report_md: Path | None,
+    referee_report_tex: Path | None,
+    proof_redteam: Path | None,
     manuscript_entrypoint: Path | None,
     project_root: Path,
     round_number: int,
-) -> tuple[str, str, tuple[str, ...]]:
+) -> tuple[str, str, tuple[str, ...], bool]:
     missing: list[str] = []
+    proof_redteam_required = False
     ledger = None
     decision = None
     if review_ledger is None:
@@ -517,7 +546,7 @@ def _review_artifact_state(
         try:
             ledger = read_review_ledger(review_ledger)
         except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
-            return "invalid", f"review ledger could not be loaded: {exc}", ()
+            return "invalid", f"review ledger could not be loaded: {exc}", (), False
 
     if referee_decision is None:
         missing.append("referee_decision")
@@ -525,40 +554,154 @@ def _review_artifact_state(
         try:
             decision = read_referee_decision(referee_decision)
         except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
-            return "invalid", f"referee decision could not be loaded: {exc}", ()
+            return "invalid", f"referee decision could not be loaded: {exc}", (), False
+
+    if referee_report_md is None:
+        missing.append("referee_report_md")
+    if referee_report_tex is None:
+        missing.append("referee_report_tex")
+    if manuscript_entrypoint is not None:
+        proof_redteam_required = manuscript_requires_theorem_bearing_review(project_root, manuscript_entrypoint)
+        if proof_redteam_required and proof_redteam is None:
+            missing.append("proof_redteam")
 
     if ledger is not None and ledger.round != round_number:
         return (
             "invalid",
             f"review ledger round {ledger.round} does not match review artifact round {round_number}",
             (),
+            proof_redteam_required,
         )
 
     if manuscript_entrypoint is not None:
+        matched: list[str] = []
         mismatched: list[str] = []
-        if ledger is not None and not manuscript_matches_review_artifact_path(
-            ledger.manuscript_path,
-            manuscript_entrypoint,
-            cwd=project_root,
-        ):
-            mismatched.append("review ledger")
-        if decision is not None and not manuscript_matches_review_artifact_path(
-            decision.manuscript_path,
-            manuscript_entrypoint,
-            cwd=project_root,
-        ):
-            mismatched.append("referee decision")
+        if ledger is not None:
+            if manuscript_matches_review_artifact_path(
+                ledger.manuscript_path,
+                manuscript_entrypoint,
+                cwd=project_root,
+            ):
+                matched.append("review ledger")
+            else:
+                mismatched.append("review ledger")
+        if decision is not None:
+            if manuscript_matches_review_artifact_path(
+                decision.manuscript_path,
+                manuscript_entrypoint,
+                cwd=project_root,
+            ):
+                matched.append("referee decision")
+            else:
+                mismatched.append("referee decision")
         if mismatched:
+            if not matched:
+                return (
+                    "unrelated",
+                    "review round does not match the resolved publication subject",
+                    (),
+                    proof_redteam_required,
+                )
             return (
                 "mismatched",
                 " or ".join(mismatched) + " does not match the resolved publication subject",
                 (),
+                proof_redteam_required,
+            )
+
+    if ledger is not None and decision is not None:
+        consistency_errors = validate_referee_decision_ledger_consistency(decision, ledger)
+        if consistency_errors:
+            return (
+                "invalid",
+                "review ledger/referee decision semantics failed: " + "; ".join(consistency_errors[:3]),
+                (),
+                proof_redteam_required,
+            )
+
+        unresolved_blocking_issue_ids = sorted(
+            issue.issue_id for issue in ledger.issues if issue.blocking and issue.status != ReviewIssueStatus.resolved
+        )
+        if unresolved_blocking_issue_ids:
+            return (
+                "blocked",
+                "unresolved blocking review-ledger issues remain: " + ", ".join(unresolved_blocking_issue_ids),
+                (),
+                proof_redteam_required,
             )
 
     if missing:
-        return "partial", f"missing review artifact(s): {', '.join(missing)}", tuple(missing)
+        return "partial", f"missing review artifact(s): {', '.join(missing)}", tuple(missing), proof_redteam_required
 
-    return "complete", "latest review round is complete for the active manuscript", ()
+    if ledger is not None and decision is not None:
+        expected_manuscript_sha256 = None
+        if manuscript_entrypoint is not None:
+            try:
+                expected_manuscript_sha256 = compute_sha256(manuscript_entrypoint)
+            except OSError:
+                expected_manuscript_sha256 = None
+        strict_report = evaluate_referee_decision(
+            decision,
+            strict=True,
+            require_explicit_inputs=True,
+            review_ledger=ledger,
+            project_root=project_root,
+            expected_manuscript_sha256=expected_manuscript_sha256,
+        )
+        if not strict_report.valid:
+            return (
+                "invalid",
+                "referee decision strict policy failed: " + "; ".join(strict_report.reasons[:3]),
+                (),
+                proof_redteam_required,
+            )
+        if proof_redteam_required:
+            if not decision.proof_audit_coverage_complete or not decision.theorem_proof_alignment_adequate:
+                return (
+                    "invalid",
+                    "theorem-bearing manuscript requires complete proof-audit coverage and aligned proof-redteam review",
+                    (),
+                    proof_redteam_required,
+                )
+            if proof_redteam is not None:
+                proof_redteam_status, proof_redteam_error = _read_proof_redteam_status(
+                    proof_redteam,
+                    project_root=project_root,
+                    expected_manuscript_path=decision.manuscript_path.strip() or None,
+                    expected_manuscript_sha256=expected_manuscript_sha256,
+                    expected_round=round_number,
+                )
+                if proof_redteam_error is not None:
+                    return (
+                        "invalid",
+                        "proof-redteam strict policy failed: " + proof_redteam_error,
+                        (),
+                        proof_redteam_required,
+                    )
+                if proof_redteam_status != "passed":
+                    return (
+                        "invalid",
+                        f"proof-redteam strict policy failed: expected status `passed`, got `{proof_redteam_status}`",
+                        (),
+                        proof_redteam_required,
+                    )
+                proof_claim_ids, proof_claim_error = _proof_redteam_claim_ids(proof_redteam)
+                if proof_claim_error is not None:
+                    return (
+                        "invalid",
+                        "proof-redteam strict policy failed: " + proof_claim_error,
+                        (),
+                        proof_redteam_required,
+                    )
+                if not proof_claim_ids:
+                    return (
+                        "invalid",
+                        "proof-redteam strict policy failed: theorem-bearing manuscript requires claim_ids",
+                        (),
+                        proof_redteam_required,
+                    )
+
+    return "complete", "latest review round is complete for the active manuscript", (), proof_redteam_required
 
 
 def _publication_lineage_roots_for_subject(
@@ -566,8 +709,12 @@ def _publication_lineage_roots_for_subject(
     subject: PublicationSubjectResolution,
 ) -> tuple[Path, Path]:
     layout = ProjectLayout(project_root)
+    publication_root = subject.publication_root
+    review_dir = subject.review_dir
+    if publication_root is not None and review_dir is not None:
+        return publication_root, review_dir
     if subject.manuscript_entrypoint is None:
-        return layout.gpd, layout.gpd / "review"
+        return layout.gpd, layout.review_dir
     return publication_lineage_roots(project_root, subject.manuscript_entrypoint)
 
 
@@ -730,7 +877,7 @@ def resolve_latest_publication_review_artifacts(
     elif manuscript_entrypoint is not None:
         layout = ProjectLayout(project_root)
         resolved_manuscript = manuscript_entrypoint
-        publication_root, review_dir = layout.gpd, layout.gpd / "review"
+        publication_root, review_dir = layout.gpd, layout.review_dir
     else:
         return None
 
@@ -756,14 +903,18 @@ def resolve_latest_publication_review_artifacts(
         )
         proof_redteam = review_dir / f"PROOF-REDTEAM{round_suffix}.md"
 
-        state, detail, missing_artifacts = _review_artifact_state(
+        existing_proof_redteam = proof_redteam if proof_redteam.exists() else None
+        state, detail, missing_artifacts, proof_redteam_required = _review_artifact_state(
             review_ledger=review_ledger,
             referee_decision=referee_decision,
+            referee_report_md=referee_report_md,
+            referee_report_tex=referee_report_tex,
+            proof_redteam=existing_proof_redteam,
             manuscript_entrypoint=resolved_manuscript,
             project_root=project_root,
             round_number=round_number,
         )
-        if state == "mismatched":
+        if state == "unrelated":
             continue
 
         return PublicationReviewArtifacts(
@@ -773,7 +924,8 @@ def resolve_latest_publication_review_artifacts(
             referee_decision=referee_decision,
             referee_report_md=referee_report_md,
             referee_report_tex=referee_report_tex,
-            proof_redteam=proof_redteam if proof_redteam.exists() else None,
+            proof_redteam=existing_proof_redteam,
+            proof_redteam_required=proof_redteam_required,
             state=state,
             detail=detail,
             missing_artifacts=missing_artifacts,
@@ -800,7 +952,7 @@ def resolve_latest_publication_response_artifacts(
         _publication_root, review_dir = _publication_lineage_roots_for_subject(project_root, subject)
     elif manuscript_entrypoint is not None:
         layout = ProjectLayout(project_root)
-        review_dir = layout.gpd / "review"
+        review_dir = layout.review_dir
     else:
         return None
     if not review_dir.exists():
@@ -840,7 +992,7 @@ def resolve_latest_publication_response_artifacts(
             missing_artifacts=tuple(missing),
         )
 
-    binding_required = subject.source == "explicit_target" and resolved_manuscript is not None
+    binding_required = resolved_manuscript is not None
     state, detail = _response_artifact_binding_state(
         project_root=project_root,
         author_response=author_response,

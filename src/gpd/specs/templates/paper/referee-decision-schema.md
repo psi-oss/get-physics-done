@@ -58,6 +58,7 @@ Strict validation treats omitted fields as a policy error even when the default 
 - In strict staged review, `manuscript_path` must be non-empty and must match the manuscript path used by the stage artifacts and review ledger.
 - `proof_audit_coverage_complete` must be `false` if any central theorem-bearing claim is missing a Stage 3 `proof_audits[]` entry.
 - `theorem_proof_alignment_adequate` must be `false` if any central theorem, proposition, lemma, or corollary is not actually proved as stated, including omitted assumptions, unused quantified parameters, or silent specialization to a narrower case.
+- If the matching `CLAIMS{round_suffix}.json` has no theorem-bearing claims, theorem-proof decision flags are not applicable; strict validation treats `false` as explicit N/A and `true` as vacuous coverage/alignment. If theorem-bearing claims are present or the theorem inventory cannot be read, `false` remains blocking.
 - Adequacy fields (`mathematical_correctness`, `novelty`, `significance`, `venue_fit`, `literature_positioning`) must be one of: `strong`, `adequate`, `weak`, `insufficient`.
 - `stage_artifacts` should list every specialist stage artifact used by the final referee. In strict mode, fewer than five stage artifacts fails validation.
 - In strict mode, specialist stage artifact filenames must match `STAGE-(reader|literature|math|physics|interestingness)(-R<round>)?.json`.

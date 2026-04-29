@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from gpd.contracts import PROOF_AUDIT_REVIEWER
 from gpd.core.manuscript_artifacts import resolve_explicit_publication_subject
 from gpd.core.publication_rounds import (
     publication_review_round_path_maps,
@@ -10,8 +11,26 @@ from gpd.core.publication_rounds import (
 )
 from gpd.core.publication_runtime import publication_runtime_snapshot_context, resolve_publication_runtime_snapshot
 from gpd.core.referee_policy import RefereeDecisionInput
-from gpd.mcp.paper.models import ReviewConfidence, ReviewLedger, ReviewRecommendation
-from gpd.mcp.paper.review_artifacts import write_referee_decision, write_review_ledger
+from gpd.core.reproducibility import compute_sha256
+from gpd.mcp.paper.models import (
+    ClaimIndex,
+    ClaimRecord,
+    ClaimType,
+    ReviewConfidence,
+    ReviewIssue,
+    ReviewIssueSeverity,
+    ReviewIssueStatus,
+    ReviewLedger,
+    ReviewRecommendation,
+    ReviewStageKind,
+    StageReviewReport,
+)
+from gpd.mcp.paper.review_artifacts import (
+    write_claim_index,
+    write_referee_decision,
+    write_review_ledger,
+    write_stage_review_report,
+)
 
 
 def _write(path: Path, content: str = "") -> None:
@@ -21,6 +40,54 @@ def _write(path: Path, content: str = "") -> None:
 
 def _write_review_round(review_dir: Path, *, manuscript_path: str, round_number: int) -> None:
     round_suffix = "" if round_number <= 1 else f"-R{round_number}"
+    project_root = next(parent.parent for parent in review_dir.parents if parent.name == "GPD")
+    resolved_manuscript = project_root / manuscript_path
+    manuscript_sha256 = compute_sha256(resolved_manuscript)
+    stage_artifacts: list[str] = []
+    claim_id = "CLM-001"
+    write_claim_index(
+        ClaimIndex(
+            manuscript_path=manuscript_path,
+            manuscript_sha256=manuscript_sha256,
+            claims=[
+                ClaimRecord(
+                    claim_id=claim_id,
+                    claim_type=ClaimType.main_result,
+                    claim_kind="other",
+                    text="The manuscript reports a descriptive result.",
+                    artifact_path=manuscript_path,
+                    section="Main Result",
+                )
+            ],
+        ),
+        review_dir / f"CLAIMS{round_suffix}.json",
+    )
+    for stage_kind in (
+        ReviewStageKind.reader,
+        ReviewStageKind.literature,
+        ReviewStageKind.math,
+        ReviewStageKind.physics,
+        ReviewStageKind.interestingness,
+    ):
+        stage_path = review_dir / f"STAGE-{stage_kind.value}{round_suffix}.json"
+        write_stage_review_report(
+            StageReviewReport(
+                round=round_number,
+                stage_id=stage_kind.value,
+                stage_kind=stage_kind,
+                manuscript_path=manuscript_path,
+                manuscript_sha256=manuscript_sha256,
+                claims_reviewed=[claim_id] if stage_kind != ReviewStageKind.math else [],
+                summary=f"{stage_kind.value} review summary.",
+                strengths=["The staged artifact is aligned."],
+                findings=[],
+                proof_audits=[],
+                confidence=ReviewConfidence.medium,
+                recommendation_ceiling=ReviewRecommendation.minor_revision,
+            ),
+            stage_path,
+        )
+        stage_artifacts.append(stage_path.relative_to(project_root).as_posix())
     write_review_ledger(
         ReviewLedger(round=round_number, manuscript_path=manuscript_path, issues=[]),
         review_dir / f"REVIEW-LEDGER{round_suffix}.json",
@@ -28,8 +95,25 @@ def _write_review_round(review_dir: Path, *, manuscript_path: str, round_number:
     write_referee_decision(
         RefereeDecisionInput(
             manuscript_path=manuscript_path,
-            final_recommendation=ReviewRecommendation.minor_revision,
+            target_journal="jhep",
+            final_recommendation=ReviewRecommendation.accept,
             final_confidence=ReviewConfidence.medium,
+            stage_artifacts=stage_artifacts,
+            central_claims_supported=True,
+            claim_scope_proportionate_to_evidence=True,
+            physical_assumptions_justified=True,
+            proof_audit_coverage_complete=False,
+            theorem_proof_alignment_adequate=False,
+            unsupported_claims_are_central=False,
+            reframing_possible_without_new_results=True,
+            mathematical_correctness="adequate",
+            novelty="adequate",
+            significance="adequate",
+            venue_fit="adequate",
+            literature_positioning="adequate",
+            unresolved_major_issues=0,
+            unresolved_minor_issues=0,
+            blocking_issue_ids=[],
         ),
         review_dir / f"REFEREE-DECISION{round_suffix}.json",
     )
@@ -83,6 +167,8 @@ def _write_response_pair(
 
 
 def _write_artifact_manifest(manuscript_root: Path, entrypoint_name: str) -> None:
+    entrypoint = manuscript_root / entrypoint_name
+    entrypoint_sha256 = compute_sha256(entrypoint)
     _write(
         manuscript_root / "ARTIFACT-MANIFEST.json",
         json.dumps(
@@ -91,12 +177,14 @@ def _write_artifact_manifest(manuscript_root: Path, entrypoint_name: str) -> Non
                 "paper_title": "Main Paper",
                 "journal": "prl",
                 "created_at": "2026-04-02T00:00:00+00:00",
+                "manuscript_sha256": entrypoint_sha256,
+                "manuscript_mtime_ns": entrypoint.stat().st_mtime_ns,
                 "artifacts": [
                     {
                         "artifact_id": "tex-paper",
                         "category": "tex",
                         "path": entrypoint_name,
-                        "sha256": "0" * 64,
+                        "sha256": entrypoint_sha256,
                         "produced_by": "test",
                         "sources": [],
                         "metadata": {},
@@ -198,6 +286,8 @@ def test_publication_runtime_snapshot_uses_the_matching_review_round_for_an_expl
     assert snapshot.latest_review_artifacts.round_number == 2
     assert snapshot.latest_review_artifacts.referee_report_md == planning_dir / "REFEREE-REPORT-R2.md"
     assert snapshot.latest_review_artifacts.referee_report_tex == planning_dir / "REFEREE-REPORT-R2.tex"
+    assert snapshot.latest_review_artifacts.state == "complete"
+    assert snapshot.latest_review_artifacts.complete is True
     assert snapshot.latest_response_artifacts is not None
     assert snapshot.latest_response_artifacts.round_number == 2
     assert snapshot.latest_response_artifacts.author_response == planning_dir / "AUTHOR-RESPONSE-R2.md"
@@ -208,6 +298,32 @@ def test_publication_runtime_snapshot_uses_the_matching_review_round_for_an_expl
     assert context["latest_referee_report_md"] == "GPD/REFEREE-REPORT-R2.md"
     assert context["latest_author_response"] == "GPD/AUTHOR-RESPONSE-R2.md"
     assert context["publication_subject"]["manuscript_entrypoint"] == "paper/main.tex"
+
+
+def test_publication_runtime_rejects_structurally_complete_review_round_with_invalid_strict_decision(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    review_dir = tmp_path / "GPD" / "review"
+    _write_review_round(review_dir, manuscript_path="paper/main.tex", round_number=2)
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+
+    decision_path = review_dir / "REFEREE-DECISION-R2.json"
+    decision_payload = json.loads(decision_path.read_text(encoding="utf-8"))
+    decision_payload["final_recommendation"] = "accept"
+    decision_payload["significance"] = "insufficient"
+    decision_path.write_text(json.dumps(decision_payload, indent=2) + "\n", encoding="utf-8")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.complete is False
+    assert snapshot.latest_review_artifacts.state == "invalid"
+    assert "referee decision strict policy failed" in snapshot.latest_review_artifacts.detail
+    assert "Physical significance is insufficient" in snapshot.latest_review_artifacts.detail
 
 
 def test_publication_runtime_marks_review_round_invalid_when_ledger_content_round_disagrees(
@@ -239,6 +355,301 @@ def test_publication_runtime_marks_review_round_invalid_when_ledger_content_roun
     assert "review ledger round 1 does not match review artifact round 2" in snapshot.latest_review_artifacts.detail
 
 
+def test_publication_runtime_rejects_complete_review_round_with_duplicate_ledger_issue_ids(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    review_dir = tmp_path / "GPD" / "review"
+    review_dir.mkdir(parents=True)
+    write_review_ledger(
+        ReviewLedger(
+            round=2,
+            manuscript_path="paper/main.tex",
+            issues=[
+                ReviewIssue(
+                    issue_id="REF-001",
+                    opened_by_stage=ReviewStageKind.reader,
+                    severity=ReviewIssueSeverity.minor,
+                    summary="First copy.",
+                    status=ReviewIssueStatus.resolved,
+                ),
+                ReviewIssue(
+                    issue_id="REF-001",
+                    opened_by_stage=ReviewStageKind.physics,
+                    severity=ReviewIssueSeverity.minor,
+                    summary="Duplicate copy.",
+                    status=ReviewIssueStatus.resolved,
+                ),
+            ],
+        ),
+        review_dir / "REVIEW-LEDGER-R2.json",
+    )
+    write_referee_decision(
+        RefereeDecisionInput(
+            manuscript_path="paper/main.tex",
+            final_recommendation=ReviewRecommendation.minor_revision,
+            final_confidence=ReviewConfidence.medium,
+        ),
+        review_dir / "REFEREE-DECISION-R2.json",
+    )
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.complete is False
+    assert snapshot.latest_review_artifacts.state == "invalid"
+    assert "review ledger contains duplicate issue IDs: REF-001" in snapshot.latest_review_artifacts.detail
+
+
+def test_publication_runtime_rejects_complete_review_round_with_unknown_blocking_issue_ids(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    review_dir = tmp_path / "GPD" / "review"
+    review_dir.mkdir(parents=True)
+    write_review_ledger(
+        ReviewLedger(
+            round=2,
+            manuscript_path="paper/main.tex",
+            issues=[
+                ReviewIssue(
+                    issue_id="REF-001",
+                    opened_by_stage=ReviewStageKind.reader,
+                    severity=ReviewIssueSeverity.minor,
+                    summary="Resolved issue.",
+                    status=ReviewIssueStatus.resolved,
+                )
+            ],
+        ),
+        review_dir / "REVIEW-LEDGER-R2.json",
+    )
+    write_referee_decision(
+        RefereeDecisionInput(
+            manuscript_path="paper/main.tex",
+            final_recommendation=ReviewRecommendation.major_revision,
+            final_confidence=ReviewConfidence.medium,
+            blocking_issue_ids=["REF-999"],
+        ),
+        review_dir / "REFEREE-DECISION-R2.json",
+    )
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.complete is False
+    assert snapshot.latest_review_artifacts.state == "invalid"
+    assert "blocking_issue_ids not found in review ledger: REF-999" in snapshot.latest_review_artifacts.detail
+
+
+def test_publication_runtime_blocks_complete_review_round_with_unresolved_blocking_issues(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    review_dir = tmp_path / "GPD" / "review"
+    review_dir.mkdir(parents=True)
+    write_review_ledger(
+        ReviewLedger(
+            round=2,
+            manuscript_path="paper/main.tex",
+            issues=[
+                ReviewIssue(
+                    issue_id="REF-001",
+                    opened_by_stage=ReviewStageKind.physics,
+                    severity=ReviewIssueSeverity.major,
+                    blocking=True,
+                    summary="Central evidence is incomplete.",
+                    status=ReviewIssueStatus.open,
+                )
+            ],
+        ),
+        review_dir / "REVIEW-LEDGER-R2.json",
+    )
+    write_referee_decision(
+        RefereeDecisionInput(
+            manuscript_path="paper/main.tex",
+            final_recommendation=ReviewRecommendation.major_revision,
+            final_confidence=ReviewConfidence.medium,
+            unresolved_major_issues=1,
+            blocking_issue_ids=["REF-001"],
+        ),
+        review_dir / "REFEREE-DECISION-R2.json",
+    )
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.complete is False
+    assert snapshot.latest_review_artifacts.state == "blocked"
+    assert "unresolved blocking review-ledger issues remain: REF-001" in snapshot.latest_review_artifacts.detail
+
+
+def test_publication_runtime_requires_referee_reports_for_complete_review_round(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    review_dir = tmp_path / "GPD" / "review"
+    review_dir.mkdir(parents=True)
+    _write_review_round(review_dir, manuscript_path="paper/main.tex", round_number=2)
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+    context = publication_runtime_snapshot_context(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.round_number == 2
+    assert snapshot.latest_review_artifacts.state == "partial"
+    assert snapshot.latest_review_artifacts.complete is False
+    assert snapshot.latest_review_artifacts.missing_artifacts == ("referee_report_md", "referee_report_tex")
+    assert "missing review artifact(s): referee_report_md, referee_report_tex" in (
+        snapshot.latest_review_artifacts.detail
+    )
+    assert context["latest_review_artifacts"]["complete"] is False
+    assert context["latest_review_artifacts"]["missing_artifacts"] == ["referee_report_md", "referee_report_tex"]
+
+
+def test_publication_runtime_requires_proof_redteam_for_theorem_bearing_complete_review_round(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "paper" / "main.tex",
+        "\\documentclass{article}\n\\begin{document}\n\\begin{theorem}Bounded.\\end{theorem}\n\\end{document}\n",
+    )
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    review_dir = tmp_path / "GPD" / "review"
+    review_dir.mkdir(parents=True)
+    _write_review_round(review_dir, manuscript_path="paper/main.tex", round_number=2)
+    claims_path = review_dir / "CLAIMS-R2.json"
+    claims_payload = json.loads(claims_path.read_text(encoding="utf-8"))
+    claims_payload["claims"][0].update(
+        {
+            "claim_kind": "theorem",
+            "text": "Bounded.",
+            "theorem_assumptions": [],
+            "theorem_parameters": ["x"],
+        }
+    )
+    claims_path.write_text(json.dumps(claims_payload, indent=2) + "\n", encoding="utf-8")
+    math_stage_path = review_dir / "STAGE-math-R2.json"
+    math_stage_payload = json.loads(math_stage_path.read_text(encoding="utf-8"))
+    math_stage_payload["claims_reviewed"] = ["CLM-001"]
+    math_stage_payload["proof_audits"] = [
+        {
+            "claim_id": "CLM-001",
+            "theorem_assumptions_checked": [],
+            "theorem_parameters_checked": ["x"],
+            "proof_locations": ["paper/main.tex:1"],
+            "uncovered_assumptions": [],
+            "uncovered_parameters": [],
+            "coverage_gaps": [],
+            "alignment_status": "aligned",
+            "notes": "Complete coverage.",
+        }
+    ]
+    math_stage_path.write_text(json.dumps(math_stage_payload, indent=2) + "\n", encoding="utf-8")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+    context = publication_runtime_snapshot_context(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.state == "partial"
+    assert snapshot.latest_review_artifacts.complete is False
+    assert snapshot.latest_review_artifacts.proof_redteam_required is True
+    assert snapshot.latest_review_artifacts.missing_artifacts == ("proof_redteam",)
+    assert context["latest_review_artifacts"]["complete"] is False
+    assert context["latest_review_artifacts"]["proof_redteam_required"] is True
+    assert context["latest_review_artifacts"]["missing_artifacts"] == ["proof_redteam"]
+
+
+def test_publication_runtime_rejects_malformed_proof_redteam_for_theorem_bearing_review(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "paper" / "main.tex",
+        "\\documentclass{article}\n\\begin{document}\n\\begin{theorem}Bounded.\\end{theorem}\n\\end{document}\n",
+    )
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    review_dir = tmp_path / "GPD" / "review"
+    review_dir.mkdir(parents=True)
+    _write_review_round(review_dir, manuscript_path="paper/main.tex", round_number=2)
+    claims_path = review_dir / "CLAIMS-R2.json"
+    claims_payload = json.loads(claims_path.read_text(encoding="utf-8"))
+    claims_payload["claims"][0].update(
+        {
+            "claim_kind": "theorem",
+            "text": "Bounded.",
+            "theorem_assumptions": [],
+            "theorem_parameters": ["x"],
+        }
+    )
+    claims_path.write_text(json.dumps(claims_payload, indent=2) + "\n", encoding="utf-8")
+    math_stage_path = review_dir / "STAGE-math-R2.json"
+    math_stage_payload = json.loads(math_stage_path.read_text(encoding="utf-8"))
+    math_stage_payload["claims_reviewed"] = ["CLM-001"]
+    math_stage_payload["proof_audits"] = [
+        {
+            "claim_id": "CLM-001",
+            "theorem_assumptions_checked": [],
+            "theorem_parameters_checked": ["x"],
+            "proof_locations": ["paper/main.tex:1"],
+            "uncovered_assumptions": [],
+            "uncovered_parameters": [],
+            "coverage_gaps": [],
+            "alignment_status": "aligned",
+            "notes": "Complete coverage.",
+        }
+    ]
+    math_stage_path.write_text(json.dumps(math_stage_payload, indent=2) + "\n", encoding="utf-8")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+
+    manuscript_sha256 = compute_sha256(tmp_path / "paper" / "main.tex")
+    _write(
+        review_dir / "PROOF-REDTEAM-R2.md",
+        "---\n"
+        "status: passed\n"
+        f"reviewer: {PROOF_AUDIT_REVIEWER}\n"
+        "claim_ids: []\n"
+        "proof_artifact_paths: [paper/main.tex]\n"
+        "manuscript_path: paper/main.tex\n"
+        f"manuscript_sha256: {manuscript_sha256}\n"
+        "round: 2\n"
+        "---\n\n"
+        "# Proof Redteam\n"
+        "Incomplete body.\n",
+    )
+
+    decision_path = review_dir / "REFEREE-DECISION-R2.json"
+    decision_payload = json.loads(decision_path.read_text(encoding="utf-8"))
+    decision_payload["proof_audit_coverage_complete"] = True
+    decision_payload["theorem_proof_alignment_adequate"] = True
+    decision_path.write_text(json.dumps(decision_payload, indent=2) + "\n", encoding="utf-8")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.complete is False
+    assert snapshot.latest_review_artifacts.state == "invalid"
+    assert "PROOF-REDTEAM-R2.md is invalid" in snapshot.latest_review_artifacts.detail
+    assert "claim_ids" in snapshot.latest_review_artifacts.detail
+
+
 def test_publication_runtime_does_not_fall_back_past_malformed_latest_review_round(
     tmp_path: Path,
 ) -> None:
@@ -256,6 +667,41 @@ def test_publication_runtime_does_not_fall_back_past_malformed_latest_review_rou
     assert snapshot.latest_review_artifacts.complete is False
     assert snapshot.latest_review_artifacts.state == "invalid"
     assert "review ledger could not be loaded" in snapshot.latest_review_artifacts.detail
+
+
+def test_publication_runtime_does_not_fall_back_past_mixed_active_latest_review_round(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    _write(tmp_path / "paper" / "other.tex", "\\documentclass{article}\\begin{document}Other\\end{document}\n")
+    review_dir = tmp_path / "GPD" / "review"
+    _write_review_round(review_dir, manuscript_path="paper/main.tex", round_number=2)
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+    write_review_ledger(
+        ReviewLedger(round=3, manuscript_path="paper/main.tex", issues=[]),
+        review_dir / "REVIEW-LEDGER-R3.json",
+    )
+    write_referee_decision(
+        RefereeDecisionInput(
+            manuscript_path="paper/other.tex",
+            final_recommendation=ReviewRecommendation.minor_revision,
+            final_confidence=ReviewConfidence.medium,
+        ),
+        review_dir / "REFEREE-DECISION-R3.json",
+    )
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R3.md", "# Referee Report R3\n")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R3.tex", "\\section*{Referee Report R3}\n")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.round_number == 3
+    assert snapshot.latest_review_artifacts.complete is False
+    assert snapshot.latest_review_artifacts.state == "mismatched"
+    assert "referee decision does not match the resolved publication subject" in snapshot.latest_review_artifacts.detail
 
 
 def test_publication_runtime_reference_status_uses_canonical_subject_fields_for_invalid_explicit_target(
@@ -330,7 +776,7 @@ def test_publication_runtime_snapshot_accepts_legacy_review_dir_report_and_autho
     assert snapshot.latest_response_artifacts.referee_response == review_dir / "REFEREE_RESPONSE-R2.md"
 
 
-def test_publication_runtime_keeps_default_project_response_files_metadata_optional(tmp_path: Path) -> None:
+def test_publication_runtime_rejects_unbound_default_project_response_files(tmp_path: Path) -> None:
     _write(tmp_path / "GPD" / "PROJECT.md", "# Project\n")
     _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
     _write_artifact_manifest(tmp_path / "paper", "main.tex")
@@ -339,6 +785,30 @@ def test_publication_runtime_keeps_default_project_response_files_metadata_optio
     _write_review_round(review_dir, manuscript_path="paper/main.tex", round_number=2)
     _write(tmp_path / "GPD" / "AUTHOR-RESPONSE-R2.md", "# Author Response R2\n")
     _write(review_dir / "REFEREE_RESPONSE-R2.md", "# Referee Response R2\n")
+
+    snapshot = resolve_publication_runtime_snapshot(tmp_path)
+
+    assert snapshot.publication_subject.source == "current_project"
+    assert snapshot.latest_response_artifacts is not None
+    assert snapshot.latest_response_artifacts.complete is False
+    assert snapshot.latest_response_artifacts.state == "unbound"
+    assert "no response frontmatter binding" in snapshot.latest_response_artifacts.detail
+
+
+def test_publication_runtime_accepts_bound_default_project_response_files(tmp_path: Path) -> None:
+    _write(tmp_path / "GPD" / "PROJECT.md", "# Project\n")
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+
+    review_dir = tmp_path / "GPD" / "review"
+    _write_review_round(review_dir, manuscript_path="paper/main.tex", round_number=2)
+    _write_response_pair(
+        tmp_path / "GPD",
+        review_dir,
+        manuscript_path="paper/main.tex",
+        round_number=2,
+        project_root=tmp_path,
+    )
 
     snapshot = resolve_publication_runtime_snapshot(tmp_path)
 

@@ -54,8 +54,11 @@ from gpd.core.public_surface_contract import (
     local_cli_unattended_readiness_command,
     local_cli_validate_command_context_command,
 )
+from gpd.core.recent_projects import record_recent_project
+from gpd.core.reproducibility import compute_sha256
 from gpd.core.resume_surface import RESUME_BACKEND_ONLY_FIELDS
 from gpd.core.state import default_state_dict, generate_state_markdown, save_state_json, save_state_markdown
+from tests.latex_test_support import latex_capability_payload as _latex_capability_payload
 from tests.latex_test_support import toolchain_capability as _toolchain_capability
 from tests.runtime_test_support import (
     FOREIGN_RUNTIME,
@@ -81,6 +84,10 @@ _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 def _normalize_cli_output(text: str) -> str:
     return " ".join(_ANSI_ESCAPE_RE.sub("", text).split())
+
+
+def _has_warning_with_fragments(warnings: list[str], *fragments: str) -> bool:
+    return any(all(fragment in warning for fragment in fragments) for warning in warnings)
 
 
 _COST_TEST_RUNTIME = "runtime-under-test"
@@ -120,6 +127,36 @@ def _make_checkout(tmp_path: Path, version: str = "9.9.9") -> Path:
     return repo_root
 
 
+def _artifact_manifest_payload(
+    manuscript: Path,
+    *,
+    title: str = "Curvature Flow Bounds",
+    journal: str = "prl",
+    artifact_id: str = "tex-paper",
+    artifact_path: str | None = None,
+) -> dict[str, object]:
+    digest = compute_sha256(manuscript)
+    return {
+        "version": 1,
+        "paper_title": title,
+        "journal": journal,
+        "created_at": "2026-04-02T00:00:00+00:00",
+        "manuscript_sha256": digest,
+        "manuscript_mtime_ns": manuscript.stat().st_mtime_ns,
+        "artifacts": [
+            {
+                "artifact_id": artifact_id,
+                "category": "tex",
+                "path": artifact_path or manuscript.name,
+                "sha256": digest,
+                "produced_by": "test",
+                "sources": [],
+                "metadata": {},
+            }
+        ],
+    }
+
+
 def _write_managed_publication_manuscript(
     project_root: Path,
     *,
@@ -154,6 +191,13 @@ def _bootstrap_publication_project(project_root: Path) -> None:
     save_state_markdown(project_root, generate_state_markdown(state))
     (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
     (planning / "CONVENTIONS.md").write_text("# Conventions\n", encoding="utf-8")
+
+
+def _mark_verified_project_root(project_root: Path) -> None:
+    planning = project_root / "GPD"
+    planning.mkdir(parents=True, exist_ok=True)
+    save_state_json(project_root, default_state_dict())
+    (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
 
 
 def _write_write_paper_authoring_input(
@@ -407,7 +451,7 @@ def test_integrations_enable_and_disable_wolfram_persist_project_local_config(tm
     config_path = project_root / "GPD" / "integrations.json"
     assert config_path.exists()
     saved = json.loads(config_path.read_text(encoding="utf-8"))
-    assert saved["wolfram"]["enabled"] is True
+    assert saved["wolfram"] == {"enabled": True}
 
     disable_result = runner.invoke(app, ["--cwd", str(project_root), "--raw", "integrations", "disable", "wolfram"])
     assert disable_result.exit_code == 0
@@ -419,6 +463,8 @@ def test_integrations_enable_and_disable_wolfram_persist_project_local_config(tm
     status_payload = json.loads(status_result.output)
     assert status_payload["enabled"] is False
     assert status_payload["state"] == "disabled"
+    saved = json.loads(config_path.read_text(encoding="utf-8"))
+    assert saved["wolfram"] == {"enabled": False}
 
 
 @pytest.mark.parametrize("command", ("status", "enable", "disable"))
@@ -435,8 +481,8 @@ def test_integrations_commands_use_project_root_config_from_nested_workspace(tmp
     project_root = tmp_path / "project"
     nested_workspace = project_root / "notes" / "scratch"
     nested_workspace.mkdir(parents=True)
+    _mark_verified_project_root(project_root)
     config_path = project_root / "GPD" / "integrations.json"
-    config_path.parent.mkdir(parents=True)
     config_path.write_text('{"wolfram":{"enabled":false}}', encoding="utf-8")
 
     status_result = runner.invoke(app, ["--cwd", str(nested_workspace), "--raw", "integrations", "status", "wolfram"])
@@ -1107,6 +1153,7 @@ def _write_install_manifest(
             {
                 "runtime": runtime,
                 "install_scope": install_scope,
+                "explicit_target": False,
             }
         ),
         encoding="utf-8",
@@ -1913,6 +1960,7 @@ def test_read_only_state_progress_and_suggest_resolve_ancestor_without_migration
     nested_cwd.mkdir(parents=True)
     (project_root / "GPD").mkdir()
     (project_root / "GPD" / "STATE.md").write_text("# State\n", encoding="utf-8")
+    (project_root / "GPD" / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
     (nested_cwd / "PROJECT.md").write_text("# Nested note\n", encoding="utf-8")
     monkeypatch.setattr(
         cli_module,
@@ -2737,7 +2785,7 @@ def test_validate_project_contract_uses_ancestor_project_root_from_nested_cwd(
 ) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "workspace" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _mark_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
     contract_path = nested_cwd / "contract.json"
     contract_path.write_text((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"), encoding="utf-8")
@@ -3036,7 +3084,7 @@ def test_view_command_is_not_exposed():
 # ─── state subcommands ──────────────────────────────────────────────────────
 
 
-@patch("gpd.core.state.state_load")
+@patch("gpd.core.state.state_load_readonly")
 def test_state_load(mock_load):
     mock_result = MagicMock()
     mock_result.model_dump.return_value = {"position": {"current_phase": "42"}}
@@ -3046,11 +3094,11 @@ def test_state_load(mock_load):
     mock_load.assert_called_once()
 
 
-@patch("gpd.core.state.state_load")
+@patch("gpd.core.state.state_load_readonly")
 def test_state_load_uses_ancestor_project_root_from_nested_cwd(mock_load, tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "workspace" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _mark_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
 
     mock_result = MagicMock()
@@ -3063,7 +3111,7 @@ def test_state_load_uses_ancestor_project_root_from_nested_cwd(mock_load, tmp_pa
     mock_load.assert_called_once_with(project_root.resolve())
 
 
-@patch("gpd.core.state.state_get")
+@patch("gpd.core.state.state_get_readonly")
 def test_state_get_section(mock_get):
     mock_result = MagicMock()
     mock_result.model_dump.return_value = {"section": "position", "data": {}}
@@ -3134,7 +3182,7 @@ def test_state_get_include_rejects_positional_section(tmp_path: Path) -> None:
     assert "state get accepts either a positional section or --include, not both" in payload["error"]
 
 
-@patch("gpd.core.state.state_get")
+@patch("gpd.core.state.state_get_readonly")
 def test_state_active_hypothesis(mock_get):
     mock_result = MagicMock()
     mock_result.value = "**Branch:** hypothesis/alt-method\n**Description:** investigate a fallback"
@@ -3153,7 +3201,7 @@ def test_state_active_hypothesis(mock_get):
     }
 
 
-@patch("gpd.core.state.state_get")
+@patch("gpd.core.state.state_get_readonly")
 def test_state_active_hypothesis_missing_section(mock_get):
     mock_result = MagicMock()
     mock_result.value = None
@@ -3210,7 +3258,7 @@ def test_state_set_project_contract_uses_ancestor_project_root_from_nested_cwd(
 ) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "workspace" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _mark_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
     contract_path = nested_cwd / "contract.json"
     contract_path.write_text((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"), encoding="utf-8")
@@ -3333,6 +3381,7 @@ def test_state_validate_uses_read_only_ancestor_root_without_migration(
     (project_root / "GPD").mkdir(parents=True)
     nested_cwd.mkdir(parents=True)
     (project_root / "GPD" / "STATE.md").write_text("# State\n", encoding="utf-8")
+    (project_root / "GPD" / "ROADMAP.md").write_text("# Canonical roadmap\n", encoding="utf-8")
     for filename in ("PROJECT.md", "ROADMAP.md"):
         (project_root / filename).write_text(f"# Root {filename}\n", encoding="utf-8")
     monkeypatch.setattr(
@@ -3350,7 +3399,7 @@ def test_state_validate_uses_read_only_ancestor_root_without_migration(
     assert result.exit_code == 0, result.output
     mock_validate.assert_called_once_with(project_root.resolve(), recover_intent=False, acquire_lock=False)
     assert not (project_root / "GPD" / "PROJECT.md").exists()
-    assert not (project_root / "GPD" / "ROADMAP.md").exists()
+    assert (project_root / "GPD" / "ROADMAP.md").read_text(encoding="utf-8") == "# Canonical roadmap\n"
 
 
 def test_read_only_marker_backed_project_scoped_cwd_ignores_bare_ancestor_gpd_dir(tmp_path: Path) -> None:
@@ -3360,6 +3409,38 @@ def test_read_only_marker_backed_project_scoped_cwd_ignores_bare_ancestor_gpd_di
     nested_cwd.mkdir(parents=True)
 
     assert cli_module._read_only_marker_backed_project_scoped_cwd(nested_cwd) == nested_cwd.resolve()
+
+
+def test_json_input_root_helpers_ignore_bare_ancestor_gpd_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ancestor = tmp_path / "ancestor"
+    nested_cwd = ancestor / "child" / "work"
+    (ancestor / "GPD").mkdir(parents=True)
+    nested_cwd.mkdir(parents=True)
+    artifact_path = nested_cwd / "referee-decision.json"
+    artifact_path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(cli_module, "_cwd", nested_cwd)
+
+    assert cli_module._project_root_for_json_input(artifact_path.name) == nested_cwd.resolve()
+    assert cli_module._enclosing_project_root_for_json_input(artifact_path.name) is None
+
+
+def test_json_input_root_helpers_use_marker_backed_project_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    nested_cwd = project_root / "GPD" / "review"
+    _mark_verified_project_root(project_root)
+    nested_cwd.mkdir(parents=True, exist_ok=True)
+    artifact_path = nested_cwd / "referee-decision.json"
+    artifact_path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(cli_module, "_cwd", nested_cwd)
+
+    assert cli_module._project_root_for_json_input(artifact_path.name) == project_root.resolve()
+    assert cli_module._enclosing_project_root_for_json_input(artifact_path.name) == project_root.resolve()
 
 
 def test_state_validate_projectless_read_only_does_not_create_gpd_dir(tmp_path: Path) -> None:
@@ -3403,7 +3484,7 @@ def test_state_validate_does_not_recover_pending_state_intent(tmp_path: Path) ->
 def _nested_project_root(tmp_path: Path) -> tuple[Path, Path]:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "workspace" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _mark_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
     return project_root, nested_cwd
 
@@ -3588,7 +3669,7 @@ def test_validate_phase_artifacts_does_not_swallow_programmer_errors(tmp_path: P
 # ─── raw output ─────────────────────────────────────────────────────────────
 
 
-@patch("gpd.core.state.state_load")
+@patch("gpd.core.state.state_load_readonly")
 def test_raw_json_output(mock_load):
     mock_load.return_value = {"position": {"current_phase": "42"}}
     result = runner.invoke(app, ["--raw", "state", "load"])
@@ -3790,6 +3871,130 @@ def test_validate_command_context_normalizes_inline_new_project_labels(label: st
     assert payload["context_mode"] == "projectless"
 
 
+def test_validate_command_context_global_and_projectless_do_not_migrate_root_planning_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "PROJECT.md").write_text("# Root project note\n", encoding="utf-8")
+    (workspace / "ROADMAP.md").write_text("# Root roadmap note\n", encoding="utf-8")
+    monkeypatch.setattr(
+        cli_module,
+        "_migrate_planning_files",
+        lambda _cwd: (_ for _ in ()).throw(AssertionError("projectless/global preflight must be read-only")),
+    )
+
+    for command_name in ("new-project", "help"):
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "command-context", command_name],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0, result.output
+
+
+def test_validate_command_context_project_required_does_not_migrate_root_planning_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    (workspace / "GPD").mkdir(parents=True)
+    (workspace / "PROJECT.md").write_text("# Root project note\n", encoding="utf-8")
+    (workspace / "ROADMAP.md").write_text("# Root roadmap note\n", encoding="utf-8")
+    monkeypatch.setattr(
+        cli_module,
+        "_migrate_planning_files",
+        lambda _cwd: (_ for _ in ()).throw(AssertionError("command-context preflight must be read-only")),
+    )
+
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(workspace), "validate", "command-context", "research-phase", "1"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 1, result.output
+    assert not (workspace / "GPD" / "PROJECT.md").exists()
+    assert not (workspace / "GPD" / "ROADMAP.md").exists()
+
+
+def test_validate_command_context_sync_state_accepts_partial_state_workspace(tmp_path: Path) -> None:
+    state = default_state_dict()
+    save_state_json(tmp_path, state)
+
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(tmp_path), "validate", "command-context", "sync-state"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "gpd:sync-state"
+    assert payload["passed"] is True
+    assert payload["project_exists"] is False
+    assert any(check["name"] == "state_exists" and check["passed"] for check in payload["checks"])
+
+
+def test_validate_command_context_sync_state_does_not_auto_select_recent_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data_root = tmp_path / "data"
+    recent_project = tmp_path / "recent-project"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    save_state_json(recent_project, default_state_dict())
+    resume_file = recent_project / "GPD" / "phases" / "01" / ".continue-here.md"
+    resume_file.parent.mkdir(parents=True, exist_ok=True)
+    resume_file.write_text("resume here\n", encoding="utf-8")
+    record_recent_project(
+        recent_project,
+        store_root=data_root,
+        session_data={
+            "last_session_at": "2026-04-28T12:00:00+00:00",
+            "resume_file": "GPD/phases/01/.continue-here.md",
+        },
+    )
+    monkeypatch.setenv("GPD_DATA_DIR", str(data_root))
+
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(outside), "validate", "command-context", "sync-state"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["passed"] is False
+    assert not any("auto-selected recoverable recent project" in check["detail"] for check in payload["checks"])
+    assert any(
+        check["name"] == "project_reentry"
+        and check["detail"] == "no recoverable current-workspace project target found"
+        for check in payload["checks"]
+    )
+
+
+def test_validate_command_context_resume_work_accepts_partial_roadmap_workspace(tmp_path: Path) -> None:
+    planning = tmp_path / "GPD"
+    planning.mkdir()
+    (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(tmp_path), "validate", "command-context", "resume-work"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "gpd:resume-work"
+    assert payload["passed"] is True
+    assert payload["project_exists"] is False
+    assert any(check["name"] == "roadmap_exists" and check["passed"] for check in payload["checks"])
+
+
 def test_validate_command_context_accepts_tokenized_explain_arguments(tmp_path: Path) -> None:
     empty_dir = tmp_path / "empty-context"
     empty_dir.mkdir()
@@ -3812,6 +4017,35 @@ def test_validate_command_context_accepts_tokenized_explain_arguments(tmp_path: 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     assert payload["command"] == "gpd:explain"
+    assert payload["context_mode"] == "project-aware"
+    assert payload["passed"] is True
+
+
+def test_validate_command_context_accepts_negative_parameter_sweep_range(tmp_path: Path) -> None:
+    empty_dir = tmp_path / "empty-context"
+    empty_dir.mkdir()
+
+    result = runner.invoke(
+        app,
+        [
+            "--raw",
+            "--cwd",
+            str(empty_dir),
+            "validate",
+            "command-context",
+            "parameter-sweep",
+            "results/mesh-study.py",
+            "--param",
+            "coupling",
+            "--range",
+            "-1:1:20",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "gpd:parameter-sweep"
     assert payload["context_mode"] == "project-aware"
     assert payload["passed"] is True
 
@@ -6091,7 +6325,7 @@ def test_cli_invocation_does_not_write_observability_files_without_explicit_even
 def test_suggest_uses_ancestor_project_root_from_nested_cwd(mock_suggest, tmp_path: Path, monkeypatch) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "work" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _mark_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
 
     mock_result = MagicMock()
@@ -6109,7 +6343,7 @@ def test_suggest_uses_ancestor_project_root_from_nested_cwd(mock_suggest, tmp_pa
 def test_suggest_uses_ancestor_project_root_from_cleared_cwd(mock_suggest, tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "work" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _mark_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
     nested_cwd.rmdir()
 
@@ -6127,7 +6361,7 @@ def test_suggest_uses_ancestor_project_root_from_cleared_cwd(mock_suggest, tmp_p
 def test_suggest_forwards_limit_and_serializes_raw_output_from_nested_cwd(mock_suggest, tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "work" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _mark_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
 
     payload = {
@@ -6219,6 +6453,17 @@ def test_init_execute_phase_forwards_stage_option(mock_init):
     mock_init.assert_called_once()
     assert mock_init.call_args.args == (cli_module._get_cwd(), "42")
     assert mock_init.call_args.kwargs == {"includes": set(), "stage": "phase_bootstrap"}
+
+
+@patch("gpd.core.context.init_execute_phase", side_effect=ValueError("Unknown execute-phase stage 'bad'."))
+def test_init_execute_phase_raw_invalid_stage_reports_clean_json_error(mock_init):
+    result = runner.invoke(app, ["--raw", "init", "execute-phase", "42", "--stage", "bad"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["error"] == "Unknown execute-phase stage 'bad'."
+    assert "Traceback" not in result.output
+    mock_init.assert_called_once()
 
 
 @patch("gpd.core.context.init_new_project")
@@ -6400,10 +6645,46 @@ def test_init_resume(mock_init):
     mock_init.assert_called_once()
 
 
+@patch("gpd.core.context.init_resume")
+def test_init_resume_work_alias_delegates_to_resume(mock_init) -> None:
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {"segment_candidates": []}
+    mock_init.return_value = mock_result
+
+    result = runner.invoke(app, ["init", "resume-work"])
+
+    assert result.exit_code == 0
+    mock_init.assert_called_once()
+
+
+@patch("gpd.core.context.init_arxiv_submission")
+def test_init_arxiv_submission_stage_route_is_reachable(mock_init) -> None:
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {"staged_loading": {"stage_id": "bootstrap"}}
+    mock_init.return_value = mock_result
+
+    result = runner.invoke(app, ["init", "arxiv-submission", "--stage", "bootstrap"])
+
+    assert result.exit_code == 0
+    assert mock_init.call_args.kwargs == {"stage": "bootstrap"}
+
+
+@patch("gpd.core.context.init_respond_to_referees")
+def test_init_respond_to_referees_stage_route_is_reachable(mock_init) -> None:
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {"staged_loading": {"stage_id": "bootstrap"}}
+    mock_init.return_value = mock_result
+
+    result = runner.invoke(app, ["init", "respond-to-referees", "--stage", "bootstrap"])
+
+    assert result.exit_code == 0
+    assert mock_init.call_args.kwargs == {"subject": None, "stage": "bootstrap"}
+
+
 def test_paper_build_uses_default_config_surface(tmp_path: Path):
     nested_cwd = tmp_path / "notes"
     nested_cwd.mkdir()
-    (tmp_path / "GPD").mkdir()
+    _mark_verified_project_root(tmp_path)
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()
     (paper_dir / "PAPER-CONFIG.json").write_text(
@@ -6458,27 +6739,7 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
     ]
     assert payload["manifest_path"] == "../paper/ARTIFACT-MANIFEST.json"
     assert payload["pdf_path"] == "../paper/configured_paper.pdf"
-    assert payload["toolchain"] == {
-        "compiler": "pdflatex",
-        "available": True,
-        "compiler_available": True,
-        "full_toolchain_available": True,
-        "compiler_path": "/usr/bin/pdflatex",
-        "distribution": "TeX Live",
-        "latexmk_available": True,
-        "bibtex_available": True,
-        "bibliography_support_available": True,
-        "kpsewhich_available": True,
-        "pdftotext_available": None,
-        "tectonic_available": False,
-        "tectonic_path": None,
-        "readiness_state": "ready",
-        "message": "pdflatex found (TeX Live): /usr/bin/pdflatex",
-        "paper_build_ready": True,
-        "arxiv_submission_ready": True,
-        "pdf_review_ready": True,
-        "warnings": [],
-    }
+    assert payload["toolchain"] == _latex_capability_payload()
     assert len(payload["warnings"]) == 1
     assert "temporary directory" in payload["warnings"][0]
 
@@ -6765,21 +7026,12 @@ def test_validate_paper_quality_from_project_rejects_ambiguous_manuscript_roots(
         )
         (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
             json.dumps(
-                {
-                    "version": 1,
-                    "paper_title": f"{root_name.title()} Manuscript",
-                    "journal": "jhep",
-                    "created_at": "2026-04-03T00:00:00Z",
-                    "artifacts": [
-                        {
-                            "artifact_id": f"{root_name}-manuscript",
-                            "category": "tex",
-                            "path": f"{stem}.tex",
-                            "sha256": "0" * 64,
-                            "produced_by": "test",
-                        }
-                    ],
-                }
+                _artifact_manifest_payload(
+                    manuscript_dir / f"{stem}.tex",
+                    title=f"{root_name.title()} Manuscript",
+                    journal="jhep",
+                    artifact_id=f"{root_name}-manuscript",
+                )
             ),
             encoding="utf-8",
         )
@@ -6809,6 +7061,102 @@ def test_validate_paper_quality_from_project_rejects_missing_manuscript_root(tmp
     assert "no manuscript entrypoint found under paper/, manuscript/, draft/, or GPD/publication/*/manuscript" in str(
         result.exception
     )
+
+
+def test_validate_paper_quality_from_project_resolves_relative_root_against_cli_cwd(tmp_path: Path) -> None:
+    expected_root = (tmp_path / "project").resolve(strict=False)
+    expected_root.mkdir()
+    ready_report = SimpleNamespace(ready_for_submission=True)
+
+    with (
+        patch.object(
+            cli_module,
+            "resolve_current_manuscript_resolution",
+            return_value=SimpleNamespace(status="resolved", detail="paper"),
+        ) as mock_resolve,
+        patch(
+            "gpd.core.paper_quality_artifacts.build_paper_quality_input",
+            return_value={"paper": "input"},
+        ) as mock_build,
+        patch("gpd.core.paper_quality.score_paper_quality", return_value=ready_report),
+    ):
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "validate", "paper-quality", "--from-project", "project"],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0
+    mock_resolve.assert_called_once_with(expected_root, allow_markdown=True)
+    mock_build.assert_called_once_with(expected_root)
+
+
+def test_validate_reproducibility_manifest_check_paths_uses_manifest_file_root(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    (workspace / "GPD").mkdir(parents=True)
+    manifest_root = workspace / "paper"
+    manifest_root.mkdir()
+    (manifest_root / "data").mkdir()
+    (manifest_root / "scripts").mkdir()
+    (manifest_root / "results").mkdir()
+    (manifest_root / "data" / "input.csv").write_text("x\n", encoding="utf-8")
+    (manifest_root / "scripts" / "run.py").write_text("print('ok')\n", encoding="utf-8")
+    (manifest_root / "results" / "out.json").write_text("{}\n", encoding="utf-8")
+    manifest_path = manifest_root / "reproducibility-manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "paper_title": "Manifest Local Paths",
+                "date": "2026-04-27",
+                "environment": {
+                    "python_version": "3.12.1",
+                    "package_manager": "uv",
+                    "required_packages": [{"package": "numpy", "version": "1.26.4"}],
+                    "lock_file": "uv.lock",
+                    "system_requirements": {},
+                },
+                "input_data": [
+                    {
+                        "name": "input",
+                        "source": "data/input.csv",
+                        "version_or_date": "2026-04-27",
+                        "checksum_sha256": "a" * 64,
+                    }
+                ],
+                "generated_data": [{"name": "output", "script": "scripts/run.py", "checksum_sha256": "b" * 64}],
+                "execution_steps": [
+                    {"name": "run", "command": "python scripts/run.py", "outputs": ["results/out.json"]}
+                ],
+                "output_files": [{"path": "results/out.json", "checksum_sha256": "c" * 64}],
+                "resource_requirements": [{"step": "run", "cpu_cores": 1, "memory_gb": 1.0}],
+                "verification_steps": ["rerun pipeline", "compare outputs", "inspect artifacts"],
+                "minimum_viable": "1 core",
+                "recommended": "1 core",
+                "last_verified": "2026-04-27",
+                "last_verified_platform": "macOS 15 arm64",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "--raw",
+            "--cwd",
+            str(workspace),
+            "validate",
+            "reproducibility-manifest",
+            "paper/reproducibility-manifest.json",
+            "--check-paths",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["valid"] is True
+    assert payload["reproducibility_ready"] is True
 
 
 def test_paper_build_does_not_discover_internal_planning_configs(tmp_path: Path, capsys) -> None:
@@ -6864,7 +7212,7 @@ def test_paper_build_rejects_explicit_internal_planning_config_path(tmp_path: Pa
     assert "are not supported" in payload["error"]
 
 
-def test_paper_build_rejects_explicit_hidden_internal_planning_config_path(tmp_path: Path, capsys) -> None:
+def test_paper_build_allows_explicit_legacy_hidden_paper_config_as_normal_path(tmp_path: Path) -> None:
     planning_paper_dir = tmp_path / ".gpd" / "paper"
     planning_paper_dir.mkdir(parents=True)
     (tmp_path / ".gpd" / "state.json").write_text("{}\n", encoding="utf-8")
@@ -6881,15 +7229,31 @@ def test_paper_build_rejects_explicit_hidden_internal_planning_config_path(tmp_p
         encoding="utf-8",
     )
 
-    try:
-        cli_module.app(args=["--raw", "--cwd", str(tmp_path), "paper-build", ".gpd/paper/PAPER-CONFIG.json"])
-    except SystemExit as exc:
-        assert exc.code == 1
+    result_payload = MagicMock()
+    result_payload.tex_path = planning_paper_dir / "planning_lowercase.tex"
+    result_payload.manifest_path = planning_paper_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.bibliography_audit = None
+    result_payload.pdf_path = planning_paper_dir / "planning_lowercase.pdf"
+    result_payload.success = True
+    result_payload.errors = []
 
-    captured = capsys.readouterr()
-    payload = json.loads(captured.err)
-    assert ".gpd/paper" in payload["error"]
-    assert "are not supported" in payload["error"]
+    with (
+        patch("gpd.mcp.paper.compiler.detect_latex_toolchain", return_value=_toolchain_capability()),
+        patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build,
+    ):
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "paper-build", ".gpd/paper/PAPER-CONFIG.json"],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["config_path"] == "./.gpd/paper/PAPER-CONFIG.json"
+    assert payload["output_dir"] == "./.gpd/paper"
+    assert any("custom project directory" in warning for warning in payload["warnings"])
+    mock_build.assert_awaited_once()
 
 
 def test_paper_build_preserves_explicit_relative_config_path_from_nested_cwd(tmp_path: Path) -> None:
@@ -7257,25 +7621,7 @@ def test_review_preflight_arxiv_submission_rejects_review_ledger_round_mismatch(
     manuscript = paper_dir / "main.tex"
     manuscript.write_text("\\documentclass{article}\\begin{document}Paper\\end{document}\n", encoding="utf-8")
     (paper_dir / "ARTIFACT-MANIFEST.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Round Mismatch",
-                "journal": "prl",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "main.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript, title="Round Mismatch")),
         encoding="utf-8",
     )
     review_dir = tmp_path / "GPD" / "review"
@@ -7355,25 +7701,7 @@ def test_resolve_review_preflight_manuscript_directory_uses_manifest_declared_en
     manuscript = manuscript_dir / "curvature_flow_bounds.tex"
     manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
     (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Curvature Flow Bounds",
-                "journal": "prl",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "curvature_flow_bounds.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript)),
         encoding="utf-8",
     )
 
@@ -7395,25 +7723,7 @@ def test_resolve_review_preflight_manuscript_reports_ambiguous_project_state(tmp
         manuscript = manuscript_dir / "curvature_flow_bounds.tex"
         manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
         (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-            json.dumps(
-                {
-                    "version": 1,
-                    "paper_title": "Curvature Flow Bounds",
-                    "journal": "prl",
-                    "created_at": "2026-04-02T00:00:00+00:00",
-                    "artifacts": [
-                        {
-                            "artifact_id": f"tex-{root_name}",
-                            "category": "tex",
-                            "path": "curvature_flow_bounds.tex",
-                            "sha256": "0" * 64,
-                            "produced_by": "test",
-                            "sources": [],
-                            "metadata": {},
-                        }
-                    ],
-                }
-            ),
+            json.dumps(_artifact_manifest_payload(manuscript, artifact_id=f"tex-{root_name}")),
             encoding="utf-8",
         )
 
@@ -7437,25 +7747,7 @@ def test_resolve_review_preflight_manuscript_explicit_supported_root_bypasses_pr
         manuscript = root / "curvature_flow_bounds.tex"
         manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
         (root / "ARTIFACT-MANIFEST.json").write_text(
-            json.dumps(
-                {
-                    "version": 1,
-                    "paper_title": "Curvature Flow Bounds",
-                    "journal": "prl",
-                    "created_at": "2026-04-02T00:00:00+00:00",
-                    "artifacts": [
-                        {
-                            "artifact_id": f"tex-{root_name}",
-                            "category": "tex",
-                            "path": "curvature_flow_bounds.tex",
-                            "sha256": "0" * 64,
-                            "produced_by": "test",
-                            "sources": [],
-                            "metadata": {},
-                        }
-                    ],
-                }
-            ),
+            json.dumps(_artifact_manifest_payload(manuscript, artifact_id=f"tex-{root_name}")),
             encoding="utf-8",
         )
 
@@ -7479,25 +7771,7 @@ def test_resolve_review_preflight_manuscript_explicit_supported_file_requires_ma
     manuscript = manuscript_dir / "curvature_flow_bounds.tex"
     manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
     (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Curvature Flow Bounds",
-                "journal": "prl",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "curvature_flow_bounds.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript)),
         encoding="utf-8",
     )
     (manuscript_dir / "PAPER-CONFIG.json").write_text(
@@ -7534,25 +7808,7 @@ def test_resolve_review_preflight_manuscript_uses_workspace_cwd_for_relative_tar
     manuscript_dir.mkdir()
     manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
     (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Curvature Flow Bounds",
-                "journal": "prl",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "curvature_flow_bounds.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript)),
         encoding="utf-8",
     )
 
@@ -7578,25 +7834,7 @@ def test_resolve_review_preflight_manuscript_nested_supported_directory_resolves
     manuscript = sections_dir / "curvature_flow_bounds.tex"
     manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
     (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Curvature Flow Bounds",
-                "journal": "prl",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "sections/curvature_flow_bounds.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript, artifact_path="sections/curvature_flow_bounds.tex")),
         encoding="utf-8",
     )
 
@@ -7621,25 +7859,7 @@ def test_resolve_review_preflight_manuscript_rejects_nested_supported_directory_
     manuscript = manuscript_dir / "main.tex"
     manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
     (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Curvature Flow Bounds",
-                "journal": "prl",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "main.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript)),
         encoding="utf-8",
     )
 
@@ -7666,8 +7886,7 @@ def test_resolve_review_preflight_manuscript_rejects_missing_out_of_root_target_
 
     assert resolved is None
     assert (
-        detail
-        == "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, "
+        detail == "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, "
         "or `GPD/publication/<subject_slug>[/manuscript/]` inside the current project"
     )
 
@@ -7678,25 +7897,7 @@ def test_resolve_review_preflight_manuscript_reports_inconsistent_project_state(
     manuscript = manuscript_dir / "curvature_flow_bounds.tex"
     manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
     (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Curvature Flow Bounds",
-                "journal": "prl",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "curvature_flow_bounds.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            }
-        ),
+        json.dumps(_artifact_manifest_payload(manuscript)),
         encoding="utf-8",
     )
     (manuscript_dir / "PAPER-CONFIG.json").write_text(
@@ -7763,8 +7964,7 @@ def test_resolve_review_preflight_manuscript_rejects_unsupported_explicit_target
 
     assert resolved is None
     assert (
-        "must stay under `paper/`, `manuscript/`, `draft/`, "
-        "or `GPD/publication/<subject_slug>[/manuscript/]`"
+        "must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>[/manuscript/]`"
     ) in detail
 
 
@@ -7994,7 +8194,7 @@ def test_paper_build_ignores_research_citation_sources_sidecar_when_literature_i
 ) -> None:
     nested_cwd = tmp_path / "notes"
     nested_cwd.mkdir()
-    (tmp_path / "GPD").mkdir()
+    _mark_verified_project_root(tmp_path)
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()
     (paper_dir / "PAPER-CONFIG.json").write_text(
@@ -8303,19 +8503,13 @@ def test_paper_build_surfaces_partial_toolchain_warnings(tmp_path: Path) -> None
     payload = json.loads(result.output)
     assert payload["toolchain"]["paper_build_ready"] is True
     assert payload["toolchain"]["arxiv_submission_ready"] is False
-    assert payload["toolchain"]["warnings"] == [
-        "latexmk not found; multi-pass compilation will fall back to manual passes.",
-        "kpsewhich not found; TeX resource checks will assume installed resources.",
-        "latexmk not found; repeated LaTeX passes may be degraded.",
-        "kpsewhich not found; TeX resource checks may be best-effort only.",
-    ]
-    assert any(
-        warning == "latexmk not found; repeated LaTeX passes may be degraded." for warning in payload["warnings"]
-    )
-    assert any(
-        warning == "kpsewhich not found; TeX resource checks may be best-effort only."
-        for warning in payload["warnings"]
-    )
+    toolchain_warnings = payload["toolchain"]["warnings"]
+    assert _has_warning_with_fragments(toolchain_warnings, "latexmk not found", "manual passes")
+    assert _has_warning_with_fragments(toolchain_warnings, "kpsewhich not found", "installed resources")
+    assert _has_warning_with_fragments(toolchain_warnings, "latexmk not found", "degraded")
+    assert _has_warning_with_fragments(toolchain_warnings, "kpsewhich not found", "best-effort")
+    assert _has_warning_with_fragments(payload["warnings"], "latexmk not found", "degraded")
+    assert _has_warning_with_fragments(payload["warnings"], "kpsewhich not found", "best-effort")
 
 
 def test_paper_build_toolchain_payload_surfaces_missing_bibtex_as_hard_failure_risk() -> None:

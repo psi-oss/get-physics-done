@@ -16,6 +16,7 @@ from gpd.adapters.opencode import (
     convert_tool_name,
     copy_agents_as_agent_files,
     copy_flattened_commands,
+    write_manifest,
 )
 from tests.adapters.review_contract_test_utils import (
     assert_review_contract_prompt_surface,
@@ -249,8 +250,6 @@ class TestCopyFlattenedCommands:
         assert (dest / "gpd-user-keep.md").exists()
 
     def test_write_manifest_scans_flat_commands_by_default(self, tmp_path: Path) -> None:
-        from gpd.adapters.opencode import write_manifest
-
         target = tmp_path / ".opencode"
         command_dir = target / "command"
         command_dir.mkdir(parents=True)
@@ -263,6 +262,18 @@ class TestCopyFlattenedCommands:
         assert "command/gpd-help.md" in manifest["files"]
         assert "command/user.md" not in manifest["files"]
         assert manifest["opencode_generated_command_files"] == ["gpd-help.md"]
+
+    def test_write_manifest_does_not_claim_uninstalled_hook_files(self, tmp_path: Path) -> None:
+        target = tmp_path / ".opencode"
+        (target / "get-physics-done").mkdir(parents=True)
+        (target / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
+        (target / "hooks").mkdir()
+        (target / "hooks" / "notify.py").write_text("print('hook')\n", encoding="utf-8")
+
+        manifest = write_manifest(target, "1.0.0")
+
+        assert "get-physics-done/VERSION" in manifest["files"]
+        assert "hooks/notify.py" not in manifest["files"]
 
     def test_nonexistent_src_returns_zero(self, tmp_path: Path) -> None:
         dest = tmp_path / "command"
@@ -422,7 +433,11 @@ class TestUninstallOwnership:
         target.mkdir()
 
         adapter.install(gpd_root, target)
-        (command_dir / "gpd-obsolete.md").write_text("stale", encoding="utf-8")
+        (command_dir / "gpd-obsolete.md").write_text(
+            "<!-- Managed by Get Physics Done (GPD). -->\nstale",
+            encoding="utf-8",
+        )
+        (command_dir / "gpd-user-keep.md").write_text("keep", encoding="utf-8")
         (command_dir / "custom-command.md").write_text("keep", encoding="utf-8")
 
         manifest_path = target / MANIFEST_NAME
@@ -436,7 +451,10 @@ class TestUninstallOwnership:
         adapter.uninstall(target)
 
         assert command_dir.exists()
-        assert not list(command_dir.glob("gpd-*.md"))
+        assert not (command_dir / "gpd-help.md").exists()
+        assert not (command_dir / "gpd-start.md").exists()
+        assert not (command_dir / "gpd-obsolete.md").exists()
+        assert (command_dir / "gpd-user-keep.md").exists()
         assert (command_dir / "custom-command.md").exists()
         assert not manifest_path.exists()
 
@@ -456,7 +474,7 @@ class TestInstall:
         content = (target / "command" / "gpd-help.md").read_text(encoding="utf-8")
         assert "slash-command" not in content
         assert "Show available GPD commands and usage guide" in content
-        assert "gpd:" in content
+        assert "gpd:" not in content
 
     def test_local_install_uses_relative_gpd_paths(
         self,
@@ -622,6 +640,9 @@ class TestInstall:
         assert command_dir.is_dir()
         gpd_cmds = [f for f in command_dir.iterdir() if f.name.startswith("gpd-")]
         assert len(gpd_cmds) > 0
+        assert "<!-- Managed by Get Physics Done (GPD). -->" in (command_dir / "gpd-help.md").read_text(
+            encoding="utf-8"
+        )
 
     def test_update_command_inlines_workflow(self, adapter: OpenCodeAdapter, tmp_path: Path) -> None:
         gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
@@ -935,6 +956,22 @@ class TestInstall:
         assert "gpd-wolfram" not in config.get("mcp", {})
         assert "super-secret-token" not in json.dumps(config)
 
+    def test_install_fails_closed_for_malformed_project_integrations_before_copying_artifacts(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "integrations.json").write_text('{"wolfram":', encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="Malformed integrations config"):
+            adapter.install(gpd_root, target)
+
+        _assert_no_manifestless_gpd_artifacts(target)
+
 
 class TestRuntimePermissions:
     def test_runtime_permissions_status_marks_yolo_as_relaunch_required(
@@ -1141,6 +1178,68 @@ class TestUninstall:
         assert "gpd-wolfram" not in mcp_servers
         assert mcp_servers == {"custom-server": {"type": "local", "command": ["node", "custom.js"]}}
         assert any("GPD MCP servers" in item for item in result["removed"])
+
+    def test_uninstall_preserves_non_utf8_opencode_json(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+        config_path = target / "opencode.json"
+        config_path.write_bytes(b'\xff\xfe{"permission": {"read": {}}}')
+        before = config_path.read_bytes()
+
+        result = adapter.uninstall(target)
+
+        assert config_path.read_bytes() == before
+        assert not (target / "get-physics-done").exists()
+        assert not (target / MANIFEST_NAME).exists()
+        assert "opencode.json permissions" not in result["removed"]
+
+    def test_uninstall_preserves_malformed_opencode_json_syntax(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+        adapter.sync_runtime_permissions(target, autonomy="yolo")
+        config_path = target / "opencode.json"
+        config_path.write_text('{"permission": [\n', encoding="utf-8")
+        before = config_path.read_bytes()
+
+        result = adapter.uninstall(target)
+
+        assert config_path.read_bytes() == before
+        assert not (target / "get-physics-done").exists()
+        assert not (target / MANIFEST_NAME).exists()
+        assert "opencode.json permissions" not in result["removed"]
+
+    def test_uninstall_preserves_structurally_invalid_opencode_json_after_yolo_sync(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+        adapter.sync_runtime_permissions(target, autonomy="yolo")
+        config_path = target / "opencode.json"
+        config_path.write_text('{"permission": []}\n', encoding="utf-8")
+        before = config_path.read_bytes()
+
+        result = adapter.uninstall(target)
+
+        assert config_path.read_bytes() == before
+        assert not (target / "get-physics-done").exists()
+        assert not (target / MANIFEST_NAME).exists()
+        assert "opencode.json permissions" not in result["removed"]
 
     def test_uninstall_removes_commands(self, adapter: OpenCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".opencode"

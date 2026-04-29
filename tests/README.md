@@ -1,22 +1,26 @@
 # Tests
 
-This directory contains the automated test suite for GPD: core CLI and state regressions, runtime adapter coverage, hooks and MCP checks, release contracts, and fixture-based parity tests.
+This directory contains GPD's automated tests: core CLI and state regressions, runtime adapter coverage, hooks and MCP checks, release contracts, and fixture-based parity tests.
 
-The final section of this README keeps the full checked-in repository interdependency graph that the graph guardrail tests read directly.
+The repository graph below is checked in because graph guardrail tests read it directly.
 
-Default `uv run pytest` runs the full checked-in suite, and `uv run pytest -q` does the same with quieter output. Both inherit `-n auto --dist=worksteal` from `pyproject.toml`, so pytest parallelizes by default and can rebalance giant modules across idle workers. For default full-suite local runs, `tests/conftest.py` also raises xdist auto-worker selection toward the current CI shard fanout, so local `uv run pytest` stays in the same rough parallelism range as CI without changing what gets collected. If you need a serial run for debugging, override that default explicitly with `uv run pytest -n 0`. The 180 second fast-suite budget is enforced per CI pytest shard, while the 10 minute job timeout remains the outer failure boundary for setup or cleanup stalls. Shard target resolution has its own 3 minute timeout and logs elapsed seconds before pytest starts. For a focused smoke pass, run `uv run pytest tests/test_runtime_abstraction_boundaries.py tests/core/test_contract_schema_prompt_parity.py tests/core/test_review_contract_prompt_visibility.py tests/mcp/test_tool_contract_visibility.py tests/core/test_verifier_prompt_contract_visibility.py tests/core/test_verification_surface_alignment_regressions.py -q`. The GitHub Actions workflow runs that same full suite as category-named runtime-informed shards: `root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp 1/2` through `mcp 2/2`, and `core 1/5` through `core 5/5`. `tests/ci_sharding.py` still weights files by collected test counts, boosts root modules that have been slow on GitHub Actions, splits known hotspot modules such as `tests/test_runtime_cli.py`, `tests/test_registry.py`, `tests/test_update_workflow.py`, `tests/hooks/test_runtime_detect.py`, and `tests/mcp/test_verification_contract_server_regressions.py`, and greedily rebalances those work units inside each category so the thematic shard names remain close to the well-balanced anonymous-shard timings while each shard still inherits the same default pytest work-stealing parallelism policy.
+Default `uv run pytest` runs the full checked-in suite, and `uv run pytest -q` does the same with quieter output. Both inherit `-n auto --dist=worksteal` from `pyproject.toml`. For local full-suite runs, `tests/conftest.py` raises xdist auto-worker selection toward the current CI shard fanout without changing collection. For serial debugging, override that default explicitly with `uv run pytest -n 0`.
+
+The 180 second full-suite shard budget is enforced per CI pytest shard; the 10 minute job timeout remains the outer failure boundary. Shard target resolution has its own 3 minute timeout and logs elapsed seconds before pytest starts, git inventory calls have a 30 second timeout, and each collect-only subprocess has a 150 second timeout. Shard target resolution collects only the requested category. In-process repeated resolutions reuse the same immutable collection result, while CI matrix jobs stay isolated and do not share collection state across jobs. For a focused smoke pass, run `uv run pytest -n 0 tests/test_runtime_abstraction_boundaries.py tests/core/test_contract_schema_prompt_parity.py tests/core/test_review_contract_prompt_visibility.py tests/mcp/test_tool_contract_visibility.py tests/core/test_verifier_prompt_contract_visibility.py tests/core/test_verification_surface_alignment_regressions.py -q`.
+
+The GitHub Actions workflow runs that same full suite as category-named runtime-informed shards: `root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp 1/2` through `mcp 2/2`, and `core 1/5` through `core 5/5`. `tests/ci_sharding.py` weights files by collected test counts, boosts root modules that have been slow on GitHub Actions, splits known hotspot modules such as `tests/test_runtime_cli.py`, `tests/test_registry.py`, `tests/test_update_workflow.py`, `tests/hooks/test_runtime_detect.py`, and `tests/mcp/test_verification_contract_server_regressions.py`, and greedily rebalances those work units inside each category while pytest keeps the default work-stealing parallelism policy.
 
 ## Repository Interdependency Graph
 
 <!-- repo-graph-generated-on:start -->
-Only marked repo-graph blocks are generated from the current worktree via `python scripts/sync_repo_graph_contract.py`.
+Only marked repo-graph blocks are generated from the current worktree via `uv run python scripts/sync_repo_graph_contract.py`.
 <!-- repo-graph-generated-on:end -->
 
 ## Status
 
-This is the rebuilt root graph artifact for the repo. It is designed to be both the concrete dependency map and the root-level record of where absolute completeness is still not statically provable.
+This file is the repo's static dependency map plus its known blind spots.
 
-This graph therefore includes:
+It covers:
 
 - canonical in-repo source edges
 - installed and materialized artifact edges
@@ -31,10 +35,12 @@ This graph therefore includes:
 - `src/gpd/commands/*.md`: `71`
 - `src/gpd/agents/*.md`: `24`
 - `src/gpd/specs/workflows/*.md`: `72`
-- `src/gpd/specs/templates/**/*.md`: `80`
-- `src/gpd/specs/references/**/*.md`: `180`
+- `src/gpd/specs/templates/**/*.md`: `81`
+- `src/gpd/specs/references/**/*.md`: `183`
 - `src/gpd/adapters/*.py`: `9`
 - `src/gpd/hooks/*.py`: `11`
+- `src/gpd/mcp/*.py`: `5`
+- `src/gpd/mcp/integrations/*.py`: `2`
 - `src/gpd/mcp/servers/*.py`: `9`
 - `infra/gpd-*.json`: `8`
 
@@ -43,6 +49,7 @@ Excluded as noise from node counting, but still modeled where contractually rele
 - `.git/**`
 - `.mcp.json`
 - `.npm-cache/**`
+- `.playwright-mcp/**`
 - `__pycache__/**`
 - `.venv/**`
 - `.pytest_cache/**`
@@ -178,15 +185,19 @@ flowchart TD
   `authority`
   Python console-script authority for `gpd`.
 
-- `pyproject.toml -> src/gpd/mcp/servers/{conventions_server,verification_server,protocols_server,errors_mcp,patterns_server,state_server,skills_server}.py`
+- `pyproject.toml -> src/gpd/mcp/servers/{arxiv_bridge,conventions_server,verification_server,protocols_server,errors_mcp,patterns_server,state_server,skills_server}.py`
   `authority`
-  Console-script authority for `gpd-mcp-*` entrypoints.
+  Console-script authority for shipped `gpd-mcp-*` server entrypoints.
+
+- `pyproject.toml -> src/gpd/mcp/integrations/wolfram_bridge.py`
+  `authority`
+  Console-script authority for the shipped `gpd-mcp-wolfram` integration entrypoint.
 
 - `src/gpd/version.py -> pyproject.toml`
   `authority`
   Fallback version source when installed metadata is unavailable.
 
-- `pyproject.toml -> external Python packages {typer, rich, pydantic, PyYAML, mcp[cli], pytest, pytest-asyncio, hatchling, pybtex, jinja2, Pillow, arxiv-mcp-server}`
+- `pyproject.toml -> external Python packages {typer, rich, pydantic, PyYAML, mcp, pybtex, Pillow, jinja2, pytest, pytest-asyncio, pytest-xdist, ruff, hatchling, arxiv-mcp-server, arxiv, cairosvg, pypdf}`
   `external-package`
 
 - `src/gpd/mcp/builtin_servers.py -> infra/gpd-*.json`
@@ -320,12 +331,12 @@ flowchart TD
 - `src/gpd/cli.py -> src/gpd/core/patterns.py -> {GPD_PATTERNS_ROOT, GPD_DATA_DIR, ~/.gpd/learned-patterns}`
   `candidate-set`
 
-- `src/gpd/cli.py -> effective observability roots <cwd>/GPD/observability/{events.jsonl,sessions/*.jsonl,sessions/*.json,current-session.json}`
+- `src/gpd/cli.py -> effective observability roots <cwd>/GPD/observability/{sessions/*.jsonl,sessions/*.json,current-session.json,current-execution.json}`
   `candidate-set`
 
-- `src/gpd/cli.py -> effective observability roots <cwd>/GPD/observability/{events.jsonl,sessions/*.jsonl,sessions/*.json,current-session.json}`
+- `src/gpd/cli.py -> effective observability roots <cwd>/GPD/observability/{sessions/*.jsonl,sessions/*.json,current-session.json,current-execution.json}`
   `ordering-contract`
-  `events.jsonl` is preferred before falling back to per-session event streams and session metadata.
+  Per-session event streams are authoritative; session metadata and current execution snapshots provide the latest pointers.
 
 - `src/gpd/cli.py -> explicit --target-dir over adapter-derived local/global runtime roots during install/uninstall`
   `selector-input`
@@ -449,9 +460,9 @@ flowchart TD
 - `src/gpd/core/observability.py -> src/gpd/mcp/servers/*.py`
   `span-context`
 
-- `src/gpd/core/observability.py -> <cwd>/GPD/observability/{events.jsonl,sessions/*.jsonl,sessions/*.json,current-session.json}`
+- `src/gpd/core/observability.py -> <cwd>/GPD/observability/{sessions/*.jsonl,sessions/*.json,current-session.json,current-execution.json}`
   `generated-output`
-  Observability writes and rereads the project-wide event stream, per-session event streams, and session metadata from this tree.
+  Observability writes and rereads per-session event streams, session metadata, and flat current-execution snapshots from this tree.
 
 - `src/gpd/core/context.py -> import-time platform snapshot _PLATFORM`
   `selector-input`
@@ -485,7 +496,7 @@ flowchart TD
   `include`
   Explicit same-stem command-to-workflow includes are node-level edges, not just an aggregate count.
 
-- `src/gpd/commands/help.md -> runtime slash-command surface contract {in-runtime `/gpd:*` reference, local CLI distinction, `gpd --help`, `gpd validate command-context gpd:<name>`}`
+- `src/gpd/commands/help.md -> runtime slash-command surface contract {in-runtime `/gpd:*` reference, local CLI distinction, `gpd --help`, `gpd validate command-context <name>`}`
   `behavior-contract`
   Help must say these entries describe the in-runtime slash-command surface, not promise that every item is a direct local `gpd` CLI subcommand.
 
@@ -1224,11 +1235,19 @@ They explicitly preserve:
 - `src/gpd/mcp/builtin_servers.py -> infra/gpd-{conventions,errors,patterns,protocols,skills,state,verification,arxiv}.json`
   `authority`
 
+- `src/gpd/mcp/builtin_servers.py -> src/gpd/mcp/descriptor_text.py`
+  `hard-import`
+  Shared public descriptor copy keeps generated MCP descriptors and runtime skill discovery aligned.
+
 - `src/gpd/mcp/builtin_servers.py -> external binary {python}`
   `external-binary`
 
 - `src/gpd/mcp/builtin_servers.py -> src/gpd/mcp/servers/arxiv_bridge.py`
   `hard-import`
+
+- `src/gpd/mcp/servers/skills_server.py -> src/gpd/mcp/descriptor_text.py`
+  `hard-import`
+  Shared skill-server guardrail copy keeps listed, routed, and retrieved skill payloads aligned with descriptor text.
 
 - `src/gpd/mcp/servers/arxiv_bridge.py -> external Python package {arxiv_mcp_server}`
   `external-package`
@@ -1747,13 +1766,9 @@ This rebuilt file is substantially more complete than the earlier graph state be
 - explicit prompt/spec/reference include families
 - installer/build external-package and external-binary surfaces
 
-After repeated review waves, the remaining incompleteness appears predominantly dynamic, external, or runtime-branch-specific rather than obviously statically recoverable from the current worktree.
+Remaining gaps are mostly dynamic, external, or runtime-branch-specific. Treat this as a practical static map, not a proven exhaustive runtime dependency graph.
 
-The graph is therefore strong enough to answer "as complete as it could possibly be statically" with a practical yes.
-
-It is still not equivalent to a proven exhaustive runtime dependency graph.
-
-A full graph-wide dynamic execution layer is not presently worth adding. The highest-value extension is a bounded selector/runtime-contract overlay like the one above, not a generic execution trace graph.
+A full graph-wide dynamic execution layer is out of scope unless branch/path proof becomes more valuable than the current static contract.
 
 ### What This File Still Cannot Honestly Claim
 

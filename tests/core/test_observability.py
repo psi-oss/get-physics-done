@@ -11,6 +11,7 @@ from pathlib import Path
 def _bootstrap_project(tmp_path: Path) -> Path:
     planning = tmp_path / "GPD"
     planning.mkdir()
+    (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
     return tmp_path
 
 
@@ -307,6 +308,74 @@ def test_execution_events_write_current_execution_snapshot(tmp_path: Path, monke
     assert snapshot.first_result_gate_pending is True
     assert snapshot.last_result_label == "Benchmark reproduction"
     assert snapshot.downstream_locked is True
+
+
+def test_observe_event_keeps_recording_when_bounded_segment_state_projection_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+    resume_file = project / "GPD" / "phases" / "03-test" / ".continue-here.md"
+    resume_file.parent.mkdir(parents=True, exist_ok=True)
+    resume_file.write_text("# Continue here\n", encoding="utf-8")
+
+    import gpd.core.state as state_module
+    from gpd.core.observability import ensure_session, get_current_execution, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    def _fail_set(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("state set unavailable")
+
+    monkeypatch.setattr(state_module, "state_set_continuation_bounded_segment", _fail_set)
+
+    paused = observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="pause",
+        status="ok",
+        command="execute-phase",
+        phase="03",
+        plan="01",
+        session_id=session.session_id,
+        data={
+            "execution": {
+                "segment_id": "seg-best-effort",
+                "segment_status": "paused",
+                "resume_file": "GPD/phases/03-test/.continue-here.md",
+            }
+        },
+    )
+
+    assert paused.recorded is True
+    snapshot = get_current_execution(project)
+    assert snapshot is not None
+    assert snapshot.segment_id == "seg-best-effort"
+    assert snapshot.resume_file == "GPD/phases/03-test/.continue-here.md"
+
+    def _fail_clear(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("state clear unavailable")
+
+    monkeypatch.setattr(state_module, "state_clear_continuation_bounded_segment", _fail_clear)
+
+    finished = observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="finish",
+        status="ok",
+        command="execute-phase",
+        phase="03",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"segment_id": "seg-best-effort"}},
+    )
+
+    assert finished.recorded is True
+    assert get_current_execution(project) is None
 
 
 def test_segment_review_cadence_override_is_scoped_to_current_segment(
@@ -829,6 +898,105 @@ def test_sync_execution_visibility_does_not_resurrect_current_after_clear_lineag
     assert visibility.visibility_note == "execution lineage head is clear; ignoring stale current-execution.json"
 
 
+def test_derive_execution_visibility_ignores_stale_current_after_clear_ledger_without_head_cache(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+    stale_current = {
+        "session_id": "sess-stale",
+        "phase": "03",
+        "plan": "01",
+        "segment_id": "seg-stale",
+        "segment_status": "paused",
+        "current_task": "Stale active segment",
+        "updated_at": "2026-03-29T12:05:00+00:00",
+    }
+    observability_dir = project / "GPD" / "observability"
+    _write_json(observability_dir / "current-execution.json", stale_current)
+
+    from gpd.core.execution_lineage import ExecutionHeadEffect, build_execution_lineage_entry
+    from gpd.core.observability import derive_execution_visibility, get_current_execution
+
+    clear_entry = build_execution_lineage_entry(
+        kind="execution.finish",
+        event_id="evt-clear-12",
+        recorded_at="2026-03-29T12:10:00+00:00",
+        head_effect=ExecutionHeadEffect.CLEAR,
+        seq=12,
+    )
+    lineage_path = project / "GPD" / "lineage" / "execution-lineage.jsonl"
+    lineage_path.parent.mkdir(parents=True, exist_ok=True)
+    lineage_path.write_text(clear_entry.model_dump_json() + "\n", encoding="utf-8")
+    assert not (project / "GPD" / "lineage" / "execution-head.json").exists()
+
+    assert get_current_execution(project) is None
+    visibility = derive_execution_visibility(project)
+
+    assert visibility is not None
+    assert visibility.has_live_execution is False
+    assert visibility.visibility_mode == "idle"
+    assert visibility.visibility_note == "execution lineage head is clear; ignoring stale current-execution.json"
+
+
+def test_derive_execution_visibility_ignores_stale_noop_after_clear_lineage(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+    stale_current = {
+        "session_id": "sess-stale",
+        "phase": "03",
+        "plan": "01",
+        "segment_id": "seg-stale",
+        "segment_status": "paused",
+        "current_task": "Stale active segment",
+        "updated_at": "2026-03-29T12:05:00+00:00",
+    }
+    observability_dir = project / "GPD" / "observability"
+    _write_json(observability_dir / "current-execution.json", stale_current)
+
+    from gpd.core.execution_lineage import ExecutionHeadEffect, build_execution_lineage_entry
+    from gpd.core.observability import derive_execution_visibility, get_current_execution
+
+    clear_entry = build_execution_lineage_entry(
+        kind="execution.finish",
+        event_id="evt-clear-12",
+        recorded_at="2026-03-29T12:10:00+00:00",
+        head_effect=ExecutionHeadEffect.CLEAR,
+        seq=12,
+    )
+    stale_noop = build_execution_lineage_entry(
+        kind="segment.heartbeat",
+        event_id="evt-noop-13",
+        recorded_at="2026-03-29T12:11:00+00:00",
+        head_effect=ExecutionHeadEffect.NOOP,
+        head_after=stale_current,
+        bounded_segment_after={
+            "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+            "phase": "03",
+            "plan": "01",
+            "segment_id": "seg-stale",
+            "segment_status": "paused",
+        },
+        seq=13,
+    )
+    lineage_path = project / "GPD" / "lineage" / "execution-lineage.jsonl"
+    lineage_path.parent.mkdir(parents=True, exist_ok=True)
+    lineage_path.write_text(
+        clear_entry.model_dump_json() + "\n" + stale_noop.model_dump_json() + "\n",
+        encoding="utf-8",
+    )
+
+    assert get_current_execution(project) is None
+    visibility = derive_execution_visibility(project)
+
+    assert visibility is not None
+    assert visibility.has_live_execution is False
+    assert visibility.visibility_mode == "idle"
+    assert visibility.visibility_note == "execution lineage head is clear; ignoring stale current-execution.json"
+
+
 def test_sync_execution_visibility_from_canonical_continuation_noops_on_conflicting_lane_identity(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -912,6 +1080,78 @@ def test_sync_execution_visibility_from_canonical_continuation_noops_on_conflict
     after_current = json.loads((observability_dir / "current-execution.json").read_text(encoding="utf-8"))
     after_head = json.loads((project / "GPD" / "lineage" / "execution-head.json").read_text(encoding="utf-8"))
 
+    assert after_current == before_current
+    assert after_head == before_head
+
+
+def test_sync_execution_visibility_requires_strong_identity_overlap_not_phase_plan_only(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    _write_json(
+        project / "GPD" / "state.json",
+        {
+            "intermediate_results": [
+                {
+                    "id": "R-canonical",
+                    "description": "Canonical result",
+                    "phase": "03",
+                }
+            ],
+            "continuation": {
+                "handoff": {"last_result_id": "R-canonical"},
+                "bounded_segment": {
+                    "phase": "03",
+                    "plan": "01",
+                    "segment_status": "paused",
+                    "last_result_id": "R-canonical",
+                    "updated_at": "2026-03-29T12:00:00+00:00",
+                },
+            },
+        },
+    )
+
+    observability_dir = project / "GPD" / "observability"
+    phase_only_current = {
+        "session_id": "sess-live",
+        "phase": "03",
+        "plan": "01",
+        "segment_status": "paused",
+        "current_task": "Unidentified paused work",
+        "last_result_id": "R-old",
+        "last_result_label": "Old label",
+        "updated_at": "2026-03-29T12:05:00+00:00",
+    }
+    _write_json(observability_dir / "current-execution.json", phase_only_current)
+
+    from gpd.core.execution_lineage import project_execution_lineage_head, write_execution_lineage_head
+
+    write_execution_lineage_head(
+        project,
+        project_execution_lineage_head(
+            phase_only_current,
+            bounded_segment={
+                "phase": "03",
+                "plan": "01",
+                "segment_status": "paused",
+                "last_result_id": "R-old",
+                "updated_at": "2026-03-29T12:05:00+00:00",
+            },
+            last_applied_seq=11,
+            last_applied_event_id="evt-head-11",
+            recorded_at="2026-03-29T12:05:00+00:00",
+        ),
+    )
+
+    before_current = json.loads((observability_dir / "current-execution.json").read_text(encoding="utf-8"))
+    before_head = json.loads((project / "GPD" / "lineage" / "execution-head.json").read_text(encoding="utf-8"))
+
+    assert _observability_sync_helper()(project) is False
+
+    after_current = json.loads((observability_dir / "current-execution.json").read_text(encoding="utf-8"))
+    after_head = json.loads((project / "GPD" / "lineage" / "execution-head.json").read_text(encoding="utf-8"))
     assert after_current == before_current
     assert after_head == before_head
 
@@ -1121,7 +1361,13 @@ def test_derive_execution_visibility_marks_trace_only_visibility_when_current_sn
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)
 
-    from gpd.core.execution_lineage import project_execution_lineage_head, write_execution_lineage_head
+    from gpd.core.execution_lineage import (
+        ExecutionHeadEffect,
+        build_execution_lineage_entry,
+        execution_lineage_ledger_path,
+        project_execution_lineage_head,
+        write_execution_lineage_head,
+    )
 
     execution = {
         "session_id": "sess-trace-only",
@@ -1131,6 +1377,17 @@ def test_derive_execution_visibility_marks_trace_only_visibility_when_current_sn
         "waiting_for_review": True,
         "updated_at": _iso_minutes_ago(3),
     }
+    entry = build_execution_lineage_entry(
+        kind="segment.waiting_review",
+        event_id="evt-7",
+        recorded_at=_iso_minutes_ago(3),
+        head_effect=ExecutionHeadEffect.SEED,
+        head_after=execution,
+        seq=7,
+    )
+    ledger_path = execution_lineage_ledger_path(project)
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    ledger_path.write_text(entry.model_dump_json() + "\n", encoding="utf-8")
     write_execution_lineage_head(
         project,
         project_execution_lineage_head(

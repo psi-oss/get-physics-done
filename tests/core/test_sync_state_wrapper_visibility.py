@@ -21,7 +21,7 @@ def test_sync_state_wrapper_stays_thin_while_schema_visibility_remains_in_the_ex
     assert "Read both state representations" not in raw
     assert "The workflow handles all logic including" not in raw
 
-    assert "# state.json Schema" in expanded
-    assert "Authoritative vs Derived" in expanded
-    assert "`project_contract`" in expanded
+    assert "state-json-schema.md" in expanded
+    assert "# state.json Schema" not in expanded
+    assert "Authoritative vs Derived" not in expanded
     assert "`convention_lock`" in expanded

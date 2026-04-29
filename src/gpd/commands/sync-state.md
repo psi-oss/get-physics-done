@@ -1,8 +1,13 @@
 ---
 name: gpd:sync-state
 description: Reconcile diverged STATE.md and state.json after manual edits or corruption
-argument-hint: "[--prefer md|json]"
+argument-hint: ""
 context_mode: project-required
+project_reentry_capable: true
+command-policy:
+  schema_version: 1
+  supporting_context_policy:
+    project_reentry_mode: current-workspace
 allowed-tools:
   - file_read
   - file_write

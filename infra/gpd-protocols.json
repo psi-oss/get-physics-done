@@ -18,6 +18,7 @@
     "Install GPD before enabling built-in MCP servers."
   ],
   "health_check": {
+    "probe_kind": "schema_valid",
     "tool": "list_protocols",
     "input": {},
     "expect": "count >= 40 protocols loaded"

@@ -6,7 +6,7 @@ template_version: 1
 
 # Decisions Template
 
-Template for `GPD/DECISIONS.md` — append-only log of research decisions across all phases.
+Template for `GPD/DECISIONS.md`, the append-only project memory for significant research choices.
 
 ---
 
@@ -23,11 +23,7 @@ Cumulative record of research decisions. Append-only — never edit or remove pa
 
 <purpose>
 
-DECISIONS.md is the project's decision memory — a cumulative, append-only log that captures every significant research choice across all phases.
-
-**Problem it solves:** Decisions are scattered across SUMMARY.md frontmatter, PROJECT.md Key Decisions tables, and STATE.md digests. When revisiting a choice months later — or when a referee asks "why did you use method X?" — there's no single place to look.
-
-**Solution:** A single append-only file that:
+DECISIONS.md gives the project one durable place for significant choices that would otherwise be scattered across SUMMARY.md frontmatter, PROJECT.md tables, and STATE.md digests. It:
 
 - Records every significant decision with context (rationale, alternatives, impact)
 - Is searchable by phase, keyword, or impact level
@@ -81,22 +77,12 @@ Each decision entry is a table row with these fields:
 
 </entry_format>
 
-<example>
+Example rows:
 
-```markdown
-# Decision Log
-
-Cumulative record of research decisions. Append-only — never edit or remove past entries.
-
-| ID      | Decision                                     | Rationale                                                      | Alternatives Considered          | Phase | Date       | Impact |
-| ------- | -------------------------------------------- | -------------------------------------------------------------- | -------------------------------- | ----- | ---------- | ------ |
-| DEC-001 | Adopt (+,-,-,-) metric signature             | Consistent with Weinberg and Peskin & Schroeder                | (-,+,+,+) (MTW/Wald convention) | 1     | 2026-03-15 | High   |
-| DEC-002 | Use Wolff cluster algorithm for MC           | Critical slowing down too severe with Metropolis near T_c      | Metropolis, Swendsen-Wang, HMC   | 2     | 2026-03-15 | Medium |
-| DEC-003 | Truncate perturbative series at 2-loop       | 3-loop contribution estimated < 0.1% of leading order          | 1-loop only, 3-loop, resummation | 3     | 2026-03-15 | Medium |
-| DEC-004 | Set lattice size to L=64 for production runs | Finite-size effects < 1% for L >= 48; L=64 gives safety margin | L=32, L=48, L=128                | 3     | 2026-03-15 | Low    |
-```
-
-</example>
+| ID      | Decision                         | Rationale                                       | Alternatives Considered         | Phase | Date       | Impact |
+| ------- | -------------------------------- | ----------------------------------------------- | ------------------------------- | ----- | ---------- | ------ |
+| DEC-001 | Adopt (+,-,-,-) metric signature | Consistent with core references                 | (-,+,+,+) convention            | 1     | 2026-03-15 | High   |
+| DEC-002 | Use Wolff cluster algorithm      | Reduces critical slowing down near T_c          | Metropolis, Swendsen-Wang, HMC  | 2     | 2026-03-15 | Medium |
 
 <id_assignment>
 

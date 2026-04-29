@@ -120,13 +120,7 @@ This forces clarity about what is being assumed and what is being derived.
 
 If the objective is theorem-style or contract-backed `proof_obligation` work, proof review is mandatory and fail-closed.
 
-Treat the derivation as proof-bearing when any of the following are true:
-
-- the goal or linked contract says `proof_obligation`
-- the requested result is phrased as `theorem`, `lemma`, `corollary`, `proposition`, `claim`, `proof`, `prove`, `show that`, `existence`, or `uniqueness`
-- the derivation is intended to establish a universal statement rather than only compute an expression in a special case
-
-If ambiguous, default to proof-bearing.
+@{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-workflow-gate.md
 
 For proof-bearing derivations, create a theorem inventory before Step 1 and carry it through the document:
 
@@ -481,15 +475,7 @@ If the derivation is proof-bearing, reserve the sibling proof-redteam artifact p
 - **Phase-scoped (authoritative phase context only):** `${phase_dir}/DERIVATION-{slug}-PROOF-REDTEAM.md`
 - **Current-workspace fallback:** `GPD/analysis/derivation-{slug}-proof-redteam.md`
 
-Required contents of the proof-redteam artifact that `gpd-check-proof` owns:
-
-1. exact theorem / claim text
-2. named-parameter coverage table
-3. hypothesis coverage table
-4. quantifier / domain coverage table
-5. conclusion-clause coverage table
-6. adversarial special-case or counterexample probe
-7. canonical `status: passed | gaps_found | human_needed`
+Apply the shared proof-redteam artifact content rules from Step 0.5; do not restate them here.
 
 Do not have the derivation writer self-author this artifact as its own independent critique. If any named parameter, hypothesis, quantifier, or conclusion clause is uncovered, `gpd-check-proof` must set `status: gaps_found` and the derivation must not describe the theorem as established.
 
@@ -512,11 +498,22 @@ task(
 Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
 
 Operate in proof-redteam mode with a fresh context.
-If the runtime needs user input, return `status: checkpoint` instead of waiting inside this run.
+Follow the proof-redteam protocol's one-shot return semantics.
 
 Write to:
 - `${phase_dir}/DERIVATION-{slug}-PROOF-REDTEAM.md` when authoritative phase context is phase-scoped
 - `GPD/analysis/derivation-{slug}-proof-redteam.md` when operating in the current-workspace fallback branch
+
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - ${phase_dir}/DERIVATION-{slug}-PROOF-REDTEAM.md
+    - GPD/analysis/derivation-{slug}-proof-redteam.md
+expected_artifacts:
+  - one proof-redteam artifact at the selected path above
+shared_state_policy: return_only
+</spawn_contract>
 
 Files to read:
 - The newly written derivation artifact

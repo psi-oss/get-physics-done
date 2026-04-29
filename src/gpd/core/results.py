@@ -37,6 +37,7 @@ __all__ = [
     "result_downstream",
     "result_verify",
     "result_update",
+    "state_has_canonical_result_id",
 ]
 
 logger = logging.getLogger(__name__)
@@ -114,9 +115,17 @@ class MissingDep(BaseModel):
 
 # --- Helpers ---
 
-RESULT_FIELDS = frozenset(
-    {"equation", "description", "units", "validity", "phase", "depends_on", "verified", "verification_records"}
+RESULT_FIELD_ORDER = (
+    "equation",
+    "description",
+    "units",
+    "validity",
+    "phase",
+    "depends_on",
+    "verified",
+    "verification_records",
 )
+RESULT_FIELDS = frozenset(RESULT_FIELD_ORDER)
 
 
 def _normalize_verification_records(
@@ -228,6 +237,29 @@ def _find_result_index(results: list, result_id: str) -> int:
     return -1
 
 
+def _result_id_text(result: object) -> str | None:
+    """Return the canonical ID text for a structured result-like object."""
+    if isinstance(result, dict):
+        value = result.get("id")
+    else:
+        value = getattr(result, "id", None)
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def state_has_canonical_result_id(state_obj: dict[str, object], result_id: str) -> bool:
+    """Return whether the state tracks a canonical intermediate result with this exact ID."""
+    results = state_obj.get("intermediate_results")
+    if not isinstance(results, list):
+        return False
+    requested = result_id.strip()
+    if not requested:
+        return False
+    return any(_result_id_text(item) == requested for item in results)
+
+
 def _legacy_result_id(index: int, used_ids: set[str]) -> str:
     """Return a stable virtual ID for a legacy string registry entry."""
     base_id = f"legacy-string-{index + 1}"
@@ -300,9 +332,9 @@ def _build_result_lookup(results: list[object]) -> dict[str, dict]:
     by_id: dict[str, dict] = {}
     for result in results:
         if isinstance(result, dict):
-            result_id = result.get("id")
+            result_id = _result_id_text(result)
             if result_id:
-                by_id[str(result_id)] = result
+                by_id[result_id] = result
     return by_id
 
 
@@ -316,13 +348,26 @@ def _result_from_record(record: dict) -> IntermediateResult:
 def _get_result_registry_context(state: dict, result_id: str) -> tuple[list[object], dict, dict[str, dict]]:
     """Return the raw registry list, the target result, and an ID lookup."""
     results = state.get("intermediate_results", [])
-    idx = _find_result_index(results, result_id)
+    canonical_result_id = _resolve_unique_canonical_result_id(results, result_id) or result_id
+    idx = _find_result_index(results, canonical_result_id)
     if idx == -1:
         legacy_index = _legacy_result_index_for_id(results, result_id)
         if legacy_index is not None:
             raise _legacy_result_error(result_id, legacy_index)
         raise ResultNotFoundError(result_id)
     return results, results[idx], _build_result_lookup(results)
+
+
+def _resolve_mutable_result_index(results: list[object], result_id: str) -> tuple[int, str]:
+    """Return the mutable registry index for an exact or uniquely normalized ID."""
+    canonical_result_id = _resolve_unique_canonical_result_id(results, result_id) or result_id
+    idx = _find_result_index(results, canonical_result_id)
+    if idx == -1:
+        legacy_index = _legacy_result_index_for_id(results, result_id)
+        if legacy_index is not None:
+            raise _legacy_result_error(result_id, legacy_index)
+        raise ResultNotFoundError(result_id)
+    return idx, canonical_result_id
 
 
 def term_matches(term: str, value: str) -> bool:
@@ -343,6 +388,51 @@ def _normalized_identifier_matches(identifier: str, value: object) -> bool:
     if not normalized_identifier:
         return False
     return _normalize_identifier(value) == normalized_identifier
+
+
+def _resolve_unique_canonical_result_id(results: list[object], identifier: object) -> str | None:
+    """Resolve a result ID by exact ID or unique normalized ID match."""
+    if not isinstance(identifier, str):
+        return None
+    stripped = identifier.strip()
+    if not stripped:
+        return None
+
+    exact_matches = [result_id for item in results if (result_id := _result_id_text(item)) == stripped]
+    if exact_matches:
+        return exact_matches[0]
+
+    normalized_identifier = _normalize_identifier(stripped)
+    if not normalized_identifier:
+        return None
+
+    normalized_matches = _normalized_result_id_matches(results, stripped)
+    if len(normalized_matches) == 1:
+        return normalized_matches[0]
+    return None
+
+
+def _normalized_result_id_matches(results: list[object], identifier: object) -> list[str]:
+    """Return canonical result IDs whose normalized token matches ``identifier``."""
+    normalized_identifier = _normalize_identifier(identifier)
+    if not normalized_identifier:
+        return []
+    return list(
+        dict.fromkeys(
+            result_id
+            for item in results
+            if (result_id := _result_id_text(item)) is not None
+            and _normalize_identifier(result_id) == normalized_identifier
+        )
+    )
+
+
+def _canonicalize_dependency_ids(depends_on: object, results: list[object]) -> list[str]:
+    """Normalize dependency payload shape and canonicalize uniquely resolvable IDs."""
+    canonicalized: list[str] = []
+    for dep_id in _normalize_dependency_ids(depends_on):
+        canonicalized.append(_resolve_unique_canonical_result_id(results, dep_id) or dep_id)
+    return canonicalized
 
 
 def _normalize_equation_for_match(value: str | None) -> str:
@@ -467,22 +557,17 @@ def result_add(
             "Provide a descriptive ID (e.g., 'energy-conservation-eq') or omit it for auto-generation."
         )
 
-    if (
-        _find_result_index(state["intermediate_results"], rid) != -1
-        or _legacy_result_index_for_id(state["intermediate_results"], rid) is not None
-    ):
+    if _find_result_index(state["intermediate_results"], rid) != -1:
+        raise DuplicateResultError(rid)
+    if _legacy_result_index_for_id(state["intermediate_results"], rid) is not None:
+        raise DuplicateResultError(rid)
+    if _normalized_result_id_matches(state["intermediate_results"], rid):
         raise DuplicateResultError(rid)
 
     if value is not None and equation is None and description is None:
         description = str(value)
 
-    # Normalize depends_on to list
-    if depends_on is None:
-        deps: list[str] = []
-    elif isinstance(depends_on, str):
-        deps = [depends_on]
-    else:
-        deps = list(depends_on)
+    deps = _canonicalize_dependency_ids(depends_on, state["intermediate_results"])
 
     normalized_records = _strict_verification_records(verification_records)
 
@@ -644,19 +729,27 @@ def result_upsert(
     4. Otherwise add a new result.
     """
     results = state.get("intermediate_results", [])
-    if result_id is not None and _find_result_index(results, result_id) != -1:
-        updates = _collect_upsert_updates(
-            equation=equation,
-            description=description,
-            units=units,
-            validity=validity,
-            phase=phase,
-            depends_on=depends_on,
-            verified=verified,
-            verification_records=verification_records,
-        )
-        updated_fields, updated = result_update(state, result_id, updates)
-        return ResultUpsertResult(action="updated", matched_by="id", result=updated, updated_fields=updated_fields)
+    if result_id is not None:
+        canonical_result_id = _resolve_unique_canonical_result_id(results, result_id)
+        if canonical_result_id is None:
+            legacy_index = _legacy_result_index_for_id(results, result_id)
+            if legacy_index is not None:
+                raise _legacy_result_error(result_id, legacy_index)
+            if _normalized_result_id_matches(results, result_id):
+                raise ResultError("Multiple existing results match this result_id. Provide an exact canonical result_id.")
+        else:
+            updates = _collect_upsert_updates(
+                equation=equation,
+                description=description,
+                units=units,
+                validity=validity,
+                phase=phase,
+                depends_on=depends_on,
+                verified=verified,
+                verification_records=verification_records,
+            )
+            updated_fields, updated = result_update(state, canonical_result_id, updates)
+            return ResultUpsertResult(action="updated", matched_by="id", result=updated, updated_fields=updated_fields)
 
     normalized_equation = _normalize_equation_for_match(equation)
     if normalized_equation:
@@ -785,7 +878,8 @@ def result_deps(state: dict, result_id: str) -> ResultDeps:
     """
     results, result, by_id = _get_result_registry_context(state, result_id)
 
-    direct_dep_ids = list(dict.fromkeys(_normalize_dependency_ids(result.get("depends_on", []))))
+    result_id = _result_id_text(result) or result_id
+    direct_dep_ids = list(dict.fromkeys(_canonicalize_dependency_ids(result.get("depends_on", []), results)))
 
     # Direct dependencies
     direct_deps: list[IntermediateResult | MissingDep] = []
@@ -818,7 +912,7 @@ def result_deps(state: dict, result_id: str) -> ResultDeps:
         if not is_direct:
             transitive_deps.append(_result_from_record(dep))
 
-        for sub_dep_id in _normalize_dependency_ids(dep.get("depends_on", [])):
+        for sub_dep_id in _canonicalize_dependency_ids(dep.get("depends_on", []), results):
             if sub_dep_id not in visited:
                 queue.append(sub_dep_id)
 
@@ -841,6 +935,7 @@ def result_downstream(state: dict, result_id: str) -> ResultDownstream:
     Raises ResultNotFoundError if result_id is not found.
     """
     results, result, by_id = _get_result_registry_context(state, result_id)
+    result_id = _result_id_text(result) or result_id
 
     # Build a reverse adjacency map: for each result, which results list it
     # in their depends_on?
@@ -848,8 +943,11 @@ def result_downstream(state: dict, result_id: str) -> ResultDownstream:
     for r in results:
         if not isinstance(r, dict) or not r.get("id"):
             continue
-        for dep_id in _normalize_dependency_ids(r.get("depends_on", [])):
-            reverse_deps.setdefault(dep_id, []).append(r["id"])
+        source_id = _result_id_text(r)
+        if source_id is None:
+            continue
+        for dep_id in _canonicalize_dependency_ids(r.get("depends_on", []), results):
+            reverse_deps.setdefault(dep_id, []).append(source_id)
 
     # Direct dependents — results whose depends_on contains result_id.
     direct_dependent_ids = list(dict.fromkeys(reverse_deps.get(result_id, [])))
@@ -910,12 +1008,7 @@ def result_verify(
         raise ResultError(f"Invalid confidence {confidence!r}; expected one of {sorted(_VALID_CONFIDENCE)}")
 
     results = state.get("intermediate_results", [])
-    idx = _find_result_index(results, result_id)
-    if idx == -1:
-        legacy_index = _legacy_result_index_for_id(results, result_id)
-        if legacy_index is not None:
-            raise _legacy_result_error(result_id, legacy_index)
-        raise ResultNotFoundError(result_id)
+    idx, canonical_result_id = _resolve_mutable_result_index(results, result_id)
 
     record = VerificationEvidence(
         verified_at=verified_at or datetime.now(UTC).isoformat(),
@@ -937,7 +1030,7 @@ def result_verify(
     try:
         records = _strict_verification_records(raw_result.get("verification_records"))
     except ResultError as exc:
-        raise ResultError(f"Existing verification_records for {result_id} are invalid: {exc}") from exc
+        raise ResultError(f"Existing verification_records for {canonical_result_id} are invalid: {exc}") from exc
     records.append(record)
     raw_result["verification_records"] = [entry.model_dump() for entry in records]
     raw_result["verified"] = True
@@ -961,19 +1054,10 @@ def result_update(
     updates.update(kwargs)
 
     results = state.get("intermediate_results", [])
-    idx = _find_result_index(results, result_id)
-    if idx == -1:
-        legacy_index = _legacy_result_index_for_id(results, result_id)
-        if legacy_index is not None:
-            raise _legacy_result_error(result_id, legacy_index)
-        raise ResultNotFoundError(result_id)
+    idx, _canonical_result_id = _resolve_mutable_result_index(results, result_id)
 
-    # Normalize depends_on to list
     if "depends_on" in updates:
-        if updates["depends_on"] is None:
-            updates["depends_on"] = []
-        elif not isinstance(updates["depends_on"], list):
-            updates["depends_on"] = [updates["depends_on"]]
+        updates["depends_on"] = _canonicalize_dependency_ids(updates["depends_on"], results)
 
     if "verified" in updates:
         raw = updates["verified"]
@@ -991,7 +1075,7 @@ def result_update(
 
     updated_fields: list[str] = []
     pending: dict[str, object] = {}
-    for field in RESULT_FIELDS:
+    for field in RESULT_FIELD_ORDER:
         if field in updates:
             pending[field] = updates[field]
             updated_fields.append(field)

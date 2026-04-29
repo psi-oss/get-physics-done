@@ -9,6 +9,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
+TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 
 ROOT_MARKDOWN_FILES = {
     "README.md",
@@ -49,9 +50,8 @@ EXPECTED_VERIFICATION_DIRS = {
 
 REFERENCE_TOKEN_RE = re.compile(r"references/[A-Za-z0-9_./-]+\.md")
 INLINE_DOC_TOKEN_RE = re.compile(r"`((?:references/|\.{1,2}/)[A-Za-z0-9_./-]+\.md(?:#[^`]+)?)`")
-NON_SPEC_REFERENCE_TOKENS = {
-    "references/references-pending.md",
-}
+MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
+NON_SPEC_REFERENCE_TOKENS: set[str] = set()
 
 MOVED_REFERENCE_FILES = [
     ("agent-delegation.md", "orchestration/agent-delegation.md"),
@@ -164,6 +164,16 @@ MOVED_REFERENCE_FILES = [
 ]
 
 
+def test_bibliography_template_uses_current_reference_artifact_names() -> None:
+    template = (TEMPLATES_DIR / "bibliography.md").read_text(encoding="utf-8")
+
+    assert "references/references-verified.log" not in template
+    assert "references/references-pending.md" not in template
+    assert "GPD/references-status.json" in template
+    assert "GPD/literature/*-CITATION-SOURCES.json" in template
+    assert "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json" in template
+
+
 def test_references_root_only_keeps_index_markdown_files() -> None:
     root_markdown = {path.name for path in REFERENCES_DIR.glob("*.md")}
     assert root_markdown == ROOT_MARKDOWN_FILES
@@ -249,6 +259,27 @@ def test_reference_docs_inline_markdown_targets_resolve() -> None:
             assert resolved.is_file(), f"{path.relative_to(REPO_ROOT)} -> {token}"
 
     assert found_tokens
+
+
+def test_llm_physics_error_catalog_markdown_links_resolve_from_catalog_location() -> None:
+    catalog = REFERENCES_DIR / "verification" / "errors" / "llm-physics-errors.md"
+    content = catalog.read_text(encoding="utf-8")
+
+    targets = [
+        target.split("#", 1)[0]
+        for target in MARKDOWN_LINK_RE.findall(content)
+        if not target.startswith(("http://", "https://", "mailto:", "#"))
+    ]
+
+    assert targets == [
+        "llm-errors-core.md",
+        "llm-errors-field-theory.md",
+        "llm-errors-extended.md",
+        "llm-errors-deep.md",
+    ]
+    assert "references/verification/errors/llm-errors" not in content
+    for target in targets:
+        assert (catalog.parent / target).is_file(), target
 
 
 def test_no_stale_root_reference_paths_remain_in_prompt_sources() -> None:

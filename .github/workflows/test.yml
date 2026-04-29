@@ -18,7 +18,7 @@ jobs:
   human-authors:
     name: human authors
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
 
     steps:
       - name: Check out repository
@@ -26,9 +26,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check commit attribution uses human authors
+      - name: Check PR commit attribution uses human authors
+        if: github.event_name == 'pull_request'
         run: |
           bash scripts/check-human-authors.sh --range "origin/${{ github.base_ref }}..HEAD"
+
+      - name: Check pushed commit attribution uses human authors
+        if: github.event_name == 'push'
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            range="$HEAD_SHA"
+          else
+            range="${BEFORE_SHA}..${HEAD_SHA}"
+          fi
+          bash scripts/check-human-authors.sh --range "$range"
 
   ruff:
     name: ruff check
@@ -43,14 +57,16 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Check repo graph generated artifacts
-        run: python scripts/sync_repo_graph_contract.py --check
-
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.12"
 
       - name: Install dependencies
         run: uv sync --dev --frozen
+
+      - name: Check repo graph generated artifacts
+        run: uv run python scripts/sync_repo_graph_contract.py --check
 
       - name: Run ruff check
         run: uv run ruff check .
@@ -79,28 +95,15 @@ jobs:
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.12"
 
       - name: Install dependencies
         run: uv sync --dev --frozen
 
-      - name: Import package surfaces
+      - name: Run import stability contracts
         run: |
-          uv run python - <<'PY'
-          import importlib
-
-          modules = [
-              "gpd",
-              "gpd.cli",
-              "gpd.runtime_cli",
-              "gpd.adapters.runtime_catalog",
-              "gpd.core.artifact_text",
-              "gpd.mcp.paper.compiler",
-              "gpd.mcp.servers.arxiv_bridge",
-          ]
-          for module in modules:
-              importlib.import_module(module)
-          print(f"Imported {len(modules)} package surfaces")
-          PY
+          uv run pytest -n 0 -q tests/test_import_stability_contracts.py
 
       - name: Smoke console script
         run: |
@@ -110,7 +113,7 @@ jobs:
 
       - name: Run installer and runtime compatibility tests
         run: |
-          uv run pytest -q \
+          uv run pytest -n 0 -q \
             tests/test_metadata_consistency.py::test_python_floor_is_consistent_across_install_surfaces \
             tests/test_runtime_catalog_bootstrap_contract.py \
             tests/test_runtime_install_smoke.py \
@@ -119,7 +122,12 @@ jobs:
             tests/test_bootstrap_installer.py::test_bootstrap_recreates_managed_env_when_selected_minor_changes
 
       - name: Build wheel
-        run: uv build --wheel --out-dir dist/compat-${{ matrix.python-version }}
+        run: |
+          UV_CACHE_DIR="$(mktemp -d)"
+          export UV_CACHE_DIR
+          export UV_NO_CONFIG=1
+          export UV_PYTHON_DOWNLOADS=never
+          uv build --wheel --out-dir dist/compat-${{ matrix.python-version }}
 
   pytest:
     name: pytest ${{ matrix.display_name }} (3.11)
@@ -225,6 +233,8 @@ jobs:
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.12"
 
       - name: Install dependencies
         run: uv sync --dev --frozen
@@ -262,17 +272,19 @@ jobs:
       - name: Run pytest shard
         timeout-minutes: 10
         env:
-          GPD_FAST_SUITE_BUDGET_SECONDS: "180"
+          GPD_DEFAULT_FULL_SUITE_COMMAND: "uv run pytest tests/ -q"
+          GPD_FULL_SUITE_SHARD_BUDGET_SECONDS: "180"
           PYTEST_SHARD_TARGET_FILE: ${{ runner.temp }}/pytest-targets.txt
         run: |
           mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"
-          echo "Fast suite budget: ${GPD_FAST_SUITE_BUDGET_SECONDS}s enforced per pytest shard; job timeout: 10 minutes"
+          echo "Default full-suite command represented by CI shards: ${GPD_DEFAULT_FULL_SUITE_COMMAND}"
+          echo "Full-suite shard budget: ${GPD_FULL_SUITE_SHARD_BUDGET_SECONDS}s enforced per pytest shard; job timeout: 10 minutes"
           set +e
-          timeout "${GPD_FAST_SUITE_BUDGET_SECONDS}s" uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"
+          timeout "${GPD_FULL_SUITE_SHARD_BUDGET_SECONDS}s" uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"
           pytest_status=$?
           set -e
           if [ "$pytest_status" -eq 124 ]; then
-            echo "::error::pytest shard exceeded enforced ${GPD_FAST_SUITE_BUDGET_SECONDS}s fast-suite budget"
+            echo "::error::pytest shard exceeded enforced ${GPD_FULL_SUITE_SHARD_BUDGET_SECONDS}s full-suite shard budget"
           fi
           exit "$pytest_status"
 

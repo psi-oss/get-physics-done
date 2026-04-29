@@ -33,9 +33,9 @@ def _workflow_text(name: str) -> str:
         ("progress.md", "Extract from init JSON:", "project_contract_gate"),
         ("audit-milestone.md", "Extract from init JSON:", "project_contract_gate"),
         ("resume-work.md", "- **Availability and contract authority:**", "project_contract_gate"),
-        ("write-paper.md", "Parse bootstrap JSON for:", "project_contract_gate"),
+        ("write-paper.md", "Parse bootstrap JSON using", "project_contract_gate"),
         ("respond-to-referees.md", "Parse JSON for:", "project_contract_gate"),
-        ("peer-review.md", "Parse bootstrap JSON for:", "project_contract_gate"),
+        ("peer-review.md", "Parse bootstrap JSON using", "project_contract_gate"),
     ],
 )
 def test_contract_gate_is_visible_before_authoritative_use(
@@ -61,14 +61,13 @@ def test_literature_review_workflow_surfaces_contract_gate_before_deferred_refer
 
 def test_write_paper_surfaces_manuscript_reference_status_before_using_it() -> None:
     workflow = _workflow_text("write-paper.md")
-    surface_line = next(line for line in workflow.splitlines() if line.startswith("Parse bootstrap JSON for:"))
+    surface_line = next(line for line in workflow.splitlines() if line.startswith("Parse bootstrap JSON using"))
+    use_line = next(line for line in workflow.splitlines() if "When later steps need publication routing" in line)
 
-    assert "derived_manuscript_reference_status" in surface_line
-    assert "derived_manuscript_reference_status_count" in surface_line
-    assert "selected_publication_root" in surface_line
-    assert "selected_review_root" in surface_line
+    assert "do not duplicate the manifest's required-field list in prose" in surface_line
+    assert "selected_publication_root" not in surface_line
+    assert "derived manuscript review statuses" in use_line
     assert workflow.index(surface_line) < workflow.index("derived_manuscript_reference_status")
-    assert workflow.index(surface_line) < workflow.index("derived_manuscript_reference_status_count")
     assert "If `derived_manuscript_reference_status` is present" in workflow
 
 
@@ -178,13 +177,14 @@ def test_sync_state_keeps_state_json_authority_before_markdown_repair() -> None:
 
     assert "@{GPD_INSTALL_DIR}/workflows/sync-state.md" in raw_sync_state_command
     assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" not in raw_sync_state_command
-    assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" in raw_sync_state_workflow
+    assert "{GPD_INSTALL_DIR}/templates/state-json-schema.md" in raw_sync_state_workflow
+    assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" not in raw_sync_state_workflow
     assert "`state.json` is the authoritative store for structured state" in raw_sync_state_workflow
     assert "`STATE.md` is the human-readable projection" in raw_sync_state_workflow
 
     for content in (sync_state_command, sync_state_workflow):
-        assert "# state.json Schema" in content
-        assert "Authoritative vs Derived" in content
+        assert "state-json-schema.md" in content
+        assert "# state.json Schema" not in content
         assert "Markdown is only used as a recovery source when `state.json` is missing or unreadable." in content
         assert "do not invent a field-by-field merge" in content
 

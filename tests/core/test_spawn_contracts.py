@@ -371,6 +371,25 @@ def test_execute_phase_requires_state_return_envelope_and_handoff_spot_checks() 
     assert '# task(subagent_type="gpd-experiment-designer"' not in content
 
 
+def test_execute_phase_initial_verification_spawns_verifier_agent() -> None:
+    content = _read(WORKFLOWS_DIR / "execute-phase.md")
+    start = content.index('<step name="verify_phase_goal">')
+    end = content.index("**If human_needed:**", start)
+    verification_step = content[start:end]
+    verifier_tasks = [
+        block for block in _extract_task_blocks(verification_step) if 'subagent_type="gpd-verifier"' in block.text
+    ]
+
+    assert len(verifier_tasks) == 1
+    verifier = verifier_tasks[0].text
+    assert 'readonly=false' in verifier
+    assert 'description="Verify Phase {PHASE_NUMBER} goal"' in verifier
+    assert "Re-verify Phase" not in verifier
+    assert "{phase_dir}/{phase_number}-VERIFICATION.md" in verifier
+    assert "<spawn_contract>" in verifier
+    assert "gpd_return` envelope" in verifier
+
+
 def test_parameter_sweep_executor_uses_spawn_contract_and_return_only_state_updates() -> None:
     path = WORKFLOWS_DIR / "parameter-sweep.md"
     executor = _find_single_task(path, "gpd-executor")
@@ -460,6 +479,8 @@ def test_map_research_parallel_mappers_use_spawn_contracts_and_return_only_artif
     assert len(outputs) == len(set(outputs))
     assert len(tasks) == 4
     assert content.count("<spawn_contract>") >= 4
+    assert "task tool parameters:" not in content
+    assert "Prompt:" not in content
     assert (
         "Route on `gpd_return.status`, then verify `gpd_return.files_written` against the expected artifacts before accepting the run."
         in content
@@ -468,6 +489,8 @@ def test_map_research_parallel_mappers_use_spawn_contracts_and_return_only_artif
     assert 'RESEARCH_MODE=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_mode --default balanced)' in content
 
     for task in tasks:
+        assert task.text.startswith("task(\n  subagent_type=")
+        assert "run_in_background=true" in task.text
         task_outputs = tuple(_extract_output_paths(task))
         assert len(task_outputs) in (1, 2)
         _assert_spawn_contract(task, task_outputs)
@@ -492,11 +515,19 @@ def test_new_project_roadmapper_uses_spawn_contract_and_artifact_gate() -> None:
 def test_new_project_notation_coordinator_uses_explicit_model_and_spawn_contract() -> None:
     path = WORKFLOWS_DIR / "new-project.md"
     content = _read(path)
-    notation = _find_single_task(path, "gpd-notation-coordinator")
+    start = content.index("## 8.5. Establish Conventions")
+    end = content.index("**Handle notation-coordinator return:**", start)
+    notation_section = content[start:end]
 
-    _assert_spawn_contract(notation, ("GPD/CONVENTIONS.md",), shared_state_policy="direct")
-    assert 'model="{NOTATION_MODEL}"' in notation.text
-    assert "gpd convention set" in notation.text
+    assert _find_single_task(path, "gpd-notation-coordinator")
+    _assert_spawn_contract(notation_section, ("GPD/CONVENTIONS.md",), shared_state_policy="direct")
+    assert "activation: mode == auto" in notation_section
+    assert 'model="$NOTATION_MODEL"' in notation_section
+    assert 'model="{NOTATION_MODEL}"' not in notation_section
+    assert "<spawn_contract_interactive>" in notation_section
+    assert "write_scope:\n  mode: no_write" in notation_section
+    assert "status: checkpoint" in notation_section
+    assert "gpd convention set" in notation_section
     assert "Do not hardcode `natural` or `mostly_minus`" in content
     assert 'gpd convention set units "$RESOLVED_UNITS"' in content
     assert 'gpd convention set metric_signature "$RESOLVED_METRIC"' in content

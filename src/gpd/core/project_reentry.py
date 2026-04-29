@@ -13,7 +13,9 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.core.constants import ProjectLayout
+from gpd.core.continuation import normalize_continuation_reference
 from gpd.core.recent_projects import (
+    RecentProjectsError,
     _strict_bool_value,
     classify_recent_project_recovery,
     list_recent_projects,
@@ -64,10 +66,12 @@ class ProjectReentryCandidate(BaseModel):
     source_session_id: str | None = None
     source_segment_id: str | None = None
     source_transition_id: str | None = None
+    source_event_id: str | None = None
     source_recorded_at: str | None = None
     recovery_phase: str | None = None
     recovery_plan: str | None = None
     auto_selectable: bool = False
+
 
 class ProjectReentryResolution(BaseModel):
     """Shared re-entry decision payload for recovery/status commands."""
@@ -83,6 +87,7 @@ class ProjectReentryResolution(BaseModel):
     has_current_workspace_candidate: bool = False
     has_recoverable_current_workspace: bool = False
     recoverable_candidates_count: int = 0
+    diagnostics: list[str] = Field(default_factory=list)
     candidates: list[ProjectReentryCandidate] = Field(default_factory=list)
 
     @property
@@ -102,6 +107,7 @@ class ProjectReentryResolution(BaseModel):
                 if candidate.project_root == selected_root and candidate.source == selected_source:
                     return candidate
         return next((candidate for candidate in self.candidates if candidate.project_root == selected_root), None)
+
 
 def recoverable_project_context(project_root: Path) -> tuple[bool, bool, bool]:
     """Return whether a project root has enough durable state for recovery.
@@ -237,8 +243,32 @@ def _normalize_recent_text(row: Mapping[str, object], *keys: str) -> str | None:
     return None
 
 
-def _recent_project_summary(row: Mapping[str, object]) -> str | None:
-    return project_reentry_candidate_summary(row)
+def _live_resume_file_metadata(
+    project_root: Path, resume_file: str | None
+) -> tuple[str | None, bool | None, str | None]:
+    if resume_file is None:
+        return None, None, None
+
+    normalized = normalize_continuation_reference(project_root, resume_file)
+    if normalized is None:
+        return None, False, "resume file outside project root"
+
+    try:
+        root_is_dir = project_root.is_dir()
+    except OSError:
+        root_is_dir = False
+    if not root_is_dir:
+        return normalized, None, None
+
+    target = project_root / normalized
+    try:
+        if not target.exists():
+            return normalized, False, "resume file missing"
+        if not target.is_file():
+            return normalized, False, "resume file is not a file"
+    except OSError:
+        return normalized, False, "resume file unavailable"
+    return normalized, True, None
 
 
 def _candidate_from_recent_row(row: Mapping[str, object]) -> ProjectReentryCandidate | None:
@@ -266,15 +296,29 @@ def _candidate_from_recent_row(row: Mapping[str, object]) -> ProjectReentryCandi
         except OSError:
             inferred_available = False
     available_value = row.get("available")
-    if available_value is None:
+    if available_value is None or isinstance(available_value, bool):
         available = inferred_available
     else:
         available = _strict_bool_value(available_value) is True and inferred_available
     recoverable = available and (state_exists or roadmap_exists or project_exists)
-    resume_file = _normalize_recent_text(row, "resume_file")
-    resume_file_available = _strict_bool_value(row.get("resume_file_available"))
-    resumable = _strict_bool_value(row.get("resumable")) is True or resume_file_available is True
-    recovery = classify_recent_project_recovery(row)
+    resume_file, resume_file_available, computed_resume_file_reason = _live_resume_file_metadata(
+        project_root,
+        _normalize_recent_text(row, "resume_file"),
+    )
+    resumable = available and resume_file_available is True
+    resume_file_reason = (
+        None
+        if resume_file_available is True
+        else computed_resume_file_reason or _normalize_recent_text(row, "resume_file_reason")
+    )
+    recovery_payload = {
+        **dict(row),
+        "available": available,
+        "resume_file": resume_file,
+        "resume_file_available": resume_file_available,
+        "resumable": resumable,
+    }
+    recovery = classify_recent_project_recovery(recovery_payload)
     candidate = ProjectReentryCandidate(
         source="recent_project",
         project_root=project_root.as_posix(),
@@ -283,7 +327,7 @@ def _candidate_from_recent_row(row: Mapping[str, object]) -> ProjectReentryCandi
         resumable=resumable,
         confidence="medium" if recoverable else "low",
         reason="recent project cache entry",
-        summary=_recent_project_summary(row),
+        summary=None,
         state_exists=state_exists,
         roadmap_exists=roadmap_exists,
         project_exists=project_exists,
@@ -292,7 +336,7 @@ def _candidate_from_recent_row(row: Mapping[str, object]) -> ProjectReentryCandi
         resume_target_kind=recovery.resume_target_kind,
         resume_target_recorded_at=recovery.resume_target_recorded_at,
         resume_file_available=resume_file_available,
-        resume_file_reason=_normalize_recent_text(row, "resume_file_reason"),
+        resume_file_reason=resume_file_reason,
         hostname=_normalize_recent_text(row, "hostname"),
         platform=_normalize_recent_text(row, "platform"),
         availability_reason=_normalize_recent_text(row, "availability_reason"),
@@ -302,6 +346,7 @@ def _candidate_from_recent_row(row: Mapping[str, object]) -> ProjectReentryCandi
         source_session_id=_normalize_recent_text(row, "source_session_id"),
         source_segment_id=_normalize_recent_text(row, "source_segment_id"),
         source_transition_id=_normalize_recent_text(row, "source_transition_id"),
+        source_event_id=_normalize_recent_text(row, "source_event_id"),
         source_recorded_at=_normalize_recent_text(row, "source_recorded_at"),
         recovery_phase=_normalize_recent_text(row, "recovery_phase"),
         recovery_plan=_normalize_recent_text(row, "recovery_plan"),
@@ -311,7 +356,7 @@ def _candidate_from_recent_row(row: Mapping[str, object]) -> ProjectReentryCandi
         update={
             "confidence": "high" if concrete_target else "medium" if recoverable else "low",
             "reason": recovery.candidate_reason(recoverable=recoverable),
-            "summary": _recent_project_summary(row),
+            "summary": project_reentry_candidate_summary(candidate),
         }
     )
 
@@ -342,7 +387,9 @@ def _current_workspace_candidate(workspace: Path | None) -> ProjectReentryCandid
         available=project_root.is_dir(),
         recoverable=recoverable,
         resumable=False,
-        confidence=resolution.confidence.value if isinstance(resolution.confidence, RootResolutionConfidence) else str(resolution.confidence),
+        confidence=resolution.confidence.value
+        if isinstance(resolution.confidence, RootResolutionConfidence)
+        else str(resolution.confidence),
         reason=reason,
         summary=reason,
         state_exists=state_exists,
@@ -368,8 +415,16 @@ def resolve_project_reentry(
         candidates.append(current_candidate)
         seen_roots.add(current_candidate.project_root)
 
+    diagnostics: list[str] = []
     if recent_rows is None:
-        recent_project_rows = [] if _current_workspace_is_verified(current_candidate) else list_recent_projects(data_root)
+        if _current_workspace_is_verified(current_candidate):
+            recent_project_rows = []
+        else:
+            try:
+                recent_project_rows = list_recent_projects(data_root)
+            except RecentProjectsError as exc:
+                diagnostics.append(f"recent-project index ignored: {exc}")
+                recent_project_rows = []
     else:
         recent_project_rows = list(recent_rows)
     for row in recent_project_rows:
@@ -406,10 +461,6 @@ def resolve_project_reentry(
     elif len(strong_recent) > 1:
         mode = "ambiguous-recent-projects"
         requires_user_selection = True
-    elif current_candidate is not None:
-        selected_project_root = current_candidate.project_root
-        selected_source = current_candidate.source
-        mode = "current-workspace"
     elif recent_candidates:
         mode = "recent-projects"
 
@@ -437,5 +488,6 @@ def resolve_project_reentry(
         has_current_workspace_candidate=current_candidate is not None,
         has_recoverable_current_workspace=bool(current_candidate and current_candidate.recoverable),
         recoverable_candidates_count=sum(1 for candidate in normalized_candidates if candidate.recoverable),
+        diagnostics=diagnostics,
         candidates=normalized_candidates,
     )

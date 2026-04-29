@@ -276,6 +276,52 @@ def test_parse_state_md_treats_plain_not_set_placeholders_as_unset() -> None:
     assert parsed["session"]["last_result_id"] is None
 
 
+def test_parse_state_md_filters_exact_placeholder_bullets_only() -> None:
+    markdown = (
+        "# Research State\n\n"
+        "## Active Calculations\n\n"
+        "- Nonequilibrium saddle expansion\n"
+        "- None of the counterterms cancel\n"
+        "- none\n"
+        "- None yet.\n"
+        "- -\n"
+        "- \u2014\n\n"
+        "## Intermediate Results\n\n"
+        "- Nonequilibrium dispersion relation\n"
+        "- none yet\n\n"
+        "## Open Questions\n\n"
+        "- Nonequilibrium Ward identity?\n"
+        "- none\n\n"
+        "## Accumulated Context\n\n"
+        "### Decisions\n\n"
+        "- [Phase 02]: Nonequilibrium branch is physical\n"
+        "- Nonequilibrium normalization stays explicit\n"
+        "- none\n\n"
+        "### Pending Todos\n\n"
+        "- Nonequilibrium limit check\n"
+        "- None yet.\n\n"
+        "### Blockers/Concerns\n\n"
+        "- Nonequilibrium convergence is slow\n"
+        "- -\n"
+        "- none\n\n"
+    )
+
+    parsed = parse_state_md(markdown)
+
+    assert parsed["active_calculations"] == [
+        "Nonequilibrium saddle expansion",
+        "None of the counterterms cancel",
+    ]
+    assert parsed["intermediate_results"] == ["Nonequilibrium dispersion relation"]
+    assert parsed["open_questions"] == ["Nonequilibrium Ward identity?"]
+    assert parsed["decisions"] == [
+        {"phase": "02", "summary": "Nonequilibrium branch is physical", "rationale": None},
+        {"phase": None, "summary": "Nonequilibrium normalization stays explicit", "rationale": None},
+    ]
+    assert parsed["pending_todos"] == ["Nonequilibrium limit check"]
+    assert parsed["blockers"] == ["Nonequilibrium convergence is slow"]
+
+
 # ─── ensure_state_schema ─────────────────────────────────────────────────────
 
 
@@ -1470,6 +1516,93 @@ def test_load_state_json_recovers_backup_continuation_when_primary_json_is_corru
     assert "session" not in persisted
 
 
+def test_load_state_json_accepts_newer_state_md_when_only_backup_bounded_segment_differs(
+    tmp_path: Path,
+) -> None:
+    primary_state = default_state_dict()
+    primary_state["continuation"]["handoff"]["recorded_at"] = "2026-03-29T12:00:00+00:00"
+    primary_state["continuation"]["handoff"]["stopped_at"] = "Phase 03 Plan 2"
+    backup_state = json.loads(json.dumps(primary_state))
+    backup_state["continuation"]["bounded_segment"] = {
+        "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+        "phase": "03",
+        "plan": "02",
+        "segment_id": "segment-json-only",
+        "segment_status": "paused",
+        "pre_fanout_review_pending": True,
+    }
+    layout = _write_backup_only_state(tmp_path, primary_state, backup_state=backup_state)
+    layout.state_json.write_text("{not-json", encoding="utf-8")
+    old_ns = 1_700_000_000_000_000_000
+    new_ns = old_ns + 1_000_000_000
+    os.utime(layout.state_json_backup, ns=(old_ns, old_ns))
+    os.utime(layout.state_md, ns=(new_ns, new_ns))
+
+    loaded = load_state_json(tmp_path)
+
+    assert loaded is not None
+    assert loaded["continuation"]["handoff"]["stopped_at"] == "Phase 03 Plan 2"
+    assert loaded["continuation"]["bounded_segment"]["segment_id"] == "segment-json-only"
+    assert loaded["continuation"]["bounded_segment"]["pre_fanout_review_pending"] is True
+    assert json.loads(layout.state_json.read_text(encoding="utf-8"))["continuation"]["bounded_segment"][
+        "segment_id"
+    ] == "segment-json-only"
+
+
+def test_state_md_rebuild_preserves_stale_backup_json_only_bounded_segment(tmp_path: Path) -> None:
+    layout = ProjectLayout(tmp_path)
+    layout.gpd.mkdir(parents=True, exist_ok=True)
+
+    backup_state = default_state_dict()
+    backup_state["position"]["current_phase"] = "03"
+    backup_state["position"]["status"] = "Executing"
+    backup_state["continuation"]["bounded_segment"] = {
+        "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+        "phase": "03",
+        "plan": "02",
+        "segment_id": "segment-preserved-from-stale-backup",
+        "segment_status": "paused",
+        "downstream_locked": True,
+        "updated_at": "2026-03-29T12:00:00+00:00",
+    }
+    backup_state["continuation"]["handoff"].update(
+        {
+            "recorded_at": "2026-03-20T12:00:00+00:00",
+            "stopped_at": "Old backup handoff",
+            "resume_file": "GPD/phases/03-analysis/old.md",
+        }
+    )
+    md_state = default_state_dict()
+    md_state["position"]["current_phase"] = "06"
+    md_state["position"]["status"] = "Paused"
+    md_state["continuation"]["handoff"].update(
+        {
+            "recorded_at": "2026-03-30T12:00:00+00:00",
+            "stopped_at": "New markdown handoff",
+            "resume_file": "GPD/phases/06-analysis/new.md",
+        }
+    )
+    layout.state_json.write_text("{not-json", encoding="utf-8")
+    layout.state_json_backup.write_text(json.dumps(backup_state, indent=2) + "\n", encoding="utf-8")
+    layout.state_md.write_text(generate_state_markdown(md_state), encoding="utf-8")
+    old_ns = 1_700_000_000_000_000_000
+    new_ns = old_ns + 1_000_000_000
+    os.utime(layout.state_json_backup, ns=(old_ns, old_ns))
+    os.utime(layout.state_md, ns=(new_ns, new_ns))
+
+    loaded, issues, state_source = peek_state_json(tmp_path, recover_intent=False)
+
+    assert loaded is not None
+    assert state_source == "STATE.md"
+    assert "state.json root was recovered from STATE.md after primary state.json was unavailable or unreadable" in issues
+    assert loaded["position"]["current_phase"] == "06"
+    assert loaded["position"]["status"] == "Paused"
+    assert loaded["continuation"]["handoff"]["stopped_at"] == "New markdown handoff"
+    assert loaded["continuation"]["handoff"]["resume_file"] == "GPD/phases/06-analysis/new.md"
+    assert loaded["continuation"]["bounded_segment"]["segment_id"] == "segment-preserved-from-stale-backup"
+    assert loaded["continuation"]["bounded_segment"]["downstream_locked"] is True
+
+
 def test_load_state_json_recovers_backup_continuation_when_primary_continuation_section_is_invalid(tmp_path: Path) -> None:
     primary_state = default_state_dict()
     primary_state["continuation"] = []
@@ -1810,6 +1943,8 @@ def test_state_snapshot_does_not_recover_intent_marker_and_keeps_state_unchanged
     snapshot = state_snapshot(tmp_path)
 
     assert snapshot.current_phase == "01"
+    assert "session" not in type(snapshot).model_fields
+    assert "session" not in snapshot.model_dump(mode="json")
     assert layout.state_json.read_text(encoding="utf-8") == before_state
     assert json.loads(layout.state_json.read_text(encoding="utf-8"))["position"]["current_phase"] == "01"
     assert layout.state_intent.exists()
@@ -2047,6 +2182,23 @@ def test_save_state_markdown_recovers_pending_intent_before_merging_existing_sta
     assert stored["position"]["current_phase"] == "06"
     assert stored["project_contract"]["scope"]["question"] == "recovered contract"
     assert not layout.state_intent.exists()
+
+
+def test_state_load_project_contract_diagnostics_use_recovered_intent_state(tmp_path: Path) -> None:
+    stale_state = default_state_dict()
+    stale_state["project_contract"] = _draft_invalid_project_contract()
+
+    recovered_state = default_state_dict()
+    recovered_state["project_contract"] = _project_contract_with_question("recovered contract")
+
+    _write_intent_recovery_state(tmp_path, stale_state=stale_state, recovered_state=recovered_state)
+
+    loaded = state_load(tmp_path)
+
+    assert loaded.state["project_contract"]["scope"]["question"] == "recovered contract"
+    assert loaded.project_contract_load_info["status"] == "loaded"
+    assert loaded.project_contract_gate["visible"] is True
+    assert loaded.project_contract_gate["authoritative"] is True
 
 
 def test_state_load_persists_state_md_recovery_to_backup_and_recent_projects(
@@ -3216,6 +3368,35 @@ def test_state_set_continuation_bounded_segment_rejects_salvageable_drift(
     assert after == before
 
 
+def test_state_set_continuation_bounded_segment_rejects_unknown_last_result_id(
+    tmp_path: Path,
+    state_project_factory,
+) -> None:
+    cwd = state_project_factory(tmp_path)
+    resume_path = cwd / "GPD" / "phases" / "03-analysis" / "resume.md"
+    resume_path.parent.mkdir(parents=True, exist_ok=True)
+    resume_path.write_text("resume\n", encoding="utf-8")
+
+    before = load_state_json(cwd)
+    assert before is not None
+
+    result = state_set_continuation_bounded_segment(
+        cwd,
+        {
+            "resume_file": str(resume_path),
+            "phase": "03",
+            "plan": "02",
+            "segment_id": "segment-03-02",
+            "segment_status": "paused",
+            "last_result_id": "missing-result",
+        },
+    )
+
+    assert result.updated is False
+    assert 'last_result_id "missing-result" does not match any canonical result' in (result.reason or "")
+    assert load_state_json(cwd) == before
+
+
 def test_state_set_continuation_bounded_segment_persists_strict_valid_payload(
     tmp_path: Path, state_project_factory
 ) -> None:
@@ -3605,6 +3786,7 @@ def test_advance_plan_advances_normally(tmp_path):
     )
     result = state_advance_plan(cwd)
     assert result.advanced is True
+    assert result.state_mutated is True
     assert result.previous_plan == 1
     assert result.current_plan == 2
 
@@ -3630,6 +3812,7 @@ def test_advance_plan_returns_error_when_fields_missing(tmp_path):
 
     result = state_advance_plan(tmp_path)
     assert result.advanced is False
+    assert result.state_mutated is False
     assert result.error is not None
     assert "Cannot parse" in result.error
 
@@ -3664,6 +3847,7 @@ def test_advance_plan_marks_phase_complete_on_last_plan(tmp_path):
 
     result = state_advance_plan(tmp_path)
     assert result.advanced is False
+    assert result.state_mutated is True
     assert result.reason == "last_plan"
     assert result.status == "ready_for_verification"
 

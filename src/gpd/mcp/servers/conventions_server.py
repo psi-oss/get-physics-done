@@ -45,6 +45,8 @@ from gpd.core.observability import gpd_span
 from gpd.mcp.servers import (
     ABSOLUTE_PROJECT_DIR_SCHEMA,
     configure_mcp_logging,
+    mutating_tool_annotations,
+    read_only_tool_annotations,
     resolve_absolute_project_dir,
     stable_mcp_error,
     stable_mcp_response,
@@ -56,6 +58,8 @@ T = TypeVar("T")
 logger = configure_mcp_logging("gpd-conventions")
 
 mcp = FastMCP("gpd-conventions")
+
+_CONVENTION_MUTATION_TOOL_ANNOTATIONS = mutating_tool_annotations(destructive=True, idempotent=False)
 
 AbsoluteProjectDirInput = Annotated[str, WithJsonSchema(ABSOLUTE_PROJECT_DIR_SCHEMA)]
 
@@ -282,7 +286,7 @@ def _update_lock_in_project(
 # ─── MCP Tools ────────────────────────────────────────────────────────────────
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def convention_lock_status(project_dir: AbsoluteProjectDirInput) -> dict:
     """Get the current convention lock state for a GPD project.
 
@@ -318,7 +322,7 @@ def convention_lock_status(project_dir: AbsoluteProjectDirInput) -> dict:
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_CONVENTION_MUTATION_TOOL_ANNOTATIONS)
 def convention_set(
     project_dir: AbsoluteProjectDirInput,
     key: ConventionKeyInput,
@@ -372,8 +376,7 @@ def convention_set(
                     "key": result.key,
                     "current_value": result.previous,
                     "requested_value": result.value,
-                    "message": result.hint
-                    or f"Convention '{result.key}' already set. Use force=True to override.",
+                    "message": result.hint or f"Convention '{result.key}' already set. Use force=True to override.",
                 }
             )
 
@@ -401,7 +404,7 @@ def convention_set(
         return stable_mcp_response(response)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def convention_check(lock: dict) -> dict:
     """Validate a convention lock for completeness and consistency.
 
@@ -456,7 +459,7 @@ def convention_check(lock: dict) -> dict:
             return stable_mcp_error(exc)
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def convention_diff(lock_a: dict, lock_b: dict) -> dict:
     """Compare two convention lock dictionaries and identify differences.
 
@@ -514,7 +517,7 @@ def convention_diff(lock_a: dict, lock_b: dict) -> dict:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def assert_convention_validate(file_content: str, lock: dict) -> dict:
     """Verify ASSERT_CONVENTION lines in a file against the project lock.
 
@@ -573,8 +576,7 @@ def assert_convention_validate(file_content: str, lock: dict) -> dict:
                     "file_value": m.file_value,
                     "lock_value": m.lock_value,
                     "message": (
-                        f"Convention mismatch: file declares {m.key}={m.file_value} "
-                        f"but lock has {m.key}={m.lock_value}"
+                        f"Convention mismatch: file declares {m.key}={m.file_value} but lock has {m.key}={m.lock_value}"
                     ),
                 }
                 for m in result.mismatches
@@ -583,7 +585,7 @@ def assert_convention_validate(file_content: str, lock: dict) -> dict:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=read_only_tool_annotations())
 def subfield_defaults(domain: SubfieldDomainInput) -> dict:
     """Return recommended default conventions for a physics domain.
 

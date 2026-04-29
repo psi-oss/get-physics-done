@@ -213,23 +213,19 @@ def _assert_single_runtime_next_steps(
     suggest_next_command = adapter.format_command("suggest-next")
     pause_work_command = adapter.format_command("pause-work")
     ordered_patterns = (
-        re.escape("Startup checklist"),
-        re.escape(f"Beginner Onboarding Hub: {beginner_onboarding_hub_url()}"),
-        re.escape("First-run order: `help -> start -> tour -> new-project / map-research -> resume-work`"),
-        re.escape(f"1. Open {descriptor.display_name} from your system terminal ({adapter.launch_command})."),
-        re.escape(f"2. Run {adapter.help_command} for the command list."),
+        re.escape("After install"),
+        re.escape(f"Beginner path: {beginner_onboarding_hub_url()}"),
         re.escape(
-            "3. Run "
-            f"{adapter.format_command('start')} if you're not sure what fits this folder yet. "
-            "Run "
-            f"{adapter.format_command('tour')} if you want a read-only overview of the broader command surface first."
+            f"Runtime surface: Run {adapter.help_command} for the command list. "
+            f"First-run order is {beginner_startup_ladder_text()}."
         ),
-        re.escape(
-            f"4. Then use {adapter.new_project_command} for a new project or "
-            f"{adapter.map_research_command} for existing work."
-        ),
-        re.escape(f"Fast bootstrap: use {adapter.new_project_command} --minimal for the shortest onboarding path."),
-        re.escape(f"6. When you return later, use {resume_work_command} after reopening the right workspace. "),
+        re.escape(f"Selected runtime: {descriptor.display_name} ({adapter.launch_command});"),
+        re.escape(f"help {adapter.help_command};"),
+        re.escape(f"start {adapter.format_command('start')};"),
+        re.escape(f"tour {adapter.format_command('tour')};"),
+        re.escape(f"new work {adapter.new_project_command};"),
+        re.escape(f"existing work {adapter.map_research_command}."),
+        re.escape(f"Fast bootstrap: {adapter.new_project_command} --minimal; return later with {resume_work_command}. "),
         re.escape(
             recovery_ladder_note(
                 resume_work_phrase=f"`{resume_work_command}`",
@@ -237,7 +233,7 @@ def _assert_single_runtime_next_steps(
                 pause_work_phrase=f"`{pause_work_command}`",
             )
         ),
-        re.escape("7. Use gpd --help for local diagnostics and later setup."),
+        re.escape("Use gpd --help for local diagnostics and later setup."),
     )
     cursor = 0
     for pattern in ordered_patterns:
@@ -262,11 +258,11 @@ def _assert_multi_runtime_next_step_line(output: str, descriptor) -> None:
         rf"{re.escape(adapter.format_command('tour'))}.*?"
         rf"{re.escape(adapter.new_project_command)}.*?"
         rf"{re.escape(adapter.map_research_command)}.*?"
-        rf"{re.escape(adapter.format_command('resume-work'))}.*?"
-        rf"Fast bootstrap: use .*? --minimal",
+        rf"{re.escape(adapter.format_command('resume-work'))}",
         re.S,
     )
     assert pattern.search(output), output
+    assert re.search(r"Fast bootstrap: use .*? --minimal", output, re.S), output
 
 
 def _assert_install_summary_recovery_contract(
@@ -312,6 +308,7 @@ def gpd_root(tmp_path: Path) -> Path:
     )
     (root / "hooks" / "statusline.py").write_text("print('ok')\n", encoding="utf-8")
     (root / "hooks" / "check_update.py").write_text("print('ok')\n", encoding="utf-8")
+    (root / "hooks" / "notify.py").write_text("print('ok')\n", encoding="utf-8")
     for subdir in ("references", "templates", "workflows"):
         d = root / "specs" / subdir
         d.mkdir(parents=True)
@@ -406,6 +403,11 @@ def test_install_all_continues_on_failure(tmp_path: Path):
 
     # Should exit with code 1 because some runtimes failed
     assert result.exit_code == 1
+    assert "Install Summary" in result.output
+    assert "Install failures:" in result.output
+    assert "After install" not in result.output
+    assert "Beginner path:" not in result.output
+    assert "Use gpd --help for local diagnostics and later setup." not in result.output
 
 
 def test_install_all_success_exits_0(tmp_path: Path):
@@ -550,7 +552,7 @@ def test_install_summary_lists_runtime_specific_help_for_multi_runtime_install(t
         result = runner.invoke(app, ["install", *(descriptor.runtime_name for descriptor in descriptors), "--local"])
 
     assert result.exit_code == 0
-    assert "Startup checklist" in result.output
+    assert "After install" in result.output
     assert beginner_startup_ladder_text() in result.output
     for descriptor in descriptors:
         _assert_multi_runtime_next_step_line(result.output, descriptor)
@@ -573,6 +575,24 @@ def test_install_help_surfaces_interactive_batch_and_targeting_guidance() -> Non
     assert "--local" in normalized_output
     assert "--global" in normalized_output
     assert "--target-dir" in normalized_output
+    assert "Override the runtime config directory;" in normalized_output
+    assert "defaults" in normalized_output
+    assert "local scope" in normalized_output
+    assert "runtime's canonical" in normalized_output
+    assert "global config dir" in normalized_output
+
+
+def test_uninstall_help_aligns_target_dir_wording() -> None:
+    result = runner.invoke(app, ["uninstall", "--help"])
+    normalized_output = _normalize_cli_output(result.output)
+
+    assert result.exit_code == 0
+    assert "--target-dir" in normalized_output
+    assert "Override the runtime config directory;" in normalized_output
+    assert "defaults" in normalized_output
+    assert "local scope" in normalized_output
+    assert "runtime's canonical" in normalized_output
+    assert "global config dir" in normalized_output
 
 
 # ─── 4. Uninstall without manifest ──────────────────────────────────────────
@@ -612,6 +632,37 @@ def test_uninstall_nonexistent_target_skips(tmp_path: Path):
         ["uninstall", _PRIMARY_INSTALL_DESCRIPTOR.runtime_name, "--local", "--target-dir", str(target), "--yes"],
     )
     assert result.exit_code == 0
+
+
+def test_uninstall_missing_codex_target_still_removes_marker_backed_skills(tmp_path: Path) -> None:
+    """Codex uninstall must delegate to the adapter even when .codex/ is gone."""
+    descriptor = next(
+        descriptor
+        for descriptor in _INSTALL_TEST_DESCRIPTORS
+        if any(prefix.rstrip("/") == "skills" for prefix in descriptor.manifest_file_prefixes)
+    )
+    workspace = tmp_path / "workspace"
+    target = workspace / descriptor.config_dir_name
+    skills_dir = workspace / ".agents" / "skills"
+    managed_skill = skills_dir / "gpd-help"
+    managed_skill.mkdir(parents=True)
+    (managed_skill / "SKILL.md").write_text(
+        "<!-- Managed by Get Physics Done (GPD). -->\n# Help\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["--raw", "uninstall", descriptor.runtime_name, "--local", "--target-dir", str(target)],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    outcome = payload["uninstalled"][0]
+    assert outcome["runtime"] == descriptor.runtime_name
+    assert outcome["status"] == "removed"
+    assert any("GPD skills" in item for item in outcome["removed"])
+    assert not managed_skill.exists()
 
 
 def test_uninstall_all_continues_after_one_runtime_failure(tmp_path: Path) -> None:
@@ -886,6 +937,56 @@ def test_install_raw_finalize_failure_not_reported_as_installed(tmp_path: Path):
     payload = json.loads(result.output)
     assert payload["installed"] == []
     assert payload["failed"] == [{"runtime": _PRIMARY_INSTALL_DESCRIPTOR.runtime_name, "error": "finalize boom"}]
+
+
+def test_install_raw_finalizes_same_adapter_instance_used_for_install(tmp_path: Path) -> None:
+    """Deferred finalization must keep adapter instance state from install()."""
+    descriptor = _PRIMARY_INSTALL_DESCRIPTOR
+    target = _install_target(tmp_path, descriptor)
+    gpd_root = tmp_path / "gpd-root"
+    instances: list[object] = []
+
+    class SpyAdapter:
+        runtime_name = descriptor.runtime_name
+        display_name = descriptor.display_name
+        config_dir_name = descriptor.config_dir_name
+        help_command = _install_adapter(descriptor).help_command
+
+        def __init__(self) -> None:
+            self.installed = False
+            self.finalized = False
+            instances.append(self)
+
+        def resolve_target_dir(self, is_global, cwd=None):
+            return target
+
+        def install(self, gpd_root_arg, target_dir, *, is_global=False, explicit_target=False):
+            assert gpd_root_arg == gpd_root
+            assert target_dir == target
+            self.installed = True
+            return {"runtime": descriptor.runtime_name, "commands": 0, "agents": 0, "target": str(target)}
+
+        def finalize_install(self, install_result, *, force_statusline=False):
+            if not self.installed:
+                raise AssertionError("finalized a different adapter instance")
+            self.finalized = True
+
+    with (
+        patch("gpd.adapters.get_adapter", side_effect=lambda _runtime: SpyAdapter()),
+        patch("gpd.version.resolve_install_gpd_root", return_value=gpd_root),
+        patch("gpd.cli._get_cwd", return_value=tmp_path),
+    ):
+        result = runner.invoke(
+            app,
+            ["--raw", "install", descriptor.runtime_name, "--local", "--skip-readiness-check"],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["failed"] == []
+    assert "__gpd_install_adapter_instance__" not in json.dumps(payload)
+    assert any(getattr(instance, "installed", False) and getattr(instance, "finalized", False) for instance in instances)
 
 
 def test_install_human_reports_failures_after_progress_exits(tmp_path: Path):

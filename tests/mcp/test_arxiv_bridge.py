@@ -65,7 +65,7 @@ async def test_bridge_open_spawns_upstream_server_with_storage_path(monkeypatch:
 
 
 @pytest.mark.asyncio
-async def test_bridge_filters_upstream_tools_and_adds_download_source() -> None:
+async def test_bridge_advertises_live_upstream_tools_and_adds_local_download_source() -> None:
     from mcp.types import ListToolsResult, Tool
 
     from gpd.mcp.servers.arxiv_bridge import ArxivBridge, ArxivBridgeConfig
@@ -78,6 +78,7 @@ async def test_bridge_filters_upstream_tools_and_adds_download_source() -> None:
                     Tool(name="download_paper", inputSchema={"type": "object"}),
                     Tool(name="read_paper", inputSchema={"type": "object"}),
                     Tool(name="semantic_search", inputSchema={"type": "object"}),
+                    Tool(name="download_source", inputSchema={"type": "object", "properties": {"upstream": {}}}),
                 ],
                 nextCursor="next-page",
             )
@@ -93,9 +94,44 @@ async def test_bridge_filters_upstream_tools_and_adds_download_source() -> None:
         "search_papers",
         "download_paper",
         "read_paper",
+        "semantic_search",
         "download_source",
     ]
+    assert result.tools[-1].inputSchema["properties"]["paper_id"]["description"].startswith("arXiv paper identifier")
+    assert result.tools[-1].annotations is not None
+    assert result.tools[-1].annotations.readOnlyHint is False
+    assert result.tools[-1].annotations.destructiveHint is True
+    assert result.tools[-1].annotations.idempotentHint is False
+    assert result.tools[-1].annotations.openWorldHint is True
     assert result.nextCursor == "next-page"
+
+
+@pytest.mark.asyncio
+async def test_download_source_schema_rejects_whitespace_only_paper_id() -> None:
+    from jsonschema import Draft202012Validator
+    from mcp.types import ListToolsResult, Tool
+
+    from gpd.mcp.servers.arxiv_bridge import ArxivBridge, ArxivBridgeConfig
+
+    class FakeSession:
+        async def list_tools(self, cursor=None):
+            return ListToolsResult(tools=[Tool(name="search_papers", inputSchema={"type": "object"})])
+
+    bridge = ArxivBridge(ArxivBridgeConfig())
+    bridge._session = FakeSession()  # type: ignore[assignment]
+    try:
+        result = await bridge.list_tools()
+    finally:
+        bridge._session = None
+
+    schema = next(tool.inputSchema for tool in result.tools if tool.name == "download_source")
+    paper_id = schema["properties"]["paper_id"]
+    validator = Draft202012Validator(schema)
+
+    assert paper_id["minLength"] == 1
+    assert paper_id["pattern"] == r"\S"
+    assert not list(validator.iter_errors({"paper_id": "2401.12345"}))
+    assert list(validator.iter_errors({"paper_id": "   "}))
 
 
 @pytest.mark.asyncio
@@ -126,12 +162,63 @@ async def test_bridge_preserves_upstream_pagination_and_only_adds_download_sourc
 
 
 @pytest.mark.asyncio
-async def test_bridge_proxies_upstream_tool_calls_without_rewriting() -> None:
-    from mcp.types import CallToolResult, TextContent
+async def test_first_page_refresh_resets_incomplete_upstream_tool_cache() -> None:
+    from mcp.types import CallToolResult, ListToolsResult, TextContent, Tool
 
     from gpd.mcp.servers.arxiv_bridge import ArxivBridge, ArxivBridgeConfig
 
     class FakeSession:
+        def __init__(self) -> None:
+            self.refreshed = False
+            self.calls: list[str | None] = []
+
+        async def list_tools(self, cursor=None):
+            self.calls.append(cursor)
+            if not self.refreshed:
+                return ListToolsResult(tools=[Tool(name="search_papers", inputSchema={"type": "object"})])
+            if cursor is None:
+                return ListToolsResult(
+                    tools=[Tool(name="search_papers", inputSchema={"type": "object"})],
+                    nextCursor="page-2",
+                )
+            return ListToolsResult(tools=[Tool(name="semantic_search", inputSchema={"type": "object"})])
+
+        async def call_tool(self, name, arguments):
+            return CallToolResult(
+                content=[TextContent(type="text", text=f"{name}:{arguments['query']}")],
+                structuredContent={"tool": name, "arguments": arguments},
+            )
+
+    fake_session = FakeSession()
+    bridge = ArxivBridge(ArxivBridgeConfig())
+    bridge._session = fake_session  # type: ignore[assignment]
+    try:
+        await bridge.list_tools()
+        assert bridge._upstream_tool_names_complete is True
+
+        fake_session.refreshed = True
+        await bridge.list_tools()
+        assert bridge._upstream_tool_names_complete is False
+
+        result = await bridge.call_tool("semantic_search", {"query": "qft"})
+    finally:
+        bridge._session = None
+
+    assert fake_session.calls == [None, None, None, "page-2"]
+    assert result.isError is not True
+    assert result.structuredContent == {"tool": "semantic_search", "arguments": {"query": "qft"}}
+
+
+@pytest.mark.asyncio
+async def test_bridge_proxies_upstream_tool_calls_without_rewriting() -> None:
+    from mcp.types import CallToolResult, ListToolsResult, TextContent, Tool
+
+    from gpd.mcp.servers.arxiv_bridge import ArxivBridge, ArxivBridgeConfig
+
+    class FakeSession:
+        async def list_tools(self, cursor=None):
+            return ListToolsResult(tools=[Tool(name="download_paper", inputSchema={"type": "object"})])
+
         async def call_tool(self, name, arguments):
             return CallToolResult(
                 content=[TextContent(type="text", text=f"{name}:{arguments['paper_id']}")],
@@ -149,21 +236,52 @@ async def test_bridge_proxies_upstream_tool_calls_without_rewriting() -> None:
 
 
 @pytest.mark.asyncio
-async def test_bridge_rejects_unadvertised_upstream_tool_calls() -> None:
+async def test_bridge_forwards_live_upstream_tool_not_in_static_fallback() -> None:
+    from mcp.types import CallToolResult, ListToolsResult, TextContent, Tool
+
+    from gpd.mcp.servers.arxiv_bridge import ArxivBridge, ArxivBridgeConfig
+
+    class FakeSession:
+        async def list_tools(self, cursor=None):
+            return ListToolsResult(tools=[Tool(name="semantic_search", inputSchema={"type": "object"})])
+
+        async def call_tool(self, name, arguments):
+            return CallToolResult(
+                content=[TextContent(type="text", text=f"{name}:{arguments['query']}")],
+                structuredContent={"tool": name, "arguments": arguments},
+            )
+
+    bridge = ArxivBridge(ArxivBridgeConfig())
+    bridge._session = FakeSession()  # type: ignore[assignment]
+    try:
+        result = await bridge.call_tool("semantic_search", {"query": "qft"})
+    finally:
+        bridge._session = None
+
+    assert result.structuredContent == {"tool": "semantic_search", "arguments": {"query": "qft"}}
+
+
+@pytest.mark.asyncio
+async def test_bridge_rejects_removed_static_upstream_tool_calls() -> None:
+    from mcp.types import ListToolsResult, Tool
+
     from gpd.mcp.servers.arxiv_bridge import ArxivBridge, ArxivBridgeConfig
 
     class FakeSession:
         called = False
 
+        async def list_tools(self, cursor=None):
+            return ListToolsResult(tools=[Tool(name="search_papers", inputSchema={"type": "object"})])
+
         async def call_tool(self, name, arguments):
             self.called = True
-            raise AssertionError("unadvertised tools must not be proxied")
+            raise AssertionError("removed static tools must not be proxied")
 
     fake_session = FakeSession()
     bridge = ArxivBridge(ArxivBridgeConfig())
     bridge._session = fake_session  # type: ignore[assignment]
     try:
-        result = await bridge.call_tool("semantic_search", {"query": "qft"})
+        result = await bridge.call_tool("download_paper", {"paper_id": "2401.12345"})
     finally:
         bridge._session = None
 
@@ -171,7 +289,7 @@ async def test_bridge_rejects_unadvertised_upstream_tool_calls() -> None:
     assert fake_session.called is False
     assert result.structuredContent == {
         "schema_version": 1,
-        "error": "Tool 'semantic_search' is not advertised by the GPD arXiv bridge",
+        "error": "Tool 'download_paper' is not advertised by the GPD arXiv bridge",
     }
 
 

@@ -12,7 +12,7 @@ AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 def test_peer_review_workflow_references_canonical_reliability_doc_and_round_suffixed_artifacts() -> None:
     workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
 
-    assert "@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md" in workflow
+    assert "{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md" in workflow
     assert "${REVIEW_ROOT}/CLAIMS{round_suffix}.json" in workflow
     assert "${REVIEW_ROOT}/STAGE-reader{round_suffix}.json" in workflow
     assert "${REVIEW_ROOT}/STAGE-literature{round_suffix}.json" in workflow
@@ -78,7 +78,7 @@ def test_peer_review_surfaces_describe_dual_mode_project_and_external_artifact_r
 
     assert "current GPD project or an explicit external artifact" in command
     assert "standalone external artifact review" in command
-    assert "@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" in command
+    assert "{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" in command
     assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in publication_modes
     assert "do not infer a full publication-tree relocation from that one continuation path" in command
     assert "standalone skeptical peer review" not in workflow
@@ -215,7 +215,9 @@ def test_peer_review_references_keep_generic_claim_kind_out_of_default_theorem_b
     assert "The runtime determines theorem-bearing coverage from the claim record itself" in reliability
     assert "claim_kind:" not in reliability
 
+    assert "Treat theorem-bearing status from the full Stage 1 Paper `ClaimRecord`, not from the `ProjectContract` `ContractClaim` vocabulary" in panel
     assert "The theorem-style `claim_kind` values are limited to `theorem`, `lemma`, `corollary`, and `proposition`." in panel
     assert "Do not treat `claim_kind: claim` as theorem-bearing by default." in panel
+    assert "This Paper `ClaimRecord` rule is intentionally different from `ProjectContract.claims[]`" in panel
     assert "non-theorem-style kinds such as `claim`, `result`, or `other` become theorem-bearing only" in referee
     assert "including a generic `claim_kind: claim`" in referee

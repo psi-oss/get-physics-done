@@ -1,6 +1,33 @@
 {
   "schema_version": 1,
   "workflow_id": "verify-work",
+  "required_init_field_groups": {
+    "phase_target_base": [
+      "planner_model",
+      "checker_model",
+      "verifier_model",
+      "commit_docs",
+      "autonomy",
+      "research_mode",
+      "project_root",
+      "phase_found",
+      "phase_dir",
+      "phase_dir_abs",
+      "phase_number",
+      "phase_name",
+      "has_verification",
+      "has_validation",
+      "phase_proof_review_status"
+    ],
+    "project_contract_core": [
+      "project_contract"
+    ],
+    "contract_gate_status": [
+      "project_contract_load_info",
+      "project_contract_validation",
+      "project_contract_gate"
+    ]
+  },
   "stages": [
     {
       "id": "session_router",
@@ -9,23 +36,11 @@
       "mode_paths": [
         "workflows/verify-work.md"
       ],
+      "required_init_field_groups": [
+        "phase_target_base",
+        "contract_gate_status"
+      ],
       "required_init_fields": [
-        "planner_model",
-        "checker_model",
-        "verifier_model",
-        "commit_docs",
-        "autonomy",
-        "research_mode",
-        "phase_found",
-        "phase_dir",
-        "phase_number",
-        "phase_name",
-        "has_verification",
-        "has_validation",
-        "phase_proof_review_status",
-        "project_contract_load_info",
-        "project_contract_validation",
-        "project_contract_gate",
         "platform"
       ],
       "loaded_authorities": [
@@ -70,23 +85,11 @@
       "mode_paths": [
         "workflows/verify-work.md"
       ],
+      "required_init_field_groups": [
+        "phase_target_base",
+        "contract_gate_status"
+      ],
       "required_init_fields": [
-        "planner_model",
-        "checker_model",
-        "verifier_model",
-        "commit_docs",
-        "autonomy",
-        "research_mode",
-        "phase_found",
-        "phase_dir",
-        "phase_number",
-        "phase_name",
-        "has_verification",
-        "has_validation",
-        "phase_proof_review_status",
-        "project_contract_load_info",
-        "project_contract_validation",
-        "project_contract_gate",
         "platform"
       ],
       "loaded_authorities": [
@@ -130,24 +133,12 @@
       "mode_paths": [
         "workflows/verify-work.md"
       ],
+      "required_init_field_groups": [
+        "phase_target_base",
+        "project_contract_core",
+        "contract_gate_status"
+      ],
       "required_init_fields": [
-        "planner_model",
-        "checker_model",
-        "verifier_model",
-        "commit_docs",
-        "autonomy",
-        "research_mode",
-        "phase_found",
-        "phase_dir",
-        "phase_number",
-        "phase_name",
-        "has_verification",
-        "has_validation",
-        "phase_proof_review_status",
-        "project_contract",
-        "project_contract_load_info",
-        "project_contract_validation",
-        "project_contract_gate",
         "contract_intake",
         "effective_reference_intake",
         "derived_active_references",
@@ -215,24 +206,12 @@
       "mode_paths": [
         "workflows/verify-work.md"
       ],
+      "required_init_field_groups": [
+        "phase_target_base",
+        "project_contract_core",
+        "contract_gate_status"
+      ],
       "required_init_fields": [
-        "planner_model",
-        "checker_model",
-        "verifier_model",
-        "commit_docs",
-        "autonomy",
-        "research_mode",
-        "phase_found",
-        "phase_dir",
-        "phase_number",
-        "phase_name",
-        "has_verification",
-        "has_validation",
-        "phase_proof_review_status",
-        "project_contract",
-        "project_contract_load_info",
-        "project_contract_validation",
-        "project_contract_gate",
         "contract_intake",
         "selected_protocol_bundle_ids",
         "protocol_bundle_count",
@@ -288,24 +267,12 @@
       "mode_paths": [
         "workflows/verify-work.md"
       ],
+      "required_init_field_groups": [
+        "phase_target_base",
+        "project_contract_core",
+        "contract_gate_status"
+      ],
       "required_init_fields": [
-        "planner_model",
-        "checker_model",
-        "verifier_model",
-        "commit_docs",
-        "autonomy",
-        "research_mode",
-        "phase_found",
-        "phase_dir",
-        "phase_number",
-        "phase_name",
-        "has_verification",
-        "has_validation",
-        "phase_proof_review_status",
-        "project_contract",
-        "project_contract_load_info",
-        "project_contract_validation",
-        "project_contract_gate",
         "contract_intake",
         "effective_reference_intake",
         "active_reference_context",

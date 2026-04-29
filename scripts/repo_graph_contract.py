@@ -30,13 +30,14 @@ GRAPH_SCOPE_LABELS = (
     "`src/gpd/specs/references/**/*.md`",
     "`src/gpd/adapters/*.py`",
     "`src/gpd/hooks/*.py`",
+    "`src/gpd/mcp/*.py`",
+    "`src/gpd/mcp/integrations/*.py`",
     "`src/gpd/mcp/servers/*.py`",
     "`infra/gpd-*.json`",
 )
 
 _NORMALIZED_SCOPE_LABELS = {
-    label[1:-1] if label.startswith("`") and label.endswith("`") else label: label
-    for label in GRAPH_SCOPE_LABELS
+    label[1:-1] if label.startswith("`") and label.endswith("`") else label: label for label in GRAPH_SCOPE_LABELS
 }
 
 
@@ -62,6 +63,7 @@ EXCLUDED_GRAPH_DIRS = (
     ".git",
     ".mcp.json",
     ".npm-cache",
+    ".playwright-mcp",
     "__pycache__",
     ".venv",
     ".pytest_cache",
@@ -107,7 +109,7 @@ def _expand_braced_edge_endpoint(endpoint: str) -> tuple[str, ...]:
 
 
 def _edge_endpoint_matches(expected: str, rendered: str) -> bool:
-    if expected == rendered or expected in rendered:
+    if expected == rendered:
         return True
     return expected in _expand_braced_edge_endpoint(rendered)
 
@@ -119,8 +121,21 @@ def graph_has_edge(source: str, target: str, graph_text: str | None = None) -> b
     return False
 
 
+def graph_has_edge_containing(
+    source_fragment: str,
+    target_fragment: str,
+    graph_text: str | None = None,
+) -> bool:
+    for rendered_source, rendered_target in iter_graph_edge_specs(graph_text):
+        if source_fragment in rendered_source and target_fragment in rendered_target:
+            return True
+    return False
+
+
 def _is_excluded_path(path: Path) -> bool:
-    return any(part in EXCLUDED_GRAPH_DIRS for part in path.parts)
+    if not path.parts:
+        return False
+    return path.parts[0] in EXCLUDED_GRAPH_DIRS
 
 
 def _tracked_repo_files(repo_root: Path) -> list[Path] | None:
@@ -137,20 +152,62 @@ def _tracked_repo_files(repo_root: Path) -> list[Path] | None:
     return [Path(relative_path) for relative_path in completed.stdout.decode("utf-8").split("\0") if relative_path]
 
 
+def _untracked_repo_files(repo_root: Path) -> list[Path] | None:
+    try:
+        completed = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return None
+
+    return [Path(relative_path) for relative_path in completed.stdout.decode("utf-8").split("\0") if relative_path]
+
+
 def _repo_files_in_scope(repo_root: Path) -> list[Path]:
     tracked_files = _tracked_repo_files(repo_root)
     if tracked_files is not None:
-        return [
-            path
-            for path in tracked_files
-            if not _is_excluded_path(path) and (repo_root / path).is_file()
-        ]
+        return [path for path in tracked_files if not _is_excluded_path(path) and (repo_root / path).is_file()]
 
     return [
         path.relative_to(repo_root)
         for path in repo_root.rglob("*")
         if path.is_file() and not _is_excluded_path(path.relative_to(repo_root))
     ]
+
+
+def _is_graph_scope_path(path: Path) -> bool:
+    return (
+        (_has_parent(path, "src", "gpd", "commands") and path.suffix == ".md")
+        or (_has_parent(path, "src", "gpd", "agents") and path.suffix == ".md")
+        or (_has_parent(path, "src", "gpd", "specs", "workflows") and path.suffix == ".md")
+        or (_is_under(path, "src", "gpd", "specs", "templates") and path.suffix == ".md")
+        or (_is_under(path, "src", "gpd", "specs", "references") and path.suffix == ".md")
+        or (_has_parent(path, "src", "gpd", "adapters") and path.suffix == ".py")
+        or (_has_parent(path, "src", "gpd", "hooks") and path.suffix == ".py")
+        or (_has_parent(path, "src", "gpd", "mcp") and path.suffix == ".py")
+        or (_has_parent(path, "src", "gpd", "mcp", "integrations") and path.suffix == ".py")
+        or (_has_parent(path, "src", "gpd", "mcp", "servers") and path.suffix == ".py")
+        or (_has_parent(path, "infra") and path.suffix == ".json" and path.name.startswith("gpd-"))
+    )
+
+
+def untracked_graph_scope_files(repo_root: Path = REPO_ROOT) -> tuple[Path, ...]:
+    untracked_files = _untracked_repo_files(repo_root)
+    if untracked_files is None:
+        return ()
+    return tuple(
+        sorted(
+            (
+                path
+                for path in untracked_files
+                if not _is_excluded_path(path) and _is_graph_scope_path(path) and (repo_root / path).is_file()
+            ),
+            key=lambda path: path.as_posix(),
+        )
+    )
 
 
 def _is_under(path: Path, *parent_parts: str) -> bool:
@@ -192,19 +249,13 @@ def expected_scope_counts(repo_root: Path = REPO_ROOT) -> dict[str, int]:
             1 for path in repo_files if _has_parent(path, "src", "gpd", "agents") and path.suffix == ".md"
         ),
         "`src/gpd/specs/workflows/*.md`": sum(
-            1
-            for path in repo_files
-            if _has_parent(path, "src", "gpd", "specs", "workflows") and path.suffix == ".md"
+            1 for path in repo_files if _has_parent(path, "src", "gpd", "specs", "workflows") and path.suffix == ".md"
         ),
         "`src/gpd/specs/templates/**/*.md`": sum(
-            1
-            for path in repo_files
-            if _is_under(path, "src", "gpd", "specs", "templates") and path.suffix == ".md"
+            1 for path in repo_files if _is_under(path, "src", "gpd", "specs", "templates") and path.suffix == ".md"
         ),
         "`src/gpd/specs/references/**/*.md`": sum(
-            1
-            for path in repo_files
-            if _is_under(path, "src", "gpd", "specs", "references") and path.suffix == ".md"
+            1 for path in repo_files if _is_under(path, "src", "gpd", "specs", "references") and path.suffix == ".md"
         ),
         "`src/gpd/adapters/*.py`": sum(
             1 for path in repo_files if _has_parent(path, "src", "gpd", "adapters") and path.suffix == ".py"
@@ -212,10 +263,14 @@ def expected_scope_counts(repo_root: Path = REPO_ROOT) -> dict[str, int]:
         "`src/gpd/hooks/*.py`": sum(
             1 for path in repo_files if _has_parent(path, "src", "gpd", "hooks") and path.suffix == ".py"
         ),
+        "`src/gpd/mcp/*.py`": sum(
+            1 for path in repo_files if _has_parent(path, "src", "gpd", "mcp") and path.suffix == ".py"
+        ),
+        "`src/gpd/mcp/integrations/*.py`": sum(
+            1 for path in repo_files if _has_parent(path, "src", "gpd", "mcp", "integrations") and path.suffix == ".py"
+        ),
         "`src/gpd/mcp/servers/*.py`": sum(
-            1
-            for path in repo_files
-            if _has_parent(path, "src", "gpd", "mcp", "servers") and path.suffix == ".py"
+            1 for path in repo_files if _has_parent(path, "src", "gpd", "mcp", "servers") and path.suffix == ".py"
         ),
         "`infra/gpd-*.json`": sum(
             1
@@ -250,7 +305,7 @@ def render_generated_on_block(_contract: dict[str, object]) -> str:
     return "\n".join(
         (
             GENERATED_ON_START,
-            "Only marked repo-graph blocks are generated from the current worktree via `python scripts/sync_repo_graph_contract.py`.",
+            "Only marked repo-graph blocks are generated from the current worktree via `uv run python scripts/sync_repo_graph_contract.py`.",
             GENERATED_ON_END,
         )
     )
@@ -283,18 +338,14 @@ def render_scope_block(contract: dict[str, object]) -> str:
 def render_same_stem_command_workflow_block(repo_root: Path = REPO_ROOT) -> str:
     repo_files = _repo_files_in_scope(repo_root)
     command_stems = {
-        path.stem
-        for path in repo_files
-        if _has_parent(path, "src", "gpd", "commands") and path.suffix == ".md"
+        path.stem for path in repo_files if _has_parent(path, "src", "gpd", "commands") and path.suffix == ".md"
     }
     workflow_stems = {
         path.stem
         for path in repo_files
         if _has_parent(path, "src", "gpd", "specs", "workflows") and path.suffix == ".md"
     }
-    same_stems = ",".join(
-        sorted(command_stems & workflow_stems)
-    )
+    same_stems = ",".join(sorted(command_stems & workflow_stems))
 
     return "\n".join(
         (

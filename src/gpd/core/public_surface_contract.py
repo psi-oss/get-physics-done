@@ -173,7 +173,7 @@ class PublicSurfaceContract:
 _LOCAL_CLI_INSTALL_LOCAL_EXAMPLE_COMMAND = "gpd install <runtime> --local"
 _LOCAL_CLI_DOCTOR_LOCAL_COMMAND = "gpd doctor --runtime <runtime> --local"
 _LOCAL_CLI_DOCTOR_GLOBAL_COMMAND = "gpd doctor --runtime <runtime> --global"
-_LOCAL_CLI_VALIDATE_COMMAND_CONTEXT_COMMAND = "gpd validate command-context gpd:<name>"
+_LOCAL_CLI_VALIDATE_COMMAND_CONTEXT_COMMAND = "gpd validate command-context <name>"
 
 
 def _require_object(payload: object, *, label: str) -> dict[str, object]:

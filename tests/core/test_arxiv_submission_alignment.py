@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from gpd.core.workflow_staging import resolve_workflow_stage_manifest_path, validate_workflow_stage_manifest_payload
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -34,7 +32,10 @@ def test_arxiv_submission_command_declares_manuscript_root_gates_without_first_m
         "Paper target: $ARGUMENTS (optional manuscript root or `.tex` entrypoint; "
         "when omitted, the workflow resolves the active GPD-owned manuscript root)."
     ) in command
-    assert "Explicit manuscript subjects must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/{subject_slug}/manuscript/`." in command
+    assert (
+        "Explicit manuscript subjects must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/{subject_slug}/manuscript/`."
+        in command
+    )
     assert "do not switch to standalone interactive intake or arbitrary external directories" in command
     assert "scope_variants:" not in command
     assert "@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md" not in command
@@ -46,10 +47,18 @@ def test_arxiv_submission_command_declares_manuscript_root_gates_without_first_m
 def test_arxiv_submission_workflow_resolves_manifest_based_manuscript_root_without_globbing() -> None:
     workflow = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
 
+    assert "gpd --raw init arxiv-submission --stage bootstrap" in workflow
+    assert 'gpd --raw init arxiv-submission --stage bootstrap -- "$ARGUMENTS"' in workflow
+    assert 'gpd --raw init arxiv-submission --stage manuscript_preflight -- "$ARGUMENTS"' in workflow
+    assert 'gpd --raw init arxiv-submission --stage review_gate -- "$ARGUMENTS"' in workflow
+    assert 'gpd --raw init arxiv-submission --stage package -- "$ARGUMENTS"' in workflow
+    assert 'gpd --raw init arxiv-submission --stage finalize -- "$ARGUMENTS"' in workflow
+    assert "metadata-only" not in workflow
     assert "Use the shared publication bootstrap reference as the source of truth" in workflow
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md" in workflow
-    assert "@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md" in workflow
-    assert "@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md" in workflow
+    assert "{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md" in workflow
+    assert "{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md" not in workflow
+    assert "staged `peer-review-reliability.md` reference" in workflow
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md" not in workflow
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md" not in workflow
     assert "ARTIFACT-MANIFEST.json" in workflow
@@ -58,30 +67,38 @@ def test_arxiv_submission_workflow_resolves_manifest_based_manuscript_root_witho
     assert "gpd paper-build" in workflow
     assert "STOP and require an explicit manuscript path or a repaired manuscript-root state" in workflow
     assert "Do not fall back to `find` or arbitrary wildcard matching outside the documented default roots." in workflow
-    assert "it must match that resolved entrypoint and already live under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/`." in workflow
-    assert "Do not accept arbitrary external directories or standalone `.tex` entrypoints outside those supported roots." in workflow
+    assert (
+        "it must match that resolved entrypoint and already live under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/`."
+        in workflow
+    )
+    assert (
+        "Do not accept arbitrary external directories or standalone `.tex` entrypoints outside those supported roots."
+        in workflow
+    )
     assert 'PACKAGE_ROOT="${PUBLICATION_ROOT}/arxiv"' in workflow
     assert 'PACKAGE_TARBALL="${PACKAGE_ROOT}/arxiv-submission.tar.gz"' in workflow
     assert "latest-response discovery" in workflow
     assert "latest response artifacts already reached" not in workflow
-    assert "Do not write proof-review manifests, package staging trees, or tarballs beside the manuscript root itself." in workflow
+    assert (
+        "Do not write proof-review manifests, package staging trees, or tarballs beside the manuscript root itself."
+        in workflow
+    )
     assert "Even for an explicit external manuscript subject" not in workflow
     assert 'ls "${DIR}"/*.tex' not in workflow
 
 
-def test_arxiv_submission_stage_manifest_path_is_resolved_and_loadable_when_present() -> None:
+def test_arxiv_submission_stage_manifest_path_is_resolved_and_loadable() -> None:
     manifest_path = resolve_workflow_stage_manifest_path("arxiv-submission")
 
     assert manifest_path == WORKFLOWS_DIR / "arxiv-submission-stage-manifest.json"
-
-    if not manifest_path.exists():
-        pytest.skip("arxiv-submission stage manifest has not landed yet")
+    assert manifest_path.exists()
 
     manifest = validate_workflow_stage_manifest_payload(
         json.loads(manifest_path.read_text(encoding="utf-8")),
         expected_workflow_id="arxiv-submission",
     )
 
+    assert manifest.prompt_usage == "staged_init"
     assert manifest.stage_ids() == (
         "bootstrap",
         "manuscript_preflight",
@@ -89,10 +106,18 @@ def test_arxiv_submission_stage_manifest_path_is_resolved_and_loadable_when_pres
         "package",
         "finalize",
     )
+    for stage_id in manifest.stage_ids():
+        assert "arxiv_submission_argument_input" in manifest.stage(stage_id).required_init_fields
     assert "references/publication/publication-bootstrap-preflight.md" in manifest.stage("bootstrap").loaded_authorities
     assert "managed publication output root state" in manifest.stage("bootstrap").produced_state
-    assert "references/publication/publication-review-round-artifacts.md" in manifest.stage("review_gate").loaded_authorities
+    assert (
+        "references/publication/publication-review-round-artifacts.md"
+        in manifest.stage("review_gate").loaded_authorities
+    )
     assert "references/publication/peer-review-reliability.md" in manifest.stage("review_gate").loaded_authorities
-    assert "references/publication/publication-response-writer-handoff.md" not in manifest.stage("review_gate").loaded_authorities
+    assert (
+        "references/publication/publication-response-writer-handoff.md"
+        not in manifest.stage("review_gate").loaded_authorities
+    )
     assert manifest.stage("package").writes_allowed == ("GPD/publication/{subject_slug}/arxiv",)
     assert manifest.stage("finalize").writes_allowed == ("GPD/publication/{subject_slug}/arxiv",)

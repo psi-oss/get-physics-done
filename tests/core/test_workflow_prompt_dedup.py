@@ -75,8 +75,10 @@ def test_command_wrappers_do_not_repeat_self_workflow_reference_after_include() 
 def test_set_profile_updates_only_model_profile_through_config_cli() -> None:
     set_profile = _read("set-profile.md")
 
-    assert 'gpd config set model_profile "$ARGUMENTS.profile"' in set_profile
+    assert 'PROFILE="$(printf' in set_profile
+    assert 'gpd config set model_profile "$PROFILE"' in set_profile
     assert "preserving all other `GPD/config.json` keys" in set_profile
+    assert "$ARGUMENTS.profile" not in set_profile
     assert '"model_profile": "$ARGUMENTS.profile"' not in set_profile
     assert "Write updated config back to `GPD/config.json`" not in set_profile
 
@@ -230,9 +232,7 @@ def test_new_project_workflow_references_late_artifact_templates_without_inlinin
 
 def test_notation_coordinator_references_subfield_defaults_without_inlining_table() -> None:
     notation_coordinator = (AGENTS_DIR / "gpd-notation-coordinator.md").read_text(encoding="utf-8")
-    subfield_defaults = (
-        REFERENCES_DIR / "conventions" / "subfield-convention-defaults.md"
-    ).read_text(encoding="utf-8")
+    subfield_defaults = (REFERENCES_DIR / "conventions" / "subfield-convention-defaults.md").read_text(encoding="utf-8")
     canonical_reference = "{GPD_INSTALL_DIR}/references/conventions/subfield-convention-defaults.md"
 
     assert canonical_reference in notation_coordinator
@@ -259,9 +259,7 @@ def test_planner_workflows_keep_tangent_policy_single_sourced() -> None:
 
 
 def test_context_pressure_default_threshold_table_is_single_sourced() -> None:
-    infra = (REPO_ROOT / "src/gpd/specs/references/orchestration/agent-infrastructure.md").read_text(
-        encoding="utf-8"
-    )
+    infra = (REPO_ROOT / "src/gpd/specs/references/orchestration/agent-infrastructure.md").read_text(encoding="utf-8")
     thresholds = (REPO_ROOT / "src/gpd/specs/references/orchestration/context-pressure-thresholds.md").read_text(
         encoding="utf-8"
     )
@@ -308,23 +306,47 @@ def test_state_portability_uses_canonical_continuation_prose() -> None:
 
     assert "Canonical state in `state.json.continuation` wins first" in state_portability
     assert "gpd --raw resume` emits the canonical top-level list" in state_portability
-    assert "A derived head without a portable usable resume file remains advisory continuity context only." not in state_portability
+    assert (
+        "A derived head without a portable usable resume file remains advisory continuity context only."
+        not in state_portability
+    )
 
 
 def test_execute_phase_runtime_delegation_rules_are_single_sourced() -> None:
     execute_phase = _read("execute-phase.md")
 
     assert execute_phase.count("references/orchestration/runtime-delegation-note.md") == 1
-    assert "The shared note owns empty-model omission" in execute_phase
+    assert "The shared note owns runtime-neutral task construction and handoff gates." in execute_phase
+    assert "The shared note owns empty-model omission" not in execute_phase
     assert "preserve empty-model omission, `readonly=false`, artifact-gated completion" not in execute_phase
     assert execute_phase.count("Apply the canonical runtime delegation convention above.") >= 3
 
 
+def test_runtime_delegation_note_is_loaded_once_per_workflow() -> None:
+    include = "@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md"
+    repeated_reference = "Apply the canonical runtime delegation convention already loaded above."
+    workflows_using_short_references = {
+        "audit-milestone.md",
+        "explain.md",
+        "new-milestone.md",
+        "new-project.md",
+        "quick.md",
+        "write-paper.md",
+    }
+
+    for path in sorted(WORKFLOWS_DIR.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        assert text.count(include) <= 1, path.name
+        if path.name in workflows_using_short_references:
+            assert text.count(include) == 1, path.name
+            assert repeated_reference in text, path.name
+
+
 def test_experiment_designer_uses_external_ising_example_as_single_source() -> None:
     designer = (AGENTS_DIR / "gpd-experiment-designer.md").read_text(encoding="utf-8")
-    example = (
-        REPO_ROOT / "src/gpd/specs/references/examples/ising-experiment-design-example.md"
-    ).read_text(encoding="utf-8")
+    example = (REPO_ROOT / "src/gpd/specs/references/examples/ising-experiment-design-example.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "## Worked Example: 2D Ising Model Phase Diagram via Monte Carlo" not in designer
     assert designer.count("@{GPD_INSTALL_DIR}/references/examples/ising-experiment-design-example.md") == 1
@@ -351,7 +373,9 @@ def test_executor_uses_plain_paths_for_inline_references_and_at_includes_only_fo
     executor = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
 
     inline_at_lines = [
-        line for line in executor.splitlines() if "@{GPD_INSTALL_DIR}" in line and not line.strip().startswith("@{GPD_INSTALL_DIR}/")
+        line
+        for line in executor.splitlines()
+        if "@{GPD_INSTALL_DIR}" in line and not line.strip().startswith("@{GPD_INSTALL_DIR}/")
     ]
     assert inline_at_lines == []
     assert "`{GPD_INSTALL_DIR}/references/orchestration/checkpoints.md`" in executor
@@ -380,7 +404,10 @@ def test_agent_specific_return_examples_defer_base_envelope_fields_to_infrastruc
 
     for agent_name in trimmed_agents:
         text = (AGENTS_DIR / agent_name).read_text(encoding="utf-8")
-        assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in text, agent_name
+        assert (
+            "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md."
+            in text
+        ), agent_name
         assert "The four base fields (`status`, `files_written`, `issues`, `next_actions`)" not in text, agent_name
 
 
@@ -398,3 +425,49 @@ def test_bibliographer_delegates_return_boilerplate_to_agent_infrastructure() ->
         "Return `gpd_return.status: completed`, `checkpoint`, `blocked`, or `failed`.",
     ):
         assert removed_phrase not in text
+
+
+def test_research_agents_delegate_file_templates_to_canonical_templates() -> None:
+    project_researcher = (AGENTS_DIR / "gpd-project-researcher.md").read_text(encoding="utf-8")
+    phase_researcher = (AGENTS_DIR / "gpd-phase-researcher.md").read_text(encoding="utf-8")
+    synthesizer = (AGENTS_DIR / "gpd-research-synthesizer.md").read_text(encoding="utf-8")
+    summary_template = (TEMPLATES_DIR / "research-project" / "SUMMARY.md").read_text(encoding="utf-8")
+
+    for template_name in (
+        "SUMMARY.md",
+        "PRIOR-WORK.md",
+        "METHODS.md",
+        "COMPUTATIONAL.md",
+        "PITFALLS.md",
+    ):
+        assert f"{{GPD_INSTALL_DIR}}/templates/research-project/{template_name}" in project_researcher
+
+    assert "Do not inline the project-literature skeletons here." in project_researcher
+    assert "# Research Summary: [Project Name]" not in project_researcher
+    assert "### Governing Theory" not in project_researcher
+    assert "## FEASIBILITY.md (feasibility mode only)" not in project_researcher
+
+    assert "{GPD_INSTALL_DIR}/templates/research.md" in phase_researcher
+    assert "Do not inline or reconstruct a second full `RESEARCH.md` skeleton here." in phase_researcher
+    assert "# Phase [X]: [Name] - Research" not in phase_researcher
+    assert "### Package / Framework Reuse Decision" in phase_researcher
+
+    assert "{GPD_INSTALL_DIR}/templates/research-project/SUMMARY.md" in synthesizer
+    assert "# Research Summary Template" in summary_template
+    assert "Follow the canonical template and add the synthesizer-specific sections produced above" in synthesizer
+    assert "```markdown\n# Research Summary: [Project Title]" not in synthesizer
+    assert "[Aggregated references from all research files, organized by topic]" not in synthesizer
+
+
+def test_roadmapper_keeps_project_type_template_catalog_single_sourced() -> None:
+    roadmapper = (AGENTS_DIR / "gpd-roadmapper.md").read_text(encoding="utf-8")
+    project_type_templates = sorted((TEMPLATES_DIR / "project-types").glob("*.md"))
+    downstream_consumer = _between(roadmapper, "<downstream_consumer>", "</downstream_consumer>")
+    phase_identification = _between(roadmapper, "<phase_identification>", "</phase_identification>")
+
+    assert project_type_templates
+    assert "{GPD_INSTALL_DIR}/templates/project-types/" in downstream_consumer
+    assert "Use the matching file under `{GPD_INSTALL_DIR}/templates/project-types/`" in downstream_consumer
+    assert "qft-calculation.md" not in downstream_consumer
+    assert "stat-mech-simulation.md" not in downstream_consumer
+    assert "qft-calculation.md" in phase_identification

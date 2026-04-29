@@ -8,7 +8,13 @@ from pathlib import Path
 import pytest
 
 from gpd.core import context as context_module
-from gpd.core.context import init_write_paper
+from gpd.core.context import (
+    init_arxiv_submission,
+    init_respond_to_referees,
+    init_resume,
+    init_sync_state,
+    init_write_paper,
+)
 from gpd.core.workflow_staging import (
     EXECUTE_PHASE_STAGE_MANIFEST_PATH,
     LITERATURE_REVIEW_STAGE_MANIFEST_PATH,
@@ -20,6 +26,8 @@ from gpd.core.workflow_staging import (
     VERIFY_WORK_INIT_FIELDS,
     VERIFY_WORK_MCP_VERIFICATION_TOOLS,
     VERIFY_WORK_STAGE_ALLOWED_TOOLS,
+    WORKFLOW_STAGE_MANIFEST_DIR,
+    WORKFLOW_STAGE_MANIFEST_SUFFIX,
     WRITE_PAPER_MANAGED_INTAKE_ROOT,
     WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
     invalidate_workflow_stage_manifest_cache,
@@ -29,6 +37,8 @@ from gpd.core.workflow_staging import (
     resolve_workflow_stage_manifest_path,
     validate_workflow_stage_manifest_payload,
 )
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _workflow_payload(workflow_id: str) -> dict[str, object]:
@@ -48,6 +58,7 @@ def _workflow_payload(workflow_id: str) -> dict[str, object]:
         ("verify-work", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "verify-work-stage-manifest.json"),
         ("write-paper", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "write-paper-stage-manifest.json"),
         ("peer-review", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "peer-review-stage-manifest.json"),
+        ("respond-to-referees", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "respond-to-referees-stage-manifest.json"),
         ("arxiv-submission", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "arxiv-submission-stage-manifest.json"),
         ("execute-phase", EXECUTE_PHASE_STAGE_MANIFEST_PATH),
     ],
@@ -81,6 +92,7 @@ def test_load_workflow_stage_manifest_is_cached() -> None:
         "has_research_map",
         "planning_exists",
         "has_research_files",
+        "research_file_samples",
         "has_project_manifest",
         "needs_research_map",
         "has_git",
@@ -155,9 +167,10 @@ def test_load_workflow_stage_manifest_is_cached() -> None:
     )
     assert execute_phase_manifest.stage("pre_execution_specialists").next_stages == ("wave_dispatch",)
     assert "templates/summary.md" in execute_phase_manifest.stage("aggregate_and_verify").loaded_authorities
-    assert "templates/contract-results-schema.md" in execute_phase_manifest.stage(
-        "aggregate_and_verify"
-    ).loaded_authorities
+    assert (
+        "templates/contract-results-schema.md"
+        in execute_phase_manifest.stage("aggregate_and_verify").loaded_authorities
+    )
     assert "templates/calculation-log.md" in execute_phase_manifest.stage("aggregate_and_verify").loaded_authorities
 
 
@@ -168,6 +181,7 @@ def test_validate_workflow_stage_manifest_payload_loads_verify_work_manifest() -
     )
 
     assert manifest.workflow_id == "verify-work"
+    assert manifest.prompt_usage == "staged_init"
     assert manifest.stage_ids() == (
         "session_router",
         "phase_bootstrap",
@@ -267,6 +281,24 @@ def test_verify_work_context_uses_workflow_staging_init_field_source() -> None:
     } <= VERIFY_WORK_INIT_FIELDS
 
 
+def test_stage_manifests_are_prompt_used_or_cli_reachable() -> None:
+    cli_text = (REPO_ROOT / "src" / "gpd" / "cli.py").read_text(encoding="utf-8")
+
+    for manifest_path in sorted(WORKFLOW_STAGE_MANIFEST_DIR.glob(f"*{WORKFLOW_STAGE_MANIFEST_SUFFIX}")):
+        workflow_id = manifest_path.name.removesuffix(WORKFLOW_STAGE_MANIFEST_SUFFIX)
+        manifest = load_workflow_stage_manifest(workflow_id)
+        workflow_text = (WORKFLOW_STAGE_MANIFEST_DIR / f"{workflow_id}.md").read_text(encoding="utf-8")
+
+        init_command = "resume" if workflow_id == "resume-work" else workflow_id
+        prompt_uses_staged_init = f"gpd --raw init {init_command}" in workflow_text and "--stage" in workflow_text
+        cli_init_reachable = f'@init_app.command("{workflow_id}")' in cli_text
+
+        assert manifest.prompt_usage == "staged_init"
+        assert prompt_uses_staged_init or cli_init_reachable, (
+            f"{manifest_path.name} must be used by its prompt or reachable through gpd init"
+        )
+
+
 def test_verify_work_manifest_accepts_declared_mcp_verification_tools() -> None:
     manifest = validate_workflow_stage_manifest_payload(
         _workflow_payload("verify-work"),
@@ -294,6 +326,111 @@ def test_staged_loading_payload_exposes_eager_authority_metadata() -> None:
         "workflows/verify-work.md",
         "references/verification/meta/verification-independence.md",
     ]
+    assert payload["required_init_fields"] == list(stage.required_init_fields)
+    assert payload["produced_state"] == list(stage.produced_state)
+
+
+def test_workflow_stage_manifest_expands_required_init_field_groups() -> None:
+    manifest = validate_workflow_stage_manifest_payload(
+        {
+            "schema_version": 1,
+            "workflow_id": "quick",
+            "required_init_field_groups": {
+                "bootstrap": ["executor_model", "commit_docs"],
+            },
+            "stages": [
+                {
+                    "id": "task_bootstrap",
+                    "order": 1,
+                    "purpose": "Load task bootstrap context.",
+                    "mode_paths": ["workflows/quick.md"],
+                    "required_init_field_groups": ["bootstrap"],
+                    "required_init_fields": ["autonomy"],
+                    "loaded_authorities": ["workflows/quick.md"],
+                    "conditional_authorities": [],
+                    "must_not_eager_load": [],
+                    "allowed_tools": ["file_read"],
+                    "writes_allowed": [],
+                    "produced_state": [],
+                    "next_stages": [],
+                    "checkpoints": [],
+                },
+            ],
+        },
+        expected_workflow_id="quick",
+    )
+
+    stage = manifest.stage("task_bootstrap")
+    assert stage.required_init_fields == ("executor_model", "commit_docs", "autonomy")
+    assert manifest.staged_loading_payload(stage.id)["required_init_fields"] == [
+        "executor_model",
+        "commit_docs",
+        "autonomy",
+    ]
+    assert "required_init_field_groups" not in manifest.to_payload()["stages"][0]
+
+
+@pytest.mark.parametrize("workflow_id", ["new-project", "quick"])
+def test_workflow_stage_manifest_serialized_payload_round_trips_expanded_fields(workflow_id: str) -> None:
+    manifest = validate_workflow_stage_manifest_payload(
+        _workflow_payload(workflow_id),
+        expected_workflow_id=workflow_id,
+    )
+    serialized = manifest.to_payload()
+
+    assert "required_init_field_groups" not in serialized
+    assert all("required_init_field_groups" not in stage for stage in serialized["stages"])
+    assert (
+        validate_workflow_stage_manifest_payload(
+            serialized,
+            expected_workflow_id=workflow_id,
+        ).to_payload()
+        == serialized
+    )
+
+
+@pytest.mark.parametrize(
+    "workflow_id",
+    [
+        "arxiv-submission",
+        "map-research",
+        "quick",
+        "verify-work",
+    ],
+)
+def test_stage_manifests_use_real_required_init_field_groups(workflow_id: str) -> None:
+    payload = _workflow_payload(workflow_id)
+    groups = payload.get("required_init_field_groups")
+
+    assert isinstance(groups, dict)
+    assert groups
+
+    manifest = validate_workflow_stage_manifest_payload(payload, expected_workflow_id=workflow_id)
+    grouped_stage_count = 0
+    for raw_stage in payload["stages"]:
+        assert isinstance(raw_stage, dict)
+        group_names = raw_stage.get("required_init_field_groups", [])
+        if group_names:
+            grouped_stage_count += 1
+        assert isinstance(group_names, list)
+
+        expanded_fields: list[str] = []
+        for group_name in group_names:
+            assert isinstance(group_name, str)
+            expanded_fields.extend(groups[group_name])
+        expanded_fields.extend(raw_stage.get("required_init_fields", []))
+
+        assert manifest.stage(str(raw_stage["id"])).required_init_fields == tuple(expanded_fields)
+
+    assert grouped_stage_count == len(payload["stages"])
+
+
+def test_workflow_stage_manifest_rejects_unknown_required_init_field_groups() -> None:
+    payload = _workflow_payload("quick")
+    payload["stages"][0]["required_init_field_groups"] = ["missing"]
+
+    with pytest.raises(ValueError, match="unknown group"):
+        validate_workflow_stage_manifest_payload(payload, expected_workflow_id="quick")
 
 
 def test_load_workflow_stage_manifest_from_path_without_expected_id_uses_manifest_workflow_id(
@@ -307,6 +444,21 @@ def test_load_workflow_stage_manifest_from_path_without_expected_id_uses_manifes
 
     assert manifest.workflow_id == "execute-phase"
     assert manifest.stage_ids()[0] == "phase_bootstrap"
+
+
+def test_load_workflow_stage_manifest_from_path_validates_inferred_workflow_init_fields(
+    tmp_path: Path,
+) -> None:
+    payload = _workflow_payload("execute-phase")
+    payload["stages"][0]["required_init_fields"] = [
+        *payload["stages"][0]["required_init_fields"],
+        "not_an_execute_phase_field",
+    ]
+    manifest_path = tmp_path / "custom-stage-manifest.json"
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unknown field name"):
+        load_workflow_stage_manifest_from_path(manifest_path)
 
 
 def test_load_verify_work_manifest_from_path_uses_workflow_mcp_tool_defaults(tmp_path: Path) -> None:
@@ -335,10 +487,22 @@ def test_known_init_fields_for_verify_work_include_proof_gate_and_artifact_conte
     assert "reference_artifacts_content" in known_init_fields
 
 
-def test_write_paper_staged_init_fields_match_manifest_required_fields(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("workflow_id", "initializer"),
+    [
+        ("resume-work", init_resume),
+        ("sync-state", init_sync_state),
+        ("write-paper", init_write_paper),
+    ],
+)
+def test_staged_init_fields_match_manifest_required_fields_for_resume_sync_and_write_paper(
+    tmp_path: Path,
+    workflow_id: str,
+    initializer,
+) -> None:
     manifest = validate_workflow_stage_manifest_payload(
-        _workflow_payload("write-paper"),
-        expected_workflow_id="write-paper",
+        _workflow_payload(workflow_id),
+        expected_workflow_id=workflow_id,
     )
 
     gpd_dir = tmp_path / "GPD"
@@ -347,13 +511,13 @@ def test_write_paper_staged_init_fields_match_manifest_required_fields(tmp_path:
     (gpd_dir / "state.json").write_text("{}", encoding="utf-8")
 
     for stage_id in manifest.stage_ids():
-        payload = init_write_paper(tmp_path, stage=stage_id)
+        payload = initializer(tmp_path, stage=stage_id)
         stage = manifest.stage(stage_id)
 
         assert "staged_loading" in payload
         assert tuple(field for field in payload if field != "staged_loading") == stage.required_init_fields
         assert set(payload) == set(stage.required_init_fields) | {"staged_loading"}
-        assert payload["staged_loading"]["workflow_id"] == "write-paper"
+        assert payload["staged_loading"]["workflow_id"] == workflow_id
         assert payload["staged_loading"]["stage_id"] == stage_id
 
 
@@ -508,6 +672,7 @@ def test_known_init_fields_for_write_paper_cover_bootstrap_and_deferred_publicat
 
     assert known_init_fields is not None
     assert "commit_docs" in known_init_fields
+    assert "project_root" in known_init_fields
     assert "project_contract_gate" in known_init_fields
     assert "project_contract_load_info" in known_init_fields
     assert "project_contract_validation" in known_init_fields
@@ -530,6 +695,40 @@ def test_known_init_fields_for_write_paper_cover_bootstrap_and_deferred_publicat
     assert "reference_artifacts_content" in known_init_fields
     assert "state_content" in known_init_fields
     assert "requirements_content" in known_init_fields
+
+
+def test_publication_workflow_bootstrap_manifests_keep_project_root_in_required_fields() -> None:
+    write_paper_manifest = load_workflow_stage_manifest("write-paper")
+    respond_manifest = load_workflow_stage_manifest("respond-to-referees")
+    arxiv_manifest = load_workflow_stage_manifest("arxiv-submission")
+
+    assert "project_root" in write_paper_manifest.stage("paper_bootstrap").required_init_fields
+    assert "project_root" in write_paper_manifest.stage("outline_and_scaffold").required_init_fields
+    assert "project_root" in respond_manifest.stage("bootstrap").required_init_fields
+    assert "project_root" in arxiv_manifest.stage("bootstrap").required_init_fields
+
+
+def test_publication_staged_init_preserves_explicit_launch_arguments(tmp_path: Path) -> None:
+    gpd_dir = tmp_path / "GPD"
+    gpd_dir.mkdir()
+    (gpd_dir / "config.json").write_text("{}", encoding="utf-8")
+    (gpd_dir / "state.json").write_text("{}", encoding="utf-8")
+    intake = "--manuscript paper/main.tex --report reviews/referee-1.md"
+
+    respond_manifest = load_workflow_stage_manifest("respond-to-referees")
+    for stage_id in respond_manifest.stage_ids():
+        payload = init_respond_to_referees(tmp_path, subject=intake, stage=stage_id)
+        assert payload["response_intake_input"] == intake
+
+    arxiv_manifest = load_workflow_stage_manifest("arxiv-submission")
+    for stage_id in arxiv_manifest.stage_ids():
+        payload = init_arxiv_submission(tmp_path, subject="paper/main.tex", stage=stage_id)
+        assert payload["arxiv_submission_argument_input"] == "paper/main.tex"
+
+    write_paper_manifest = load_workflow_stage_manifest("write-paper")
+    for stage_id in write_paper_manifest.stage_ids():
+        payload = init_write_paper(tmp_path, subject="--intake intake/write-paper-authoring-input.json", stage=stage_id)
+        assert payload["write_paper_argument_input"] == "--intake intake/write-paper-authoring-input.json"
 
 
 def test_known_init_fields_for_quick_cover_task_bootstrap_and_reference_context() -> None:
@@ -672,9 +871,9 @@ def test_validate_workflow_stage_manifest_payload_loads_research_phase_manifest(
         "workflows/research-phase.md",
         "references/orchestration/model-profile-resolution.md",
     )
-    assert "references/orchestration/runtime-delegation-note.md" in manifest.stage(
-        "phase_bootstrap"
-    ).must_not_eager_load
+    assert (
+        "references/orchestration/runtime-delegation-note.md" in manifest.stage("phase_bootstrap").must_not_eager_load
+    )
     assert "reference_artifacts_content" not in manifest.stage("phase_bootstrap").required_init_fields
     assert manifest.stage("research_handoff").loaded_authorities == (
         "workflows/research-phase.md",
@@ -832,10 +1031,7 @@ def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -
     assert "review_target_mode" in final_adjudication.required_init_fields
     assert "resolved_review_target" in final_adjudication.required_init_fields
     assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in final_adjudication.writes_allowed
-    assert (
-        "GPD/publication/{subject_slug}/review/REVIEW-LEDGER{round_suffix}.json"
-        in final_adjudication.writes_allowed
-    )
+    assert "GPD/publication/{subject_slug}/review/REVIEW-LEDGER{round_suffix}.json" in final_adjudication.writes_allowed
     assert "GPD/publication/{subject_slug}/REFEREE-REPORT{round_suffix}.md" in final_adjudication.writes_allowed
     assert "selected_review_root" in finalize.required_init_fields
 
@@ -1021,11 +1217,10 @@ def test_arxiv_submission_stage_manifest_path_is_reserved_for_staged_loading() -
     assert manifest_path == NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "arxiv-submission-stage-manifest.json"
 
 
-def test_arxiv_submission_stage_manifest_can_be_loaded_when_present() -> None:
+def test_arxiv_submission_stage_manifest_can_be_loaded() -> None:
     manifest_path = resolve_workflow_stage_manifest_path("arxiv-submission")
 
-    if not manifest_path.exists():
-        pytest.skip("arxiv-submission stage manifest has not landed yet")
+    assert manifest_path.exists()
 
     manifest = validate_workflow_stage_manifest_payload(
         json.loads(manifest_path.read_text(encoding="utf-8")),
@@ -1059,6 +1254,7 @@ def test_known_init_fields_for_arxiv_submission_include_publication_routing() ->
     known_init_fields = known_init_fields_for_workflow("arxiv-submission")
 
     assert known_init_fields is not None
+    assert "project_root" in known_init_fields
     assert "publication_subject_slug" in known_init_fields
     assert "publication_lane_kind" in known_init_fields
     assert "publication_lane_owner" in known_init_fields
@@ -1070,16 +1266,24 @@ def test_known_init_fields_for_arxiv_submission_include_publication_routing() ->
 @pytest.mark.parametrize(
     ("mutator", "message"),
     [
-        (lambda payload: payload["stages"][0].__setitem__("loaded_authorities", ["/absolute/path.md"]), "normalized relative POSIX"),
+        (
+            lambda payload: payload["stages"][0].__setitem__("loaded_authorities", ["/absolute/path.md"]),
+            "normalized relative POSIX",
+        ),
         (
             lambda payload: payload["stages"][0].__setitem__(
                 "must_not_eager_load", ["references/research/does-not-exist.md"]
             ),
             "existing markdown file",
         ),
-        (lambda payload: payload["stages"][0].__setitem__("allowed_tools", ["file_read", "not-a-tool"]), "unknown tool"),
         (
-            lambda payload: payload["stages"][0].__setitem__("required_init_fields", ["researcher_model", "not-a-field"]),
+            lambda payload: payload["stages"][0].__setitem__("allowed_tools", ["file_read", "not-a-tool"]),
+            "unknown tool",
+        ),
+        (
+            lambda payload: payload["stages"][0].__setitem__(
+                "required_init_fields", ["researcher_model", "not-a-field"]
+            ),
             "unknown field",
         ),
         (
@@ -1096,7 +1300,10 @@ def test_known_init_fields_for_arxiv_submission_include_publication_routing() ->
             ),
             "overlap with must_not_eager_load",
         ),
-        (lambda payload: payload["stages"][1].__setitem__("writes_allowed", ["../escape.txt"]), "normalized relative POSIX path"),
+        (
+            lambda payload: payload["stages"][1].__setitem__("writes_allowed", ["../escape.txt"]),
+            "normalized relative POSIX path",
+        ),
     ],
 )
 def test_validate_workflow_stage_manifest_payload_rejects_bad_entries(

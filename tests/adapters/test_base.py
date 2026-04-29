@@ -10,7 +10,7 @@ import pytest
 
 from gpd.adapters import get_adapter
 from gpd.adapters.base import RuntimeAdapter
-from gpd.adapters.install_utils import copy_hook_scripts
+from gpd.adapters.install_utils import copy_hook_scripts, write_manifest
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, list_runtime_names
 
 RUNTIME_NAMES = list_runtime_names()
@@ -23,7 +23,7 @@ PATCHES_DIR_NAME = _SHARED_INSTALL.patches_dir_name
 def _write_owned_manifest(target: Path, *, runtime: str = "claude-code") -> None:
     target.mkdir(parents=True, exist_ok=True)
     (target / MANIFEST_NAME).write_text(
-        json.dumps({"runtime": runtime, "install_scope": "local"}),
+        json.dumps({"runtime": runtime, "install_scope": "local", "explicit_target": False}),
         encoding="utf-8",
     )
 
@@ -163,6 +163,21 @@ class TestUninstallBase:
         assert (command_dir / "custom.md").exists()
         assert command_dir.exists()
 
+    def test_uninstall_preserves_flat_commands_for_runtime_without_catalog_flat_surface(
+        self, tmp_path: Path
+    ) -> None:
+        adapter = get_adapter("claude-code")
+        target = tmp_path / ".claude"
+        command_dir = target / "command"
+        command_dir.mkdir(parents=True)
+        (command_dir / "gpd-help.md").write_text("keep", encoding="utf-8")
+        _write_owned_manifest(target, runtime="claude-code")
+
+        result = RuntimeAdapter.uninstall(adapter, target)
+
+        assert (command_dir / "gpd-help.md").exists()
+        assert "flat GPD commands" not in " ".join(result["removed"])
+
     def test_uninstall_manifest_backed_flat_commands_prunes_empty_directory(self, tmp_path: Path) -> None:
         adapter = get_adapter("opencode")
         target = tmp_path / ".opencode"
@@ -189,6 +204,7 @@ class TestUninstallBase:
                 {
                     "runtime": "claude-code",
                     "install_scope": "local",
+                    "explicit_target": False,
                     "files": {
                         "hooks/statusline.py": "hash-1",
                         "hooks/check_update.py": "hash-2",
@@ -264,6 +280,23 @@ class TestUninstallBase:
         assert settings["theme"] == "solarized"
         assert "statusLine" not in settings
         assert settings.get("hooks") in ({}, None)
+
+
+class TestManifestCatalogPolicy:
+    def test_manifest_does_not_track_command_surface_not_owned_by_runtime_catalog(self, tmp_path: Path) -> None:
+        target = tmp_path / ".codex"
+        (target / INSTALL_ROOT_DIR_NAME).mkdir(parents=True)
+        (target / INSTALL_ROOT_DIR_NAME / "VERSION").write_text("1.2.3", encoding="utf-8")
+        (target / "commands" / "gpd").mkdir(parents=True)
+        (target / "commands" / "gpd" / "help.md").write_text("help", encoding="utf-8")
+        (target / "agents").mkdir()
+        (target / "agents" / "gpd-verifier.md").write_text("verify", encoding="utf-8")
+
+        manifest = write_manifest(target, "1.2.3", runtime="codex", install_scope="local")
+
+        files = manifest["files"]
+        assert "commands/gpd/help.md" not in files
+        assert "agents/gpd-verifier.md" in files
 
 
 class TestInstallValidationAndHooks:
@@ -368,6 +401,27 @@ class TestAdapterConformance:
     def test_help_command_uses_runtime_formatter(self, runtime: str, expected: str) -> None:
         adapter = get_adapter(runtime)
         assert adapter.help_command == expected
+
+    def test_public_command_prefix_fails_closed_without_descriptor_public_surface(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        class SyntheticAdapter(RuntimeAdapter):
+            @property
+            def runtime_name(self) -> str:
+                return "synthetic"
+
+        monkeypatch.setattr(
+            "gpd.adapters.base.get_runtime_descriptor",
+            lambda runtime: SimpleNamespace(
+                runtime_name=runtime,
+                command_prefix="/adapter-only:",
+                public_command_surface_prefix="",
+            ),
+        )
+
+        with pytest.raises(ValueError, match="missing a public command surface prefix"):
+            SyntheticAdapter().format_command("help")
 
     @pytest.mark.parametrize("runtime", RUNTIME_NAMES)
     def test_config_dir_name_starts_with_dot(self, runtime: str) -> None:

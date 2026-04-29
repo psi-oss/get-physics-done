@@ -23,6 +23,7 @@
         "workspace_project_exists",
         "workspace_planning_exists",
         "state_exists",
+        "state_json_backup_exists",
         "roadmap_exists",
         "project_exists",
         "planning_exists",
@@ -170,7 +171,6 @@
       ],
       "allowed_tools": [
         "file_read",
-        "file_write",
         "shell"
       ],
       "writes_allowed": [],

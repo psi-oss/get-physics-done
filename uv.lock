@@ -671,7 +671,7 @@ version = "1.2.1"
 source = { editable = "." }
 dependencies = [
     { name = "jinja2" },
-    { name = "mcp", extra = ["cli"] },
+    { name = "mcp" },
     { name = "pillow" },
     { name = "pybtex" },
     { name = "pydantic" },
@@ -707,7 +707,7 @@ requires-dist = [
     { name = "cairosvg", marker = "extra == 'arxiv'", specifier = ">=2.7.0" },
     { name = "cairosvg", marker = "extra == 'paper'", specifier = ">=2.7.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.27.0" },
+    { name = "mcp", specifier = ">=1.27.0" },
     { name = "pillow", specifier = ">=12.1.1" },
     { name = "pybtex", specifier = ">=0.25.1" },
     { name = "pydantic", specifier = ">=2.13.3" },

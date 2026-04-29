@@ -1,0 +1,301 @@
+{
+  "schema_version": 1,
+  "workflow_id": "respond-to-referees",
+  "required_init_field_groups": {
+    "response_round_common": [
+      "project_exists",
+      "state_exists",
+      "commit_docs",
+      "autonomy",
+      "research_mode",
+      "response_intake_input",
+      "review_target_input",
+      "review_target_mode",
+      "review_target_mode_reason",
+      "resolved_review_target",
+      "resolved_review_root",
+      "project_contract",
+      "project_contract_gate",
+      "project_contract_load_info",
+      "project_contract_validation",
+      "contract_intake",
+      "effective_reference_intake",
+      "selected_protocol_bundle_ids",
+      "protocol_bundle_context",
+      "active_reference_context",
+      "derived_manuscript_reference_status",
+      "derived_manuscript_reference_status_count",
+      "derived_manuscript_proof_review_status",
+      "publication_subject_slug",
+      "publication_lane_kind",
+      "publication_lane_owner",
+      "managed_publication_root",
+      "selected_publication_root",
+      "selected_review_root",
+      "manuscript_resolution_status",
+      "manuscript_resolution_detail",
+      "manuscript_root",
+      "manuscript_entrypoint",
+      "artifact_manifest_path",
+      "bibliography_audit_path",
+      "reproducibility_manifest_path",
+      "publication_blockers",
+      "publication_blocker_count",
+      "latest_review_round",
+      "latest_review_round_suffix",
+      "latest_review_ledger",
+      "latest_referee_decision",
+      "latest_referee_report_md",
+      "latest_referee_report_tex",
+      "latest_proof_redteam",
+      "latest_review_artifacts",
+      "latest_response_round",
+      "latest_response_round_suffix",
+      "latest_author_response",
+      "latest_referee_response",
+      "latest_response_artifacts",
+      "platform"
+    ]
+  },
+  "stages": [
+    {
+      "id": "bootstrap",
+      "order": 1,
+      "purpose": "target-aware response-round bootstrap, manuscript routing, report-source policy, and publication root selection",
+      "mode_paths": [
+        "workflows/respond-to-referees.md"
+      ],
+      "required_init_fields": [
+        "project_root"
+      ],
+      "loaded_authorities": [
+        "workflows/respond-to-referees.md",
+        "references/publication/publication-bootstrap-preflight.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "references/publication/publication-response-writer-handoff.md",
+        "references/publication/peer-review-reliability.md",
+        "templates/paper/referee-response.md",
+        "templates/paper/author-response.md"
+      ],
+      "allowed_tools": [
+        "ask_user",
+        "file_read",
+        "find_files",
+        "search_files",
+        "shell",
+        "task"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "response-round bootstrap state",
+        "target-aware manuscript routing state",
+        "selected response artifact roots"
+      ],
+      "next_stages": [
+        "report_triage"
+      ],
+      "checkpoints": [
+        "manuscript target resolved",
+        "report-source policy visible",
+        "selected publication and review roots identified"
+      ],
+      "required_init_field_groups": [
+        "response_round_common"
+      ]
+    },
+    {
+      "id": "report_triage",
+      "order": 2,
+      "purpose": "referee report ingestion, latest-round detection, and decision artifact calibration",
+      "mode_paths": [
+        "workflows/respond-to-referees.md"
+      ],
+      "loaded_authorities": [
+        "workflows/respond-to-referees.md",
+        "references/publication/peer-review-reliability.md",
+        "references/publication/publication-response-writer-handoff.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "templates/paper/referee-response.md",
+        "templates/paper/author-response.md"
+      ],
+      "allowed_tools": [
+        "ask_user",
+        "file_read",
+        "find_files",
+        "search_files",
+        "shell",
+        "task"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "parsed referee issue inventory",
+        "active response round state",
+        "decision artifact calibration"
+      ],
+      "next_stages": [
+        "revision_planning"
+      ],
+      "checkpoints": [
+        "canonical referee report source selected",
+        "latest response round paired",
+        "issue inventory ready for revision planning"
+      ],
+      "required_init_field_groups": [
+        "response_round_common"
+      ]
+    },
+    {
+      "id": "revision_planning",
+      "order": 3,
+      "purpose": "claim-level response planning, new-calculation routing, and manuscript-change scope control",
+      "mode_paths": [
+        "workflows/respond-to-referees.md"
+      ],
+      "required_init_fields": [
+        "reference_artifact_files",
+        "reference_artifacts_content",
+        "literature_review_files",
+        "literature_review_count",
+        "research_map_reference_files",
+        "research_map_reference_count",
+        "citation_source_files",
+        "citation_source_count",
+        "citation_source_warnings",
+        "derived_citation_sources",
+        "derived_citation_source_count"
+      ],
+      "loaded_authorities": [
+        "workflows/respond-to-referees.md",
+        "references/publication/peer-review-reliability.md",
+        "references/publication/publication-response-writer-handoff.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "templates/paper/referee-response.md",
+        "templates/paper/author-response.md"
+      ],
+      "allowed_tools": [
+        "ask_user",
+        "file_read",
+        "find_files",
+        "search_files",
+        "shell",
+        "task"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "response plan",
+        "manuscript revision plan",
+        "new-calculation routing state"
+      ],
+      "next_stages": [
+        "response_authoring"
+      ],
+      "checkpoints": [
+        "all referee points mapped",
+        "claim narrowing versus new evidence decided",
+        "subagent revision handoffs scoped"
+      ],
+      "required_init_field_groups": [
+        "response_round_common"
+      ]
+    },
+    {
+      "id": "response_authoring",
+      "order": 4,
+      "purpose": "author response drafting, referee-facing response drafting, and synchronized manuscript edits",
+      "mode_paths": [
+        "workflows/respond-to-referees.md"
+      ],
+      "loaded_authorities": [
+        "workflows/respond-to-referees.md",
+        "references/publication/publication-response-writer-handoff.md",
+        "templates/paper/referee-response.md",
+        "templates/paper/author-response.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "references/publication/publication-review-round-artifacts.md"
+      ],
+      "allowed_tools": [
+        "ask_user",
+        "file_read",
+        "file_write",
+        "file_edit",
+        "find_files",
+        "search_files",
+        "shell",
+        "task"
+      ],
+      "writes_allowed": [
+        "GPD/AUTHOR-RESPONSE{round_suffix}.md",
+        "GPD/review/REFEREE_RESPONSE{round_suffix}.md",
+        "GPD/publication/{subject_slug}/AUTHOR-RESPONSE{round_suffix}.md",
+        "GPD/publication/{subject_slug}/review/REFEREE_RESPONSE{round_suffix}.md",
+        "GPD/publication/{subject_slug}/manuscript"
+      ],
+      "produced_state": [
+        "author response artifact",
+        "referee response artifact",
+        "synchronized manuscript revisions"
+      ],
+      "next_stages": [
+        "finalize"
+      ],
+      "checkpoints": [
+        "response artifacts written as a pair",
+        "manuscript changes synchronized",
+        "new calculation artifacts linked when needed"
+      ],
+      "required_init_field_groups": [
+        "response_round_common"
+      ]
+    },
+    {
+      "id": "finalize",
+      "order": 5,
+      "purpose": "response-round closeout, artifact consistency checks, and next-review handoff",
+      "mode_paths": [
+        "workflows/respond-to-referees.md"
+      ],
+      "loaded_authorities": [
+        "workflows/respond-to-referees.md",
+        "references/publication/peer-review-reliability.md",
+        "references/publication/publication-response-writer-handoff.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [],
+      "allowed_tools": [
+        "ask_user",
+        "file_read",
+        "find_files",
+        "search_files",
+        "shell",
+        "task"
+      ],
+      "writes_allowed": [
+        "GPD/AUTHOR-RESPONSE{round_suffix}.md",
+        "GPD/review/REFEREE_RESPONSE{round_suffix}.md",
+        "GPD/publication/{subject_slug}/AUTHOR-RESPONSE{round_suffix}.md",
+        "GPD/publication/{subject_slug}/review/REFEREE_RESPONSE{round_suffix}.md"
+      ],
+      "produced_state": [
+        "response closeout state",
+        "fresh-review handoff recommendation"
+      ],
+      "next_stages": [],
+      "checkpoints": [
+        "response artifact pair complete",
+        "manuscript-changing revisions flagged for fresh peer review",
+        "next command surfaced"
+      ],
+      "required_init_field_groups": [
+        "response_round_common"
+      ]
+    }
+  ]
+}

@@ -35,7 +35,7 @@ dependencies = [
     "rich>=15.0.0",
     "pydantic>=2.13.3",
     "PyYAML>=6.0.3",
-    "mcp[cli]>=1.27.0",
+    "mcp>=1.27.0",
     # Utilities
     "pybtex>=0.25.1",
     "Pillow>=12.1.1",
@@ -73,7 +73,7 @@ Repository = "https://github.com/psi-oss/get-physics-done"
 Issues = "https://github.com/psi-oss/get-physics-done/issues"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling==1.29.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]

@@ -58,6 +58,13 @@ def test_result_add_duplicate_raises():
         result_add(state, result_id="R-01")
 
 
+def test_result_add_rejects_normalized_duplicate_id():
+    state: dict = {}
+    result_add(state, result_id="R-01")
+    with pytest.raises(DuplicateResultError):
+        result_add(state, result_id="r 01")
+
+
 def test_result_add_rejects_legacy_virtual_id_collision():
     state: dict = {"intermediate_results": ["markdown bullet"]}
 
@@ -75,6 +82,29 @@ def test_result_add_depends_on_string():
     state: dict = {}
     result = result_add(state, result_id="R-02", depends_on="R-01")
     assert result.depends_on == ["R-01"]
+
+
+def test_result_add_canonicalizes_uniquely_resolvable_dependency_ids():
+    state: dict = {}
+    result_add(state, result_id="R-01")
+
+    result = result_add(state, result_id="R-02", depends_on=["r 01", "R-missing"])
+
+    assert result.depends_on == ["R-01", "R-missing"]
+    assert state["intermediate_results"][1]["depends_on"] == ["R-01", "R-missing"]
+
+
+def test_result_add_preserves_ambiguous_normalized_dependency_id():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "verified": False, "verification_records": []},
+            {"id": "R 01", "verified": False, "verification_records": []},
+        ]
+    }
+
+    result = result_add(state, result_id="R-02", depends_on="r 01")
+
+    assert result.depends_on == ["r 01"]
 
 
 def test_result_add_inherits_phase_from_position():
@@ -256,6 +286,37 @@ def test_result_upsert_updates_existing_result_by_explicit_id():
     assert result.result.description == "Updated description"
     assert result.result.validity == "rest frame"
     assert len(state["intermediate_results"]) == 1
+
+
+def test_result_upsert_updates_existing_result_by_unique_normalized_id():
+    state: dict = {}
+    result_add(state, result_id="R-01", equation="E = mc^2", description="Old description", phase="1")
+
+    result = result_upsert(
+        state,
+        result_id="r 01",
+        description="Updated through normalized id",
+    )
+
+    assert result.action == "updated"
+    assert result.matched_by == "id"
+    assert result.result.id == "R-01"
+    assert result.result.description == "Updated through normalized id"
+    assert len(state["intermediate_results"]) == 1
+
+
+def test_result_upsert_rejects_ambiguous_normalized_id_without_adding():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "description": "first", "depends_on": []},
+            {"id": "R 01", "description": "second", "depends_on": []},
+        ]
+    }
+
+    with pytest.raises(ResultError, match="Multiple existing results match this result_id"):
+        result_upsert(state, result_id="r-01", description="new")
+
+    assert len(state["intermediate_results"]) == 2
 
 
 def test_result_upsert_reuses_unique_equation_match_when_preferred_id_is_new():
@@ -692,6 +753,23 @@ def test_result_deps_handles_raw_string_depends_on_field():
     assert deps.direct_deps[0].id == "R-01"
 
 
+def test_result_deps_resolves_normalized_target_and_dependencies():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "depends_on": [], "verified": False, "verification_records": []},
+            {"id": "R-02", "depends_on": "r 01", "verified": False, "verification_records": []},
+            {"id": "R-03", "depends_on": ["r 02"], "verified": False, "verification_records": []},
+        ]
+    }
+
+    deps = result_deps(state, "r 03")
+
+    assert deps.result.id == "R-03"
+    assert deps.depends_on == ["R-02"]
+    assert [dep.id for dep in deps.direct_deps] == ["R-02"]
+    assert [dep.id for dep in deps.transitive_deps] == ["R-01"]
+
+
 def test_result_deps_not_found():
     state: dict = {}
     with pytest.raises(ResultNotFoundError):
@@ -746,6 +824,30 @@ def test_result_verify_supports_full_contract_binding_set():
 
     listed = result_list(state, verified=True)
     assert listed[0].verification_records[0].forbidden_proxy_id == "fp-benchmark"
+
+
+def test_result_verify_resolves_unique_normalized_id_like_result_deps():
+    state: dict = {}
+    result_add(state, result_id="R-01")
+
+    result = result_verify(state, "r 01", verifier="auditor")
+
+    assert result.id == "R-01"
+    assert state["intermediate_results"][0]["verified"] is True
+
+
+def test_result_verify_rejects_ambiguous_normalized_id():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "verified": False, "verification_records": []},
+            {"id": "R 01", "verified": False, "verification_records": []},
+        ]
+    }
+
+    with pytest.raises(ResultNotFoundError):
+        result_verify(state, "r_01", verifier="auditor")
+
+    assert [result["verified"] for result in state["intermediate_results"]] == [False, False]
 
 
 def test_result_add_with_verification_records_sets_verified():
@@ -891,6 +993,63 @@ def test_result_update_fields():
     assert "description" in fields
     assert result.equation == "new"
     assert result.description == "updated"
+
+
+def test_result_update_resolves_unique_normalized_id_like_result_deps():
+    state: dict = {}
+    result_add(state, result_id="R-01", equation="old")
+
+    fields, result = result_update(state, "r 01", equation="new")
+
+    assert fields == ["equation"]
+    assert result.id == "R-01"
+    assert result.equation == "new"
+    assert state["intermediate_results"][0]["equation"] == "new"
+
+
+def test_result_update_rejects_ambiguous_normalized_id_without_mutation():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "equation": "old-a", "verified": False, "verification_records": []},
+            {"id": "R 01", "equation": "old-b", "verified": False, "verification_records": []},
+        ]
+    }
+
+    with pytest.raises(ResultNotFoundError):
+        result_update(state, "r_01", equation="new")
+
+    assert [result["equation"] for result in state["intermediate_results"]] == ["old-a", "old-b"]
+
+
+def test_result_update_canonicalizes_dependencies_and_returns_deterministic_fields():
+    state: dict = {}
+    result_add(state, result_id="R-02")
+    result_add(state, result_id="R-01")
+
+    fields, result = result_update(
+        state,
+        "R-01",
+        verification_records=[{"verifier": "auditor", "method": "manual", "confidence": "low"}],
+        description="updated",
+        depends_on="r 02",
+        equation="E",
+        units="J",
+        validity="weak field",
+        phase="3",
+    )
+
+    assert fields == [
+        "equation",
+        "description",
+        "units",
+        "validity",
+        "phase",
+        "depends_on",
+        "verified",
+        "verification_records",
+    ]
+    assert result.depends_on == ["R-02"]
+    assert state["intermediate_results"][1]["depends_on"] == ["R-02"]
 
 
 def test_result_update_no_recognized_fields():

@@ -9,7 +9,6 @@ artifact_write_authority: scoped_write
 shared_state_authority: return_only
 color: red
 ---
-Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and shared-state policy.
 Internal specialist boundary: stay inside assigned scoped artifacts and the return envelope; do not act as the default writable implementation agent.
 
 <role>
@@ -234,7 +233,7 @@ Use the subject-aware review/response state supplied by the invoking workflow as
 <step name="load_research">
 **Load all research outputs to be reviewed (initial review only).**
 
-1. Read the review target first: title, abstract, introduction, results, conclusion, and the supplied primary review surface. When the workflow supplies nearby manuscript section files, use them as companions; when the target is a standalone `.txt`, `.csv`, or `.tsv`, or an extracted text surface derived from `.pdf`, `.docx`, or `.xlsx`, treat that artifact as the primary review surface.
+1. Read the review target first: title, abstract, introduction, results, conclusion, and the supplied primary review surface. When the workflow supplies nearby manuscript section files, use them as companions; when the target is a standalone `.txt`, `.csv`, or `.tsv`, or an extracted text surface derived from `.pdf`, `.docx`, `.xlsx`, or `.xlsm`, treat that artifact as the primary review surface.
 2. Extract claims from the manuscript before consulting project-internal summaries
 3. Read key derivation files, numerical code, and results only as evidence sources
 4. Read ROADMAP.md, SUMMARY.md, and VERIFICATION.md only after the manuscript-first claim map exists
@@ -971,7 +970,7 @@ The markdown headings `## REVIEW COMPLETE`, `## REVIEW INCOMPLETE`, and `## CHEC
 - If an upstream staged-review artifact is missing, malformed, stale, suffix-inconsistent, manuscript-inconsistent, or mutually inconsistent, return `gpd_return.status: blocked` and hand the failure back to the orchestrator. Do not repair, retag, or rewrite those upstream artifacts yourself.
 - If you write `${selected_publication_root}/CONSISTENCY-REPORT.md`, use it only to diagnose the inconsistency. It is a sidecar diagnostic, not permission to repair earlier stages.
 
-## REVIEW COMPLETE
+## Completed Review Example
 
 ```markdown
 ## REVIEW COMPLETE
@@ -993,7 +992,7 @@ The markdown headings `## REVIEW COMPLETE`, `## REVIEW INCOMPLETE`, and `## CHEC
 {1-2 key strengths}
 ```
 
-## REVIEW INCOMPLETE
+## Incomplete Review Example
 
 ```markdown
 ## REVIEW INCOMPLETE
@@ -1009,7 +1008,7 @@ The markdown headings `## REVIEW COMPLETE`, `## REVIEW INCOMPLETE`, and `## CHEC
 {List of what is missing and why}
 ```
 
-## CHECKPOINT REACHED
+## Checkpoint Review Format
 
 See <checkpoint_behavior> section for full format.
 

@@ -8,14 +8,12 @@ import pytest
 
 from gpd.adapters.install_utils import project_markdown_for_runtime
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
-from gpd.core.model_visible_text import command_visibility_note
 from gpd.registry import _frontmatter_parts, _load_frontmatter_mapping
+from tests.prompt_metrics_support import runtime_command_visibility_note
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 RUNTIMES = tuple(descriptor.runtime_name for descriptor in iter_runtime_descriptors())
-
-
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
@@ -56,25 +54,14 @@ def _project_command(command_name: str, runtime: str) -> str:
     return projected
 
 
-def _runtime_command_visibility_note(runtime: str) -> str:
-    note = command_visibility_note()
-    if runtime == "codex":
-        return note.replace("`gpd:suggest-next`", "`$gpd-suggest-next`")
-    if runtime == "opencode":
-        import re as _re
-
-        return _re.sub(r"(?<![A-Za-z0-9_./:$-])gpd:([a-z][a-z0-9-]*)\b", r"gpd-\1", note)
-    return note
-
-
 @pytest.mark.parametrize("runtime", RUNTIMES)
 @pytest.mark.parametrize("command_name", COMMANDS_WITH_REQUIREMENTS)
 def test_runtime_projected_commands_keep_requirements_visible(command_name: str, runtime: str) -> None:
     command_requires = _command_requirements(command_name)
     projected = _project_command(command_name, runtime)
 
-    assert _runtime_command_visibility_note(runtime) in projected
     assert projected.count("## Command Requirements") == 1
+    assert runtime_command_visibility_note(runtime) in projected
 
     for require_key, require_value in command_requires.items():
         assert str(require_key) in projected

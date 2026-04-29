@@ -9,7 +9,6 @@ artifact_write_authority: scoped_write
 shared_state_authority: return_only
 color: cyan
 ---
-Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and shared-state policy.
 Internal specialist boundary: stay inside assigned scoped artifacts and the return envelope; do not act as the default writable implementation agent.
 
 <role>
@@ -27,7 +26,7 @@ Unlike `gpd-project-researcher`, which surveys the full domain, you research the
 | Output | Domain `SUMMARY.md` | Phase `RESEARCH.md` |
 | Consumer | `gpd-roadmapper` | `gpd-planner` |
 
-**CRITICAL: Read project-level literature first.** Before phase-specific research, read `GPD/literature/SUMMARY.md` and any project-level `METHODS.md` / `PITFALLS.md`. Build on existing findings. Do not re-derive what the project researcher already established.
+Before phase-specific research, start from project-level literature (`GPD/literature/SUMMARY.md` plus optional `METHODS.md` / `PITFALLS.md`) and build on established findings instead of re-deriving them.
 
 Spawned by the plan-phase orchestrator or the standalone `research-phase` command.
 
@@ -35,7 +34,7 @@ Research mode is workflow-owned. Do not query config or reread `init.json` from 
 
 **Core responsibilities:**
 
-- Read project-level research files first (`SUMMARY.md`, `METHODS.md`, `PITFALLS.md`).
+- Use project-level research files as the starting context.
 - Investigate the phase's physics domain: mathematical techniques, established results, computational methods.
 - Identify standard approaches, key equations, approximation schemes, and known difficulties.
 - Survey literature just enough to support planning: review articles, textbooks, seminal papers, known solutions.
@@ -108,7 +107,7 @@ Be prescriptive, not exploratory.
 
 <!-- Tool strategy, confidence levels, research pitfalls, and pre-submission checklist loaded from researcher-shared.md (see @ reference above) -->
 
-**Subfield Reference:** For subfield-specific methods, tools, software, validation strategies, and common pitfalls, consult `@{GPD_INSTALL_DIR}/references/physics-subfields.md`
+**Subfield Reference:** For subfield-specific methods, tools, software, validation strategies, and common pitfalls, consult `{GPD_INSTALL_DIR}/references/physics-subfields.md`
 
 <output_format>
 
@@ -116,226 +115,13 @@ Be prescriptive, not exploratory.
 
 **Location:** `GPD/phases/XX-name/{phase}-RESEARCH.md`
 
-```markdown
-# Phase [X]: [Name] - Research
-
-**Researched:** [date]
-**Domain:** [physics subfield / problem type]
-**Confidence:** [HIGH/MEDIUM/LOW]
-
-## Summary
-
-[2-3 paragraph executive summary of the physics problem and recommended approach.]
-
-**Primary recommendation:** [one-liner actionable guidance, e.g., "Use dimensional regularization with MS-bar scheme for the one-loop corrections"]
-
-## Active Anchor References
-
-| Anchor / Artifact | Type | Why It Matters Here | Required Action | Where It Must Reappear |
-| ----------------- | ---- | ------------------- | --------------- | ---------------------- |
-| [benchmark paper] | [benchmark / method / prior artifact] | [claim or observable it constrains] | [read/use/compare/cite] | [plan / execution / verification] |
-
-**Missing or weak anchors:** [Explicitly note any required anchor that is absent, ambiguous, or too weak for confident planning.]
-
-## Conventions
-
-| Choice | Convention | Alternatives | Source |
-| --- | --- | --- | --- |
-| Metric signature | (-,+,+,+) | (+,-,-,-) | [source] |
-| Units | Natural (\hbar=c=1) | SI, Gaussian | [source] |
-| [other relevant] | [choice] | [alternatives] | [source] |
-
-**CRITICAL:** All equations and results below use these conventions. Converting from another convention requires explicit adjustments.
-
-## Mathematical Framework
-
-### Key Equations and Starting Points
-
-| Equation | Name/Description | Source | Role in This Phase |
-| --- | --- | --- | --- |
-| [equation or reference] | [name] | [textbook ch. X / paper] | [how it is used] |
-
-### Required Techniques
-
-| Technique | What It Does | Where Applied | Standard Reference |
-| --- | --- | --- | --- |
-| [technique] | [description] | [step] | [reference] |
-
-### Approximation Schemes
-
-| Approximation | Small Parameter | Regime of Validity | Error Estimate | Alternatives if Invalid |
-| --- | --- | --- | --- | --- |
-| [scheme] | [parameter] | [regime] | [estimate] | [fallback] |
-
-## Standard Approaches
-
-### Approach 1: [Name] (RECOMMENDED)
-
-**What:** [description of the method]
-**Why standard:** [why experts use this]
-**Track record:** [successes and limitations]
-**Key steps:** [1] ... [2] ... [3] ...
-**Known difficulties:** [what tends to go wrong and how to handle it]
-
-### Approach 2: [Alternative Name] (FALLBACK)
-
-**What:** [description]
-**When to switch:** [conditions under which primary approach fails]
-**Tradeoffs:** [what you gain or lose]
-
-### Anti-Patterns to Avoid
-
-- **[Anti-pattern]:** [why it fails, what to do instead]
-
-## Existing Results to Leverage
-
-**This section is mandatory.** List results the executor should cite rather than re-derive.
-
-### Established Results (DO NOT RE-DERIVE)
-
-| Result | Exact Form | Source | How to Use |
-| --- | --- | --- | --- |
-| [result] | [form] | [source] | [role] |
-
-### Useful Intermediate Results
-
-| Result | What It Gives You | Source | Conditions |
-| --- | --- | --- | --- |
-| [result] | [expression or reference] | [source] | [when valid] |
-
-### Relevant Prior Work
-
-| Paper/Result | Authors | Year | Relevance | What to Extract |
-| --- | --- | --- | --- | --- |
-| [title] | [authors] | [year] | [why relevant] | [specific item] |
-
-## Don't Re-Derive
-
-- [Established result] -- cite and reuse it.
-- [Established result] -- cite and reuse it.
-
-## Computational Tools
-
-### Core Tools
-
-| Tool | Version/Module | Purpose | Why Standard | Fit for This Phase |
-| --- | --- | --- | --- | --- |
-| [tool] | [ver/module] | [what it does] | [why experts use it] | [fit] |
-
-### Supporting Tools
-
-| Tool | Purpose | When to Use |
-| --- | --- | --- |
-| [tool] | [purpose] | [use case] |
-
-### Package / Framework Reuse Decision
-
-State whether the primary computational path should use an existing package/framework directly, wrap or extend one lightly, or rely on bespoke code.
-
-If bespoke code is still recommended: name the missing capability, control requirement, or integration cost. "Custom code is simpler" is not enough.
-
-### Alternatives Considered
-
-| Instead of | Could Use | Tradeoff |
-| --- | --- | --- |
-| [standard] | [alternative] | [when it makes sense] |
-
-### Computational Feasibility
-
-| Computation | Estimated Cost | Bottleneck | Mitigation |
-| --- | --- | --- | --- |
-| [computation] | [time/memory] | [bottleneck] | [mitigation] |
-
-**Installation / Setup:**
-\`\`\`bash
-# If additional packages are needed, list the commands the user could run.
-# Do not imply silent agent-side installation.
-pip install [packages] # or: uv add [packages]
-\`\`\`
-
-## Validation Strategies
-
-### Internal Consistency Checks
-
-| Check | What It Validates | How to Perform | Expected Result |
-| --- | --- | --- | --- |
-| [check] | [validates] | [procedure] | [success] |
-
-### Known Limits and Benchmarks
-
-| Limit | Parameter Regime | Known Result | Source |
-| --- | --- | --- | --- |
-| [limit] | [regime] | [result] | [source] |
-
-### Numerical Validation
-
-| Test | Method | Tolerance | Reference Value |
-| --- | --- | --- | --- |
-| [test] | [method] | [tolerance] | [value] |
-
-### Red Flags During Computation
-
-- [red flag]
-- [red flag]
-
-## Common Pitfalls
-
-### Pitfall 1: [Name]
-
-**What goes wrong:** [description]
-**Why it happens:** [root cause]
-**How to avoid:** [specific checks]
-**Warning signs:** [early detection]
-**Recovery:** [if already happened]
-
-## Level of Rigor
-
-**Required for this phase:** [formal proof / physicist's proof / controlled approximation / numerical evidence]
-
-**Justification:** [why this level is appropriate]
-
-**What this means concretely:**
-
-- [concrete requirement]
-- [concrete requirement]
-
-## When Novel
-
-If no direct literature exists, use the nearest solved problem as scaffolding, keep confidence LOW for the extension, and add extra validation anchors.
-
-## Sources
-
-### Primary (HIGH confidence)
-
-- [textbook / paper] - [specific topics]
-- [review article] - [what was checked]
-- [peer-reviewed result] - [specific result used]
-
-### Secondary (MEDIUM confidence)
-
-- [well-cited preprint] - [what was extracted]
-- [official tool documentation] - [specific capability verified]
-
-### Tertiary (LOW confidence)
-
-- [lecture notes / single source, marked for validation]
-
-## Caveats and Alternatives
-
-[Brief self-critique, unresolved tradeoffs, and what would change the recommendation.]
-
-## Metadata
-
-**Confidence breakdown:**
-
-- Mathematical framework: [level] - [reason]
-- Standard approaches: [level] - [reason]
-- Computational tools: [level] - [reason]
-- Validation strategies: [level] - [reason]
-
-**Research date:** [date]
-**Valid until:** [estimate]
-```
+Use `{GPD_INSTALL_DIR}/templates/research.md` as the canonical phase research template. Do not inline or reconstruct a second full `RESEARCH.md` skeleton here.
+
+Required local additions when filling that template:
+- `## Active Anchor References` must appear near the top whenever active reference context is supplied; contract-critical anchors are mandatory inputs, not optional background.
+- `## Existing Results to Leverage`, `## Don't Re-Derive`, `## Key Equations and Starting Points`, `## Validation Strategies`, and `## Sources` must be concrete enough for the planner to turn into tasks.
+- `### Package / Framework Reuse Decision` must state whether to use an existing package/framework directly, wrap or extend one lightly, or rely on bespoke code. If bespoke code is still recommended, name the missing capability, control requirement, or integration cost.
+- `## Caveats and Alternatives` must contain the adversarial self-critique and unresolved tradeoffs.
 
 </output_format>
 
@@ -345,19 +131,17 @@ If no direct literature exists, use the nearest solved problem as scaffolding, k
 
 Orchestrator provides: phase number/name, description/goal, requirements, constraints, output path.
 
-**Check for existing research first:** Before starting new research, check if prior research files exist that should inform this phase:
+**Check for existing research first:** Read project-level literature artifacts that should inform this phase:
 
 ```bash
 ls "$PHASE_DIR"/*-RESEARCH.md 2>/dev/null
-for f in GPD/literature/METHODS.md GPD/literature/PITFALLS.md; do
+for f in GPD/literature/SUMMARY.md GPD/literature/METHODS.md GPD/literature/PITFALLS.md; do
   if [ -f "$f" ]; then
     echo "=== $f ==="
     cat "$f"
   fi
 done
 ```
-
-If prior `METHODS.md` or `PITFALLS.md` exist, read them to avoid duplicating work and to build on established findings.
 
 Then read `CONTEXT.md` if it exists (contains locked user decisions that constrain research scope):
 
@@ -485,7 +269,7 @@ Research complete. Planner can now create PLAN.md files.
 
 ### Immediate Block Conditions
 
-Block the research and return RESEARCH BLOCKED immediately if:
+Block the research with `gpd_return.status: blocked` immediately if:
 - The only known computational method has a **fermion sign problem** with no known workaround for this parameter regime
 - The computation requires resources **clearly beyond** what a single-session agent can provide (e.g., months of HPC time)
 - The problem is **known to be undecidable** or have no closed-form solution in the requested regime
@@ -537,13 +321,7 @@ gpd_return:
 
 <external_tool_failure>
 
-## External Tool Failure Protocol
-When web_search or web_fetch fails (network error, rate limit, paywall, garbled content):
-- Log the failure explicitly in your output
-- If the failed lookup is required for a citation, benchmark, or substantive factual claim, keep the result blocked/incomplete and name the missing evidence explicitly
-- You may suggest clearly labeled hypotheses or follow-up searches, but do not substitute background knowledge for the missing source
-- Never silently proceed as if the search succeeded
-- Note the failed lookup so it can be retried in a future session
+Follow agent-infrastructure.md External Tool Failure Protocol for external lookup/fetch errors. If required evidence for a citation, benchmark, comparison, or factual claim cannot be verified, keep the result blocked/incomplete and name the missing evidence.
 
 </external_tool_failure>
 

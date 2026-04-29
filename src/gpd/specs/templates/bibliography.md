@@ -10,8 +10,9 @@ Template for `GPD/BIBLIOGRAPHY.md` -- optional reference and anchor ledger for p
 human-readable registry alongside the live BibTeX files and the structured project contract.
 
 **Status:** Not wired into the current GPD bibliography flow. The live bibliographer/paper pipeline
-uses `references/references.bib`, `references/references-verified.log`, and
-`references/references-pending.md`.
+uses the active BibTeX path (`references/references.bib` or manuscript-local `${PAPER_DIR}/references.bib`),
+`GPD/references-status.json`, literature `*-CITATION-SOURCES.json` sidecars, and manuscript-root
+`${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`.
 
 **Purpose:** Use this only if you explicitly want a parallel markdown registry of citations,
 benchmarks, prior artifacts, and anchor status across the project. It is not the canonical source
@@ -19,7 +20,10 @@ of truth for paper generation or scoping; it mirrors those systems for human rev
 
 **Relationship to other files:**
 
-- `references/references.bib` is the BibTeX file maintained by the gpd-bibliographer agent
+- The active BibTeX file is `references/references.bib` unless the manuscript build resolves a local `${PAPER_DIR}/references.bib`
+- `GPD/references-status.json` is the compact bibliographer status sidecar
+- `GPD/literature/*-CITATION-SOURCES.json` sidecars carry stable literature-review reference IDs into paper builds
+- `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` is the machine-readable manuscript-root citation audit emitted by `gpd paper-build`
 - `state.json.project_contract` is the authoritative machine-readable anchor registry
 - Phase SUMMARY.md files may reference citations by BibTeX key; this file is optional supplemental tracking
 - `CONVENTIONS.md` records which textbook conventions are followed; those textbooks should appear here
@@ -54,7 +58,7 @@ of truth for paper generation or scoping; it mirrors those systems for human rev
 
 - **Confidence tiers**: Contract-critical (must surface), supporting (used downstream), background (context only)
 - **Verified**: Checked by gpd-bibliographer against INSPIRE/ADS/Google Scholar
-- **BibTeX file**: `references/references.bib` (maintained by bibliographer)
+- **BibTeX file**: the resolved active bibliography path (usually `references/references.bib`)
 ```
 
 <lifecycle>
@@ -77,7 +81,7 @@ of truth for paper generation or scoping; it mirrors those systems for human rev
 - Verify BibTeX keys against INSPIRE-HEP, ADS, arXiv, Google Scholar
 - Detect hallucinated citations (keys that don't resolve)
 - Warn about missing citations when equations from papers are used without attribution
-- Maintain `references/references.bib` in correct journal format
+- Maintain the active BibTeX file and `GPD/references-status.json`
 
 **Reading:** By gpd-paper-writer agent
 
@@ -105,7 +109,7 @@ of truth for paper generation or scoping; it mirrors those systems for human rev
 
 **What does NOT belong here:**
 
-- Full BibTeX entries (those go in `references/references.bib`)
+- Full BibTeX entries (those go in the active bibliography path)
 - Detailed summaries of papers (those go in phase RESEARCH.md)
 - Literature review analysis (that goes in literature review artifacts)
 
@@ -132,6 +136,7 @@ The gpd-bibliographer agent checks each entry:
 1. Resolve BibTeX key against INSPIRE-HEP (for HEP papers), ADS (for astrophysics), or Google Scholar
 2. Verify that title, authors, and year match
 3. Flag entries that cannot be resolved as SUSPECT
-4. Generate proper BibTeX and add to `references/references.bib`
+4. Generate proper BibTeX and add it to the active bibliography path
+5. Write compact status to `GPD/references-status.json`
 
 </guidelines>

@@ -1,6 +1,57 @@
 {
   "schema_version": 1,
   "workflow_id": "arxiv-submission",
+  "prompt_usage": "staged_init",
+  "required_init_field_groups": {
+    "launch_context": [
+      "commit_docs",
+      "arxiv_submission_argument_input"
+    ],
+    "project_root_context": [
+      "project_root"
+    ],
+    "workspace_context": [
+      "state_exists",
+      "project_exists",
+      "autonomy",
+      "research_mode",
+      "platform"
+    ],
+    "manuscript_resolution_context": [
+      "manuscript_resolution_status",
+      "manuscript_resolution_detail"
+    ],
+    "manuscript_package_paths": [
+      "manuscript_root",
+      "manuscript_entrypoint",
+      "artifact_manifest_path",
+      "bibliography_audit_path",
+      "reproducibility_manifest_path"
+    ],
+    "manuscript_reference_warnings": [
+      "manuscript_reference_status_warnings"
+    ],
+    "manuscript_reference_status": [
+      "derived_manuscript_reference_status",
+      "derived_manuscript_reference_status_count",
+      "derived_manuscript_proof_review_status"
+    ],
+    "publication_review_context": [
+      "publication_subject_slug",
+      "publication_lane_kind",
+      "publication_lane_owner",
+      "managed_publication_root",
+      "selected_publication_root",
+      "selected_review_root",
+      "publication_blockers",
+      "publication_blocker_count",
+      "latest_review_round",
+      "latest_review_round_suffix",
+      "latest_review_ledger",
+      "latest_referee_decision",
+      "latest_review_artifacts"
+    ]
+  },
   "stages": [
     {
       "id": "bootstrap",
@@ -9,37 +60,15 @@
       "mode_paths": [
         "workflows/arxiv-submission.md"
       ],
-      "required_init_fields": [
-        "commit_docs",
-        "state_exists",
-        "project_exists",
-        "autonomy",
-        "research_mode",
-        "platform",
-        "manuscript_resolution_status",
-        "manuscript_resolution_detail",
-        "manuscript_root",
-        "manuscript_entrypoint",
-        "artifact_manifest_path",
-        "bibliography_audit_path",
-        "reproducibility_manifest_path",
-        "manuscript_reference_status_warnings",
-        "derived_manuscript_reference_status",
-        "derived_manuscript_reference_status_count",
-        "derived_manuscript_proof_review_status",
-        "publication_subject_slug",
-        "publication_lane_kind",
-        "publication_lane_owner",
-        "managed_publication_root",
-        "selected_publication_root",
-        "selected_review_root",
-        "publication_blockers",
-        "publication_blocker_count",
-        "latest_review_round",
-        "latest_review_round_suffix",
-        "latest_review_ledger",
-        "latest_referee_decision",
-        "latest_review_artifacts"
+      "required_init_field_groups": [
+        "launch_context",
+        "project_root_context",
+        "workspace_context",
+        "manuscript_resolution_context",
+        "manuscript_package_paths",
+        "manuscript_reference_warnings",
+        "manuscript_reference_status",
+        "publication_review_context"
       ],
       "loaded_authorities": [
         "workflows/arxiv-submission.md",
@@ -80,37 +109,14 @@
       "mode_paths": [
         "workflows/arxiv-submission.md"
       ],
-      "required_init_fields": [
-        "commit_docs",
-        "state_exists",
-        "project_exists",
-        "autonomy",
-        "research_mode",
-        "platform",
-        "manuscript_resolution_status",
-        "manuscript_resolution_detail",
-        "manuscript_root",
-        "manuscript_entrypoint",
-        "artifact_manifest_path",
-        "bibliography_audit_path",
-        "reproducibility_manifest_path",
-        "manuscript_reference_status_warnings",
-        "derived_manuscript_reference_status",
-        "derived_manuscript_reference_status_count",
-        "derived_manuscript_proof_review_status",
-        "publication_subject_slug",
-        "publication_lane_kind",
-        "publication_lane_owner",
-        "managed_publication_root",
-        "selected_publication_root",
-        "selected_review_root",
-        "publication_blockers",
-        "publication_blocker_count",
-        "latest_review_round",
-        "latest_review_round_suffix",
-        "latest_review_ledger",
-        "latest_referee_decision",
-        "latest_review_artifacts"
+      "required_init_field_groups": [
+        "launch_context",
+        "workspace_context",
+        "manuscript_resolution_context",
+        "manuscript_package_paths",
+        "manuscript_reference_warnings",
+        "manuscript_reference_status",
+        "publication_review_context"
       ],
       "loaded_authorities": [
         "workflows/arxiv-submission.md",
@@ -148,37 +154,14 @@
       "mode_paths": [
         "workflows/arxiv-submission.md"
       ],
-      "required_init_fields": [
-        "commit_docs",
-        "state_exists",
-        "project_exists",
-        "autonomy",
-        "research_mode",
-        "platform",
-        "manuscript_resolution_status",
-        "manuscript_resolution_detail",
-        "manuscript_root",
-        "manuscript_entrypoint",
-        "artifact_manifest_path",
-        "bibliography_audit_path",
-        "reproducibility_manifest_path",
-        "manuscript_reference_status_warnings",
-        "derived_manuscript_reference_status",
-        "derived_manuscript_reference_status_count",
-        "derived_manuscript_proof_review_status",
-        "publication_subject_slug",
-        "publication_lane_kind",
-        "publication_lane_owner",
-        "managed_publication_root",
-        "selected_publication_root",
-        "selected_review_root",
-        "publication_blockers",
-        "publication_blocker_count",
-        "latest_review_round",
-        "latest_review_round_suffix",
-        "latest_review_ledger",
-        "latest_referee_decision",
-        "latest_review_artifacts"
+      "required_init_field_groups": [
+        "launch_context",
+        "workspace_context",
+        "manuscript_resolution_context",
+        "manuscript_package_paths",
+        "manuscript_reference_warnings",
+        "manuscript_reference_status",
+        "publication_review_context"
       ],
       "loaded_authorities": [
         "workflows/arxiv-submission.md",
@@ -212,34 +195,12 @@
       "mode_paths": [
         "workflows/arxiv-submission.md"
       ],
-      "required_init_fields": [
-        "commit_docs",
-        "state_exists",
-        "project_exists",
-        "autonomy",
-        "research_mode",
-        "platform",
-        "manuscript_root",
-        "manuscript_entrypoint",
-        "artifact_manifest_path",
-        "bibliography_audit_path",
-        "reproducibility_manifest_path",
-        "derived_manuscript_reference_status",
-        "derived_manuscript_reference_status_count",
-        "derived_manuscript_proof_review_status",
-        "publication_subject_slug",
-        "publication_lane_kind",
-        "publication_lane_owner",
-        "managed_publication_root",
-        "selected_publication_root",
-        "selected_review_root",
-        "publication_blockers",
-        "publication_blocker_count",
-        "latest_review_round",
-        "latest_review_round_suffix",
-        "latest_review_ledger",
-        "latest_referee_decision",
-        "latest_review_artifacts"
+      "required_init_field_groups": [
+        "launch_context",
+        "workspace_context",
+        "manuscript_package_paths",
+        "manuscript_reference_status",
+        "publication_review_context"
       ],
       "loaded_authorities": [
         "workflows/arxiv-submission.md"
@@ -279,34 +240,12 @@
       "mode_paths": [
         "workflows/arxiv-submission.md"
       ],
-      "required_init_fields": [
-        "commit_docs",
-        "state_exists",
-        "project_exists",
-        "autonomy",
-        "research_mode",
-        "platform",
-        "manuscript_root",
-        "manuscript_entrypoint",
-        "artifact_manifest_path",
-        "bibliography_audit_path",
-        "reproducibility_manifest_path",
-        "derived_manuscript_reference_status",
-        "derived_manuscript_reference_status_count",
-        "derived_manuscript_proof_review_status",
-        "publication_subject_slug",
-        "publication_lane_kind",
-        "publication_lane_owner",
-        "managed_publication_root",
-        "selected_publication_root",
-        "selected_review_root",
-        "publication_blockers",
-        "publication_blocker_count",
-        "latest_review_round",
-        "latest_review_round_suffix",
-        "latest_review_ledger",
-        "latest_referee_decision",
-        "latest_review_artifacts"
+      "required_init_field_groups": [
+        "launch_context",
+        "workspace_context",
+        "manuscript_package_paths",
+        "manuscript_reference_status",
+        "publication_review_context"
       ],
       "loaded_authorities": [
         "workflows/arxiv-submission.md"

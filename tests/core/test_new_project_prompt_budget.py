@@ -72,7 +72,9 @@ def test_new_project_command_no_longer_eagerly_inlines_late_stage_authorities() 
     assert "@{GPD_INSTALL_DIR}/templates/project.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/templates/requirements.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/references/ui/ui-brand.md" not in command_text
+    assert "@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md" not in expanded_command
     assert "<questioning_guide>" not in expanded_command
+    assert "# Canonical Schema Discipline" not in expanded_command
     assert "# PROJECT.md Template" not in expanded_command
     assert "# Requirements Template" not in expanded_command
     assert "<ui_patterns>" not in expanded_command

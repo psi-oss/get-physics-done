@@ -89,6 +89,7 @@ def gpd_root(tmp_path: Path) -> Path:
     hooks.mkdir()
     (hooks / "statusline.py").write_text("#!/usr/bin/env python3\nprint('status')\n", encoding="utf-8")
     (hooks / "check_update.py").write_text("#!/usr/bin/env python3\nprint('update')\n", encoding="utf-8")
+    (hooks / "notify.py").write_text("#!/usr/bin/env python3\nprint('notify')\n", encoding="utf-8")
 
     # specs/ (GPD content directories)
     for subdir in ("references", "templates", "workflows"):

@@ -21,10 +21,15 @@
     "Install GPD before enabling built-in MCP servers."
   ],
   "health_check": {
+    "probe_kind": "expected_error",
     "tool": "get_state",
     "input": {},
     "expect": "returns a stable validation error envelope for missing required project_dir"
   },
+  "mutating_capabilities": [
+    "advance_plan",
+    "run_health_check"
+  ],
   "alternatives": {
     "python_module": {
       "command": "${GPD_PYTHON}",

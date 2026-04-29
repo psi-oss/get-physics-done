@@ -1,6 +1,6 @@
 {
   "name": "gpd-arxiv",
-  "description": "Optional/conditional arXiv paper search, retrieval, and source-archive download via arxiv-mcp-server. Available only when the optional arxiv-mcp-server dependency is installed; search for physics papers, fetch abstracts, download full text, and download raw source archives.",
+  "description": "Optional arXiv bridge for arxiv-mcp-server. Advertises the baseline upstream tools search_papers, download_paper, list_papers, read_paper, forwards only tools exposed by the live upstream server, and adds GPD download_source for raw source archives.",
   "transport": "stdio",
   "command": "gpd-mcp-arxiv",
   "args": [],
@@ -14,9 +14,11 @@
   ],
   "registry_prefix": "gpd_arxiv",
   "prerequisites": [
-    "Install GPD before enabling built-in MCP servers."
+    "Install GPD before enabling built-in MCP servers.",
+    "Install GPD with the `arxiv` Python extra in the same environment before enabling gpd-arxiv."
   ],
   "health_check": {
+    "probe_kind": "network_required",
     "tool": "search_papers",
     "input": {
       "query": "quantum field theory",
@@ -24,9 +26,17 @@
     },
     "expect": "contains paper"
   },
-  "optional": true,
-  "availability": "conditional",
-  "availability_condition": "Available only when the optional Python module 'arxiv_mcp_server' is installed.",
+  "capability_surface": "baseline_dynamic_upstream",
+  "dynamic_upstream_capabilities": true,
+  "baseline_upstream_capabilities": [
+    "search_papers",
+    "download_paper",
+    "list_papers",
+    "read_paper"
+  ],
+  "local_capabilities": [
+    "download_source"
+  ],
   "alternatives": {
     "python_module": {
       "command": "${GPD_PYTHON}",
@@ -36,5 +46,8 @@
       ],
       "notes": "Replace `${GPD_PYTHON}` with a Python >=3.11 interpreter that has GPD installed."
     }
-  }
+  },
+  "optional": true,
+  "availability": "conditional",
+  "availability_condition": "Available only when the optional Python module 'arxiv_mcp_server' is installed."
 }

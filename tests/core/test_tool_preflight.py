@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -117,6 +118,10 @@ def _write_knowledge_doc(
     base_content += "---\n\nTrusted knowledge body.\n"
     reviewed_content_sha256 = compute_knowledge_reviewed_content_sha256(base_content)
     if status in {"stable", "in_review", "superseded"}:
+        approval_artifact = tmp_path / "GPD" / "knowledge" / "reviews" / f"{knowledge_id}-R1-REVIEW.md"
+        approval_artifact.parent.mkdir(parents=True, exist_ok=True)
+        approval_artifact.write_text(f"Approved review for {knowledge_id}.\n", encoding="utf-8")
+        approval_artifact_sha256 = hashlib.sha256(approval_artifact.read_bytes()).hexdigest()
         content = base_content.replace(
             "---\n\n",
             (
@@ -128,7 +133,7 @@ def _write_knowledge_doc(
                 "  decision: approved\n"
                 "  summary: Stable review approved.\n"
                 f"  approval_artifact_path: GPD/knowledge/reviews/{knowledge_id}-R1-REVIEW.md\n"
-                f"  approval_artifact_sha256: {'a' * 64}\n"
+                f"  approval_artifact_sha256: {approval_artifact_sha256}\n"
                 f"  reviewed_content_sha256: {reviewed_content_sha256}\n"
                 f"  stale: {'true' if stale else 'false'}\n"
                 "---\n\n"
@@ -680,6 +685,60 @@ def test_build_plan_tool_preflight_unwraps_runner_wrapped_python_targets(
     assert "repo-local script target not found" in result.checks[0].detail
 
 
+@pytest.mark.parametrize(
+    ("command", "runners"),
+    [
+        ("uv run missing-solver --version", {"uv"}),
+        ("pipx run --spec solver-package missing-solver --version", {"pipx"}),
+        ("hatch run test:missing-solver --version", {"hatch"}),
+    ],
+)
+def test_build_plan_tool_preflight_unwraps_runner_wrapped_executable_probe(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    command: str,
+    runners: set[str],
+) -> None:
+    monkeypatch.setattr(
+        "gpd.core.tool_preflight.shutil.which",
+        lambda name: f"/usr/bin/{name}" if name in runners else None,
+    )
+    project_root = tmp_path / "project"
+    plan_path = project_root / "GPD" / "phases" / "01" / "01-10e-PLAN.md"
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_tool_requirement_plan(plan_path, command, plan_id="10e")
+
+    result = build_plan_tool_preflight(plan_path)
+
+    assert result.passed is False
+    assert result.checks[0].available is False
+    assert result.checks[0].detail == "missing-solver not found on PATH"
+
+
+def test_build_plan_tool_preflight_resolves_repo_local_executable_from_plan_workspace(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr("gpd.core.tool_preflight.shutil.which", lambda _name: None)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.chdir(outside)
+    project_root = tmp_path / "project"
+    solver = project_root / "scripts" / "solver"
+    solver.parent.mkdir(parents=True)
+    solver.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    solver.chmod(0o755)
+    plan_path = project_root / "GPD" / "phases" / "01" / "01-10f-PLAN.md"
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_tool_requirement_plan(plan_path, "scripts/solver --version", plan_id="10f")
+
+    result = build_plan_tool_preflight(plan_path)
+
+    assert result.passed is True
+    assert result.checks[0].available is True
+    assert result.checks[0].detail == f"scripts/solver found at {solver.resolve(strict=False)}"
+
+
 def test_build_plan_tool_preflight_blocks_missing_extensionless_repo_local_python_target(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1223,7 +1282,14 @@ def test_build_plan_tool_preflight_resolves_env_wrapped_command_after_env_flag_w
     assert result.checks[0].detail == "missing-solver not found on PATH"
 
 
-@pytest.mark.parametrize("command", ["bash -lc 'missing-solver --version'", "sh -c 'missing-solver --version'"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "bash -lc 'missing-solver --version'",
+        "bash -e -c 'missing-solver --version'",
+        "sh -c 'missing-solver --version'",
+    ],
+)
 def test_build_plan_tool_preflight_unwraps_shell_launchers_to_probe_the_real_command(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

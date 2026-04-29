@@ -28,7 +28,7 @@ This creates `GPD/config.json` with defaults if missing and loads current config
 <step name="determine_runtime">
 Infer the active runtime before prompting for model IDs.
 
-Use the current command syntax, tool names, environment, and local runtime config directories to infer the active runtime identifier for this install. For GPD-owned model resolution surfaces, prefer the runtime with a concrete GPD install when a higher-priority runtime appears active but is not actually installed for this workspace.
+Apply the shared active-runtime rule from `gpd:settings`: infer from command syntax, tool names, environment, and local runtime config directories; prefer a concrete GPD install over an uninstalled higher-priority hint.
 
 If the runtime is still ambiguous, ask the user which runtime they want to configure before continuing.
 

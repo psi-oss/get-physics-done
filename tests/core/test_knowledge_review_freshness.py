@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 from gpd.core import knowledge_docs as knowledge_docs_module
 from gpd.core.frontmatter import extract_frontmatter, validate_frontmatter
+from gpd.core.knowledge_runtime import discover_knowledge_docs
 
 
 def _knowledge_content_sha256(content: str) -> str:
@@ -114,6 +116,33 @@ def test_stable_knowledge_doc_accepts_current_reviewed_content_hash(tmp_path: Pa
 
     assert result.valid is True
     assert result.errors == []
+
+
+def test_runtime_requires_matching_approval_artifact_for_active_stable_knowledge(tmp_path: Path) -> None:
+    base_content = _knowledge_markdown()
+    reviewed_content_sha256 = _knowledge_content_sha256(base_content)
+    content = _knowledge_markdown(review=_review_block(reviewed_content_sha256=reviewed_content_sha256))
+    knowledge_dir = tmp_path / "GPD" / "knowledge"
+    knowledge_dir.mkdir(parents=True)
+    (knowledge_dir / "K-renormalization-group-fixed-points.md").write_text(content, encoding="utf-8")
+
+    missing_artifact = discover_knowledge_docs(tmp_path).by_id()["K-renormalization-group-fixed-points"]
+    assert missing_artifact.review_fresh is False
+    assert missing_artifact.runtime_active is False
+
+    artifact = tmp_path / "GPD" / "knowledge" / "reviews" / "K-renormalization-group-fixed-points-R1-REVIEW.md"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("review evidence\n", encoding="utf-8")
+    content = _knowledge_markdown(
+        review=_review_block(
+            reviewed_content_sha256=reviewed_content_sha256,
+        ).replace("a" * 64, hashlib.sha256(artifact.read_bytes()).hexdigest())
+    )
+    (knowledge_dir / "K-renormalization-group-fixed-points.md").write_text(content, encoding="utf-8")
+
+    fresh_artifact = discover_knowledge_docs(tmp_path).by_id()["K-renormalization-group-fixed-points"]
+    assert fresh_artifact.review_fresh is True
+    assert fresh_artifact.runtime_active is True
 
 
 def test_stable_knowledge_doc_becomes_stale_after_body_edit(tmp_path: Path) -> None:

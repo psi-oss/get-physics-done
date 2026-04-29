@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import shlex
 import shutil
@@ -151,13 +152,6 @@ class PlanToolPreflightResult(BaseModel):
 
 
 @dataclass(frozen=True, slots=True)
-class _ToolSpec:
-    provider: str
-    command: str | None
-    warning: str = ""
-
-
-@dataclass(frozen=True, slots=True)
 class _CommandRunnerPolicy:
     option_flags_with_value: frozenset[str] = frozenset()
     selector_delimiter: str | None = None
@@ -174,14 +168,6 @@ class _KnowledgeDependencyEvaluation:
     def has_issues(self) -> bool:
         return bool(self.warnings or self.blocking_conditions)
 
-
-_TOOL_SPECS: dict[str, _ToolSpec] = {
-    "wolfram": _ToolSpec(
-        provider="wolframscript",
-        command="wolframscript",
-        warning="Availability is PATH-based or shared-integration config only; live execution and license state are not proven.",
-    ),
-}
 
 _WOLFRAM_CAVEAT = "Availability is config-level only; live execution and license state are not proven."
 _ENV_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*$")
@@ -328,10 +314,14 @@ def _shell_wrapped_command(argv: list[str]) -> str | None:
             if index + 1 < len(argv):
                 return argv[index + 1]
             return None
+        if token.startswith("--command="):
+            return token.split("=", 1)[1]
         if token.startswith("-") and "c" in token[1:]:
             if index + 1 < len(argv):
                 return argv[index + 1]
             return None
+        if token.startswith("-") or token.startswith("+"):
+            continue
         break
     return None
 
@@ -372,7 +362,7 @@ def _unwrap_command_runner(argv: list[str]) -> tuple[list[str] | None, str | Non
         selector = target_argv[0]
         if policy.selector_delimiter in selector:
             _prefix, candidate = selector.rsplit(policy.selector_delimiter, 1)
-            if _is_python_launcher(candidate):
+            if candidate:
                 return [candidate, *target_argv[1:]], None
     return target_argv, None
 
@@ -434,6 +424,12 @@ def _command_executable_from_argv(argv: list[str]) -> tuple[str | None, str | No
             return None, parse_error
         return _command_executable_from_argv(nested_argv or [])
 
+    runner_argv, runner_error = _unwrap_command_runner(working)
+    if runner_error is not None:
+        return None, runner_error
+    if runner_argv != working:
+        return _command_executable_from_argv(runner_argv or [])
+
     return working[0], None
 
 
@@ -483,6 +479,40 @@ def _path_within_workspace_roots(path: Path, *, cwd: Path | None) -> bool:
         except ValueError:
             continue
     return False
+
+
+def _command_executable_probe_path(executable: str | None, *, cwd: Path | None) -> tuple[Path | None, str | None]:
+    """Resolve command executables without leaking relative paths to the caller cwd."""
+    if not executable:
+        return None, "command requirement must include an executable"
+
+    if "/" not in executable and "\\" not in executable:
+        path = shutil.which(executable)
+        return (Path(path).resolve(strict=False), None) if path else (None, f"{executable} not found on PATH")
+
+    normalized_executable = executable.replace("\\", "/")
+    executable_path = Path(normalized_executable).expanduser()
+    windows_absolute = re.match(r"^[A-Za-z]:/", normalized_executable) is not None
+    if executable_path.is_absolute() or windows_absolute:
+        path = shutil.which(executable)
+        if path:
+            return Path(path).resolve(strict=False), None
+    if executable_path.is_absolute():
+        candidate = executable_path.resolve(strict=False)
+    elif windows_absolute:
+        return None, f"{executable} not found on PATH"
+    elif cwd is not None:
+        candidate = (cwd / executable_path).resolve(strict=False)
+    else:
+        return None, f"repo-local command executable requires a project workspace: {executable}"
+
+    if not _path_within_workspace_roots(candidate, cwd=cwd):
+        return None, f"repo-local command executable must stay within the project roots: {executable}"
+    if not candidate.is_file():
+        return None, f"repo-local command executable not found: {executable} (looked under {candidate})"
+    if not os.access(candidate, os.X_OK):
+        return None, f"repo-local command executable is not executable: {executable} (resolved to {candidate})"
+    return candidate, None
 
 
 def _missing_python_script_target_issue(target: str, *, cwd: Path | None) -> str | None:
@@ -600,13 +630,13 @@ def _probe_tool(requirement: PlanToolRequirement, *, cwd: Path | None = None) ->
         executable, parse_error = _command_executable(command)
         if parse_error is not None:
             return False, parse_error, "command", []
-        path = shutil.which(executable) if executable else None
-        if path:
+        path, executable_error = _command_executable_probe_path(executable, cwd=cwd)
+        if path is not None:
             target_issue = _command_target_issue(command, cwd=cwd)
             if target_issue is not None:
                 return False, target_issue, "command", []
-            return True, f"{executable} found at {Path(path).resolve(strict=False)}", "command", []
-        return False, f"{executable} not found on PATH", "command", []
+            return True, f"{executable} found at {path}", "command", []
+        return False, executable_error or f"{executable} not found on PATH", "command", []
 
     if requirement.tool == "wolfram":
         path = shutil.which("wolframscript")
@@ -638,15 +668,7 @@ def _probe_tool(requirement: PlanToolRequirement, *, cwd: Path | None = None) ->
         )
         return False, detail, WOLFRAM_MANAGED_SERVER_KEY, warnings
 
-    spec = _TOOL_SPECS.get(requirement.tool)
-    if spec is None or spec.command is None:
-        return False, f"no probe implemented for tool {requirement.tool}", "unknown", []
-
-    path = shutil.which(spec.command)
-    warnings = [spec.warning] if spec.warning else []
-    if path:
-        return True, f"{spec.command} found at {Path(path).resolve(strict=False)}", spec.provider, warnings
-    return False, f"{spec.command} not found on PATH", spec.provider, warnings
+    return False, f"no probe implemented for tool {requirement.tool}", "unknown", []
 
 
 def _knowledge_dependency_status(record) -> str:
