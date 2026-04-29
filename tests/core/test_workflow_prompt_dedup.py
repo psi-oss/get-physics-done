@@ -425,3 +425,27 @@ def test_bibliographer_delegates_return_boilerplate_to_agent_infrastructure() ->
         "Return `gpd_return.status: completed`, `checkpoint`, `blocked`, or `failed`.",
     ):
         assert removed_phrase not in text
+
+
+def test_research_agents_delegate_file_templates_to_canonical_templates() -> None:
+    project_researcher = (AGENTS_DIR / "gpd-project-researcher.md").read_text(encoding="utf-8")
+    phase_researcher = (AGENTS_DIR / "gpd-phase-researcher.md").read_text(encoding="utf-8")
+
+    for template_name in (
+        "SUMMARY.md",
+        "PRIOR-WORK.md",
+        "METHODS.md",
+        "COMPUTATIONAL.md",
+        "PITFALLS.md",
+    ):
+        assert f"{{GPD_INSTALL_DIR}}/templates/research-project/{template_name}" in project_researcher
+
+    assert "Do not inline the project-literature skeletons here." in project_researcher
+    assert "# Research Summary: [Project Name]" not in project_researcher
+    assert "### Governing Theory" not in project_researcher
+    assert "## FEASIBILITY.md (feasibility mode only)" not in project_researcher
+
+    assert "{GPD_INSTALL_DIR}/templates/research.md" in phase_researcher
+    assert "Do not inline or reconstruct a second full `RESEARCH.md` skeleton here." in phase_researcher
+    assert "# Phase [X]: [Name] - Research" not in phase_researcher
+    assert "### Package / Framework Reuse Decision" in phase_researcher

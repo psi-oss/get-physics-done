@@ -1,6 +1,46 @@
 {
   "schema_version": 1,
   "workflow_id": "quick",
+  "required_init_field_groups": {
+    "task_common": [
+      "planner_model",
+      "executor_model",
+      "commit_docs",
+      "autonomy",
+      "research_mode",
+      "next_num",
+      "slug",
+      "description",
+      "date",
+      "timestamp",
+      "quick_dir",
+      "task_dir",
+      "roadmap_exists",
+      "project_exists",
+      "planning_exists",
+      "platform",
+      "project_contract",
+      "project_contract_gate",
+      "project_contract_load_info",
+      "project_contract_validation"
+    ],
+    "reference_runtime_context": [
+      "contract_intake",
+      "effective_reference_intake",
+      "selected_protocol_bundle_ids",
+      "protocol_bundle_count",
+      "protocol_bundle_context",
+      "protocol_bundle_verifier_extensions",
+      "active_reference_context",
+      "reference_artifact_files",
+      "reference_artifacts_content",
+      "literature_review_files",
+      "literature_review_count",
+      "research_map_reference_files",
+      "research_map_reference_count",
+      "derived_manuscript_proof_review_status"
+    ]
+  },
   "stages": [
     {
       "id": "task_bootstrap",
@@ -9,27 +49,8 @@
       "mode_paths": [
         "workflows/quick.md"
       ],
-      "required_init_fields": [
-        "planner_model",
-        "executor_model",
-        "commit_docs",
-        "autonomy",
-        "research_mode",
-        "next_num",
-        "slug",
-        "description",
-        "date",
-        "timestamp",
-        "quick_dir",
-        "task_dir",
-        "roadmap_exists",
-        "project_exists",
-        "planning_exists",
-        "platform",
-        "project_contract",
-        "project_contract_gate",
-        "project_contract_load_info",
-        "project_contract_validation"
+      "required_init_field_groups": [
+        "task_common"
       ],
       "loaded_authorities": [
         "workflows/quick.md"
@@ -73,41 +94,9 @@
       "mode_paths": [
         "workflows/quick.md"
       ],
-      "required_init_fields": [
-        "planner_model",
-        "executor_model",
-        "commit_docs",
-        "autonomy",
-        "research_mode",
-        "next_num",
-        "slug",
-        "description",
-        "date",
-        "timestamp",
-        "quick_dir",
-        "task_dir",
-        "roadmap_exists",
-        "project_exists",
-        "planning_exists",
-        "platform",
-        "project_contract",
-        "project_contract_gate",
-        "project_contract_load_info",
-        "project_contract_validation",
-        "contract_intake",
-        "effective_reference_intake",
-        "selected_protocol_bundle_ids",
-        "protocol_bundle_count",
-        "protocol_bundle_context",
-        "protocol_bundle_verifier_extensions",
-        "active_reference_context",
-        "reference_artifact_files",
-        "reference_artifacts_content",
-        "literature_review_files",
-        "literature_review_count",
-        "research_map_reference_files",
-        "research_map_reference_count",
-        "derived_manuscript_proof_review_status"
+      "required_init_field_groups": [
+        "task_common",
+        "reference_runtime_context"
       ],
       "loaded_authorities": [
         "workflows/quick.md"

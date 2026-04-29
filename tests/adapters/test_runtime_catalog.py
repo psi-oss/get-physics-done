@@ -320,6 +320,43 @@ def test_runtime_catalog_schema_dataclass_keys_stay_in_sync() -> None:
     assert set(schema["manifest_metadata_list_value_kinds"]) == {"path_segment", "relpath"}
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("hooks/statusline.py", "hooks/statusline.py"),
+        ("skills/gpd-help/SKILL.md", "skills/gpd-help/SKILL.md"),
+        ("../hooks/statusline.py", None),
+        ("hooks//statusline.py", None),
+        ("hooks\\statusline.py", None),
+        ("/tmp/hooks/statusline.py", None),
+        ("C:/tmp/hooks/statusline.py", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_manifest_relpath_validation_lives_in_runtime_catalog(value: object, expected: str | None) -> None:
+    assert runtime_catalog.normalize_manifest_relpath(value) == expected
+
+
+def test_managed_install_glob_helpers_use_catalog_semantics(tmp_path: Path) -> None:
+    root = tmp_path / "runtime"
+    command_path = root / "commands" / "gpd" / "help.md"
+    command_path.parent.mkdir(parents=True)
+    command_path.write_text("help\n", encoding="utf-8")
+
+    assert runtime_catalog.managed_install_glob_static_root("commands/gpd/**/*.md") == "commands/gpd"
+    assert runtime_catalog.managed_install_globs_have_files(
+        root,
+        ("commands/gpd/**/*.md",),
+        on_error=False,
+    )
+    assert not runtime_catalog.managed_install_globs_have_files(
+        root,
+        ("agents/gpd-*.md",),
+        on_error=False,
+    )
+
+
 def test_runtime_catalog_entries_omit_default_capability_values() -> None:
     catalog_payload = json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8"))
     schema = json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -546,12 +583,15 @@ def test_manifest_metadata_list_policy_key_matches_runtime_descriptor_policy() -
     assert get_manifest_metadata_list_policy_key("gemini", value_kind="relpath") == (
         get_runtime_descriptor("gemini").manifest_metadata_list_policies[0].key
     )
-    assert get_manifest_metadata_list_policy_key(
-        "opencode",
-        value_kind="path_segment",
-        item_prefix="gpd-",
-        item_suffix=".md",
-    ) == get_runtime_descriptor("opencode").manifest_metadata_list_policies[0].key
+    assert (
+        get_manifest_metadata_list_policy_key(
+            "opencode",
+            value_kind="path_segment",
+            item_prefix="gpd-",
+            item_suffix=".md",
+        )
+        == get_runtime_descriptor("opencode").manifest_metadata_list_policies[0].key
+    )
 
 
 def test_runtime_catalog_source_does_not_hardcode_managed_agent_globs() -> None:

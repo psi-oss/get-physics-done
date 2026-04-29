@@ -46,6 +46,8 @@ from gpd.adapters.runtime_catalog import (
     get_managed_install_surface_policy,
     get_runtime_descriptor,
     get_shared_install_metadata,
+    managed_install_glob_static_root,
+    managed_install_globs_have_files,
     resolve_global_config_dir,
 )
 from gpd.adapters.tool_names import (
@@ -179,30 +181,6 @@ def _catalog_command_surface_label(pattern: str) -> str:
     return normalized
 
 
-def _catalog_static_glob_root(pattern: str) -> str:
-    """Return the non-glob parent/root portion of a managed catalog pattern."""
-    parts: list[str] = []
-    for part in pattern.replace("\\", "/").strip("/").split("/"):
-        if not part or any(char in part for char in "*?["):
-            break
-        parts.append(part)
-    return "/".join(parts)
-
-
-def _catalog_globs_have_files(target_dir: Path, patterns: tuple[str, ...]) -> bool:
-    """Return whether any catalog glob selects an installed file."""
-    try:
-        for pattern in patterns:
-            for match in target_dir.glob(pattern):
-                if match.is_file():
-                    return True
-                if match.is_dir() and _dir_contains_files(match):
-                    return True
-    except OSError:
-        return False
-    return False
-
-
 def _existing_catalog_glob_paths(target_dir: Path, patterns: tuple[str, ...]) -> tuple[Path, ...]:
     """Return existing paths selected by catalog globs."""
     matches: list[Path] = []
@@ -261,7 +239,7 @@ def _scoped_install_rollback_paths(adapter: RuntimeAdapter, gpd_root: Path, targ
         policy = None
     if policy is not None:
         for pattern in policy.nested_command_globs:
-            static_root = _catalog_static_glob_root(pattern)
+            static_root = managed_install_glob_static_root(pattern)
             if static_root:
                 paths.append(target_dir / static_root)
         paths.extend(_existing_catalog_glob_paths(target_dir, policy.flat_command_globs))
@@ -287,7 +265,7 @@ def _remove_catalog_owned_files(target_dir: Path, patterns: tuple[str, ...], *, 
     parents: set[Path] = set()
     roots: set[Path] = set()
     for pattern in patterns:
-        static_root = _catalog_static_glob_root(pattern)
+        static_root = managed_install_glob_static_root(pattern)
         if static_root:
             roots.add(target_dir / static_root)
         try:
@@ -313,7 +291,7 @@ def _remove_catalog_owned_files(target_dir: Path, patterns: tuple[str, ...], *, 
 def _prune_catalog_roots(target_dir: Path, patterns: tuple[str, ...], *, stop_at: Path) -> None:
     """Prune empty static roots for catalog-owned managed-surface globs."""
     for pattern in patterns:
-        static_root = _catalog_static_glob_root(pattern)
+        static_root = managed_install_glob_static_root(pattern)
         if static_root:
             prune_empty_ancestors(target_dir / static_root, stop_at=stop_at)
 
@@ -615,14 +593,14 @@ class RuntimeAdapter(abc.ABC):
             command_policy = None
         if command_policy is not None:
             for pattern in (*command_policy.nested_command_globs, *command_policy.flat_command_globs):
-                if not _catalog_globs_have_files(target_dir, (pattern,)):
+                if not managed_install_globs_have_files(target_dir, (pattern,), on_error=False):
                     missing.append(_catalog_command_surface_label(pattern))
             manifest_files = self._read_install_manifest(target_dir).get("files")
             tracked_paths = tuple(str(path) for path in manifest_files) if isinstance(manifest_files, dict) else ()
             for pattern in command_policy.managed_agent_globs:
                 if not any(fnmatch.fnmatchcase(path, pattern) for path in tracked_paths):
                     continue
-                if not _catalog_globs_have_files(target_dir, (pattern,)):
+                if not managed_install_globs_have_files(target_dir, (pattern,), on_error=False):
                     missing.append(_catalog_command_surface_label(pattern))
         return tuple(missing)
 

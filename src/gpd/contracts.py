@@ -58,6 +58,8 @@ __all__ = [
     "PROJECT_CONTRACT_TOP_LEVEL_LIST_FIELDS",
     "PROJECT_CONTRACT_COLLECTION_LIST_FIELDS",
     "PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS",
+    "PROJECT_CONTRACT_REQUIRED_SECTION_FIELDS",
+    "PROJECT_CONTRACT_REQUIRED_UNCERTAINTY_MARKER_FIELDS",
     "ContractScope",
     "ContractContextIntake",
     "ContractApproachPolicy",
@@ -684,28 +686,9 @@ def _has_concrete_must_surface_reference(
 
 PROJECT_CONTRACT_MAPPING_LIST_FIELDS: dict[str, tuple[str, ...]] = {
     "scope": ("in_scope", "out_of_scope", "unresolved_questions"),
-    "context_intake": (
-        "must_read_refs",
-        "must_include_prior_outputs",
-        "user_asserted_anchors",
-        "known_good_baselines",
-        "context_gaps",
-        "crucial_inputs",
-    ),
-    "approach_policy": (
-        "formulations",
-        "allowed_estimator_families",
-        "forbidden_estimator_families",
-        "allowed_fit_families",
-        "forbidden_fit_families",
-        "stop_and_rethink_conditions",
-    ),
-    "uncertainty_markers": (
-        "weakest_anchors",
-        "unvalidated_assumptions",
-        "competing_explanations",
-        "disconfirming_observations",
-    ),
+    "context_intake": CONTRACT_CONTEXT_INTAKE_FIELD_NAMES,
+    "approach_policy": CONTRACT_APPROACH_POLICY_FIELD_NAMES,
+    "uncertainty_markers": CONTRACT_UNCERTAINTY_MARKER_FIELD_NAMES,
 }
 PROJECT_CONTRACT_TOP_LEVEL_LIST_FIELDS: tuple[str, ...] = (
     "observables",
@@ -727,6 +710,16 @@ PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS: dict[tuple[str, str], tuple[str,
     ("claims", "parameters"): ("aliases",),
     ("claims", "hypotheses"): ("symbols",),
 }
+PROJECT_CONTRACT_REQUIRED_SECTION_FIELDS: tuple[str, ...] = (
+    "schema_version",
+    "scope",
+    "context_intake",
+    "uncertainty_markers",
+)
+PROJECT_CONTRACT_REQUIRED_UNCERTAINTY_MARKER_FIELDS: tuple[str, ...] = (
+    "weakest_anchors",
+    "disconfirming_observations",
+)
 
 
 def _collect_project_contract_list_member_errors(data: object) -> list[str]:
@@ -1100,12 +1093,7 @@ def _collect_strict_contract_results_errors(value: _StrictContractResultsInput) 
 
     markers = value.get("uncertainty_markers")
     if isinstance(markers, dict):
-        for field_name in (
-            "weakest_anchors",
-            "unvalidated_assumptions",
-            "competing_explanations",
-            "disconfirming_observations",
-        ):
+        for field_name in CONTRACT_UNCERTAINTY_MARKER_FIELD_NAMES:
             if isinstance(markers.get(field_name), str):
                 errors.append(f"uncertainty_markers.{field_name} must be a list, not str")
             _check_string_list_entries(

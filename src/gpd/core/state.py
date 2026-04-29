@@ -26,6 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import (
+    PROJECT_CONTRACT_REQUIRED_UNCERTAINTY_MARKER_FIELDS,
     ConventionLock,
     ProjectContractParseResult,
     ResearchContract,
@@ -795,7 +796,7 @@ def _project_contract_missing_required_schema_errors(raw_contract: object) -> li
     else:
         uncertainty_markers = raw_contract.get("uncertainty_markers")
         if isinstance(uncertainty_markers, dict):
-            for field_name in ("weakest_anchors", "disconfirming_observations"):
+            for field_name in PROJECT_CONTRACT_REQUIRED_UNCERTAINTY_MARKER_FIELDS:
                 if field_name not in uncertainty_markers:
                     errors.append(f"uncertainty_markers.{field_name} is required")
 
@@ -3880,6 +3881,7 @@ def _project_contract_runtime_payload_for_state(
     if contract is not None:
         from gpd.core.context import (
             _canonicalize_project_contract,
+            _empty_reference_intake,
             _merge_active_references,
             _merge_reference_intake,
             _serialize_active_references,
@@ -3888,14 +3890,7 @@ def _project_contract_runtime_payload_for_state(
         active_references = _merge_active_references(_serialize_active_references(contract), [])
         effective_reference_intake = _merge_reference_intake(
             contract,
-            {
-                "must_read_refs": [],
-                "must_include_prior_outputs": [],
-                "user_asserted_anchors": [],
-                "known_good_baselines": [],
-                "context_gaps": [],
-                "crucial_inputs": [],
-            },
+            _empty_reference_intake(),
             active_references,
         )
         contract, canonicalization_warnings = _canonicalize_project_contract(

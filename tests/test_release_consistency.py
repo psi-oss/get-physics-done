@@ -29,7 +29,15 @@ from scripts.release_workflow import (
     update_readme_version_text,
 )
 from tests.ci_sharding import assert_ci_workflow_pytest_shard_policy
-from tests.helpers.github_actions import load_github_actions_workflow
+from tests.helpers.git import (
+    git_add,
+    git_commit,
+    git_identity_env,
+    init_test_git_repo,
+    run_git,
+    seed_test_git_repo,
+)
+from tests.helpers.github_actions import load_repo_github_actions_workflow, workflow_step_by_name, workflow_steps_using
 from tests.helpers.release import (
     EXPECTED_SETUP_UV_VERSION,
     assert_run_step_uses_isolated_uv_build_env,
@@ -73,17 +81,6 @@ _EXPECTED_OPTIONAL_DEPENDENCY_EXTRAS = {
     "pypdf": {"arxiv", "paper"},
 }
 _EXPECTED_BUILD_BACKEND_REQUIREMENT = "hatchling==1.29.0"
-
-
-def _workflow_step_by_name(repo_root: Path, workflow_name: str, job_name: str, step_name: str) -> dict[str, object]:
-    workflow = load_github_actions_workflow(repo_root / ".github" / "workflows" / workflow_name)
-    job = workflow["jobs"][job_name]
-    assert isinstance(job, dict)
-    for step in job["steps"]:
-        assert isinstance(step, dict)
-        if step.get("name") == step_name:
-            return step
-    raise AssertionError(f"{workflow_name}:{job_name} is missing step {step_name!r}")
 
 
 def _project_script_lines(repo_root: Path) -> list[str]:
@@ -641,7 +638,7 @@ def test_public_cli_surface_is_unified() -> None:
 def test_merge_gate_workflow_uses_main_branch_pytest_on_python_floor() -> None:
     repo_root = _repo_root()
     workflow = (repo_root / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
-    workflow_data = yaml.safe_load(workflow)
+    workflow_data = load_repo_github_actions_workflow(repo_root, "test.yml")
     pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
 
     assert "name: tests" in workflow
@@ -849,15 +846,10 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "git merge-base --is-ancestor HEAD" in workflow
     assert "scripts/release_workflow.py show-version" in workflow
     assert "scripts/release_workflow.py stamp-publish-date" in workflow
-    workflow_data = load_github_actions_workflow(repo_root / ".github" / "workflows" / "publish-release.yml")
-    setup_uv_steps = [
-        step
-        for job in workflow_data["jobs"].values()
-        for step in job.get("steps", [])
-        if isinstance(step, dict) and step.get("uses") == "astral-sh/setup-uv@v7"
-    ]
+    workflow_data = load_repo_github_actions_workflow(repo_root, "publish-release.yml")
+    setup_uv_steps = workflow_steps_using(workflow_data, "astral-sh/setup-uv@v7")
     assert setup_uv_steps
-    for step in setup_uv_steps:
+    for _, step in setup_uv_steps:
         assert_setup_uv_step_pins_expected_version(step, context="publish-release.yml")
     assert "Check existing release tag safety" in workflow
     assert 'TAG_SHA="$(git rev-list -n 1 "v${VERSION}")"' in workflow
@@ -979,12 +971,14 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
 def test_release_workflow_uv_build_steps_use_isolated_uv_environment() -> None:
     repo_root = _repo_root()
 
+    release_workflow = load_repo_github_actions_workflow(repo_root, "release.yml")
+    publish_workflow = load_repo_github_actions_workflow(repo_root, "publish-release.yml")
     assert_run_step_uses_isolated_uv_build_env(
-        _workflow_step_by_name(repo_root, "release.yml", "prepare-release", "Run release validation suite"),
+        workflow_step_by_name(release_workflow, "prepare-release", "Run release validation suite"),
         context="release.yml prepare-release Run release validation suite",
     )
     assert_run_step_uses_isolated_uv_build_env(
-        _workflow_step_by_name(repo_root, "publish-release.yml", "build-release", "Build Python distributions"),
+        workflow_step_by_name(publish_workflow, "build-release", "Build Python distributions"),
         context="publish-release.yml build-release Build Python distributions",
     )
 
@@ -995,14 +989,11 @@ def test_release_workflows_pin_setup_uv_tool_version_structurally() -> None:
     setup_uv_step_count = 0
 
     for workflow_name in workflow_names:
-        workflow = load_github_actions_workflow(repo_root / ".github" / "workflows" / workflow_name)
-        for job_id, job in workflow["jobs"].items():
-            assert isinstance(job, dict)
-            for step in job.get("steps", []):
-                assert isinstance(step, dict)
-                if step.get("uses") == "astral-sh/setup-uv@v7":
-                    setup_uv_step_count += 1
-                    assert_setup_uv_step_pins_expected_version(step, context=f"{workflow_name}:{job_id}")
+        workflow = load_repo_github_actions_workflow(repo_root, workflow_name)
+        setup_uv_steps = workflow_steps_using(workflow, "astral-sh/setup-uv@v7")
+        setup_uv_step_count += len(setup_uv_steps)
+        for job_id, step in setup_uv_steps:
+            assert_setup_uv_step_pins_expected_version(step, context=f"{workflow_name}:{job_id}")
 
     assert setup_uv_step_count == 3
 
@@ -1278,7 +1269,7 @@ def test_gitignore_does_not_exclude_gpd_directory() -> None:
 def test_gitignore_only_excludes_specific_repo_root_gpd_state_noise(tmp_path: Path) -> None:
     """State lock/backup files are local crash-recovery noise, not project docs."""
     repo_root = _repo_root()
-    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    init_test_git_repo(tmp_path)
     (tmp_path / ".gitignore").write_text((repo_root / ".gitignore").read_text(encoding="utf-8"), encoding="utf-8")
 
     ignored = ("GPD/state.json.bak", "GPD/state.json.lock")
@@ -1290,22 +1281,24 @@ def test_gitignore_only_excludes_specific_repo_root_gpd_state_noise(tmp_path: Pa
         path.write_text("local state\n", encoding="utf-8")
 
     for relpath in ignored:
-        result = subprocess.run(
-            ["git", "check-ignore", "--quiet", "--", relpath],
-            cwd=tmp_path,
+        result = run_git(
+            tmp_path,
+            "check-ignore",
+            "--quiet",
+            "--",
+            relpath,
             check=False,
-            capture_output=True,
-            text=True,
         )
         assert result.returncode == 0, f"{relpath} should be ignored"
 
     for relpath in visible:
-        result = subprocess.run(
-            ["git", "check-ignore", "--quiet", "--", relpath],
-            cwd=tmp_path,
+        result = run_git(
+            tmp_path,
+            "check-ignore",
+            "--quiet",
+            "--",
+            relpath,
             check=False,
-            capture_output=True,
-            text=True,
         )
         assert result.returncode == 1, f"{relpath} should stay visible to git"
 
@@ -1334,36 +1327,19 @@ def test_block_gpd_commit_hook_unstages_gpd_files(tmp_path: Path) -> None:
     hook_script = repo_root / "scripts" / "block-gpd-commit.sh"
 
     # Set up a throwaway git repo.
-    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "config", "user.email", "test@test.com"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-    )
+    init_test_git_repo(tmp_path, user_name="Test", user_email="test@test.com")
 
     # Seed an initial commit so HEAD exists.
     (tmp_path / "README.md").write_text("seed\n", encoding="utf-8")
-    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "init"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-    )
+    git_add(tmp_path, "README.md")
+    git_commit(tmp_path, "init")
 
     # Stage a GPD file and a non-GPD file.
     gpd_dir = tmp_path / "GPD"
     gpd_dir.mkdir()
     (gpd_dir / "STATE.md").write_text("state\n", encoding="utf-8")
     (tmp_path / "real.txt").write_text("real\n", encoding="utf-8")
-    subprocess.run(["git", "add", "GPD/STATE.md", "real.txt"], cwd=tmp_path, check=True, capture_output=True)
+    git_add(tmp_path, "GPD/STATE.md", "real.txt")
 
     # Run the hook script.
     result = subprocess.run(
@@ -1376,13 +1352,7 @@ def test_block_gpd_commit_hook_unstages_gpd_files(tmp_path: Path) -> None:
     assert result.returncode == 0
 
     # GPD/STATE.md should be unstaged; real.txt should remain staged.
-    staged = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    staged = run_git(tmp_path, "diff", "--cached", "--name-only")
     staged_files = staged.stdout.strip().splitlines()
     assert "real.txt" in staged_files
     assert "GPD/STATE.md" not in staged_files
@@ -1392,23 +1362,12 @@ def test_human_author_check_rejects_lowercase_codex_coauthor_in_range(tmp_path: 
     repo_root = _repo_root()
     hook_script = repo_root / "scripts" / "check-human-authors.sh"
 
-    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
-    subprocess.run(["git", "config", "user.email", "human@example.com"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "config", "user.name", "Human Author"], cwd=tmp_path, check=True)
-
-    (tmp_path / "README.md").write_text("seed\n", encoding="utf-8")
-    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
-    subprocess.run(["git", "commit", "-m", "seed"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    init_test_git_repo(tmp_path)
+    seed_test_git_repo(tmp_path)
 
     (tmp_path / "README.md").write_text("seed\nchange\n", encoding="utf-8")
-    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
-    subprocess.run(
-        ["git", "commit", "-m", "change", "-m", "co-authored-by: Codex"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    git_add(tmp_path, "README.md")
+    git_commit(tmp_path, "change", extra_message="co-authored-by: Codex")
 
     result = subprocess.run(
         ["sh", str(hook_script), "--range", "HEAD~1..HEAD"],
@@ -1428,32 +1387,20 @@ def test_human_author_check_rejects_nonhuman_author_and_committer_in_range(tmp_p
     repo_root = _repo_root()
     hook_script = repo_root / "scripts" / "check-human-authors.sh"
 
-    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
-    subprocess.run(["git", "config", "user.email", "human@example.com"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "config", "user.name", "Human Author"], cwd=tmp_path, check=True)
-
-    (tmp_path / "README.md").write_text("seed\n", encoding="utf-8")
-    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
-    subprocess.run(["git", "commit", "-m", "seed"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    init_test_git_repo(tmp_path)
+    seed_test_git_repo(tmp_path)
 
     (tmp_path / "README.md").write_text("seed\nchange\n", encoding="utf-8")
-    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
-    env = os.environ.copy()
-    env.update(
-        {
-            "GIT_AUTHOR_NAME": "Codex Bot",
-            "GIT_AUTHOR_EMAIL": "codex@example.com",
-            "GIT_COMMITTER_NAME": "Copilot Bot",
-            "GIT_COMMITTER_EMAIL": "copilot@example.com",
-        }
-    )
-    subprocess.run(
-        ["git", "commit", "-m", "ai attributed"],
-        cwd=tmp_path,
-        env=env,
-        check=True,
-        capture_output=True,
-        text=True,
+    git_add(tmp_path, "README.md")
+    git_commit(
+        tmp_path,
+        "ai attributed",
+        env=git_identity_env(
+            author_name="Codex Bot",
+            author_email="codex@example.com",
+            committer_name="Copilot Bot",
+            committer_email="copilot@example.com",
+        ),
     )
 
     result = subprocess.run(
@@ -1476,72 +1423,42 @@ def test_human_author_check_allows_explicit_repository_automation_identities(tmp
 
     assert dependabot_config["updates"], "Dependabot remains enabled, so its exact bot identity must be allowed"
 
-    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
-    subprocess.run(["git", "config", "user.email", "human@example.com"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "config", "user.name", "Human Author"], cwd=tmp_path, check=True)
-
-    (tmp_path / "README.md").write_text("seed\n", encoding="utf-8")
-    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
-    subprocess.run(["git", "commit", "-m", "seed"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    init_test_git_repo(tmp_path)
+    seed_test_git_repo(tmp_path)
 
     (tmp_path / "README.md").write_text("seed\nrelease\n", encoding="utf-8")
-    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
-    automation_env = os.environ.copy()
-    automation_env.update(
-        {
-            "GIT_AUTHOR_NAME": "github-actions[bot]",
-            "GIT_AUTHOR_EMAIL": "41898282+github-actions[bot]@users.noreply.github.com",
-            "GIT_COMMITTER_NAME": "github-actions[bot]",
-            "GIT_COMMITTER_EMAIL": "41898282+github-actions[bot]@users.noreply.github.com",
-        }
-    )
-    subprocess.run(
-        ["git", "commit", "-m", "release: v9.9.9"],
-        cwd=tmp_path,
-        env=automation_env,
-        check=True,
-        capture_output=True,
-        text=True,
+    git_add(tmp_path, "README.md")
+    git_commit(
+        tmp_path,
+        "release: v9.9.9",
+        env=git_identity_env(
+            author_name="github-actions[bot]",
+            author_email="41898282+github-actions[bot]@users.noreply.github.com",
+        ),
     )
 
     (tmp_path / "README.md").write_text("seed\nrelease\ndependabot\n", encoding="utf-8")
-    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
-    dependabot_env = os.environ.copy()
-    dependabot_env.update(
-        {
-            "GIT_AUTHOR_NAME": "dependabot[bot]",
-            "GIT_AUTHOR_EMAIL": "49699333+dependabot[bot]@users.noreply.github.com",
-            "GIT_COMMITTER_NAME": "dependabot[bot]",
-            "GIT_COMMITTER_EMAIL": "49699333+dependabot[bot]@users.noreply.github.com",
-        }
-    )
-    subprocess.run(
-        ["git", "commit", "-m", "build(deps): bump actions/setup-python from 5 to 6"],
-        cwd=tmp_path,
-        env=dependabot_env,
-        check=True,
-        capture_output=True,
-        text=True,
+    git_add(tmp_path, "README.md")
+    git_commit(
+        tmp_path,
+        "build(deps): bump actions/setup-python from 5 to 6",
+        env=git_identity_env(
+            author_name="dependabot[bot]",
+            author_email="49699333+dependabot[bot]@users.noreply.github.com",
+        ),
     )
 
     (tmp_path / "README.md").write_text("seed\nrelease\ndependabot\nmerge\n", encoding="utf-8")
-    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
-    github_merge_env = os.environ.copy()
-    github_merge_env.update(
-        {
-            "GIT_AUTHOR_NAME": "Human Author",
-            "GIT_AUTHOR_EMAIL": "human@example.com",
-            "GIT_COMMITTER_NAME": "GitHub",
-            "GIT_COMMITTER_EMAIL": "noreply@github.com",
-        }
-    )
-    subprocess.run(
-        ["git", "commit", "-m", "Merge pull request #999 from psi-oss/release/v9.9.9"],
-        cwd=tmp_path,
-        env=github_merge_env,
-        check=True,
-        capture_output=True,
-        text=True,
+    git_add(tmp_path, "README.md")
+    git_commit(
+        tmp_path,
+        "Merge pull request #999 from psi-oss/release/v9.9.9",
+        env=git_identity_env(
+            author_name="Human Author",
+            author_email="human@example.com",
+            committer_name="GitHub",
+            committer_email="noreply@github.com",
+        ),
     )
 
     result = subprocess.run(
@@ -1560,9 +1477,7 @@ def test_human_author_commit_msg_hook_rejects_nonhuman_current_identity(tmp_path
     repo_root = _repo_root()
     hook_script = repo_root / "scripts" / "check-human-authors.sh"
 
-    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
-    subprocess.run(["git", "config", "user.email", "codex@example.com"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "config", "user.name", "Codex Bot"], cwd=tmp_path, check=True)
+    init_test_git_repo(tmp_path, user_name="Codex Bot", user_email="codex@example.com")
     message_path = tmp_path / "COMMIT_EDITMSG"
     message_path.write_text("change\n", encoding="utf-8")
 
@@ -1583,13 +1498,8 @@ def test_human_author_check_fails_closed_on_invalid_range(tmp_path: Path) -> Non
     repo_root = _repo_root()
     hook_script = repo_root / "scripts" / "check-human-authors.sh"
 
-    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
-    subprocess.run(["git", "config", "user.email", "human@example.com"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "config", "user.name", "Human Author"], cwd=tmp_path, check=True)
-
-    (tmp_path / "README.md").write_text("seed\n", encoding="utf-8")
-    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
-    subprocess.run(["git", "commit", "-m", "seed"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    init_test_git_repo(tmp_path)
+    seed_test_git_repo(tmp_path)
 
     result = subprocess.run(
         ["sh", str(hook_script), "--range", "missing-base..HEAD"],
@@ -1608,21 +1518,13 @@ def test_release_test_checkout_fixture_copies_only_tracked_files(tmp_path: Path)
     checkout_root = tmp_path / "checkout"
     source_root.mkdir()
 
-    subprocess.run(["git", "init"], cwd=source_root, check=True, capture_output=True, text=True)
-    subprocess.run(["git", "config", "user.email", "human@example.com"], cwd=source_root, check=True)
-    subprocess.run(["git", "config", "user.name", "Human Author"], cwd=source_root, check=True)
+    init_test_git_repo(source_root)
 
     (source_root / ".gitignore").write_text("ignored-artifact.txt\n", encoding="utf-8")
     (source_root / "tracked.txt").write_text("tracked from working tree\n", encoding="utf-8")
     (source_root / "nested").mkdir()
     (source_root / "nested" / "tracked.py").write_text("print('tracked')\n", encoding="utf-8")
-    subprocess.run(
-        ["git", "add", ".gitignore", "tracked.txt", "nested/tracked.py"],
-        cwd=source_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    git_add(source_root, ".gitignore", "tracked.txt", "nested/tracked.py")
     (source_root / "untracked-artifact.txt").write_text("untracked\n", encoding="utf-8")
     (source_root / "ignored-artifact.txt").write_text("ignored\n", encoding="utf-8")
 

@@ -14,12 +14,14 @@ import re
 import shlex
 import sys
 from collections.abc import Callable
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path, PurePosixPath
 
 from gpd.adapters.runtime_catalog import (
     get_managed_install_surface_policy,
     get_runtime_descriptor,
     get_shared_install_metadata,
+    normalize_manifest_relpath,
+    paths_equal,
     resolve_global_config_dir,
 )
 from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES
@@ -78,29 +80,6 @@ HOOK_SCRIPTS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
-def normalize_manifest_relpath(value: object) -> str | None:
-    """Return a safe POSIX manifest relpath, or ``None`` when untrusted.
-
-    Install manifests are local metadata and must never be allowed to redirect
-    cleanup or backup I/O outside the runtime-controlled roots.  Keep this
-    check independent of the host OS so a manifest forged on one platform is
-    still unsafe on another.
-    """
-    if not isinstance(value, str) or not value:
-        return None
-    if "\\" in value:
-        return None
-    if PurePosixPath(value).is_absolute():
-        return None
-    windows_path = PureWindowsPath(value)
-    if windows_path.is_absolute() or windows_path.drive:
-        return None
-    parts = value.split("/")
-    if any(part in {"", ".", ".."} for part in parts):
-        return None
-    return PurePosixPath(*parts).as_posix()
-
-
 def expand_tilde(file_path: str | None) -> str | None:
     """Expand ``~`` to the user home directory.
 
@@ -124,14 +103,6 @@ def _normalize_install_scope_flag(install_scope: str | None) -> str | None:
     if install_scope in ("global", "--global"):
         return "--global"
     return install_scope
-
-
-def _paths_equal(left: Path, right: Path) -> bool:
-    """Return whether two paths refer to the same location when comparable."""
-    try:
-        return left.expanduser().resolve() == right.expanduser().resolve()
-    except OSError:
-        return left.expanduser() == right.expanduser()
 
 
 def _dir_contains_files(path: Path) -> bool:
@@ -177,7 +148,7 @@ def prune_empty_ancestors(path: Path, *, stop_at: Path | None = None) -> None:
     """Remove *path* and empty ancestor directories until *stop_at* is reached."""
     current = path
     while True:
-        if stop_at is not None and _paths_equal(current, stop_at):
+        if stop_at is not None and paths_equal(current, stop_at):
             return
         if not current.exists() or not current.is_dir():
             return
@@ -1829,7 +1800,7 @@ def write_manifest(
     elif normalized_runtime and normalized_scope in {"--local", "--global"}:
         default_target = _default_install_target(normalized_runtime, normalized_scope)
         if default_target is not None:
-            manifest["explicit_target"] = not _paths_equal(config_dir, default_target)
+            manifest["explicit_target"] = not paths_equal(config_dir, default_target)
     files: dict[str, str] = {}
 
     # Managed install root

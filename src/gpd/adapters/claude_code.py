@@ -226,10 +226,6 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             )
         )
 
-    def _install_version(self, target_dir: Path, version: str, failures: list[str]) -> None:
-        """Write VERSION into the shared GPD content tree."""
-        super()._install_version(target_dir, version, failures)
-
     def _verify(self, target_dir: Path) -> None:
         """Verify the Claude Code install satisfies the shared contract."""
         super()._verify(target_dir)

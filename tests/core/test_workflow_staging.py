@@ -370,6 +370,42 @@ def test_workflow_stage_manifest_expands_required_init_field_groups() -> None:
     assert "required_init_field_groups" not in manifest.to_payload()["stages"][0]
 
 
+@pytest.mark.parametrize(
+    "workflow_id",
+    [
+        "arxiv-submission",
+        "map-research",
+        "quick",
+        "verify-work",
+    ],
+)
+def test_stage_manifests_use_real_required_init_field_groups(workflow_id: str) -> None:
+    payload = _workflow_payload(workflow_id)
+    groups = payload.get("required_init_field_groups")
+
+    assert isinstance(groups, dict)
+    assert groups
+
+    manifest = validate_workflow_stage_manifest_payload(payload, expected_workflow_id=workflow_id)
+    grouped_stage_count = 0
+    for raw_stage in payload["stages"]:
+        assert isinstance(raw_stage, dict)
+        group_names = raw_stage.get("required_init_field_groups", [])
+        if group_names:
+            grouped_stage_count += 1
+        assert isinstance(group_names, list)
+
+        expanded_fields: list[str] = []
+        for group_name in group_names:
+            assert isinstance(group_name, str)
+            expanded_fields.extend(groups[group_name])
+        expanded_fields.extend(raw_stage.get("required_init_fields", []))
+
+        assert manifest.stage(str(raw_stage["id"])).required_init_fields == tuple(expanded_fields)
+
+    assert grouped_stage_count == len(payload["stages"])
+
+
 def test_workflow_stage_manifest_rejects_unknown_required_init_field_groups() -> None:
     payload = _workflow_payload("quick")
     payload["stages"][0]["required_init_field_groups"] = ["missing"]

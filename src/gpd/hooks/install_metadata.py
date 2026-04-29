@@ -15,6 +15,8 @@ from gpd.adapters.runtime_catalog import (
     get_runtime_descriptor,
     get_shared_install_metadata,
     list_runtime_names,
+    managed_install_globs_have_files,
+    normalize_manifest_relpath,
     normalize_runtime_name,
 )
 
@@ -127,42 +129,15 @@ class ManagedInstallSurface:
         )
 
 
-def _glob_contains_files(config_dir: Path, patterns: tuple[str, ...]) -> bool:
-    """Return whether any configured managed-surface glob materializes files."""
-
-    try:
-        for pattern in patterns:
-            for match in config_dir.glob(pattern):
-                if match.is_file():
-                    return True
-                if match.is_dir() and _dir_contains_files(match):
-                    return True
-    except OSError:
-        return True
-    return False
-
-
-def _dir_contains_files(path: Path) -> bool:
-    """Return whether *path* contains at least one regular file."""
-
-    try:
-        for child in path.rglob("*"):
-            if child.is_file():
-                return True
-    except OSError:
-        return True
-    return False
-
-
 def inspect_managed_install_surface(config_dir: Path, *, runtime: str | None = None) -> ManagedInstallSurface:
     """Return the managed install surfaces currently materialized in *config_dir*."""
     policy = get_managed_install_surface_policy(runtime)
 
     return ManagedInstallSurface(
-        has_gpd_content=_glob_contains_files(config_dir, policy.gpd_content_globs),
-        has_nested_commands=_glob_contains_files(config_dir, policy.nested_command_globs),
-        has_flat_commands=_glob_contains_files(config_dir, policy.flat_command_globs),
-        has_managed_agents=_glob_contains_files(config_dir, policy.managed_agent_globs),
+        has_gpd_content=managed_install_globs_have_files(config_dir, policy.gpd_content_globs, on_error=True),
+        has_nested_commands=managed_install_globs_have_files(config_dir, policy.nested_command_globs, on_error=True),
+        has_flat_commands=managed_install_globs_have_files(config_dir, policy.flat_command_globs, on_error=True),
+        has_managed_agents=managed_install_globs_have_files(config_dir, policy.managed_agent_globs, on_error=True),
     )
 
 
@@ -261,13 +236,8 @@ def load_install_manifest_explicit_target_status(config_dir: Path) -> tuple[str,
     return "ok", payload, explicit_target
 
 
-def _safe_manifest_relpath(value: object) -> str | None:
-    install_utils = import_module("gpd.adapters.install_utils")
-    return install_utils.normalize_manifest_relpath(value)
-
-
 def _safe_manifest_path_segment(value: object) -> str | None:
-    relpath = _safe_manifest_relpath(value)
+    relpath = normalize_manifest_relpath(value)
     if relpath is None or "/" in relpath:
         return None
     return relpath
@@ -286,7 +256,7 @@ def _manifest_metadata_list_policy_is_satisfied(
         if policy.value_kind == "path_segment":
             value = _safe_manifest_path_segment(raw_value)
         elif policy.value_kind == "relpath":
-            value = _safe_manifest_relpath(raw_value)
+            value = normalize_manifest_relpath(raw_value)
         else:
             return False
         if value is None:
@@ -350,7 +320,7 @@ def _manifest_path_metadata_state(payload: dict[str, object], *, config_dir: Pat
         if not isinstance(raw_files, dict):
             return "malformed_files"
         for rel_path, original_hash in raw_files.items():
-            if _safe_manifest_relpath(rel_path) is None or not isinstance(original_hash, str):
+            if normalize_manifest_relpath(rel_path) is None or not isinstance(original_hash, str):
                 return "malformed_files"
 
     runtime_policies = get_manifest_metadata_list_policies(runtime)
@@ -412,7 +382,9 @@ def assess_install_target(
                 manifest_runtime=manifest_runtime,
                 has_managed_markers=True,
             )
-        explicit_target_state, _explicit_target_payload, _explicit_target = load_install_manifest_explicit_target_status(resolved)
+        explicit_target_state, _explicit_target_payload, _explicit_target = (
+            load_install_manifest_explicit_target_status(resolved)
+        )
         if explicit_target_state in {"missing_explicit_target", "malformed_explicit_target"}:
             return InstallTargetAssessment(
                 config_dir=resolved,

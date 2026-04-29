@@ -10,6 +10,48 @@ from gpd.mcp.paper.compiler import CompilationResult, build_paper
 from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section
 
 
+def _minimal_paper_config(
+    title: str,
+    *,
+    output_filename: str | None = None,
+    figures: list[FigureRef] | None = None,
+) -> PaperConfig:
+    kwargs: dict[str, object] = {
+        "title": title,
+        "authors": [Author(name="A. Researcher")],
+        "abstract": "Abstract.",
+        "sections": [Section(title="Intro", content="No citations here.")],
+    }
+    if output_filename is not None:
+        kwargs["output_filename"] = output_filename
+    if figures is not None:
+        kwargs["figures"] = figures
+    return PaperConfig(**kwargs)
+
+
+def _assert_failure_manifest_excludes_pdf(manifest, *, stage: str) -> None:
+    assert manifest is not None
+    assert all(artifact.category != "pdf" for artifact in manifest.artifacts)
+    assert any(
+        artifact.artifact_id == f"build-failure-{stage}"
+        and artifact.metadata["build_success"] is False
+        and artifact.metadata["failure_stage"] == stage
+        for artifact in manifest.artifacts
+    )
+
+
+def _assert_failure_manifest_payload_excludes_pdf(manifest_path, *, stage: str) -> None:
+    assert manifest_path is not None
+    manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert all(artifact["category"] != "pdf" for artifact in manifest_payload["artifacts"])
+    assert any(
+        artifact["artifact_id"] == f"build-failure-{stage}"
+        and artifact["metadata"]["build_success"] is False
+        and artifact["metadata"]["failure_stage"] == stage
+        for artifact in manifest_payload["artifacts"]
+    )
+
+
 @pytest.mark.asyncio
 async def test_build_paper_does_not_publish_stale_pdf_after_failed_rebuild(
     tmp_path,
@@ -19,13 +61,7 @@ async def test_build_paper_does_not_publish_stale_pdf_after_failed_rebuild(
     output_dir.mkdir()
     stale_pdf_path = output_dir / "stale-rebuild.pdf"
     stale_pdf_path.write_bytes(b"%PDF-old")
-    config = PaperConfig(
-        title="Stale Rebuild",
-        authors=[Author(name="A. Researcher")],
-        abstract="Abstract.",
-        sections=[Section(title="Intro", content="No citations here.")],
-        output_filename="stale-rebuild",
-    )
+    config = _minimal_paper_config("Stale Rebuild", output_filename="stale-rebuild")
 
     async def fake_compile(tex_path, output_dir, compiler="pdflatex"):
         return CompilationResult(
@@ -43,23 +79,8 @@ async def test_build_paper_does_not_publish_stale_pdf_after_failed_rebuild(
     assert result.pdf_path is None
     assert not stale_pdf_path.exists()
     assert result.errors == ["latexmk exited with code 2"]
-    assert result.manifest is not None
-    assert all(artifact.category != "pdf" for artifact in result.manifest.artifacts)
-    assert any(
-        artifact.artifact_id == "build-failure-compile"
-        and artifact.metadata["build_success"] is False
-        and artifact.metadata["failure_stage"] == "compile"
-        for artifact in result.manifest.artifacts
-    )
-    assert result.manifest_path is not None
-    manifest_payload = json.loads(result.manifest_path.read_text(encoding="utf-8"))
-    assert all(artifact["category"] != "pdf" for artifact in manifest_payload["artifacts"])
-    assert any(
-        artifact["artifact_id"] == "build-failure-compile"
-        and artifact["metadata"]["build_success"] is False
-        and artifact["metadata"]["failure_stage"] == "compile"
-        for artifact in manifest_payload["artifacts"]
-    )
+    _assert_failure_manifest_excludes_pdf(result.manifest, stage="compile")
+    _assert_failure_manifest_payload_excludes_pdf(result.manifest_path, stage="compile")
 
 
 @pytest.mark.asyncio
@@ -71,13 +92,7 @@ async def test_build_paper_removes_expected_pdf_when_failed_rebuild_returns_no_p
     output_dir.mkdir()
     stale_pdf_path = output_dir / "stale-rebuild.pdf"
     stale_pdf_path.write_bytes(b"%PDF-old")
-    config = PaperConfig(
-        title="Stale Rebuild",
-        authors=[Author(name="A. Researcher")],
-        abstract="Abstract.",
-        sections=[Section(title="Intro", content="No citations here.")],
-        output_filename="stale-rebuild",
-    )
+    config = _minimal_paper_config("Stale Rebuild", output_filename="stale-rebuild")
 
     async def fake_compile(tex_path, output_dir, compiler="pdflatex"):
         return CompilationResult(
@@ -95,14 +110,7 @@ async def test_build_paper_removes_expected_pdf_when_failed_rebuild_returns_no_p
     assert result.pdf_path is None
     assert not stale_pdf_path.exists()
     assert result.errors == ["pdflatex pass 1 exited with code 1"]
-    assert result.manifest is not None
-    assert all(artifact.category != "pdf" for artifact in result.manifest.artifacts)
-    assert any(
-        artifact.artifact_id == "build-failure-compile"
-        and artifact.metadata["build_success"] is False
-        and artifact.metadata["failure_stage"] == "compile"
-        for artifact in result.manifest.artifacts
-    )
+    _assert_failure_manifest_excludes_pdf(result.manifest, stage="compile")
 
 
 @pytest.mark.asyncio
@@ -113,11 +121,8 @@ async def test_build_paper_does_not_publish_pdf_when_earlier_errors_exist_despit
     output_dir = tmp_path / "paper"
     output_dir.mkdir()
     pdf_path = output_dir / "figure-error.pdf"
-    config = PaperConfig(
-        title="Figure Error",
-        authors=[Author(name="A. Researcher")],
-        abstract="Abstract.",
-        sections=[Section(title="Intro", content="No citations here.")],
+    config = _minimal_paper_config(
+        "Figure Error",
         figures=[FigureRef(path=tmp_path / "missing.png", caption="Missing", label="missing")],
         output_filename="figure-error",
     )
@@ -139,8 +144,7 @@ async def test_build_paper_does_not_publish_pdf_when_earlier_errors_exist_despit
     assert result.pdf_path is None
     assert not pdf_path.exists()
     assert result.errors == ["Figure preparation failed: missing.png"]
-    assert result.manifest is not None
-    assert all(artifact.category != "pdf" for artifact in result.manifest.artifacts)
+    _assert_failure_manifest_excludes_pdf(result.manifest, stage="build")
 
 
 @pytest.mark.asyncio

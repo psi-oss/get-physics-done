@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from gpd.mcp.paper.bibliography import BibliographyAudit
+from gpd.mcp.paper.json_io import write_model_json
 from gpd.mcp.paper.models import (
     ArtifactManifest,
     ArtifactRecord,
@@ -394,5 +394,4 @@ def build_artifact_manifest(
 def write_artifact_manifest(manifest: ArtifactManifest, output_path: Path) -> None:
     """Persist the artifact manifest as JSON."""
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(manifest.model_dump(mode="json"), indent=2), encoding="utf-8")
+    write_model_json(manifest, output_path)

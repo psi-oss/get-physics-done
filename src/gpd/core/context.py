@@ -21,7 +21,12 @@ from pydantic import ValidationError as PydanticValidationError
 
 from gpd.adapters.install_utils import GPD_INSTALL_DIR_NAME
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
-from gpd.contracts import ConventionLock, ResearchContract, parse_project_contract_data_salvage
+from gpd.contracts import (
+    CONTRACT_CONTEXT_INTAKE_FIELD_NAMES,
+    ConventionLock,
+    ResearchContract,
+    parse_project_contract_data_salvage,
+)
 from gpd.core import state as _state_module
 from gpd.core.config import GPDProjectConfig
 from gpd.core.config import load_config as _load_config_structured
@@ -1477,14 +1482,7 @@ def _merge_reference_intake(
     active_references: list[dict[str, object]],
 ) -> dict[str, list[str]]:
     """Return the effective carry-forward intake from contract + parsed artifacts."""
-    merged = {
-        "must_read_refs": [],
-        "must_include_prior_outputs": [],
-        "user_asserted_anchors": [],
-        "known_good_baselines": [],
-        "context_gaps": [],
-        "crucial_inputs": [],
-    }
+    merged = _empty_reference_intake()
     _, token_to_id, ambiguous_tokens = _build_active_reference_lookup(active_references)
     if contract is not None:
         intake = contract.context_intake.model_dump(mode="json")
@@ -1505,14 +1503,7 @@ def _merge_reference_intake(
 
 
 def _empty_reference_intake() -> dict[str, list[str]]:
-    return {
-        "must_read_refs": [],
-        "must_include_prior_outputs": [],
-        "user_asserted_anchors": [],
-        "known_good_baselines": [],
-        "context_gaps": [],
-        "crucial_inputs": [],
-    }
+    return {field_name: [] for field_name in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES}
 
 
 def _canonical_contract_intake(

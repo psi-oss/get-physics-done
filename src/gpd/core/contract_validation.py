@@ -13,8 +13,8 @@ from gpd.contracts import (
     ContractAcceptanceTest,
     ContractDeliverable,
     ResearchContract,
-    _has_concrete_grounding_entries,
     _has_concrete_must_surface_reference,
+    _has_contract_grounding_context,
     _is_concrete_reference_locator,
     _is_context_intake_locator_grounding,
     _is_project_artifact_path,
@@ -78,9 +78,7 @@ def claim_deliverable_alignment_summary(
     deliverables_by_id: dict[str, ContractDeliverable] = {
         deliverable.id: deliverable for deliverable in contract.deliverables
     }
-    acceptance_tests_by_id: dict[str, ContractAcceptanceTest] = {
-        test.id: test for test in contract.acceptance_tests
-    }
+    acceptance_tests_by_id: dict[str, ContractAcceptanceTest] = {test.id: test for test in contract.acceptance_tests}
 
     rows: list[tuple[str, str, str]] = []
     for claim in contract.claims:
@@ -238,21 +236,8 @@ def _has_approved_grounding_signal(
                 project_root=project_root,
                 require_existing_project_artifacts=True,
             ),
-            _has_concrete_grounding_entries(
-                contract.context_intake.must_include_prior_outputs,
-                field_name="must_include_prior_outputs",
-                project_root=project_root,
-                require_existing_project_artifacts=True,
-            ),
-            _has_concrete_grounding_entries(
-                contract.context_intake.user_asserted_anchors,
-                field_name="user_asserted_anchors",
-                project_root=project_root,
-                require_existing_project_artifacts=True,
-            ),
-            _has_concrete_grounding_entries(
-                contract.context_intake.known_good_baselines,
-                field_name="known_good_baselines",
+            _has_contract_grounding_context(
+                contract,
                 project_root=project_root,
                 require_existing_project_artifacts=True,
             ),
@@ -267,27 +252,10 @@ def _has_non_reference_grounding_signal(
 ) -> bool:
     """Return whether grounding is explicitly supplied outside references."""
 
-    return any(
-        (
-            _has_concrete_grounding_entries(
-                contract.context_intake.must_include_prior_outputs,
-                field_name="must_include_prior_outputs",
-                project_root=project_root,
-                require_existing_project_artifacts=True,
-            ),
-            _has_concrete_grounding_entries(
-                contract.context_intake.user_asserted_anchors,
-                field_name="user_asserted_anchors",
-                project_root=project_root,
-                require_existing_project_artifacts=True,
-            ),
-            _has_concrete_grounding_entries(
-                contract.context_intake.known_good_baselines,
-                field_name="known_good_baselines",
-                project_root=project_root,
-                require_existing_project_artifacts=True,
-            ),
-        )
+    return _has_contract_grounding_context(
+        contract,
+        project_root=project_root,
+        require_existing_project_artifacts=True,
     )
 
 

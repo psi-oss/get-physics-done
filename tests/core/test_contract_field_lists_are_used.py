@@ -8,6 +8,8 @@ from gpd.contracts import (
     PROJECT_CONTRACT_COLLECTION_LIST_FIELDS,
     PROJECT_CONTRACT_MAPPING_LIST_FIELDS,
     PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS,
+    PROJECT_CONTRACT_REQUIRED_SECTION_FIELDS,
+    PROJECT_CONTRACT_REQUIRED_UNCERTAINTY_MARKER_FIELDS,
     PROJECT_CONTRACT_TOP_LEVEL_LIST_FIELDS,
     ContractAcceptanceTest,
     ContractApproachPolicy,
@@ -142,4 +144,20 @@ def test_project_contract_list_normalizers_match_exported_field_lists() -> None:
             "_normalize_symbols",
         )
         == PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS[("claims", "hypotheses")]
+    )
+
+
+def test_project_contract_required_field_lists_match_schema_contract() -> None:
+    assert PROJECT_CONTRACT_REQUIRED_SECTION_FIELDS == (
+        "schema_version",
+        "scope",
+        "context_intake",
+        "uncertainty_markers",
+    )
+    assert PROJECT_CONTRACT_REQUIRED_UNCERTAINTY_MARKER_FIELDS == (
+        "weakest_anchors",
+        "disconfirming_observations",
+    )
+    assert set(PROJECT_CONTRACT_REQUIRED_UNCERTAINTY_MARKER_FIELDS) <= set(
+        PROJECT_CONTRACT_MAPPING_LIST_FIELDS["uncertainty_markers"]
     )

@@ -7,19 +7,28 @@ from types import SimpleNamespace
 
 import tests.ci_sharding as ci_sharding
 from tests.ci_sharding import assert_ci_workflow_pytest_shard_policy, assert_tests_readme_documents_ci_shard_policy
-from tests.helpers.github_actions import load_github_actions_workflow
+from tests.helpers.github_actions import (
+    github_actions_workflow_paths,
+    iter_workflow_steps,
+    load_github_actions_workflow,
+    load_repo_github_actions_workflow,
+    workflow_job,
+    workflow_job_steps,
+    workflow_jobs,
+    workflow_step_by_name,
+    workflow_steps_using,
+)
 from tests.helpers.release import assert_run_step_uses_isolated_uv_build_env, assert_setup_uv_step_pins_expected_version
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 
 
 def _workflow_paths() -> list[Path]:
-    return sorted(WORKFLOW_DIR.glob("*.yml"))
+    return github_actions_workflow_paths(REPO_ROOT)
 
 
 def _workflow_data() -> dict[str, object]:
-    return load_github_actions_workflow(WORKFLOW_DIR / "test.yml")
+    return load_repo_github_actions_workflow(REPO_ROOT, "test.yml")
 
 
 def test_all_github_workflows_parse_with_github_actions_shape() -> None:
@@ -39,8 +48,8 @@ def test_all_github_workflows_parse_with_github_actions_shape() -> None:
         assert isinstance(workflow.get("on"), dict), f"{path} must define GitHub Actions triggers under `on`"
         assert isinstance(workflow.get("permissions"), dict), f"{path} must define explicit permissions"
 
-        jobs = workflow.get("jobs")
-        assert isinstance(jobs, dict) and jobs, f"{path} must define at least one job"
+        jobs = workflow_jobs(workflow)
+        assert jobs, f"{path} must define at least one job"
         for job_id, job in jobs.items():
             assert isinstance(job_id, str) and job_id, f"{path} has an invalid job id"
             assert isinstance(job, dict), f"{path}:{job_id} must be a mapping"
@@ -55,7 +64,7 @@ def test_all_github_workflows_parse_with_github_actions_shape() -> None:
 
 
 def test_github_actions_loader_preserves_on_key_without_losing_boolean_inputs() -> None:
-    workflow = load_github_actions_workflow(WORKFLOW_DIR / "release.yml")
+    workflow = load_repo_github_actions_workflow(REPO_ROOT, "release.yml")
     dry_run = workflow["on"]["workflow_dispatch"]["inputs"]["dry_run"]
 
     assert "on" in workflow
@@ -67,24 +76,21 @@ def test_github_actions_loader_preserves_on_key_without_losing_boolean_inputs() 
 def test_ci_workflow_runs_human_author_check_on_pull_requests_and_main_pushes() -> None:
     workflow = _workflow_data()
     triggers = workflow["on"]
-    jobs = workflow["jobs"]
-    human_author_job = jobs["human-authors"]
-    steps = human_author_job["steps"]
-    step_by_name = {step["name"]: step for step in steps}
+    human_author_job = workflow_job(workflow, "human-authors")
 
     assert triggers["pull_request"]["branches"] == ["main"]
     assert triggers["push"]["branches"] == ["main"]
     assert human_author_job["if"] == "github.event_name == 'pull_request' || github.event_name == 'push'"
 
-    checkout_step = step_by_name["Check out repository"]
+    checkout_step = workflow_step_by_name(workflow, "human-authors", "Check out repository")
     assert checkout_step["uses"] == "actions/checkout@v6"
     assert checkout_step["with"]["fetch-depth"] == 0
 
-    pr_step = step_by_name["Check PR commit attribution uses human authors"]
+    pr_step = workflow_step_by_name(workflow, "human-authors", "Check PR commit attribution uses human authors")
     assert pr_step["if"] == "github.event_name == 'pull_request'"
     assert pr_step["run"].strip() == 'bash scripts/check-human-authors.sh --range "origin/${{ github.base_ref }}..HEAD"'
 
-    push_step = step_by_name["Check pushed commit attribution uses human authors"]
+    push_step = workflow_step_by_name(workflow, "human-authors", "Check pushed commit attribution uses human authors")
     assert push_step["if"] == "github.event_name == 'push'"
     assert push_step["env"] == {
         "BEFORE_SHA": "${{ github.event.before }}",
@@ -187,10 +193,7 @@ def test_ci_collection_cache_is_repo_and_category_scoped(tmp_path, monkeypatch) 
 
 def test_ci_represents_documented_default_full_suite_without_duplicate_full_suite_lane() -> None:
     workflow = _workflow_data()
-    jobs = workflow["jobs"]
-    pytest_job = jobs["pytest"]
-    steps = pytest_job["steps"]
-    run_pytest_shard = next(step for step in steps if step.get("name") == "Run pytest shard")
+    run_pytest_shard = workflow_step_by_name(workflow, "pytest", "Run pytest shard")
     env = run_pytest_shard["env"]
     run_command = run_pytest_shard["run"]
 
@@ -205,8 +208,7 @@ def test_ci_represents_documented_default_full_suite_without_duplicate_full_suit
 
     direct_default_suite_steps = [
         f"{job_id}:{step.get('name', '<unnamed>')}"
-        for job_id, job in jobs.items()
-        for step in job.get("steps", [])
+        for job_id, step in iter_workflow_steps(workflow)
         if direct_default_suite_pattern.search(step.get("run", ""))
     ]
 
@@ -215,49 +217,50 @@ def test_ci_represents_documented_default_full_suite_without_duplicate_full_suit
 
 def test_ci_workflow_runs_lightweight_python_compatibility_matrix() -> None:
     workflow = _workflow_data()
-    jobs = workflow["jobs"]
-    compat_job = jobs["python-compatibility"]
-    steps = compat_job["steps"]
-    step_by_name = {step["name"]: step for step in steps}
+    compat_job = workflow_job(workflow, "python-compatibility")
 
     assert compat_job["name"] == "python compatibility (${{ matrix.python-version }})"
     assert compat_job["runs-on"] == "ubuntu-latest"
     assert compat_job["strategy"]["fail-fast"] is False
     assert compat_job["strategy"]["matrix"]["python-version"] == ["3.12", "3.13"]
-    assert step_by_name["Check out repository"]["uses"] == "actions/checkout@v6"
-    assert step_by_name["Set up Python"]["uses"] == "actions/setup-python@v6"
-    assert step_by_name["Set up Python"]["with"]["python-version"] == "${{ matrix.python-version }}"
-    assert step_by_name["Set up Node.js"]["uses"] == "actions/setup-node@v6"
-    assert step_by_name["Set up Node.js"]["with"]["node-version"] == "20"
-    assert_setup_uv_step_pins_expected_version(
-        step_by_name["Set up uv"], context="test.yml python-compatibility Set up uv"
-    )
-    assert step_by_name["Install dependencies"]["run"] == "uv sync --dev --frozen"
+    checkout_step = workflow_step_by_name(workflow, "python-compatibility", "Check out repository")
+    python_step = workflow_step_by_name(workflow, "python-compatibility", "Set up Python")
+    node_step = workflow_step_by_name(workflow, "python-compatibility", "Set up Node.js")
+    uv_step = workflow_step_by_name(workflow, "python-compatibility", "Set up uv")
+    install_step = workflow_step_by_name(workflow, "python-compatibility", "Install dependencies")
+    build_step = workflow_step_by_name(workflow, "python-compatibility", "Build wheel")
+    assert checkout_step["uses"] == "actions/checkout@v6"
+    assert python_step["uses"] == "actions/setup-python@v6"
+    assert python_step["with"]["python-version"] == "${{ matrix.python-version }}"
+    assert node_step["uses"] == "actions/setup-node@v6"
+    assert node_step["with"]["node-version"] == "20"
+    assert_setup_uv_step_pins_expected_version(uv_step, context="test.yml python-compatibility Set up uv")
+    assert install_step["run"] == "uv sync --dev --frozen"
 
-    import_smoke = step_by_name["Run import stability contracts"]["run"]
+    import_smoke = workflow_step_by_name(workflow, "python-compatibility", "Run import stability contracts")["run"]
     assert "uv run pytest -n 0 -q tests/test_import_stability_contracts.py" in import_smoke
 
-    console_smoke = step_by_name["Smoke console script"]["run"]
+    console_smoke = workflow_step_by_name(workflow, "python-compatibility", "Smoke console script")["run"]
     assert "uv run gpd --version" in console_smoke
     assert "uv run gpd --help > /tmp/gpd-help.txt" in console_smoke
     assert "test -s /tmp/gpd-help.txt" in console_smoke
 
-    targeted_tests = step_by_name["Run installer and runtime compatibility tests"]["run"]
+    targeted_tests = workflow_step_by_name(
+        workflow, "python-compatibility", "Run installer and runtime compatibility tests"
+    )["run"]
     assert "tests/test_runtime_catalog_bootstrap_contract.py" in targeted_tests
     assert "tests/test_runtime_install_smoke.py" in targeted_tests
     assert "tests/test_install_lifecycle.py::test_markdown_command_runtime_lifecycle_round_trip" in targeted_tests
     assert "test_bootstrap_prefers_versioned_python_when_generic_alias_is_newer" in targeted_tests
     assert "test_bootstrap_recreates_managed_env_when_selected_minor_changes" in targeted_tests
     assert "uv run pytest -q tests/" not in targeted_tests
-    assert_run_step_uses_isolated_uv_build_env(
-        step_by_name["Build wheel"], context="test.yml python-compatibility Build wheel"
-    )
-    assert "uv build --wheel --out-dir dist/compat-${{ matrix.python-version }}" in step_by_name["Build wheel"]["run"]
+    assert_run_step_uses_isolated_uv_build_env(build_step, context="test.yml python-compatibility Build wheel")
+    assert "uv build --wheel --out-dir dist/compat-${{ matrix.python-version }}" in build_step["run"]
 
 
 def test_ci_workflow_uses_current_action_versions() -> None:
     workflow = _workflow_data()
-    action_uses = [step["uses"] for job in workflow["jobs"].values() for step in job.get("steps", []) if "uses" in step]
+    action_uses = [step["uses"] for _, step in iter_workflow_steps(workflow) if "uses" in step]
 
     assert "actions/checkout@v6" in action_uses
     assert "actions/setup-node@v6" in action_uses
@@ -269,15 +272,10 @@ def test_github_workflows_pin_setup_uv_tool_version() -> None:
     setup_uv_step_count = 0
     for path in _workflow_paths():
         workflow = load_github_actions_workflow(path)
-        setup_uv_steps = [
-            step
-            for job in workflow["jobs"].values()
-            for step in job.get("steps", [])
-            if step.get("uses") == "astral-sh/setup-uv@v7"
-        ]
+        setup_uv_steps = workflow_steps_using(workflow, "astral-sh/setup-uv@v7")
         setup_uv_step_count += len(setup_uv_steps)
 
-        for step in setup_uv_steps:
+        for _, step in setup_uv_steps:
             assert_setup_uv_step_pins_expected_version(step, context=path.name)
 
     assert setup_uv_step_count > 0
@@ -285,11 +283,11 @@ def test_github_workflows_pin_setup_uv_tool_version() -> None:
 
 def test_ci_workflow_installs_dev_dependencies_from_frozen_lockfile() -> None:
     workflow = _workflow_data()
-    jobs = workflow["jobs"]
+    jobs = workflow_jobs(workflow)
     install_commands_by_job: dict[str, list[str]] = {}
 
-    for job_id, job in jobs.items():
-        for step in job.get("steps", []):
+    for job_id in jobs:
+        for step in workflow_job_steps(workflow, str(job_id)):
             if step.get("name") == "Install dependencies":
                 install_commands_by_job.setdefault(str(job_id), []).append(step["run"])
 

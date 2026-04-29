@@ -1031,10 +1031,6 @@ class CodexAdapter(RuntimeAdapter):
 
         return agent_count
 
-    def _install_version(self, target_dir: Path, version: str, failures: list[str]) -> None:
-        """Write VERSION into the shared GPD content tree."""
-        super()._install_version(target_dir, version, failures)
-
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         project_cwd = None if is_global or getattr(self, "_install_explicit_target", False) else target_dir.parent
         python_path = hook_python_interpreter()

@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
+from tests.helpers.github_actions import workflow_job, workflow_job_steps, workflow_jobs
+
 CI_CATEGORY_SHARD_COUNTS = {
     "root": 9,
     "adapters": 2,
@@ -148,24 +150,8 @@ def synthetic_test_inventory() -> dict[str, tuple[str, ...]]:
     return inventory
 
 
-def _workflow_job(workflow: dict[str, object], job_name: str) -> dict[str, object]:
-    jobs = workflow["jobs"]
-    assert isinstance(jobs, dict)
-    job = jobs[job_name]
-    assert isinstance(job, dict)
-    return job
-
-
-def workflow_job_steps(workflow: dict[str, object], job_name: str) -> list[dict[str, object]]:
-    job = _workflow_job(workflow, job_name)
-    steps = job["steps"]
-    assert isinstance(steps, list)
-    assert all(isinstance(step, dict) for step in steps)
-    return steps
-
-
 def pytest_matrix_include(workflow: dict[str, object]) -> list[dict[str, object]]:
-    pytest_job = _workflow_job(workflow, "pytest")
+    pytest_job = workflow_job(workflow, "pytest")
     strategy = pytest_job["strategy"]
     assert isinstance(strategy, dict)
     matrix = strategy["matrix"]
@@ -189,8 +175,7 @@ def actual_ci_shard_matrix(workflow: dict[str, object]) -> tuple[tuple[str, str,
 
 
 def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pyproject_text: str) -> None:
-    jobs = workflow["jobs"]
-    assert isinstance(jobs, dict)
+    jobs = workflow_jobs(workflow)
 
     pytest_steps = workflow_job_steps(workflow, "pytest")
     pytest_step_names = [str(step.get("name", "")) for step in pytest_steps]
@@ -201,7 +186,7 @@ def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pypro
         if "run" in step
     }
     matrix_include = pytest_matrix_include(workflow)
-    pytest_job = _workflow_job(workflow, "pytest")
+    pytest_job = workflow_job(workflow, "pytest")
     strategy = pytest_job["strategy"]
     assert isinstance(strategy, dict)
 

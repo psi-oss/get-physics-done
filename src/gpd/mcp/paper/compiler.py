@@ -420,9 +420,7 @@ def _validate_manifest_sidecar_location(path: Path, output_dir: Path, *, label: 
         expected_location = "output_dir or under a hidden metadata directory inside output_dir"
     else:
         expected_location = "a direct child of output_dir or under a hidden metadata directory inside output_dir"
-    raise ValueError(
-        f"{label} must be {expected_location}; non-hidden nested sidecars are not discoverable"
-    )
+    raise ValueError(f"{label} must be {expected_location}; non-hidden nested sidecars are not discoverable")
 
 
 def _callable_accepts_keyword(callback: object, keyword: str) -> bool:
@@ -476,6 +474,68 @@ def _mark_artifact_manifest_failed(
         },
     )
     return manifest.model_copy(update={"artifacts": [*manifest.artifacts, failure_record]})
+
+
+@dataclass(frozen=True)
+class _PublicationGate:
+    """Result of the strict final publication gate for compiled artifacts."""
+
+    success: bool
+    pdf_path: Path | None
+    failure_stage: str | None
+
+
+def _publication_gate(
+    result: CompilationResult,
+    *,
+    figures_prepared_successfully: bool,
+    errors: list[str],
+) -> _PublicationGate:
+    """Gate the externally visible PDF on every build precondition."""
+
+    success = result.success and figures_prepared_successfully and not errors
+    if success:
+        return _PublicationGate(success=True, pdf_path=result.pdf_path, failure_stage=None)
+    return _PublicationGate(
+        success=False,
+        pdf_path=None,
+        failure_stage="compile" if not result.success else "build",
+    )
+
+
+async def _build_and_emit_artifact_manifest(
+    config: PaperConfig,
+    output_dir: Path,
+    *,
+    tex_path: Path,
+    bib_path: Path | None,
+    bib_entry_source: str | None,
+    bibliography_audit_path: Path | None,
+    bibliography_audit: BibliographyAudit | None,
+    figure_source_pairs: list[tuple[FigureRef, FigureRef]],
+    manifest_path: Path | None,
+    pdf_path: Path | None = None,
+    failure_stage: str | None = None,
+    errors: list[str] | None = None,
+) -> ArtifactManifest:
+    """Build, failure-mark, and persist a paper artifact manifest."""
+
+    manifest = build_artifact_manifest(
+        config,
+        output_dir,
+        tex_path=tex_path,
+        bib_path=bib_path,
+        bib_entry_source=bib_entry_source,
+        bibliography_audit_path=bibliography_audit_path,
+        bibliography_audit=bibliography_audit,
+        figure_source_pairs=figure_source_pairs,
+        pdf_path=pdf_path,
+    )
+    if failure_stage is not None:
+        manifest = _mark_artifact_manifest_failed(manifest, stage=failure_stage, errors=errors or [])
+    if manifest_path is not None:
+        await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
+    return manifest
 
 
 def check_citation_bib_coherence(
@@ -1307,7 +1367,7 @@ async def build_paper(
         errors.extend(dependency_errors)
         await asyncio.to_thread(_remove_failed_build_output, output_dir / f"{output_stem}.pdf", output_dir)
         if emit_artifact_manifest and not preserved_tex_differs_from_config:
-            manifest = build_artifact_manifest(
+            manifest = await _build_and_emit_artifact_manifest(
                 config,
                 output_dir,
                 tex_path=tex_path,
@@ -1316,10 +1376,10 @@ async def build_paper(
                 bibliography_audit_path=bibliography_audit_path,
                 bibliography_audit=bibliography_audit,
                 figure_source_pairs=figure_source_pairs,
+                manifest_path=manifest_path,
+                failure_stage="dependency",
+                errors=errors,
             )
-            manifest = _mark_artifact_manifest_failed(manifest, stage="dependency", errors=errors)
-            if manifest_path is not None:
-                await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
         return PaperOutput(
             tex_content=tex_content,
             bib_content=bib_content,
@@ -1346,14 +1406,17 @@ async def build_paper(
     if not result.success and result.error:
         errors.append(result.error)
 
-    final_success = result.success and figures_prepared_successfully and not errors
-    published_pdf_path = result.pdf_path if final_success else None
-    if not final_success:
+    publication_gate = _publication_gate(
+        result,
+        figures_prepared_successfully=figures_prepared_successfully,
+        errors=errors,
+    )
+    if not publication_gate.success:
         await asyncio.to_thread(_remove_failed_build_output, result.pdf_path, output_dir)
         await asyncio.to_thread(_remove_failed_build_output, output_dir / f"{output_stem}.pdf", output_dir)
 
     if emit_artifact_manifest and not preserved_tex_differs_from_config:
-        manifest = build_artifact_manifest(
+        manifest = await _build_and_emit_artifact_manifest(
             config,
             output_dir,
             tex_path=tex_path,
@@ -1362,29 +1425,24 @@ async def build_paper(
             bibliography_audit_path=bibliography_audit_path,
             bibliography_audit=bibliography_audit,
             figure_source_pairs=figure_source_pairs,
-            pdf_path=published_pdf_path,
+            pdf_path=publication_gate.pdf_path,
+            manifest_path=manifest_path,
+            failure_stage=publication_gate.failure_stage,
+            errors=errors,
         )
-        if not final_success:
-            manifest = _mark_artifact_manifest_failed(
-                manifest,
-                stage="compile" if not result.success else "build",
-                errors=errors,
-            )
-        if manifest_path is not None:
-            await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
 
     return PaperOutput(
         tex_content=tex_content,
         bib_content=bib_content,
         tex_path=tex_path,
         figures_dir=figures_dir,
-        pdf_path=published_pdf_path,
+        pdf_path=publication_gate.pdf_path,
         bibliography_audit_path=bibliography_audit_path,
         bibliography_audit=bibliography_audit,
         reference_bibtex_keys=reference_bibtex_keys,
         manifest_path=manifest_path if manifest is not None else None,
         manifest=manifest,
-        success=final_success,
+        success=publication_gate.success,
         errors=errors,
         citation_warnings=citation_warnings,
     )

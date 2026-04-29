@@ -33,6 +33,21 @@ from gpd.mcp.paper.models import (
 from gpd.utils.latex import AutoFixResult
 
 
+def _minimal_paper_config(
+    title: str,
+    *,
+    section_content: str = "No citations here.",
+    journal: str = "prl",
+) -> PaperConfig:
+    return PaperConfig(
+        title=title,
+        authors=[Author(name="A. Researcher")],
+        abstract="Abstract.",
+        sections=[Section(title="Intro", content=section_content)],
+        journal=journal,
+    )
+
+
 def test_reference_bibtex_keys_rejects_duplicate_reference_id() -> None:
     audit = BibliographyAudit(
         generated_at="2026-04-18T00:00:00+00:00",
@@ -162,7 +177,9 @@ async def test_tectonic_rejects_pdf_when_exit_code_is_nonzero(tmp_path, monkeypa
     pdf_path = tmp_path / "paper.pdf"
 
     async def fake_create_subprocess_exec(*args, **kwargs):
-        return _PdfWritingFakeProcess(returncode=2, pdf_path=pdf_path, stdout=b"tectonic stdout", stderr=b"tectonic stderr")
+        return _PdfWritingFakeProcess(
+            returncode=2, pdf_path=pdf_path, stdout=b"tectonic stdout", stderr=b"tectonic stderr"
+        )
 
     monkeypatch.setattr("gpd.mcp.paper.compiler.asyncio.create_subprocess_exec", fake_create_subprocess_exec)
 
@@ -562,12 +579,7 @@ async def test_build_paper_routes_sidecars_to_independent_output_paths(
     hidden_sidecar_dir = output_dir / ".paper-meta"
     manifest_path = output_dir / "ARTIFACT-MANIFEST.json"
     audit_path = hidden_sidecar_dir / "BIBLIOGRAPHY-AUDIT.json"
-    config = PaperConfig(
-        title="Sidecar Routing Paper",
-        authors=[Author(name="A. Researcher")],
-        abstract="Abstract.",
-        sections=[Section(title="Intro", content="No citations here.")],
-    )
+    config = _minimal_paper_config("Sidecar Routing Paper")
     bibliography = BibliographyData()
     bibliography.entries["ref2026"] = Entry(
         "article",
@@ -611,12 +623,7 @@ async def test_build_paper_writes_discoverable_manifest_in_nested_sidecar_root(
 ) -> None:
     output_dir = tmp_path / "paper"
     hidden_sidecar_dir = output_dir / ".paper-meta"
-    config = PaperConfig(
-        title="Nested Sidecar Paper",
-        authors=[Author(name="A. Researcher")],
-        abstract="Abstract.",
-        sections=[Section(title="Intro", content="No citations here.")],
-    )
+    config = _minimal_paper_config("Nested Sidecar Paper")
     pdf_path = output_dir / f"{derive_output_filename(config)}.pdf"
     captured_compile_kwargs: dict[str, object] = {}
 
@@ -755,12 +762,7 @@ def test_artifact_manifest_integrity_rejects_absolute_in_root_artifact_path(tmp_
 
 @pytest.mark.asyncio
 async def test_build_paper_rejects_non_hidden_nested_sidecar_root(tmp_path) -> None:
-    config = PaperConfig(
-        title="Non Hidden Sidecar",
-        authors=[Author(name="A. Researcher")],
-        abstract="Abstract.",
-        sections=[Section(title="Intro", content="No citations here.")],
-    )
+    config = _minimal_paper_config("Non Hidden Sidecar")
     output_dir = tmp_path / "paper"
     non_hidden_sidecar_root = output_dir / "meta"
 
@@ -776,12 +778,7 @@ async def test_build_paper_marks_manifest_after_dependency_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     output_dir = tmp_path / "paper"
-    config = PaperConfig(
-        title="Dependency Failure Paper",
-        authors=[Author(name="A. Researcher")],
-        abstract="Abstract.",
-        sections=[Section(title="Intro", content="No citations here.")],
-    )
+    config = _minimal_paper_config("Dependency Failure Paper")
 
     async def fake_compile(*_args, **_kwargs):
         raise AssertionError("compile_paper should not run when dependencies are missing")
@@ -802,9 +799,7 @@ async def test_build_paper_marks_manifest_after_dependency_failure(
     artifact_ids = {artifact["artifact_id"] for artifact in manifest_payload["artifacts"]}
     assert "pdf-dependency-failure-paper" not in artifact_ids
     failure_artifact = next(
-        artifact
-        for artifact in manifest_payload["artifacts"]
-        if artifact["artifact_id"] == "build-failure-dependency"
+        artifact for artifact in manifest_payload["artifacts"] if artifact["artifact_id"] == "build-failure-dependency"
     )
     assert failure_artifact["metadata"]["build_success"] is False
     assert failure_artifact["metadata"]["failure_stage"] == "dependency"
@@ -817,13 +812,7 @@ async def test_build_paper_lets_tectonic_handle_missing_local_journal_dependenci
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     output_dir = tmp_path / "paper"
-    config = PaperConfig(
-        title="Tectonic Resource Paper",
-        authors=[Author(name="A. Researcher")],
-        abstract="Abstract.",
-        sections=[Section(title="Intro", content="No citations here.")],
-        journal="jhep",
-    )
+    config = _minimal_paper_config("Tectonic Resource Paper", journal="jhep")
     pdf_path = output_dir / f"{derive_output_filename(config)}.pdf"
 
     def fail_if_checked(_spec):
@@ -849,13 +838,7 @@ async def test_build_paper_still_blocks_on_local_dependencies_when_tectonic_not_
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     output_dir = tmp_path / "paper"
-    config = PaperConfig(
-        title="Local Resource Paper",
-        authors=[Author(name="A. Researcher")],
-        abstract="Abstract.",
-        sections=[Section(title="Intro", content="No citations here.")],
-        journal="jhep",
-    )
+    config = _minimal_paper_config("Local Resource Paper", journal="jhep")
 
     async def fake_compile(*_args, **_kwargs):
         raise AssertionError("compile_paper should not run after dependency preflight failure")
@@ -879,12 +862,7 @@ async def test_build_paper_marks_manifest_after_compile_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     output_dir = tmp_path / "paper"
-    config = PaperConfig(
-        title="Compile Failure Paper",
-        authors=[Author(name="A. Researcher")],
-        abstract="Abstract.",
-        sections=[Section(title="Intro", content="No citations here.")],
-    )
+    config = _minimal_paper_config("Compile Failure Paper")
 
     async def fake_compile(tex_path, output_dir, compiler="pdflatex"):
         return CompilationResult(success=False, error="pdflatex exited with code 1")
@@ -902,9 +880,7 @@ async def test_build_paper_marks_manifest_after_compile_failure(
     artifact_ids = {artifact["artifact_id"] for artifact in manifest_payload["artifacts"]}
     assert "pdf-compile-failure-paper" not in artifact_ids
     failure_artifact = next(
-        artifact
-        for artifact in manifest_payload["artifacts"]
-        if artifact["artifact_id"] == "build-failure-compile"
+        artifact for artifact in manifest_payload["artifacts"] if artifact["artifact_id"] == "build-failure-compile"
     )
     assert failure_artifact["metadata"]["build_success"] is False
     assert failure_artifact["metadata"]["failure_stage"] == "compile"
@@ -918,12 +894,7 @@ async def test_build_paper_does_not_refresh_manifest_for_preserved_stale_tex(
 ) -> None:
     output_dir = tmp_path / "paper"
     output_dir.mkdir()
-    config = PaperConfig(
-        title="Stale Manifest Paper",
-        authors=[Author(name="A. Researcher")],
-        abstract="Abstract.",
-        sections=[Section(title="Intro", content="Fresh config content.")],
-    )
+    config = _minimal_paper_config("Stale Manifest Paper", section_content="Fresh config content.")
     tex_path = output_dir / f"{derive_output_filename(config)}.tex"
     tex_path.write_text(
         "\\documentclass{article}\n\\begin{document}\nPreserved manual content.\n\\end{document}\n",
@@ -967,12 +938,7 @@ async def test_build_paper_does_not_return_in_memory_manifest_for_preserved_stal
 ) -> None:
     output_dir = tmp_path / "paper"
     output_dir.mkdir()
-    config = PaperConfig(
-        title="Stale Manifest Paper",
-        authors=[Author(name="A. Researcher")],
-        abstract="Abstract.",
-        sections=[Section(title="Intro", content="Fresh config content.")],
-    )
+    config = _minimal_paper_config("Stale Manifest Paper", section_content="Fresh config content.")
     tex_path = output_dir / f"{derive_output_filename(config)}.tex"
     tex_path.write_text(
         "\\documentclass{article}\n\\begin{document}\nPreserved manual content.\n\\end{document}\n",
@@ -1002,12 +968,7 @@ async def test_build_paper_does_not_return_in_memory_manifest_when_sidecars_disa
 ) -> None:
     output_dir = tmp_path / "paper"
     output_dir.mkdir()
-    config = PaperConfig(
-        title="Minimal Paper",
-        authors=[Author(name="A. Researcher")],
-        abstract="Abstract.",
-        sections=[Section(title="Intro", content="Fresh content.")],
-    )
+    config = _minimal_paper_config("Minimal Paper", section_content="Fresh content.")
     pdf_path = output_dir / f"{derive_output_filename(config)}.pdf"
 
     async def fake_compile(tex_path, output_dir, compiler="pdflatex"):
@@ -1027,12 +988,7 @@ async def test_build_paper_does_not_return_in_memory_manifest_when_sidecars_disa
 
 @pytest.mark.asyncio
 async def test_build_paper_rejects_external_sidecar_root_when_emitting_manifest(tmp_path) -> None:
-    config = PaperConfig(
-        title="External Sidecars",
-        authors=[Author(name="A. Researcher")],
-        abstract="Abstract.",
-        sections=[Section(title="Intro", content="No citations here.")],
-    )
+    config = _minimal_paper_config("External Sidecars")
     output_dir = tmp_path / "paper"
     external_sidecar_root = tmp_path / "paper-sidecars"
 
@@ -1044,12 +1000,7 @@ async def test_build_paper_rejects_external_sidecar_root_when_emitting_manifest(
 
 @pytest.mark.asyncio
 async def test_build_paper_rejects_external_manifest_referenced_audit_path(tmp_path) -> None:
-    config = PaperConfig(
-        title="External Audit",
-        authors=[Author(name="A. Researcher")],
-        abstract="Abstract.",
-        sections=[Section(title="Intro", content="No citations here.")],
-    )
+    config = _minimal_paper_config("External Audit")
     output_dir = tmp_path / "paper"
     external_audit_path = tmp_path / "external-meta" / "BIBLIOGRAPHY-AUDIT.json"
 

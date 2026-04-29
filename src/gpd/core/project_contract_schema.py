@@ -24,6 +24,8 @@ from gpd.contracts import (
     PROJECT_CONTRACT_COLLECTION_LIST_FIELDS,
     PROJECT_CONTRACT_MAPPING_LIST_FIELDS,
     PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS,
+    PROJECT_CONTRACT_REQUIRED_SECTION_FIELDS,
+    PROJECT_CONTRACT_REQUIRED_UNCERTAINTY_MARKER_FIELDS,
     PROJECT_CONTRACT_TOP_LEVEL_LIST_FIELDS,
     PROOF_HYPOTHESIS_CATEGORY_VALUES,
     ContractAcceptanceTest,
@@ -550,9 +552,10 @@ def _normalize_blank_list_fields(contract: dict[str, object]) -> None:
             for field_name in field_names:
                 if field_name in item and _blank_string(item[field_name]):
                     item[field_name] = []
-            for (parent_collection_name, nested_collection_name), nested_field_names in (
-                PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS.items()
-            ):
+            for (
+                parent_collection_name,
+                nested_collection_name,
+            ), nested_field_names in PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS.items():
                 if collection_name != parent_collection_name:
                     continue
                 nested_collection = item.get(nested_collection_name)
@@ -611,9 +614,10 @@ def _collect_blank_list_normalization_findings(
                 if isinstance(raw_value, str) and not raw_value.strip() and isinstance(normalized_value, list):
                     _record(f"{collection_name}.{index}.{field_name}")
 
-            for (parent_collection_name, nested_collection_name), nested_field_names in (
-                PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS.items()
-            ):
+            for (
+                parent_collection_name,
+                nested_collection_name,
+            ), nested_field_names in PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS.items():
                 if collection_name != parent_collection_name:
                     continue
                 raw_nested_collection = raw_item.get(nested_collection_name)
@@ -630,7 +634,9 @@ def _collect_blank_list_normalization_findings(
                         raw_value = raw_nested_item.get(nested_field_name)
                         normalized_value = normalized_nested_item.get(nested_field_name)
                         if isinstance(raw_value, str) and not raw_value.strip() and isinstance(normalized_value, list):
-                            _record(f"{collection_name}.{index}.{nested_collection_name}.{nested_index}.{nested_field_name}")
+                            _record(
+                                f"{collection_name}.{index}.{nested_collection_name}.{nested_index}.{nested_field_name}"
+                            )
 
     return findings
 
@@ -640,8 +646,7 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
     canonical_authoritative_scalar_locations: set[str] = set()
     errors.extend(_collect_literal_case_drift_errors(contract))
     raw_required_section_presence = {
-        field_name: field_name in contract
-        for field_name in ("schema_version", "scope", "context_intake", "uncertainty_markers")
+        field_name: field_name in contract for field_name in PROJECT_CONTRACT_REQUIRED_SECTION_FIELDS
     }
     scalar_sanitized = _sanitize_contract_scalars(
         contract,
@@ -657,7 +662,7 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
     errors.extend(_collect_blank_list_normalization_findings(working, normalized_contract))
 
     missing_required_section_errors: list[str] = []
-    for field_name in ("schema_version", "scope", "context_intake", "uncertainty_markers"):
+    for field_name in PROJECT_CONTRACT_REQUIRED_SECTION_FIELDS:
         if field_name not in normalized_contract and not raw_required_section_presence[field_name]:
             missing_required_section_errors.append(_required_project_contract_section_error(field_name))
     if missing_required_section_errors:
@@ -727,7 +732,7 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
         model=ContractUncertaintyMarkers,
         errors=errors,
         canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
-        required_fields=("weakest_anchors", "disconfirming_observations"),
+        required_fields=PROJECT_CONTRACT_REQUIRED_UNCERTAINTY_MARKER_FIELDS,
     )
     if uncertainty_markers_blocked or uncertainty_markers is None:
         return None, errors

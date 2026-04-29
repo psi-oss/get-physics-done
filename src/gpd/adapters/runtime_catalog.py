@@ -242,6 +242,66 @@ def _require_relative_catalog_path(value: object, *, label: str, allow_slash: bo
     return _require_string(value, label=label)
 
 
+def normalize_manifest_relpath(value: object) -> str | None:
+    """Return a safe POSIX manifest relpath, or ``None`` when untrusted."""
+    if not isinstance(value, str) or not value:
+        return None
+    if "\\" in value:
+        return None
+    if PurePosixPath(value).is_absolute():
+        return None
+    windows_path = PureWindowsPath(value)
+    if windows_path.is_absolute() or windows_path.drive:
+        return None
+    parts = value.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        return None
+    return PurePosixPath(*parts).as_posix()
+
+
+def paths_equal(left: Path, right: Path) -> bool:
+    """Return whether two paths refer to the same location when comparable."""
+    try:
+        return left.expanduser().resolve(strict=False) == right.expanduser().resolve(strict=False)
+    except OSError:
+        return left.expanduser() == right.expanduser()
+
+
+def path_contains_regular_file(path: Path, *, on_error: bool) -> bool:
+    """Return whether *path* contains at least one regular file."""
+    if not path.is_dir():
+        return False
+
+    try:
+        return any(entry.is_file() for entry in path.rglob("*"))
+    except OSError:
+        return on_error
+
+
+def managed_install_glob_static_root(pattern: str) -> str:
+    """Return the non-glob parent/root portion of a managed catalog pattern."""
+    parts: list[str] = []
+    for part in pattern.replace("\\", "/").strip("/").split("/"):
+        if not part or any(char in part for char in "*?["):
+            break
+        parts.append(part)
+    return "/".join(parts)
+
+
+def managed_install_globs_have_files(root: Path, patterns: tuple[str, ...], *, on_error: bool) -> bool:
+    """Return whether any managed install-surface glob selects installed files."""
+    try:
+        for pattern in patterns:
+            for match in root.glob(pattern):
+                if match.is_file():
+                    return True
+                if path_contains_regular_file(match, on_error=on_error):
+                    return True
+    except OSError:
+        return on_error
+    return False
+
+
 def _require_relative_catalog_path_tuple(
     value: object,
     *,
@@ -1380,13 +1440,6 @@ def get_runtime_capabilities(runtime: str) -> RuntimeCapabilityPolicy:
     return get_runtime_descriptor(runtime).capabilities
 
 
-def _paths_equal(left: Path, right: Path) -> bool:
-    try:
-        return left.expanduser().resolve(strict=False) == right.expanduser().resolve(strict=False)
-    except OSError:
-        return left.expanduser() == right.expanduser()
-
-
 def _normalize_global_config_dir(path: Path) -> Path:
     return path.expanduser().resolve(strict=False)
 
@@ -1463,7 +1516,7 @@ def resolve_global_config_dir_candidates(
         resolve_global_config_dir(descriptor, home=home, environ=environ),
         resolve_global_config_dir(descriptor, home=home, environ={}),
     ):
-        if any(_paths_equal(candidate, existing) for existing in candidates):
+        if any(paths_equal(candidate, existing) for existing in candidates):
             continue
         candidates.append(candidate)
     return tuple(candidates)
@@ -1488,7 +1541,12 @@ __all__ = [
     "has_global_config_env_override",
     "iter_runtime_descriptors",
     "list_runtime_names",
+    "managed_install_glob_static_root",
+    "managed_install_globs_have_files",
+    "normalize_manifest_relpath",
     "normalize_runtime_name",
+    "path_contains_regular_file",
+    "paths_equal",
     "resolve_global_config_dir_candidates",
     "resolve_global_config_dir",
 ]
