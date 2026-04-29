@@ -1201,6 +1201,43 @@ def main(
     _cwd = Path(cwd)
 
 
+def _help_workflow_markdown() -> str:
+    return (Path(__file__).resolve().parent / "specs" / "workflows" / "help.md").read_text(encoding="utf-8")
+
+
+def _help_marker_section(name: str) -> str:
+    content = _help_workflow_markdown()
+    start = f"<!-- gpd-help:{name}:start -->"
+    end = f"<!-- gpd-help:{name}:end -->"
+    _, start_separator, tail = content.partition(start)
+    if not start_separator:
+        return ""
+    section, end_separator, _ = tail.partition(end)
+    if not end_separator:
+        return ""
+    return section.strip()
+
+
+def _help_command_groups(command_index_markdown: str) -> list[dict[str, object]]:
+    groups: list[dict[str, object]] = []
+    current_group: dict[str, object] | None = None
+    for line in command_index_markdown.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("### "):
+            current_group = {"name": stripped.removeprefix("### ").strip(), "commands": []}
+            groups.append(current_group)
+            continue
+        if current_group is None or not stripped.startswith("- `"):
+            continue
+        match = re.match(r"^- `([^`]+)` - (.+)$", stripped)
+        if match is None:
+            continue
+        commands = current_group["commands"]
+        if isinstance(commands, list):
+            commands.append({"command": match.group(1), "description": match.group(2)})
+    return groups
+
+
 @app.command("help")
 def help_bridge(
     command_name: str | None = typer.Option(
@@ -1214,6 +1251,8 @@ def help_bridge(
     """Machine-readable bridge for the installed runtime help surface."""
     from gpd.registry import get_command, list_commands
 
+    quick_start_markdown = _help_marker_section("quick-start")
+    command_index_markdown = _help_marker_section("command-index")
     payload: dict[str, object] = {
         "command": "gpd:help",
         "surface": "local_cli_raw_help_bridge",
@@ -1224,6 +1263,10 @@ def help_bridge(
             "this local bridge exposes registry metadata for automation and live-audit probes."
         ),
         "default_sections": ["quick_start_extract", "wrapper_owned_all_hint"],
+        "quick_start": {
+            "heading": "Quick Start",
+            "markdown": quick_start_markdown,
+        },
         "recommended_commands": ["gpd:help --all"],
         "read_only": True,
     }
@@ -1264,6 +1307,10 @@ def help_bridge(
         payload.update(
             {
                 "ok": True,
+                "rendered_sections": ["quick_start", "command_index", "detailed_help_follow_up"],
+                "command_index_markdown": command_index_markdown,
+                "command_groups": _help_command_groups(command_index_markdown),
+                "detailed_help_follow_up": "Use `gpd:help --command <name>` when you want detailed notes for one runtime command.",
                 "command_index": [
                     {
                         "command": canonical_command_label(slug),

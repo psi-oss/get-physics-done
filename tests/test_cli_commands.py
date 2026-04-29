@@ -5261,6 +5261,9 @@ class TestReviewValidationCommands:
         assert payload["command"] == "gpd:help"
         assert payload["ok"] is True
         assert payload["default_sections"] == ["quick_start_extract", "wrapper_owned_all_hint"]
+        assert payload["quick_start"]["heading"] == "Quick Start"
+        assert "gpd:start" in payload["quick_start"]["markdown"]
+        assert "<!--" not in payload["quick_start"]["markdown"]
         assert payload["recommended_commands"] == ["gpd:help --all"]
         assert payload["local_cli_equivalence_guaranteed"] is False
 
@@ -5275,6 +5278,16 @@ class TestReviewValidationCommands:
         commands = {entry["command"] for entry in payload["command_index"]}
         assert "gpd:new-project" in commands
         assert "gpd:help" in commands
+        assert payload["rendered_sections"] == ["quick_start", "command_index", "detailed_help_follow_up"]
+        assert "## Command Index" in payload["command_index_markdown"]
+        assert "<!--" not in payload["command_index_markdown"]
+        assert payload["command_groups"][0]["name"] == "Starter commands"
+        starter_commands = {entry["command"] for entry in payload["command_groups"][0]["commands"]}
+        assert "gpd:help" in starter_commands
+        assert "gpd:new-project --minimal" in starter_commands
+        assert payload["detailed_help_follow_up"] == (
+            "Use `gpd:help --command <name>` when you want detailed notes for one runtime command."
+        )
 
     def test_raw_help_bridge_command_specific_payload(self, tmp_path: Path) -> None:
         result = runner.invoke(
