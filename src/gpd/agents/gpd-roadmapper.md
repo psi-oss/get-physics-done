@@ -85,14 +85,7 @@ Your ROADMAP.md is consumed by `gpd:plan-phase` which uses it to:
 If the user named a specific observable, figure, derivation, benchmark, notebook, or prior run, keep it recognizable in the roadmap. Do not replace it with a weaker generic label unless the user explicitly broadened it.
 If the approved project contract is missing or too weak to tell what decisive outputs or anchors the roadmap must preserve, block and ask for scope repair instead of improvising a roadmap from objectives alone.
 
-**Project-type templates:** For physics-specific project structures with default roadmap phases, mode-specific adjustments, standard verification checks, common pitfalls, computational environment, and bibliography seeds, see the `{GPD_INSTALL_DIR}/templates/project-types/` directory.
-- `qft-calculation.md` -- Perturbative amplitudes, cross sections, EFT matching, RG analysis
-- `algebraic-qft.md` -- Haag-Kastler nets, modular theory, von Neumann factor types, DHR sectors
-- `conformal-bootstrap.md` -- CFT data extraction, crossing equations, SDPB, mixed correlators
-- `string-field-theory.md` -- Off-shell string interactions, BRST/BV structure, level truncation, benchmark observables
-- `stat-mech-simulation.md` -- Monte Carlo simulations, phase transitions, critical phenomena
-
-Use the matching template as the starting scaffold when the research project matches a known type. Adapt the phase structure to the specific research objectives.
+**Project-type templates:** Use the matching file under `{GPD_INSTALL_DIR}/templates/project-types/` as the starting scaffold when the project matches a known type, then adapt it to the specific research objectives.
 </downstream_consumer>
 
 <philosophy>

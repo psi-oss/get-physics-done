@@ -370,6 +370,25 @@ def test_workflow_stage_manifest_expands_required_init_field_groups() -> None:
     assert "required_init_field_groups" not in manifest.to_payload()["stages"][0]
 
 
+@pytest.mark.parametrize("workflow_id", ["new-project", "quick"])
+def test_workflow_stage_manifest_serialized_payload_round_trips_expanded_fields(workflow_id: str) -> None:
+    manifest = validate_workflow_stage_manifest_payload(
+        _workflow_payload(workflow_id),
+        expected_workflow_id=workflow_id,
+    )
+    serialized = manifest.to_payload()
+
+    assert "required_init_field_groups" not in serialized
+    assert all("required_init_field_groups" not in stage for stage in serialized["stages"])
+    assert (
+        validate_workflow_stage_manifest_payload(
+            serialized,
+            expected_workflow_id=workflow_id,
+        ).to_payload()
+        == serialized
+    )
+
+
 @pytest.mark.parametrize(
     "workflow_id",
     [

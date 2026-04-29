@@ -20,6 +20,7 @@ from gpd.adapters.runtime_catalog import (
     get_managed_install_surface_policy,
     get_runtime_descriptor,
     get_shared_install_metadata,
+    normalize_manifest_file_entries,
     normalize_manifest_relpath,
     paths_equal,
     resolve_global_config_dir,
@@ -103,17 +104,6 @@ def _normalize_install_scope_flag(install_scope: str | None) -> str | None:
     if install_scope in ("global", "--global"):
         return "--global"
     return install_scope
-
-
-def _dir_contains_files(path: Path) -> bool:
-    """Return whether *path* contains at least one regular file."""
-    if not path.is_dir():
-        return False
-
-    try:
-        return any(entry.is_file() for entry in path.rglob("*"))
-    except OSError:
-        return True
 
 
 def _default_install_target(runtime: str, scope_flag: str | None) -> Path | None:
@@ -1981,20 +1971,6 @@ def _managed_install_paths(
 # ---------------------------------------------------------------------------
 
 
-def _validated_manifest_files(raw_files: object) -> dict[str, str] | None:
-    """Return sanitized manifest file entries, or ``None`` for untrusted shape."""
-    if not isinstance(raw_files, dict):
-        return None
-
-    tracked_files: dict[str, str] = {}
-    for rel_path, original_hash in raw_files.items():
-        normalized_relpath = normalize_manifest_relpath(rel_path)
-        if normalized_relpath is None or not isinstance(original_hash, str):
-            return None
-        tracked_files[normalized_relpath] = original_hash
-    return tracked_files
-
-
 def save_local_patches(
     config_dir: str | Path,
     *,
@@ -2023,7 +1999,7 @@ def save_local_patches(
         if isinstance(manifest, dict):
             manifest_version = str(manifest.get("version", "unknown"))
             raw_files = manifest.get("files") or {}
-            validated_files = _validated_manifest_files(raw_files)
+            validated_files = normalize_manifest_file_entries(raw_files)
             if validated_files is not None:
                 tracked_files = validated_files
             else:

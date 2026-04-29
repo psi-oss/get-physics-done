@@ -298,7 +298,7 @@ _RESUME_BASE_INIT_FIELDS = frozenset(
         "platform",
     }
 )
-_RESUME_CONTRACT_GATE_FIELDS = frozenset(
+_PROJECT_CONTRACT_GATE_FIELDS = frozenset(
     {
         "project_contract",
         "project_contract_gate",
@@ -306,16 +306,7 @@ _RESUME_CONTRACT_GATE_FIELDS = frozenset(
         "project_contract_validation",
     }
 )
-_RESUME_REFERENCE_RUNTIME_FIELDS = frozenset(
-    {
-        "contract_intake",
-        "effective_reference_intake",
-        "active_reference_context",
-        "reference_artifact_files",
-        "reference_artifacts_content",
-    }
-)
-_RESUME_STRUCTURED_STATE_FIELDS = frozenset(
+_STRUCTURED_STATE_FIELDS = frozenset(
     {
         "state_load_source",
         "state_integrity_issues",
@@ -329,7 +320,7 @@ _RESUME_STRUCTURED_STATE_FIELDS = frozenset(
         "propagated_uncertainty_count",
     }
 )
-_RESUME_STATE_MEMORY_FIELDS = frozenset(
+_STATE_MEMORY_FIELDS = frozenset(
     {
         "derived_convention_lock",
         "derived_convention_lock_count",
@@ -339,6 +330,18 @@ _RESUME_STATE_MEMORY_FIELDS = frozenset(
         "derived_approximation_count",
     }
 )
+_RESUME_CONTRACT_GATE_FIELDS = _PROJECT_CONTRACT_GATE_FIELDS
+_RESUME_REFERENCE_RUNTIME_FIELDS = frozenset(
+    {
+        "contract_intake",
+        "effective_reference_intake",
+        "active_reference_context",
+        "reference_artifact_files",
+        "reference_artifacts_content",
+    }
+)
+_RESUME_STRUCTURED_STATE_FIELDS = _STRUCTURED_STATE_FIELDS
+_RESUME_STATE_MEMORY_FIELDS = _STATE_MEMORY_FIELDS
 _RESUME_FILE_CONTENT_FIELDS = frozenset(
     {
         "state_content",
@@ -365,14 +368,7 @@ _SYNC_STATE_FILE_CONTENT_FIELDS = frozenset(
     }
 )
 _SYNC_STATE_STRUCTURED_STATE_FIELDS = frozenset({"state_load_source", "state_integrity_issues"})
-_SYNC_STATE_CONTRACT_GATE_FIELDS = frozenset(
-    {
-        "project_contract",
-        "project_contract_gate",
-        "project_contract_load_info",
-        "project_contract_validation",
-    }
-)
+_SYNC_STATE_CONTRACT_GATE_FIELDS = _PROJECT_CONTRACT_GATE_FIELDS
 _WRITE_PAPER_STAGE_ALLOWED_TOOLS = frozenset(
     {
         "ask_user",
@@ -398,14 +394,7 @@ _WRITE_PAPER_BASE_INIT_FIELDS = frozenset(
         "write_paper_argument_input",
     }
 )
-_WRITE_PAPER_CONTRACT_GATE_FIELDS = frozenset(
-    {
-        "project_contract",
-        "project_contract_gate",
-        "project_contract_load_info",
-        "project_contract_validation",
-    }
-)
+_WRITE_PAPER_CONTRACT_GATE_FIELDS = _PROJECT_CONTRACT_GATE_FIELDS
 _WRITE_PAPER_BOOTSTRAP_REFERENCE_FIELDS = frozenset(
     {
         "contract_intake",
@@ -462,16 +451,7 @@ _WRITE_PAPER_REFERENCE_RUNTIME_FIELDS = frozenset(
         "derived_citation_source_count",
     }
 )
-_WRITE_PAPER_STATE_MEMORY_FIELDS = frozenset(
-    {
-        "derived_convention_lock",
-        "derived_convention_lock_count",
-        "derived_intermediate_results",
-        "derived_intermediate_result_count",
-        "derived_approximations",
-        "derived_approximation_count",
-    }
-)
+_WRITE_PAPER_STATE_MEMORY_FIELDS = _STATE_MEMORY_FIELDS
 _WRITE_PAPER_FILE_CONTENT_FIELDS = frozenset(
     {
         "state_content",
@@ -592,14 +572,7 @@ _NEW_MILESTONE_BASE_INIT_FIELDS = frozenset(
         "platform",
     }
 )
-_NEW_MILESTONE_CONTRACT_GATE_FIELDS = frozenset(
-    {
-        "project_contract",
-        "project_contract_gate",
-        "project_contract_load_info",
-        "project_contract_validation",
-    }
-)
+_NEW_MILESTONE_CONTRACT_GATE_FIELDS = _PROJECT_CONTRACT_GATE_FIELDS
 _NEW_MILESTONE_REFERENCE_RUNTIME_FIELDS = frozenset(
     {
         "contract_intake",
@@ -613,16 +586,7 @@ _NEW_MILESTONE_REFERENCE_RUNTIME_FIELDS = frozenset(
         "research_map_reference_count",
     }
 )
-_NEW_MILESTONE_STATE_MEMORY_FIELDS = frozenset(
-    {
-        "derived_convention_lock",
-        "derived_convention_lock_count",
-        "derived_intermediate_results",
-        "derived_intermediate_result_count",
-        "derived_approximations",
-        "derived_approximation_count",
-    }
-)
+_NEW_MILESTONE_STATE_MEMORY_FIELDS = _STATE_MEMORY_FIELDS
 _NEW_MILESTONE_FILE_CONTENT_FIELDS = frozenset(
     {
         "project_content",
@@ -653,14 +617,7 @@ _EXECUTE_PHASE_STAGE_ALLOWED_TOOLS = frozenset(
         "task",
     }
 )
-_EXECUTE_PHASE_CONTRACT_GATE_FIELDS = frozenset(
-    {
-        "project_contract",
-        "project_contract_gate",
-        "project_contract_load_info",
-        "project_contract_validation",
-    }
-)
+_EXECUTE_PHASE_CONTRACT_GATE_FIELDS = _PROJECT_CONTRACT_GATE_FIELDS
 _EXECUTE_PHASE_REFERENCE_RUNTIME_FIELDS = frozenset(
     {
         "contract_intake",
@@ -698,30 +655,8 @@ _EXECUTE_PHASE_REFERENCE_RUNTIME_FIELDS = frozenset(
         "derived_manuscript_proof_review_status",
     }
 )
-_EXECUTE_PHASE_STRUCTURED_STATE_FIELDS = frozenset(
-    {
-        "state_load_source",
-        "state_integrity_issues",
-        "convention_lock",
-        "convention_lock_count",
-        "intermediate_results",
-        "intermediate_result_count",
-        "approximations",
-        "approximation_count",
-        "propagated_uncertainties",
-        "propagated_uncertainty_count",
-    }
-)
-_EXECUTE_PHASE_STATE_MEMORY_FIELDS = frozenset(
-    {
-        "derived_convention_lock",
-        "derived_convention_lock_count",
-        "derived_intermediate_results",
-        "derived_intermediate_result_count",
-        "derived_approximations",
-        "derived_approximation_count",
-    }
-)
+_EXECUTE_PHASE_STRUCTURED_STATE_FIELDS = _STRUCTURED_STATE_FIELDS
+_EXECUTE_PHASE_STATE_MEMORY_FIELDS = _STATE_MEMORY_FIELDS
 _EXECUTE_PHASE_EXECUTION_RUNTIME_FIELDS = frozenset(
     {
         "current_execution",

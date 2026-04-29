@@ -824,59 +824,8 @@ Write to `GPD/literature/SUMMARY.md`
 
 Use template: `{GPD_INSTALL_DIR}/templates/research-project/SUMMARY.md`.
 
-**SUMMARY.md structure:**
-
-```markdown
-# Research Summary: [Project Title]
-
-## Unified Notation
-
-[Notation table from Step 2]
-
-## Executive Summary
-
-[2-3 paragraphs from Step 3]
-
-## Key Findings
-
-### Methods
-
-### Prior Work
-
-### Computational Approaches
-
-### Pitfalls
-
-[Extracted findings from Step 4]
-
-## Approximation Landscape
-
-[Consolidated table from Step 5]
-
-## Theoretical Connections
-
-[Cross-cutting connections from Step 6]
-
-## Implications for Roadmap
-
-### Suggested Phase Structure
-
-### Research Flags
-
-[Roadmap implications from Step 7]
-
-## Confidence Assessment
-
-[Table and gap analysis from Step 8]
-
-## Open Questions
-
-[Prioritized list of unresolved questions that the research should address]
-
-## Sources
-
-[Aggregated references from all research files, organized by topic]
-```
+Follow the canonical template and add the synthesizer-specific sections produced above:
+Unified Notation, Approximation Landscape, Theoretical Connections, Roadmap Implications, Confidence Assessment, Open Questions, and Sources.
 
 ## Step 10: Return Results to Orchestrator
 

@@ -16,6 +16,7 @@ from gpd.adapters.runtime_catalog import (
     get_shared_install_metadata,
     list_runtime_names,
     managed_install_globs_have_files,
+    normalize_manifest_file_entries,
     normalize_manifest_relpath,
     normalize_runtime_name,
 )
@@ -316,12 +317,8 @@ def _manifest_scalar_path_metadata_state(payload: dict[str, object], *, config_d
 
 def _manifest_path_metadata_state(payload: dict[str, object], *, config_dir: Path, runtime: str) -> str:
     raw_files = payload.get("files")
-    if raw_files is not None:
-        if not isinstance(raw_files, dict):
-            return "malformed_files"
-        for rel_path, original_hash in raw_files.items():
-            if normalize_manifest_relpath(rel_path) is None or not isinstance(original_hash, str):
-                return "malformed_files"
+    if raw_files is not None and normalize_manifest_file_entries(raw_files) is None:
+        return "malformed_files"
 
     runtime_policies = get_manifest_metadata_list_policies(runtime)
     runtime_policy_keys = {policy.key for policy in runtime_policies}

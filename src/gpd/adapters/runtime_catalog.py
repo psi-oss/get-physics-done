@@ -259,6 +259,20 @@ def normalize_manifest_relpath(value: object) -> str | None:
     return PurePosixPath(*parts).as_posix()
 
 
+def normalize_manifest_file_entries(raw_files: object) -> dict[str, str] | None:
+    """Return normalized manifest ``files`` entries, or ``None`` for untrusted shape."""
+    if not isinstance(raw_files, dict):
+        return None
+
+    entries: dict[str, str] = {}
+    for rel_path, original_hash in raw_files.items():
+        normalized_relpath = normalize_manifest_relpath(rel_path)
+        if normalized_relpath is None or not isinstance(original_hash, str):
+            return None
+        entries[normalized_relpath] = original_hash
+    return entries
+
+
 def paths_equal(left: Path, right: Path) -> bool:
     """Return whether two paths refer to the same location when comparable."""
     try:
@@ -1543,6 +1557,7 @@ __all__ = [
     "list_runtime_names",
     "managed_install_glob_static_root",
     "managed_install_globs_have_files",
+    "normalize_manifest_file_entries",
     "normalize_manifest_relpath",
     "normalize_runtime_name",
     "path_contains_regular_file",

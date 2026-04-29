@@ -726,6 +726,16 @@ def _launch_failure_error(command_label: str, exc: OSError) -> str:
     return f"failed to launch {command_label}: {exc}"
 
 
+def _file_signature(path: Path) -> tuple[int, int] | None:
+    if not path.exists():
+        return None
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return stat.st_size, stat.st_mtime_ns
+
+
 async def compile_paper(
     tex_path: Path,
     output_dir: Path,
@@ -809,17 +819,7 @@ async def _compile_with_tectonic(
     logger.info("Compiling with Tectonic: %s", " ".join(cmd))
 
     pdf_path = output_dir / f"{tex_path.stem}.pdf"
-
-    def _pdf_signature() -> tuple[int, int] | None:
-        if not pdf_path.exists():
-            return None
-        try:
-            stat = pdf_path.stat()
-        except OSError:
-            return None
-        return stat.st_size, stat.st_mtime_ns
-
-    initial_signature = _pdf_signature()
+    initial_signature = _file_signature(pdf_path)
 
     try:
         process = await asyncio.create_subprocess_exec(
@@ -837,7 +837,7 @@ async def _compile_with_tectonic(
 
         log_content = stdout.decode(errors="replace") + stderr.decode(errors="replace")
 
-        current_signature = _pdf_signature()
+        current_signature = _file_signature(pdf_path)
         pdf_is_fresh = current_signature is not None and (
             initial_signature is None or current_signature != initial_signature
         )
@@ -879,18 +879,7 @@ async def _compile_with_latexmk(
     logger.info("Compiling with latexmk: %s", " ".join(cmd))
 
     pdf_path = output_dir / f"{tex_path.stem}.pdf"
-
-    def _pdf_signature() -> tuple[int, int] | None:
-        """Return (size, mtime_ns) if the PDF exists, else None."""
-        if not pdf_path.exists():
-            return None
-        try:
-            stat = pdf_path.stat()
-        except OSError:
-            return None
-        return stat.st_size, stat.st_mtime_ns
-
-    initial_signature = _pdf_signature()
+    initial_signature = _file_signature(pdf_path)
 
     try:
         process = await asyncio.create_subprocess_exec(
@@ -909,7 +898,7 @@ async def _compile_with_latexmk(
         log_content = stdout.decode(errors="replace") + stderr.decode(errors="replace")
 
         # Freshness check: PDF must exist and differ from the pre-run snapshot.
-        current_signature = _pdf_signature()
+        current_signature = _file_signature(pdf_path)
         pdf_is_fresh = current_signature is not None and (
             initial_signature is None or current_signature != initial_signature
         )
@@ -991,16 +980,7 @@ async def _compile_manual_multipass(
     autofix_scratch_tex_path: Path | None = None
     autofix_scratch_pdf_path: Path | None = None
 
-    def pdf_build_signature(path: Path = pdf_path) -> tuple[int, int] | None:
-        if not path.exists():
-            return None
-        try:
-            stat = path.stat()
-        except OSError:
-            return None
-        return stat.st_size, stat.st_mtime_ns
-
-    initial_pdf_signature = pdf_build_signature()
+    initial_pdf_signature = _file_signature(pdf_path)
 
     def record_result(step: str, returncode: int, log: str, *, fatal: bool = False) -> None:
         combined_log_parts.append(log)
@@ -1014,7 +994,7 @@ async def _compile_manual_multipass(
         initial_signature: tuple[int, int] | None,
         path: Path = pdf_path,
     ) -> bool:
-        current_signature = pdf_build_signature(path)
+        current_signature = _file_signature(path)
         if current_signature is None:
             return False
         return initial_signature is None or current_signature != initial_signature
@@ -1116,7 +1096,7 @@ async def _compile_manual_multipass(
             autofix_scratch_pdf_path = output_dir / f"{scratch_tex_path.stem}.pdf"
             scratch_pdf_path = autofix_scratch_pdf_path
             logger.info("Testing autofix on scratch TeX: %s", fix_result.fixes_applied)
-            autofix_initial_pdf_signature = pdf_build_signature(scratch_pdf_path)
+            autofix_initial_pdf_signature = _file_signature(scratch_pdf_path)
             autofix_base_cmd = [
                 compiler_path,
                 "-interaction=nonstopmode",

@@ -23,7 +23,6 @@ from gpd.adapters.install_utils import (
     MANIFEST_NAME,
     PATCHES_DIR_NAME,
     UPDATE_CACHE_FILENAME,
-    _dir_contains_files,
     build_runtime_cli_bridge_command,
     bundled_hook_relpaths,
     compute_path_prefix,
@@ -48,6 +47,7 @@ from gpd.adapters.runtime_catalog import (
     get_shared_install_metadata,
     managed_install_glob_static_root,
     managed_install_globs_have_files,
+    path_contains_regular_file,
     resolve_global_config_dir,
 )
 from gpd.adapters.tool_names import (
@@ -324,7 +324,7 @@ def _has_only_agent_residue(target_dir: Path) -> bool:
         if entry.name != AGENTS_DIR_NAME:
             if not entry.is_dir():
                 return False
-            if _dir_contains_files(entry):
+            if path_contains_regular_file(entry, on_error=True):
                 return False
             continue
         if not entry.is_dir():

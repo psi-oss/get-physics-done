@@ -338,6 +338,14 @@ def test_manifest_relpath_validation_lives_in_runtime_catalog(value: object, exp
     assert runtime_catalog.normalize_manifest_relpath(value) == expected
 
 
+def test_manifest_file_entry_validation_lives_in_runtime_catalog() -> None:
+    assert runtime_catalog.normalize_manifest_file_entries({"hooks/statusline.py": "hash"}) == {
+        "hooks/statusline.py": "hash"
+    }
+    assert runtime_catalog.normalize_manifest_file_entries({"hooks/statusline.py": 123}) is None
+    assert runtime_catalog.normalize_manifest_file_entries({"hooks\\statusline.py": "hash"}) is None
+
+
 def test_managed_install_glob_helpers_use_catalog_semantics(tmp_path: Path) -> None:
     root = tmp_path / "runtime"
     command_path = root / "commands" / "gpd" / "help.md"

@@ -39,13 +39,13 @@ AGENT_BASELINES = {
     "gpd-project-researcher": (987, 61_844),
     "gpd-referee": (1_108, 53_790),
     "gpd-research-mapper": (743, 37_100),
-    "gpd-research-synthesizer": (1_498, 81_391),
+    "gpd-research-synthesizer": (1_447, 80_827),
     "gpd-review-literature": (53, 2_591),
     "gpd-review-math": (54, 3_343),
     "gpd-review-physics": (53, 2_604),
     "gpd-review-reader": (52, 3_166),
     "gpd-review-significance": (54, 2_790),
-    "gpd-roadmapper": (1_927, 90_581),
+    "gpd-roadmapper": (1_920, 89_849),
     "gpd-verifier": (717, 49_656),
 }
 

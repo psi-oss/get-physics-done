@@ -7,26 +7,8 @@ import json
 import pytest
 
 from gpd.mcp.paper.compiler import CompilationResult, build_paper
-from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section
-
-
-def _minimal_paper_config(
-    title: str,
-    *,
-    output_filename: str | None = None,
-    figures: list[FigureRef] | None = None,
-) -> PaperConfig:
-    kwargs: dict[str, object] = {
-        "title": title,
-        "authors": [Author(name="A. Researcher")],
-        "abstract": "Abstract.",
-        "sections": [Section(title="Intro", content="No citations here.")],
-    }
-    if output_filename is not None:
-        kwargs["output_filename"] = output_filename
-    if figures is not None:
-        kwargs["figures"] = figures
-    return PaperConfig(**kwargs)
+from gpd.mcp.paper.models import FigureRef
+from tests.helpers.paper import minimal_paper_config
 
 
 def _assert_failure_manifest_excludes_pdf(manifest, *, stage: str) -> None:
@@ -61,7 +43,7 @@ async def test_build_paper_does_not_publish_stale_pdf_after_failed_rebuild(
     output_dir.mkdir()
     stale_pdf_path = output_dir / "stale-rebuild.pdf"
     stale_pdf_path.write_bytes(b"%PDF-old")
-    config = _minimal_paper_config("Stale Rebuild", output_filename="stale-rebuild")
+    config = minimal_paper_config("Stale Rebuild", output_filename="stale-rebuild")
 
     async def fake_compile(tex_path, output_dir, compiler="pdflatex"):
         return CompilationResult(
@@ -92,7 +74,7 @@ async def test_build_paper_removes_expected_pdf_when_failed_rebuild_returns_no_p
     output_dir.mkdir()
     stale_pdf_path = output_dir / "stale-rebuild.pdf"
     stale_pdf_path.write_bytes(b"%PDF-old")
-    config = _minimal_paper_config("Stale Rebuild", output_filename="stale-rebuild")
+    config = minimal_paper_config("Stale Rebuild", output_filename="stale-rebuild")
 
     async def fake_compile(tex_path, output_dir, compiler="pdflatex"):
         return CompilationResult(
@@ -121,7 +103,7 @@ async def test_build_paper_does_not_publish_pdf_when_earlier_errors_exist_despit
     output_dir = tmp_path / "paper"
     output_dir.mkdir()
     pdf_path = output_dir / "figure-error.pdf"
-    config = _minimal_paper_config(
+    config = minimal_paper_config(
         "Figure Error",
         figures=[FigureRef(path=tmp_path / "missing.png", caption="Missing", label="missing")],
         output_filename="figure-error",

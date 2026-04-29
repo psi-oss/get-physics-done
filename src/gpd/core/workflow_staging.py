@@ -18,7 +18,9 @@ NEW_MILESTONE_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"new-mileston
 EXECUTE_PHASE_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"execute-phase{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
 PLAN_PHASE_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"plan-phase{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
 QUICK_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"quick{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
-LITERATURE_REVIEW_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"literature-review{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
+LITERATURE_REVIEW_STAGE_MANIFEST_PATH = (
+    WORKFLOW_STAGE_MANIFEST_DIR / f"literature-review{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
+)
 RESEARCH_PHASE_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"research-phase{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
 MAP_RESEARCH_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"map-research{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
 WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT = "GPD/publication/{subject_slug}/manuscript"
@@ -1043,6 +1045,30 @@ _OPTIONAL_STAGE_KEYS = frozenset({"required_init_field_groups", "required_init_f
 _REQUIRED_STAGE_KEYS = _ALLOWED_STAGE_KEYS - _OPTIONAL_STAGE_KEYS
 _ALLOWED_CONDITIONAL_KEYS = frozenset({"when", "authorities"})
 _AUTHORITY_ROOTS = ("workflows/", "references/", "templates/")
+_STAGE_MANIFEST_PAYLOAD_FIELDS = (
+    "mode_paths",
+    "required_init_fields",
+    "loaded_authorities",
+    "conditional_authorities",
+    "must_not_eager_load",
+    "allowed_tools",
+    "writes_allowed",
+    "produced_state",
+    "next_stages",
+    "checkpoints",
+)
+_STAGED_LOADING_PAYLOAD_FIELDS = (
+    "required_init_fields",
+    "mode_paths",
+    "loaded_authorities",
+    "conditional_authorities",
+    "must_not_eager_load",
+    "allowed_tools",
+    "writes_allowed",
+    "produced_state",
+    "next_stages",
+    "checkpoints",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1094,40 +1120,33 @@ class WorkflowStage:
                 combined.append(authority)
         return tuple(combined)
 
+    def _sequence_payload_fields(self, field_names: tuple[str, ...]) -> dict[str, object]:
+        payload: dict[str, object] = {}
+        for field_name in field_names:
+            if field_name == "conditional_authorities":
+                payload[field_name] = [entry.to_payload() for entry in self.conditional_authorities]
+            else:
+                payload[field_name] = list(getattr(self, field_name))
+        return payload
+
     def to_payload(self) -> dict[str, object]:
         return {
             "id": self.id,
             "order": self.order,
             "purpose": self.purpose,
-            "mode_paths": list(self.mode_paths),
-            "required_init_fields": list(self.required_init_fields),
-            "loaded_authorities": list(self.loaded_authorities),
-            "conditional_authorities": [entry.to_payload() for entry in self.conditional_authorities],
-            "must_not_eager_load": list(self.must_not_eager_load),
-            "allowed_tools": list(self.allowed_tools),
-            "writes_allowed": list(self.writes_allowed),
-            "produced_state": list(self.produced_state),
-            "next_stages": list(self.next_stages),
-            "checkpoints": list(self.checkpoints),
+            **self._sequence_payload_fields(_STAGE_MANIFEST_PAYLOAD_FIELDS),
         }
 
     def to_staged_loading_payload(self, workflow_id: str) -> dict[str, object]:
-        return {
+        payload = {
             "workflow_id": workflow_id,
             "stage_id": self.id,
             "order": self.order,
-            "required_init_fields": list(self.required_init_fields),
-            "mode_paths": list(self.mode_paths),
-            "loaded_authorities": list(self.loaded_authorities),
+            **self._sequence_payload_fields(_STAGED_LOADING_PAYLOAD_FIELDS[:3]),
             "eager_authorities": list(self.eager_authorities()),
-            "conditional_authorities": [entry.to_payload() for entry in self.conditional_authorities],
-            "must_not_eager_load": list(self.must_not_eager_load),
-            "allowed_tools": list(self.allowed_tools),
-            "writes_allowed": list(self.writes_allowed),
-            "produced_state": list(self.produced_state),
-            "next_stages": list(self.next_stages),
-            "checkpoints": list(self.checkpoints),
         }
+        payload.update(self._sequence_payload_fields(_STAGED_LOADING_PAYLOAD_FIELDS[3:]))
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -1215,17 +1234,10 @@ def resolve_workflow_stage_manifest_path(workflow_id: str) -> Path:
 
 
 def _normalize_manifest_doc_path(raw: object, *, label: str) -> str:
-    value = _require_string(raw, label=label)
-    if "\\" in value:
-        raise ValueError(f"{label} must be a normalized relative POSIX path")
-    path = PurePosixPath(value)
-    if path.is_absolute() or any(part in {".", ".."} for part in path.parts):
-        raise ValueError(f"{label} must be a normalized relative POSIX path")
-    normalized = path.as_posix()
-    if normalized != value:
-        raise ValueError(f"{label} must be a normalized relative POSIX path")
+    normalized = _normalize_relative_posix_path(raw, label=label)
+    path = PurePosixPath(normalized)
     if path.suffix != ".md":
-        raise ValueError(f"{label} must reference an existing markdown file: {value}")
+        raise ValueError(f"{label} must reference an existing markdown file: {normalized}")
     if not normalized.startswith(_AUTHORITY_ROOTS):
         raise ValueError(f"{label} must reference an authority path under workflows/, references/, or templates/")
     if not (SPECS_DIR / normalized).is_file():
@@ -1234,6 +1246,13 @@ def _normalize_manifest_doc_path(raw: object, *, label: str) -> str:
 
 
 def _normalize_write_path(raw: object, *, label: str) -> str:
+    normalized = _normalize_relative_posix_path(raw, label=label)
+    if not normalized.startswith("GPD/"):
+        raise ValueError(f"{label} must be a normalized relative POSIX path")
+    return normalized
+
+
+def _normalize_relative_posix_path(raw: object, *, label: str) -> str:
     value = _require_string(raw, label=label)
     if "\\" in value:
         raise ValueError(f"{label} must be a normalized relative POSIX path")
@@ -1241,7 +1260,7 @@ def _normalize_write_path(raw: object, *, label: str) -> str:
     if path.is_absolute() or any(part in {".", ".."} for part in path.parts):
         raise ValueError(f"{label} must be a normalized relative POSIX path")
     normalized = path.as_posix()
-    if normalized != value or not normalized.startswith("GPD/"):
+    if normalized != value:
         raise ValueError(f"{label} must be a normalized relative POSIX path")
     return normalized
 
@@ -1542,10 +1561,7 @@ def validate_workflow_stage_manifest_payload(
 
     stage_id_set = set(stage_ids)
     unknown_next_stages = {
-        next_stage
-        for stage in stages
-        for next_stage in stage.next_stages
-        if next_stage not in stage_id_set
+        next_stage for stage in stages for next_stage in stage.next_stages if next_stage not in stage_id_set
     }
     if unknown_next_stages:
         raise ValueError(f"next_stages contains unknown stage id(s): {', '.join(sorted(unknown_next_stages))}")

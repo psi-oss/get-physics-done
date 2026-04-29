@@ -430,6 +430,8 @@ def test_bibliographer_delegates_return_boilerplate_to_agent_infrastructure() ->
 def test_research_agents_delegate_file_templates_to_canonical_templates() -> None:
     project_researcher = (AGENTS_DIR / "gpd-project-researcher.md").read_text(encoding="utf-8")
     phase_researcher = (AGENTS_DIR / "gpd-phase-researcher.md").read_text(encoding="utf-8")
+    synthesizer = (AGENTS_DIR / "gpd-research-synthesizer.md").read_text(encoding="utf-8")
+    summary_template = (TEMPLATES_DIR / "research-project" / "SUMMARY.md").read_text(encoding="utf-8")
 
     for template_name in (
         "SUMMARY.md",
@@ -449,3 +451,23 @@ def test_research_agents_delegate_file_templates_to_canonical_templates() -> Non
     assert "Do not inline or reconstruct a second full `RESEARCH.md` skeleton here." in phase_researcher
     assert "# Phase [X]: [Name] - Research" not in phase_researcher
     assert "### Package / Framework Reuse Decision" in phase_researcher
+
+    assert "{GPD_INSTALL_DIR}/templates/research-project/SUMMARY.md" in synthesizer
+    assert "# Research Summary Template" in summary_template
+    assert "Follow the canonical template and add the synthesizer-specific sections produced above" in synthesizer
+    assert "```markdown\n# Research Summary: [Project Title]" not in synthesizer
+    assert "[Aggregated references from all research files, organized by topic]" not in synthesizer
+
+
+def test_roadmapper_keeps_project_type_template_catalog_single_sourced() -> None:
+    roadmapper = (AGENTS_DIR / "gpd-roadmapper.md").read_text(encoding="utf-8")
+    project_type_templates = sorted((TEMPLATES_DIR / "project-types").glob("*.md"))
+    downstream_consumer = _between(roadmapper, "<downstream_consumer>", "</downstream_consumer>")
+    phase_identification = _between(roadmapper, "<phase_identification>", "</phase_identification>")
+
+    assert project_type_templates
+    assert "{GPD_INSTALL_DIR}/templates/project-types/" in downstream_consumer
+    assert "Use the matching file under `{GPD_INSTALL_DIR}/templates/project-types/`" in downstream_consumer
+    assert "qft-calculation.md" not in downstream_consumer
+    assert "stat-mech-simulation.md" not in downstream_consumer
+    assert "qft-calculation.md" in phase_identification
