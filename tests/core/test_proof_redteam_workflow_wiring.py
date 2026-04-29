@@ -126,6 +126,27 @@ def test_quick_publication_and_settings_surfaces_block_proof_bypass() -> None:
     assert "Sparse cadence does not waive proof red-teaming" in settings
 
 
+def test_peer_review_final_decision_guardrail_requires_same_round_proof_redteam() -> None:
+    peer_review = _expanded("peer-review.md")
+    reliability = (SPECS_DIR / "references/publication/peer-review-reliability.md").read_text(encoding="utf-8")
+
+    assert (
+        "wrong-round, wrong-root, or non-passing same-round `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md` "
+        "artifact prevents any favorable recommendation" in peer_review
+    )
+    assert "Stage-review validation alone is not proof-redteam clearance" in peer_review
+    assert "aligned `proof_audits[]` entries in `${REVIEW_ROOT}/STAGE-math{round_suffix}.json`" in peer_review
+    assert "do not by themselves clear a favorable final decision without the same-round proof-redteam artifact" in peer_review
+    assert (
+        "gpd validate referee-decision ${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json --strict "
+        "--ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json" in peer_review
+    )
+    assert "this strict final-decision validator is the favorable-decision guardrail" in peer_review
+
+    assert "same selected review root as the round artifacts" in reliability
+    assert "stage-review validation alone does not clear same-round proof-redteam policy" in reliability
+
+
 def test_proof_obligation_detection_distinguishes_generic_manuscript_claims() -> None:
     proof_gate = (SPECS_DIR / "references/verification/core/proof-redteam-workflow-gate.md").read_text(encoding="utf-8")
     quick = _read("quick.md")

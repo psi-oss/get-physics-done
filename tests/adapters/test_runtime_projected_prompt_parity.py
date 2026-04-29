@@ -106,7 +106,7 @@ RESULT_AGENT_SURFACES = {
     ),
 }
 PEER_REVIEW_PUBLICATION_LANE_FRAGMENTS = (
-    "Keep GPD-authored auxiliary review artifacts under `GPD/` in the invoking workspace.",
+    "Keep GPD-authored auxiliary review artifacts under the selected GPD-owned publication/review roots exposed by centralized preflight.",
     "The manuscript itself and any manuscript-local publication manifests stay rooted at the resolved manuscript directory.",
 )
 

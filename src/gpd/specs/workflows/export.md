@@ -109,6 +109,8 @@ Export format:
 mkdir -p exports
 ```
 
+Output boundary: `exports/` is the only durable write root for this workflow. Do not write generated export files under `GPD/publication/`, `GPD/review/`, `GPD/exports/`, `slides/`, manuscript roots, or OS temp directories. Export artifacts are shareable copies only; they must not update project state and must not satisfy publication, peer-review, response, arXiv-package, or slides gates.
+
 </step>
 
 <step name="generate_html">

@@ -108,6 +108,8 @@ Create the output structure and lock the persistence policy.
 
 Create `slides/` explicitly before writing files.
 
+Output boundary: `slides/` is the only durable write root for this workflow. Do not write generated deck artifacts under `exports/`, `GPD/publication/`, `GPD/review/`, manuscript roots, or OS temp directories. Slide artifacts are presentation outputs only; they must not update project state and must not satisfy publication, peer-review, response, arXiv-package, or export gates.
+
 Do not modify `GPD/STATE.md`, `GPD/ROADMAP.md`, `GPD/PROJECT.md`, or any project state files as part of this workflow.
 
 Do not commit slide artifacts automatically. Leave the generated files in the workspace and report them clearly.

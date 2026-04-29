@@ -47,9 +47,9 @@ RESEARCH_MODE=$(echo "$BOOTSTRAP" | gpd json get .research_mode --default balanc
 ```
 Treat `project_contract_gate` as authoritative. Use `project_contract` and `contract_intake` only when `project_contract_gate.authoritative` is true; otherwise keep them as diagnostics/context and rely on `effective_reference_intake`, `reference_artifacts_content`, and `active_reference_context` as carry-forward evidence. Stage 1 stays manuscript-first, but later adjudication must not ignore either the approved contract or the active anchor ledger.
 If `derived_manuscript_reference_status` is present, use it as a first-pass manuscript-local summary of reference coverage, citation readiness, and audit freshness. Keep the manuscript-root publication artifacts authoritative for strict decisions: `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and the reproducibility manifest still decide pass/fail.
-If `derived_manuscript_proof_review_status` is present, use it as the first-pass manuscript-local summary of theorem/proof freshness and keep the manuscript-root proof-redteam artifacts authoritative for strict decisions.
+If `derived_manuscript_proof_review_status` is present, use it as the first-pass manuscript-local summary of theorem/proof freshness and keep the selected-review-root proof-redteam artifacts authoritative for strict decisions.
 The shared manuscript-root bootstrap contract is applied in preflight. The local steps below add only peer-review-specific routing, proof-review, and adjudication rules.
-This workflow is project-aware: it may resolve the active manuscript from the current GPD project or review one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or manuscript-directory target supplied in the current workspace. Write review artifacts under the target-aware `selected_review_root`, falling back to `GPD/review`.
+This workflow is project-aware: it may resolve the active manuscript from the current GPD project or review one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or manuscript-directory target supplied in the current workspace. Write review artifacts under the target-aware `selected_review_root`. Fall back to `GPD/review` only when the target-aware payload does not expose a selected root for the default project-backed subject; if `selected_review_root` points to `GPD/publication/{subject_slug}/review`, do not duplicate or redirect those artifacts into global `GPD/review`.
 
 If `REVIEW_TARGET` is empty and `project_exists` is true, ask the user which mode they want:
 
@@ -115,6 +115,8 @@ After resolution, keep all manuscript-local support artifacts rooted at the same
 - `REPRODUCIBILITY_MANIFEST_PATH` = `reproducibility_manifest_path` when present, otherwise `${MANUSCRIPT_ROOT}/reproducibility-manifest.json`
 - `PAPER_CONFIG_PATH` = `${MANUSCRIPT_ROOT}/PAPER-CONFIG.json`
 - `LOCAL_BIB_FILES` = all `*.bib` files under `${MANUSCRIPT_ROOT}`
+
+For managed or explicit external publication subjects, keep `PUBLICATION_ROOT` and `REVIEW_ROOT` exactly on the selected subject-owned roots surfaced by init/preflight. Do not reset `REVIEW_ROOT` to `GPD/review`, and do not write a parallel global review bundle as a convenience copy.
 
 Prepare a reader-friendly manuscript surface for the staged reviewers:
 
@@ -856,15 +858,16 @@ Recommendation guardrails:
 2. A mathematically coherent but physically weak or scientifically mediocre paper can require major revision or rejection.
 3. Evaluate venue fit explicitly using the panel artifacts and spot-check the manuscript where the artifacts are under-evidenced.
 4. Treat protocol bundle guidance as additive context only. It can increase concern when decisive comparisons or benchmark anchors are missing, but it cannot rescue missing evidence or override the manuscript's actual artifact trail.
-5. For proof-bearing claims, a missing, malformed, or non-passing `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md` artifact prevents any favorable recommendation. Recommendation floor: `major_revision` or `reject`.
-6. Write `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json` and `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`.
-7. Keep `manuscript_path` non-empty and identical across `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`, `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`, and the staged-review artifacts for this round.
-8. Run `gpd validate review-ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`.
-9. Run `gpd validate referee-decision ${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json --strict --ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json` before trusting any final recommendation.
-10. If either validator fails, STOP and classify whether the failure is in Stage 6-owned artifacts or in upstream staged-review inputs before retrying anything.
-11. Your writable scope is limited to Stage 6-owned adjudication artifacts for this round: `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md`, `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex`, `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`, `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`, and `${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md` when applicable.
-12. Do not modify `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`, any `${REVIEW_ROOT}/STAGE-*.json`, or `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md`. If any of those upstream artifacts are missing, malformed, stale, or inconsistent, return `gpd_return.status: blocked` and hand the failure back to the earliest failing upstream stage instead of repairing it inside Stage 6.
-13. Treat any `gpd_return.files_written` entry outside the Stage 6 allowlist as a failed handoff, not as a successful adjudication.
+5. For proof-bearing claims, a missing, malformed, wrong-round, wrong-root, or non-passing same-round `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md` artifact prevents any favorable recommendation. Recommendation floor: `major_revision` or `reject`.
+6. Stage-review validation alone is not proof-redteam clearance: aligned `proof_audits[]` entries in `${REVIEW_ROOT}/STAGE-math{round_suffix}.json` are necessary review evidence, but they do not by themselves clear a favorable final decision without the same-round proof-redteam artifact and strict final-decision validation.
+7. Write `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json` and `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`.
+8. Keep `manuscript_path` non-empty and identical across `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`, `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`, and the staged-review artifacts for this round.
+9. Run `gpd validate review-ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`.
+10. Run `gpd validate referee-decision ${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json --strict --ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json` before trusting any final recommendation.
+11. If either validator fails, STOP and classify whether the failure is in Stage 6-owned artifacts or in upstream staged-review inputs before retrying anything.
+12. Your writable scope is limited to Stage 6-owned adjudication artifacts for this round: `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md`, `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex`, `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`, `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`, and `${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md` when applicable.
+13. Do not modify `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`, any `${REVIEW_ROOT}/STAGE-*.json`, or `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md`. If any of those upstream artifacts are missing, malformed, stale, or inconsistent, return `gpd_return.status: blocked` and hand the failure back to the earliest failing upstream stage instead of repairing it inside Stage 6.
+14. Treat any `gpd_return.files_written` entry outside the Stage 6 allowlist as a failed handoff, not as a successful adjudication.
 
 Write `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` and the matching `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex`.
 Treat the referee report files as required final-stage artifacts. If either report file is missing after adjudication, the stage is incomplete even if the JSON validators passed.
@@ -896,6 +899,8 @@ Then run the built-in validators. These are the authoritative fail-closed schema
 gpd validate review-ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json
 gpd validate referee-decision ${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json --strict --ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json
 ```
+
+For proof-bearing reviews, this strict final-decision validator is the favorable-decision guardrail. Do not treat a passing `gpd validate review-stage-report ${REVIEW_ROOT}/STAGE-math{round_suffix}.json` result, even with aligned `proof_audits[]`, as a substitute for same-round `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md` clearance plus strict referee-decision validation.
 
 If validation fails:
 

@@ -77,6 +77,12 @@ def test_arxiv_submission_workflow_resolves_manifest_based_manuscript_root_witho
     )
     assert 'PACKAGE_ROOT="${PUBLICATION_ROOT}/arxiv"' in workflow
     assert 'PACKAGE_TARBALL="${PACKAGE_ROOT}/arxiv-submission.tar.gz"' in workflow
+    assert (
+        'gpd --raw validate arxiv-package --materialize --submission-dir "$SUBMISSION_DIR" --tarball "$PACKAGE_TARBALL"'
+        in workflow
+    )
+    assert "reruns strict `arxiv-submission` review preflight internally" in workflow
+    assert "the executable arXiv package validator must pass" in workflow
     assert "latest-response discovery" in workflow
     assert "latest response artifacts already reached" not in workflow
     assert (

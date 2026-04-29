@@ -619,10 +619,10 @@ def test_export_surfaces_use_visible_exports_directory() -> None:
     assert "exports/results.tex" in workflow
     assert "exports/results.bib" in workflow
     assert "exports/results.zip" in workflow
-    assert "GPD/exports" not in workflow
+    assert "mkdir -p GPD/exports" not in workflow
     assert "Write files to `exports/`." in command
     assert "Files written to exports/" in command
-    assert "GPD/exports" not in command
+    assert "Write files to `GPD/exports" not in command
 
 
 def test_public_cli_surface_is_unified() -> None:

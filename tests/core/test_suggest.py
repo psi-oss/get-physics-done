@@ -374,10 +374,7 @@ def _write_managed_publication_submission_lane(
         ),
         encoding="utf-8",
     )
-    response_root = publication_root
-    (response_root / "REFEREE-REPORT.md").write_text("Accepted after revision.\n", encoding="utf-8")
-    (response_root / "AUTHOR-RESPONSE.md").write_text("Responses incorporated.\n", encoding="utf-8")
-    (review_dir / "REFEREE_RESPONSE.md").write_text("Accepted.\n", encoding="utf-8")
+    (publication_root / "REFEREE-REPORT.md").write_text("Accepted after revision.\n", encoding="utf-8")
     return entrypoint
 
 
@@ -479,6 +476,27 @@ def _write_review_round(
                 "blocking_issue_ids": blocking_issue_ids or [],
             }
         ),
+        encoding="utf-8",
+    )
+
+
+def _write_bound_response_pair(project_root: Path, *, round_number: int = 1) -> None:
+    round_suffix = "" if round_number <= 1 else f"-R{round_number}"
+    response_frontmatter = (
+        "---\n"
+        f"response_to: REFEREE-REPORT{round_suffix}.md\n"
+        f"round: {round_number}\n"
+        f"manuscript_path: {manuscript_relpath()}\n"
+        f"review_ledger: GPD/review/REVIEW-LEDGER{round_suffix}.json\n"
+        f"referee_decision: GPD/review/REFEREE-DECISION{round_suffix}.json\n"
+        "---\n\n"
+    )
+    (project_root / "GPD" / f"AUTHOR-RESPONSE{round_suffix}.md").write_text(
+        response_frontmatter + "# Author Response\n",
+        encoding="utf-8",
+    )
+    (project_root / "GPD" / "review" / f"REFEREE_RESPONSE{round_suffix}.md").write_text(
+        response_frontmatter + "# Referee Response\n",
         encoding="utf-8",
     )
 
@@ -1110,17 +1128,17 @@ def test_legacy_review_dir_referee_report_still_suggests_response_during_migrati
     assert "arxiv-submission" not in actions
 
 
-def test_author_response_and_accepted_decision_clear_referee_response_suggestion(tmp_path: Path) -> None:
+def test_completed_response_pair_routes_back_to_peer_review_before_arxiv_submission(tmp_path: Path) -> None:
     root = _write_submission_review_package(tmp_path, theorem_bearing=False, review_report=True)
     _create_roadmap(root)
-    (root / "GPD" / "AUTHOR-RESPONSE.md").write_text("Responses incorporated.\n", encoding="utf-8")
+    _write_bound_response_pair(root)
 
     result = suggest_next(root)
     actions = [s.action for s in result.suggestions]
 
     assert "respond-to-referees" not in actions
-    assert "peer-review" not in actions
-    assert "arxiv-submission" in actions
+    assert "peer-review" in actions
+    assert "arxiv-submission" not in actions
 
 
 def test_blocking_accepted_decision_does_not_suggest_arxiv_submission(tmp_path: Path) -> None:

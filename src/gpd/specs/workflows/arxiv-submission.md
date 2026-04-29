@@ -76,7 +76,7 @@ Parse `REVIEW_PREFLIGHT` for `publication_subject_slug`, `publication_lane_kind`
 If review preflight exits nonzero because of missing project state, missing manuscript, missing compiled manuscript, unresolved publication blockers, degraded review integrity, missing conventions, missing staged review artifacts, a newer response round without fresh staged review clearance, or stale theorem-proof review state, STOP and fix those blockers before packaging.
 If `derived_manuscript_proof_review_status` is present, use it as the first-pass theorem-proof freshness for the resolved manuscript, but keep the manuscript-root proof review artifacts authoritative for strict packaging decisions.
 Strict preflight reads `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and `reproducibility-manifest.json` from the resolved manuscript directory itself. The same resolved manuscript root is also the strict preflight source of truth for packaging.
-If the latest completed `gpd:respond-to-referees` round changed manuscript text, equations, figures, citations, or reproducibility evidence, do not treat older staged review artifacts as packaging clearance. That revised manuscript must go back through `gpd:peer-review` before `gpd:arxiv-submission` can continue.
+Current executable policy is conservative: any same-round or newer `gpd:respond-to-referees` author/referee response artifact for the active manuscript requires newer staged `gpd:peer-review` before packaging. Without durable manuscript-change scope metadata, response-only rounds are not arXiv clearance.
 
 Resolve the manuscript target from raw preflight plus `$ARGUMENTS`:
 
@@ -155,7 +155,7 @@ Load the shared latest-round publication contract from `{GPD_INSTALL_DIR}/refere
 
 Require the latest staged `REVIEW-LEDGER*.json` and `REFEREE-DECISION*.json` pair for the active manuscript. Packaging may continue only when the latest recommendation is `accept` or `minor_revision` and there are no unresolved blocking issues.
 Strict preflight also requires the latest round-specific staged `REVIEW-LEDGER*.json` / `REFEREE-DECISION*.json` pair as authoritative submission-gate input.
-If the newest publication-round artifacts are `AUTHOR-RESPONSE*.md` / `REFEREE_RESPONSE*.md` for a manuscript-changing revision, but there is no newer staged `REVIEW-LEDGER*.json` / `REFEREE-DECISION*.json` pair for that revised manuscript, STOP and route back to `gpd:peer-review`. Response artifacts are required revision records, not a substitute for fresh staged review clearance.
+If newest round artifacts are `AUTHOR-RESPONSE*.md` / `REFEREE_RESPONSE*.md` but no newer staged `REVIEW-LEDGER*.json` / `REFEREE-DECISION*.json` pair exists, STOP and route back to `gpd:peer-review`. This all-response freshness policy treats response artifacts as revision records, not staged review clearance, until durable change-scope metadata exists.
 
 If the manuscript is theorem-bearing, `manuscript_proof_review` must also already be cleared. Require a current `PROOF-REDTEAM*.md` artifact. A stale or missing proof review is a hard stop.
 
@@ -201,6 +201,20 @@ Use these arXiv-specific checks:
 | Missing bibliography flattening | Fail closed |
 
 If the manuscript root is not already `paper/`, stage the package in a temporary submission tree that preserves the resolved manuscript root as the upload entrypoint and keeps the root-level file layout flat. The managed package root still remains `${PACKAGE_ROOT}` under `GPD/`.
+
+After `${SUBMISSION_DIR}` is populated, materialize and validate with the executable package boundary. It reruns strict `arxiv-submission` review preflight internally, keeps `${SUBMISSION_DIR}` and `${PACKAGE_TARBALL}` under `${PACKAGE_ROOT}`, rejects unsafe tar paths, symlinks, aux files, placeholders, empty cites/refs, bibliography-command residue, and requires the main `.tex` at tar root:
+
+```bash
+if [ -n "${ARGUMENTS:-}" ]; then
+  PACKAGE_VALIDATION=$(gpd --raw validate arxiv-package --materialize --submission-dir "$SUBMISSION_DIR" --tarball "$PACKAGE_TARBALL" -- "$ARGUMENTS")
+else
+  PACKAGE_VALIDATION=$(gpd --raw validate arxiv-package --materialize --submission-dir "$SUBMISSION_DIR" --tarball "$PACKAGE_TARBALL")
+fi
+if [ $? -ne 0 ]; then
+  echo "$PACKAGE_VALIDATION"
+  exit 1
+fi
+```
 </step>
 
 <step name="finalize">
@@ -218,7 +232,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Create `${PACKAGE_TARBALL}` (filename `arxiv-submission.tar.gz`), verify that the main manuscript file is at the tarball root, and present a final checklist with:
+Use `PACKAGE_VALIDATION` from `gpd --raw validate arxiv-package --materialize` as the authoritative tarball proof. If resuming at finalize, run the same validator without `--materialize` before reporting success. Present a final checklist with:
 
 - package path and size
 - figure count
@@ -230,7 +244,7 @@ Create `${PACKAGE_TARBALL}` (filename `arxiv-submission.tar.gz`), verify that th
 - `\pdfoutput=1` status
 - manual submission steps still required
 
-Do not treat prose-only success as complete. The tarball must exist on disk under `GPD/publication/${subject_slug}/arxiv/`, and the manuscript-root / latest-review gates must still be satisfied.
+Do not treat prose-only success as complete. The tarball must be under `GPD/publication/${subject_slug}/arxiv/`, the executable arXiv package validator must pass, and manuscript-root / latest-review gates must hold.
 </step>
 
 <community_contribution>

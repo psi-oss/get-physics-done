@@ -112,6 +112,75 @@ def _artifact_manifest_payload(manuscript: Path, *, title: str = "Curvature Flow
     }
 
 
+def _write_write_paper_authoring_input(
+    workspace: Path,
+    *,
+    file_name: str = "write-paper-authoring-input.json",
+    subject_slug: str = "external-authoring-test",
+) -> Path:
+    intake_path = workspace / file_name
+    intake_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "title": "External Authoring Bounds",
+                "authors": [{"name": "A. Researcher", "affiliation": "Example University"}],
+                "target_journal": "prl",
+                "subject_slug": subject_slug,
+                "central_claim": "The controlled benchmark supports a stable external-authoring draft.",
+                "claims": [
+                    {
+                        "id": "CLM-main",
+                        "statement": "The benchmarked bound is stable across the resolved regime.",
+                        "evidence": {
+                            "source_note_ids": ["NOTE-main"],
+                            "result_ids": ["RES-main"],
+                            "figure_ids": ["FIG-main"],
+                            "citation_source_ids": ["cite-main"],
+                        },
+                    }
+                ],
+                "source_notes": [
+                    {
+                        "id": "NOTE-main",
+                        "path": "notes/main-result.md",
+                        "summary": "Summarizes the decisive benchmark and fit stability.",
+                    }
+                ],
+                "results": [
+                    {
+                        "id": "RES-main",
+                        "summary": "Main fitted bound with uncertainty band.",
+                        "source_note_ids": ["NOTE-main"],
+                    }
+                ],
+                "figures": [
+                    {
+                        "id": "FIG-main",
+                        "path": "figures/main-bound.pdf",
+                        "caption": "Benchmark comparison supporting the main bound.",
+                        "source_note_ids": ["NOTE-main"],
+                    }
+                ],
+                "citation_sources": [
+                    {
+                        "source_type": "paper",
+                        "reference_id": "cite-main",
+                        "title": "Benchmark Recovery in a Controlled Regime",
+                        "authors": ["A. Author", "B. Author"],
+                        "year": "2024",
+                        "arxiv_id": "2401.12345",
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return intake_path
+
+
 def _create_phase_dir(tmp_path: Path, name: str) -> Path:
     """Create a phase directory and return its path."""
     phase_dir = tmp_path / "GPD" / "phases" / name
@@ -2965,18 +3034,48 @@ class TestInitNewProject:
         assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
         assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
 
-    def test_write_paper_stage_bootstrap_preserves_explicit_intake_payload(self, tmp_path: Path) -> None:
-        _setup_project(tmp_path)
-        _write_project_contract_state(tmp_path)
+    def test_write_paper_stage_bootstrap_binds_external_intake_subject(self, tmp_path: Path) -> None:
+        intake_path = _write_write_paper_authoring_input(tmp_path)
 
         ctx = init_write_paper(
             tmp_path,
-            subject="--intake intake/write-paper-authoring-input.json",
+            subject=f"--intake {intake_path.name}",
             stage="paper_bootstrap",
         )
 
-        assert ctx["write_paper_argument_input"] == "--intake intake/write-paper-authoring-input.json"
+        managed_root = "GPD/publication/external-authoring-test"
+        assert ctx["project_exists"] is False
+        assert ctx["write_paper_argument_input"] == f"--intake {intake_path.name}"
         assert "write_paper_launch_subject" not in ctx
+        assert ctx["publication_subject_status"] == "bootstrap"
+        assert ctx["publication_subject_source"] == "explicit_intake_manifest"
+        assert ctx["publication_subject_slug"] == "external-authoring-test"
+        assert ctx["publication_lane_kind"] == "managed_publication_manuscript"
+        assert ctx["publication_lane_owner"] == "external_authoring_intake"
+        assert ctx["managed_publication_root"] == managed_root
+        assert ctx["managed_manuscript_root"] == f"{managed_root}/manuscript"
+        assert ctx["publication_bootstrap_mode"] == "fresh_project_bootstrap"
+        assert ctx["publication_bootstrap_root"] == f"{managed_root}/manuscript"
+        assert ctx["publication_intake_root"] == f"{managed_root}/intake"
+        assert ctx["selected_publication_root"] == managed_root
+        assert ctx["selected_review_root"] == f"{managed_root}/review"
+        assert ctx["publication_artifact_base"] == f"{managed_root}/manuscript"
+        assert ctx["manuscript_root"] == f"{managed_root}/manuscript"
+        assert ctx["manuscript_entrypoint"] is None
+        assert ctx["publication_subject"]["managed_intake_root"] == f"{managed_root}/intake"
+
+    def test_write_paper_stage_bootstrap_rejects_inside_project_intake(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nPaper target.\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        intake_path = _write_write_paper_authoring_input(tmp_path)
+
+        with pytest.raises(ValueError, match="only allowed from a workspace without an initialized GPD project"):
+            init_write_paper(
+                tmp_path,
+                subject=f"--intake {intake_path.name}",
+                stage="paper_bootstrap",
+            )
 
     def test_write_paper_stage_outline_and_scaffold_loads_deferred_context(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -3306,6 +3405,49 @@ class TestInitNewProject:
         assert ctx["managed_publication_root"] == "GPD/publication/curvature-flow-bounds"
         assert ctx["selected_publication_root"] == "GPD/publication/curvature-flow-bounds"
         assert ctx["selected_review_root"] == "GPD/publication/curvature-flow-bounds/review"
+
+    def test_arxiv_submission_stage_bootstrap_surfaces_newest_response_freshness(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nSubmission target.\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        publication_root = tmp_path / "GPD" / "publication" / "curvature-flow-bounds"
+        manuscript_dir = publication_root / "manuscript"
+        manuscript_dir.mkdir(parents=True)
+        manuscript = manuscript_dir / "main.tex"
+        manuscript.write_text(
+            "\\documentclass{article}\\begin{document}Draft manuscript.\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(_artifact_manifest_payload(manuscript, title="Curvature Flow Bounds")) + "\n",
+            encoding="utf-8",
+        )
+        review_dir = publication_root / "review"
+        review_dir.mkdir(parents=True)
+        response_frontmatter = (
+            "---\n"
+            "response_to: REFEREE-REPORT-R2.md\n"
+            "round: 2\n"
+            "manuscript_path: GPD/publication/curvature-flow-bounds/manuscript/main.tex\n"
+            "---\n\n"
+        )
+        (publication_root / "AUTHOR-RESPONSE-R2.md").write_text(
+            response_frontmatter + "# Author Response\n",
+            encoding="utf-8",
+        )
+        (review_dir / "REFEREE_RESPONSE-R2.md").write_text(
+            response_frontmatter + "# Referee Response\n",
+            encoding="utf-8",
+        )
+
+        ctx = init_arxiv_submission(tmp_path, stage="bootstrap")
+
+        assert ctx["latest_response_round"] == 2
+        assert ctx["latest_author_response"] == "GPD/publication/curvature-flow-bounds/AUTHOR-RESPONSE-R2.md"
+        assert ctx["latest_referee_response"] == ("GPD/publication/curvature-flow-bounds/review/REFEREE_RESPONSE-R2.md")
+        assert ctx["latest_response_requires_fresh_review"] is True
+        assert ctx["latest_response_required_review_round"] == 3
+        assert ctx["latest_response_freshness_policy"] == "conservative_all_response_artifacts"
 
     def test_arxiv_submission_resolves_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

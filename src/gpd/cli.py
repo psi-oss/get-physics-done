@@ -133,6 +133,7 @@ from gpd.core.publication_rounds import (
 )
 from gpd.core.publication_runtime import (
     publication_blockers_for_project,
+    publication_response_freshness_status,
 )
 from gpd.core.recovery_advice import (
     RecoveryAdvice,
@@ -165,13 +166,26 @@ from gpd.core.workflow_presets import (
     list_workflow_presets,
     preview_workflow_preset_application,
 )
+from gpd.core.write_paper_intake import (
+    WritePaperExternalAuthoringIntakeResolution,
+    reject_write_paper_intake_inside_project_detail,
+)
+from gpd.core.write_paper_intake import (
+    has_write_paper_external_authoring_intake as _shared_has_write_paper_external_authoring_intake,
+)
+from gpd.core.write_paper_intake import (
+    resolve_write_paper_external_authoring_intake as _shared_resolve_write_paper_external_authoring_intake,
+)
+from gpd.core.write_paper_intake import (
+    write_paper_external_authoring_intake_argument as _shared_write_paper_external_authoring_intake_argument,
+)
 from gpd.mcp.managed_integrations import WOLFRAM_MANAGED_INTEGRATION
 
 if TYPE_CHECKING:
     from gpd.core.constants import ProjectLayout
     from gpd.core.health import UnattendedReadinessResult
     from gpd.mcp.paper.bibliography import CitationSource
-    from gpd.mcp.paper.models import PaperConfig, WritePaperAuthoringInput
+    from gpd.mcp.paper.models import PaperConfig
     from gpd.registry import ReviewContractConditionalRequirement
 
 # ─── Output helpers ─────────────────────────────────────────────────────────
@@ -673,19 +687,6 @@ class ResolvedManuscriptTarget:
     manuscript_root: Path | None
     requested_target: Path | None
     detail: str
-
-
-@dataclasses.dataclass(frozen=True)
-class WritePaperExternalAuthoringIntakeResolution:
-    """Validated external-authoring intake details for bounded ``gpd:write-paper`` bootstrap."""
-
-    status: str
-    intake_path: Path | None
-    manuscript_root: Path | None
-    intake_root: Path | None
-    subject_slug: str | None
-    manifest: WritePaperAuthoringInput | None = None
-    detail: str = ""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -7761,18 +7762,7 @@ def _progress_reconcile_confirmation_check(command: object) -> tuple[bool, str]:
 def _write_paper_external_authoring_intake_argument(arguments: str | None) -> str | None:
     """Return the explicit ``--intake`` manifest path supplied to ``gpd:write-paper``."""
 
-    flagged = _flag_values(arguments, "--intake")
-    return flagged[-1] if flagged else None
-
-
-def _write_paper_external_authoring_subject_slug(manifest: WritePaperAuthoringInput) -> str:
-    """Return the managed publication subject slug for one external-authoring intake."""
-
-    explicit_slug = str(getattr(manifest, "subject_slug", "") or "").strip()
-    if explicit_slug:
-        return explicit_slug
-    derived_slug = normalize_ascii_slug(str(getattr(manifest, "title", "") or "")) or "paper"
-    return derived_slug[:48].rstrip("-") or "paper"
+    return _shared_write_paper_external_authoring_intake_argument(arguments)
 
 
 def _resolve_write_paper_external_authoring_intake(
@@ -7783,102 +7773,17 @@ def _resolve_write_paper_external_authoring_intake(
 ) -> WritePaperExternalAuthoringIntakeResolution | None:
     """Validate the bounded external-authoring intake manifest for ``gpd:write-paper``."""
 
-    from gpd.mcp.paper.models import WritePaperAuthoringInput
-
-    intake_argument = _write_paper_external_authoring_intake_argument(arguments)
-    if intake_argument is None:
-        return None
-
-    workspace_root = (workspace_cwd or project_root).resolve(strict=False)
-    intake_path = (
-        _resolve_subject_path(intake_argument, base=workspace_root) or (workspace_root / intake_argument)
-    ).resolve(strict=False)
-    if intake_path.suffix.lower() != ".json":
-        return WritePaperExternalAuthoringIntakeResolution(
-            status="invalid",
-            intake_path=intake_path,
-            manuscript_root=None,
-            intake_root=None,
-            subject_slug=None,
-            detail=f"write-paper `--intake` must point to a JSON file: {_format_display_path(intake_path)}",
-        )
-    if not intake_path.exists():
-        return WritePaperExternalAuthoringIntakeResolution(
-            status="missing",
-            intake_path=intake_path,
-            manuscript_root=None,
-            intake_root=None,
-            subject_slug=None,
-            detail=f"missing write-paper intake manifest {_format_display_path(intake_path)}",
-        )
-    if intake_path.is_dir():
-        return WritePaperExternalAuthoringIntakeResolution(
-            status="invalid",
-            intake_path=intake_path,
-            manuscript_root=None,
-            intake_root=None,
-            subject_slug=None,
-            detail=f"write-paper `--intake` must point to a JSON file, not a directory: {_format_display_path(intake_path)}",
-        )
-
-    try:
-        payload = _load_json_document(str(intake_path))
-    except GPDError as exc:
-        return WritePaperExternalAuthoringIntakeResolution(
-            status="invalid",
-            intake_path=intake_path,
-            manuscript_root=None,
-            intake_root=None,
-            subject_slug=None,
-            detail=f"could not load write-paper intake manifest: {exc}",
-        )
-    if not isinstance(payload, dict):
-        return WritePaperExternalAuthoringIntakeResolution(
-            status="invalid",
-            intake_path=intake_path,
-            manuscript_root=None,
-            intake_root=None,
-            subject_slug=None,
-            detail=f"write-paper intake manifest must be a JSON object: {_format_display_path(intake_path)}",
-        )
-
-    try:
-        manifest = WritePaperAuthoringInput.model_validate(payload)
-    except PydanticValidationError as exc:
-        details = "; ".join(
-            _format_pydantic_schema_error(error, root_label="write_paper_authoring_input") for error in exc.errors()[:3]
-        )
-        return WritePaperExternalAuthoringIntakeResolution(
-            status="invalid",
-            intake_path=intake_path,
-            manuscript_root=None,
-            intake_root=None,
-            subject_slug=None,
-            detail=f"write-paper intake manifest is invalid: {details}",
-        )
-
-    subject_slug = _write_paper_external_authoring_subject_slug(manifest)
-    publication_root = project_root.resolve(strict=False) / PLANNING_DIR_NAME / PUBLICATION_DIR_NAME / subject_slug
-    manuscript_root = publication_root / PUBLICATION_MANUSCRIPT_DIR_NAME
-    intake_root = publication_root / "intake"
-    return WritePaperExternalAuthoringIntakeResolution(
-        status="resolved",
-        intake_path=intake_path,
-        manuscript_root=manuscript_root,
-        intake_root=intake_root,
-        subject_slug=subject_slug,
-        manifest=manifest,
-        detail=(
-            f"validated external authoring intake {_format_display_path(intake_path)}; "
-            f"managed manuscript bootstrap will use {_format_display_path(manuscript_root)}"
-        ),
+    return _shared_resolve_write_paper_external_authoring_intake(
+        project_root,
+        arguments,
+        workspace_cwd=workspace_cwd,
     )
 
 
 def _has_write_paper_external_authoring_intake(arguments: str | None) -> bool:
     """Return whether ``gpd:write-paper`` received an explicit ``--intake`` flag."""
 
-    return _write_paper_external_authoring_intake_argument(arguments) is not None
+    return _shared_has_write_paper_external_authoring_intake(arguments)
 
 
 def _has_flag_value(tokens: list[str], flag: str) -> bool:
@@ -8591,6 +8496,15 @@ def _command_context_publication_roots(
     """Return selected response roots exposed by command-context preflight."""
     if _command_review_mode(command) != "publication":
         return None, None
+    if resolved_subject is not None and resolved_subject.ownership_mode == "external_authoring_intake":
+        managed_slug = _managed_publication_slug_for_target(
+            project_root,
+            resolved_subject.target_root or resolved_subject.target_path,
+        )
+        if managed_slug is None:
+            return None, None
+        publication_root = f"{PLANNING_DIR_NAME}/{PUBLICATION_DIR_NAME}/{managed_slug}"
+        return publication_root, f"{publication_root}/review"
     if resolved_subject is None or resolved_subject.subject_kind != "manuscript":
         return PLANNING_DIR_NAME, f"{PLANNING_DIR_NAME}/review"
 
@@ -8637,6 +8551,20 @@ def _review_preflight_publication_routing(
     publication_subject_slug = None
     publication_lane_kind = None
     managed_publication_root = None
+    if (
+        resolved_subject is not None
+        and resolved_subject.ownership_mode == "external_authoring_intake"
+        and _command_review_mode(command) == "publication"
+    ):
+        managed_slug = _managed_publication_slug_for_target(
+            project_root,
+            resolved_subject.target_root or resolved_subject.target_path,
+        )
+        if managed_slug is not None:
+            publication_subject_slug = managed_slug
+            publication_lane_kind = "managed_publication_manuscript"
+            managed_publication_root = f"{PLANNING_DIR_NAME}/{PUBLICATION_DIR_NAME}/{publication_subject_slug}"
+            manuscript_root = resolved_subject.target_root
     if manuscript is not None and _command_review_mode(command) == "publication":
         managed_slug = _managed_publication_slug_for_target(project_root, manuscript)
         publication_subject_slug = managed_slug or _publication_subject_slug_for_manuscript_entrypoint(
@@ -8681,6 +8609,12 @@ def _command_managed_output_bindings(
     resolved_subject: ResolvedCommandSubject | None,
 ) -> dict[str, str]:
     """Return dynamic managed-output subtree bindings for the active subject."""
+    if resolved_subject is not None and resolved_subject.ownership_mode == "external_authoring_intake":
+        managed_slug = _managed_publication_slug_for_target(
+            project_root,
+            resolved_subject.target_root or resolved_subject.target_path,
+        )
+        return {"subject_slug": managed_slug} if managed_slug is not None else {}
     manuscript_entrypoint = _resolved_subject_manuscript_entrypoint(resolved_subject)
     if manuscript_entrypoint is None:
         return {}
@@ -9118,6 +9052,32 @@ def _build_resolved_command_subject(
         project_root_source=resolved_project_root_source,
         project_root_auto_selected=project_root_auto_selected,
     )
+    if (
+        str(getattr(command, "name", "") or "") == "gpd:write-paper"
+        and resolved_project_root is not None
+        and _has_write_paper_external_authoring_intake(subject)
+    ):
+        intake_argument = _write_paper_external_authoring_intake_argument(subject)
+        intake_path = _resolve_subject_path(intake_argument, base=workspace_root) if intake_argument else None
+        return ResolvedCommandSubject(
+            command=str(getattr(command, "name", "") or ""),
+            workspace_root=workspace_root,
+            resolved_project_root=resolved_project_root,
+            context_root=context_root,
+            target_path=intake_path,
+            target_root=None,
+            subject_kind="publication",
+            ownership_mode="external_authoring_intake",
+            status="invalid",
+            exists=intake_path.exists() if intake_path is not None else False,
+            explicit_input=True,
+            project_root_source=resolved_project_root_source,
+            project_root_auto_selected=project_root_auto_selected,
+            reentry_mode=reentry_mode,
+            ancestor_walked_up=ancestor_walked_up,
+            detail=reject_write_paper_intake_inside_project_detail(),
+        )
+
     if str(getattr(command, "name", "") or "") == "gpd:write-paper" and resolved_project_root is None:
         intake_resolution = _resolve_write_paper_external_authoring_intake(
             context_root,
@@ -10810,18 +10770,23 @@ def _build_review_preflight(
                         manuscript=manuscript,
                     )
                     required_review_round = latest_review_round
-                    response_round_requires_fresh_review = False
-                    if latest_response_round is not None and (
-                        required_review_round is None
-                        or latest_response_round.round_number >= required_review_round.round_number
+                    response_freshness = publication_response_freshness_status(
+                        latest_review_round=(
+                            latest_review_round.round_number if latest_review_round is not None else None
+                        ),
+                        latest_response_round=(
+                            latest_response_round.round_number if latest_response_round is not None else None
+                        ),
+                    )
+                    if (
+                        response_freshness.requires_fresh_review
+                        and response_freshness.required_review_round is not None
                     ):
-                        next_review_round = latest_response_round.round_number + 1
                         required_review_round = _publication_review_round_artifacts(
-                            next_review_round,
+                            response_freshness.required_review_round,
                             review_ledger_by_round=review_ledger_by_round,
                             referee_decision_by_round=referee_decision_by_round,
                         )
-                        response_round_requires_fresh_review = True
 
                     if required_review_round is None:
                         if "review_ledger" in review_checks_requested:
@@ -10848,17 +10813,7 @@ def _build_review_preflight(
                             if required_review_round.round_number > 1
                             else "round 1"
                         )
-                        response_round_detail = ""
-                        if response_round_requires_fresh_review and latest_response_round is not None:
-                            response_round_label = (
-                                f"round {latest_response_round.round_number}"
-                                if latest_response_round.round_number > 1
-                                else "round 1"
-                            )
-                            response_round_detail = (
-                                f"; latest response artifacts already reached {response_round_label}; "
-                                f"requires newer staged review clearance in {round_label}"
-                            )
+                        response_round_detail = response_freshness.review_preflight_detail
                         if "review_ledger" in review_checks_requested:
                             add_check(
                                 "review_ledger",
@@ -11377,6 +11332,109 @@ def validate_review_preflight(
     arguments.extend(str(arg) for arg in ctx.args)
     result = _build_review_preflight(command_name, subject=" ".join(arguments) or None, strict=strict)
     _output(result)
+    if not result.passed:
+        raise typer.Exit(code=1)
+
+
+@validate_app.command("arxiv-package", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def validate_arxiv_package_cmd(
+    ctx: typer.Context,
+    subject: str | None = typer.Argument(
+        None,
+        help="Optional manuscript root or .tex entrypoint to pass through arxiv-submission preflight",
+    ),
+    submission_dir: str | None = typer.Option(
+        None,
+        "--submission-dir",
+        help="Prepared arXiv submission tree to validate; defaults to the managed package root submission directory",
+    ),
+    tarball: str | None = typer.Option(
+        None,
+        "--tarball",
+        help="arxiv-submission.tar.gz path to validate; defaults to the managed package root tarball",
+    ),
+    materialize: bool = typer.Option(
+        False,
+        "--materialize",
+        help="Create arxiv-submission.tar.gz from the validated submission tree before tarball checks",
+    ),
+) -> None:
+    """Validate a managed arXiv submission tree/tarball after strict review preflight."""
+
+    from gpd.core.arxiv_package import validate_arxiv_package
+
+    arguments: list[str] = []
+    if subject is not None:
+        arguments.append(subject)
+    arguments.extend(str(arg) for arg in ctx.args)
+    subject_text = " ".join(arguments) or None
+
+    review_preflight = _build_review_preflight("arxiv-submission", subject=subject_text, strict=True)
+    if not review_preflight.passed:
+        _output(
+            {
+                "passed": False,
+                "preflight_passed": False,
+                "checks": [
+                    {
+                        "name": "strict_review_preflight",
+                        "passed": False,
+                        "blocking": True,
+                        "detail": "strict arxiv-submission review preflight failed",
+                    }
+                ],
+                "review_preflight": dataclasses.asdict(review_preflight),
+            }
+        )
+        raise typer.Exit(code=1)
+
+    project_root = _require_project_root(_get_cwd(), command_label="gpd validate arxiv-package")
+    if review_preflight.resolved_subject is not None:
+        project_root = (
+            review_preflight.resolved_subject.resolved_project_root
+            or review_preflight.resolved_subject.context_root
+            or project_root
+        )
+
+    if not review_preflight.publication_subject_slug or not review_preflight.manuscript_entrypoint:
+        _output(
+            {
+                "passed": False,
+                "preflight_passed": True,
+                "checks": [
+                    {
+                        "name": "strict_review_preflight_routing",
+                        "passed": False,
+                        "blocking": True,
+                        "detail": "strict preflight did not emit publication_subject_slug and manuscript_entrypoint",
+                    }
+                ],
+                "review_preflight": dataclasses.asdict(review_preflight),
+            }
+        )
+        raise typer.Exit(code=1)
+
+    result = validate_arxiv_package(
+        project_root=project_root,
+        subject_slug=review_preflight.publication_subject_slug,
+        manuscript_entrypoint=review_preflight.manuscript_entrypoint,
+        submission_dir=submission_dir,
+        tarball=tarball,
+        materialize=materialize,
+    )
+    payload = dataclasses.asdict(result)
+    payload["preflight_passed"] = True
+    payload["review_preflight"] = {
+        "command": review_preflight.command,
+        "strict": review_preflight.strict,
+        "publication_subject_slug": review_preflight.publication_subject_slug,
+        "managed_publication_root": review_preflight.managed_publication_root,
+        "selected_publication_root": review_preflight.selected_publication_root,
+        "selected_review_root": review_preflight.selected_review_root,
+        "manuscript_root": review_preflight.manuscript_root,
+        "manuscript_entrypoint": review_preflight.manuscript_entrypoint,
+    }
+    _output(payload)
     if not result.passed:
         raise typer.Exit(code=1)
 

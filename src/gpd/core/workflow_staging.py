@@ -933,6 +933,12 @@ PEER_REVIEW_INIT_FIELDS = frozenset(
         "latest_author_response",
         "latest_referee_response",
         "latest_response_artifacts",
+        "latest_response_freshness_policy",
+        "latest_response_requires_fresh_review",
+        "latest_response_required_review_round",
+        "latest_response_required_review_round_suffix",
+        "latest_response_freshness_detail",
+        "latest_response_freshness",
         "platform",
     }
 )
@@ -989,6 +995,12 @@ ARXIV_SUBMISSION_SNAPSHOT_FIELDS = frozenset(
         "latest_author_response",
         "latest_referee_response",
         "latest_response_artifacts",
+        "latest_response_freshness_policy",
+        "latest_response_requires_fresh_review",
+        "latest_response_required_review_round",
+        "latest_response_required_review_round_suffix",
+        "latest_response_freshness_detail",
+        "latest_response_freshness",
     }
 )
 ARXIV_SUBMISSION_INIT_FIELDS = frozenset(

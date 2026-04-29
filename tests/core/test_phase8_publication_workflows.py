@@ -88,6 +88,8 @@ def test_peer_review_stage_six_requires_report_artifacts_and_threads_mode_contex
     assert "confirm `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` and `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex` exist before treating the final recommendation as complete." in workflow
     assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md" in workflow
     assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex" in workflow
+    assert "Stage-review validation alone is not proof-redteam clearance" in workflow
+    assert "same-round `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md` clearance plus strict referee-decision validation" in workflow
 
 def test_paper_writer_prompt_supports_bounded_external_authoring_without_workspace_mining() -> None:
     agent = (AGENTS_DIR / "gpd-paper-writer.md").read_text(encoding="utf-8")

@@ -18,6 +18,7 @@ import json
 import re
 import subprocess
 import sys
+import tarfile
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -1313,6 +1314,31 @@ def _move_publication_review_outcome_to_subject_review(
     decision_payload = json.loads(decision_path.read_text(encoding="utf-8"))
     decision_payload["stage_artifacts"] = [f"GPD/publication/{subject_slug}/review/{name}" for name in stage_names]
     decision_path.write_text(json.dumps(decision_payload), encoding="utf-8")
+
+
+def _write_managed_arxiv_submission_package(
+    project_root: Path,
+    *,
+    subject_slug: str = "curvature-flow",
+    entrypoint_name: str = "managed_manuscript.tex",
+    tex_body: str = "\\documentclass{article}\n\\begin{document}\nManaged manuscript.\n\\end{document}\n",
+    extra_files: dict[str, str] | None = None,
+) -> tuple[Path, Path]:
+    arxiv_root = project_root / "GPD" / "publication" / subject_slug / "arxiv"
+    submission_dir = arxiv_root / "submission"
+    submission_dir.mkdir(parents=True, exist_ok=True)
+    (submission_dir / entrypoint_name).write_text(tex_body, encoding="utf-8")
+    for relative_path, content in (extra_files or {}).items():
+        target = submission_dir / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+
+    tarball = arxiv_root / "arxiv-submission.tar.gz"
+    with tarfile.open(tarball, "w:gz") as archive:
+        for path in sorted(submission_dir.rglob("*")):
+            if path.is_file():
+                archive.add(path, arcname=path.relative_to(submission_dir).as_posix(), recursive=False)
+    return submission_dir, tarball
 
 
 def _update_claim_index_claim(
@@ -7311,6 +7337,185 @@ class TestReviewValidationCommands:
         assert "REVIEW-LEDGER-R2.json" not in checks["review_ledger"]["detail"]
         assert checks["publication_review_outcome"]["passed"] is True
 
+    def test_validate_arxiv_package_accepts_managed_root_tarball_after_strict_preflight(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        managed_manuscript_path = "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex"
+        _write_managed_publication_manuscript(gpd_project)
+        _write_publication_review_outcome(
+            gpd_project,
+            final_recommendation="accept",
+            manuscript_path=managed_manuscript_path,
+        )
+        _move_publication_review_outcome_to_subject_review(gpd_project, subject_slug="curvature-flow")
+        _write_managed_arxiv_submission_package(gpd_project)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "arxiv-package", managed_manuscript_path],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is True
+        assert payload["preflight_passed"] is True
+        assert payload["subject_slug"] == "curvature-flow"
+        assert payload["package_root"] == "GPD/publication/curvature-flow/arxiv"
+        assert payload["submission_dir"] == "GPD/publication/curvature-flow/arxiv/submission"
+        assert payload["tarball"] == "GPD/publication/curvature-flow/arxiv/arxiv-submission.tar.gz"
+        assert payload["root_entrypoint"] == "managed_manuscript.tex"
+        assert "managed_manuscript.tex" in payload["tarball_entries"]
+        assert checks["tarball_under_managed_arxiv_root"]["passed"] is True
+        assert checks["tarball_entrypoint_at_root"]["passed"] is True
+        assert checks["tarball_tex_ready"]["passed"] is True
+
+    def test_validate_arxiv_package_materializes_tarball_from_valid_submission_tree(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        managed_manuscript_path = "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex"
+        _write_managed_publication_manuscript(gpd_project)
+        _write_publication_review_outcome(
+            gpd_project,
+            final_recommendation="accept",
+            manuscript_path=managed_manuscript_path,
+        )
+        _move_publication_review_outcome_to_subject_review(gpd_project, subject_slug="curvature-flow")
+        submission_dir, tarball = _write_managed_arxiv_submission_package(gpd_project)
+        tarball.unlink()
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "validate",
+                "arxiv-package",
+                managed_manuscript_path,
+                "--materialize",
+                "--submission-dir",
+                str(submission_dir),
+                "--tarball",
+                str(tarball),
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["materialized"] is True
+        assert tarball.exists()
+        assert checks["tarball_materialized"]["passed"] is True
+        assert checks["tarball_exists"]["passed"] is True
+
+    def test_validate_arxiv_package_rejects_tarball_outside_managed_arxiv_root(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        managed_manuscript_path = "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex"
+        _write_managed_publication_manuscript(gpd_project)
+        _write_publication_review_outcome(
+            gpd_project,
+            final_recommendation="accept",
+            manuscript_path=managed_manuscript_path,
+        )
+        _move_publication_review_outcome_to_subject_review(gpd_project, subject_slug="curvature-flow")
+        _submission_dir, tarball = _write_managed_arxiv_submission_package(gpd_project)
+        escaped_tarball = gpd_project / "arxiv-submission.tar.gz"
+        escaped_tarball.write_bytes(tarball.read_bytes())
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "validate",
+                "arxiv-package",
+                managed_manuscript_path,
+                "--tarball",
+                str(escaped_tarball),
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["tarball_under_managed_arxiv_root"]["passed"] is False
+        assert "escapes managed arXiv root" in checks["tarball_under_managed_arxiv_root"]["detail"]
+
+    def test_validate_arxiv_package_rejects_bibliography_residue_and_bib_sources(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        managed_manuscript_path = "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex"
+        _write_managed_publication_manuscript(gpd_project)
+        _write_publication_review_outcome(
+            gpd_project,
+            final_recommendation="accept",
+            manuscript_path=managed_manuscript_path,
+        )
+        _move_publication_review_outcome_to_subject_review(gpd_project, subject_slug="curvature-flow")
+        _write_managed_arxiv_submission_package(
+            gpd_project,
+            tex_body=(
+                "\\documentclass{article}\n"
+                "\\begin{document}\n"
+                "Citation \\cite{einstein1905}.\\bibliography{refs}\n"
+                "\\end{document}\n"
+            ),
+            extra_files={"refs.bib": "@article{einstein1905,title={Relativity}}\n"},
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "arxiv-package", managed_manuscript_path],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["submission_tree_excludes_auxiliary_files"]["passed"] is False
+        assert ".bib source" in checks["submission_tree_excludes_auxiliary_files"]["detail"]
+        assert checks["submission_tex_ready"]["passed"] is False
+        assert "bibliography commands" in checks["submission_tex_ready"]["detail"]
+        assert checks["tarball_entries_safe"]["passed"] is False
+        assert checks["tarball_tex_ready"]["passed"] is False
+
+    def test_validate_arxiv_package_reuses_strict_preflight_response_freshness(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        managed_manuscript_path = "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex"
+        _write_managed_publication_manuscript(gpd_project)
+        _write_publication_review_outcome(
+            gpd_project,
+            final_recommendation="accept",
+            round_number=1,
+            manuscript_path=managed_manuscript_path,
+        )
+        _move_publication_review_outcome_to_subject_review(gpd_project, subject_slug="curvature-flow")
+        _write_publication_response_round(gpd_project, round_number=2)
+        _write_managed_arxiv_submission_package(gpd_project)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "arxiv-package", managed_manuscript_path],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["preflight_passed"] is False
+        assert payload["checks"][0]["name"] == "strict_review_preflight"
+        review_checks = {check["name"]: check for check in payload["review_preflight"]["checks"]}
+        assert review_checks["review_ledger"]["passed"] is False
+        assert "latest response artifacts already reached round 2" in review_checks["review_ledger"]["detail"]
+        assert "requires newer staged review clearance" in review_checks["review_ledger"]["detail"]
+
     def test_command_context_arxiv_submission_rejects_explicit_target_outside_supported_roots(
         self,
         gpd_project: Path,
@@ -7660,7 +7865,42 @@ class TestReviewValidationCommands:
         assert resolved_subject["explicit_input"] is True
         assert resolved_subject["target_path"].endswith(intake_path.name)
         assert resolved_subject["target_root"].endswith("GPD/publication/external-authoring-test/manuscript")
+        assert payload["selected_publication_root"] == "GPD/publication/external-authoring-test"
+        assert payload["selected_review_root"] == "GPD/publication/external-authoring-test/review"
         assert "managed manuscript bootstrap will use" in resolved_subject["detail"]
+
+    def test_command_context_write_paper_rejects_external_authoring_intake_inside_project(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        intake_path = _write_write_paper_authoring_input(gpd_project)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(gpd_project),
+                "validate",
+                "command-context",
+                "write-paper",
+                f"--intake {intake_path.name}",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        resolved_subject = payload["resolved_subject"]
+        assert payload["passed"] is False
+        assert payload["selected_publication_root"] is None
+        assert payload["selected_review_root"] is None
+        assert checks["explicit_inputs"]["passed"] is False
+        assert "only allowed from a workspace without an initialized GPD project" in checks["explicit_inputs"]["detail"]
+        assert resolved_subject["status"] == "invalid"
+        assert resolved_subject["ownership_mode"] == "external_authoring_intake"
+        assert resolved_subject["target_path"].endswith(intake_path.name)
 
     def test_command_context_write_paper_rejects_invalid_external_authoring_intake(
         self,
@@ -7820,6 +8060,13 @@ class TestReviewValidationCommands:
         assert "manuscript_proof_review" not in checks
         assert resolved_subject["status"] == "bootstrap"
         assert resolved_subject["ownership_mode"] == "external_authoring_intake"
+        assert payload["publication_subject_slug"] == "external-authoring-test"
+        assert payload["publication_lane_kind"] == "managed_publication_manuscript"
+        assert payload["managed_publication_root"] == "GPD/publication/external-authoring-test"
+        assert payload["selected_publication_root"] == "GPD/publication/external-authoring-test"
+        assert payload["selected_review_root"] == "GPD/publication/external-authoring-test/review"
+        assert payload["manuscript_root"] == "GPD/publication/external-authoring-test/manuscript"
+        assert payload["manuscript_entrypoint"] is None
         assert checks["project_state"]["detail"] == (
             "external authoring intake: project state is optional because the intake manifest is authoritative"
         )
@@ -7837,6 +8084,84 @@ class TestReviewValidationCommands:
             "external authoring intake: project verification reports are optional because claim-to-evidence bindings "
             "come from the intake manifest"
         )
+
+    def test_init_write_paper_stage_external_intake_matches_command_context_and_review_preflight_roots(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path.parent / f"{tmp_path.name}-standalone-write-paper-root-parity"
+        workspace.mkdir()
+        intake_path = _write_write_paper_authoring_input(workspace)
+        intake_arg = f"--intake {intake_path.name}"
+
+        command_context_result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(workspace),
+                "validate",
+                "command-context",
+                "write-paper",
+                intake_arg,
+            ],
+            catch_exceptions=False,
+        )
+        review_preflight_result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(workspace),
+                "validate",
+                "review-preflight",
+                "write-paper",
+                intake_arg,
+                "--strict",
+            ],
+            catch_exceptions=False,
+        )
+        staged_init_result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(workspace),
+                "init",
+                "write-paper",
+                "--stage",
+                "paper_bootstrap",
+                "--",
+                "--intake",
+                intake_path.name,
+            ],
+            catch_exceptions=False,
+        )
+
+        assert command_context_result.exit_code == 0, command_context_result.output
+        assert review_preflight_result.exit_code == 0, review_preflight_result.output
+        assert staged_init_result.exit_code == 0, staged_init_result.output
+        command_context = json.loads(command_context_result.output)
+        review_preflight = json.loads(review_preflight_result.output)
+        staged_init = json.loads(staged_init_result.output)
+        managed_root = "GPD/publication/external-authoring-test"
+
+        assert command_context["selected_publication_root"] == managed_root
+        assert command_context["selected_review_root"] == f"{managed_root}/review"
+        assert command_context["resolved_subject"]["target_root"].endswith(f"{managed_root}/manuscript")
+        assert review_preflight["publication_subject_slug"] == "external-authoring-test"
+        assert review_preflight["managed_publication_root"] == managed_root
+        assert review_preflight["selected_publication_root"] == command_context["selected_publication_root"]
+        assert review_preflight["selected_review_root"] == command_context["selected_review_root"]
+        assert review_preflight["manuscript_root"] == f"{managed_root}/manuscript"
+        assert review_preflight["manuscript_entrypoint"] is None
+        assert staged_init["publication_subject_slug"] == review_preflight["publication_subject_slug"]
+        assert staged_init["managed_publication_root"] == review_preflight["managed_publication_root"]
+        assert staged_init["managed_manuscript_root"] == review_preflight["manuscript_root"]
+        assert staged_init["selected_publication_root"] == review_preflight["selected_publication_root"]
+        assert staged_init["selected_review_root"] == review_preflight["selected_review_root"]
+        assert staged_init["publication_intake_root"] == f"{managed_root}/intake"
+        assert staged_init["publication_bootstrap_root"] == f"{managed_root}/manuscript"
 
     @pytest.mark.parametrize(
         ("artifact_name", "content"),

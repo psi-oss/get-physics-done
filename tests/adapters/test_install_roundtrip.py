@@ -395,7 +395,10 @@ def test_installed_peer_review_prompt_keeps_publication_lane_boundary(
     peer_review = _read_runtime_command_prompt(target.parent, target, runtime, "peer-review")
     peer_review = _canonicalize_runtime_markdown(peer_review, runtime=runtime)
 
-    assert "Keep GPD-authored auxiliary review artifacts under `GPD/` in the invoking workspace." in peer_review
+    assert (
+        "Keep GPD-authored auxiliary review artifacts under the selected GPD-owned publication/review roots exposed by centralized preflight."
+        in peer_review
+    )
     assert (
         "The manuscript itself and any manuscript-local publication manifests stay rooted at the resolved manuscript directory."
         in peer_review

@@ -31,31 +31,34 @@ def test_peer_review_workflow_references_canonical_reliability_doc_and_round_suf
     assert ".gpd/" not in workflow
 
 
-def test_peer_review_reliability_reference_uses_canonical_gpd_paths_only() -> None:
+def test_peer_review_reliability_reference_uses_selected_review_roots() -> None:
     reliability = (REFERENCES_DIR / "publication" / "peer-review-reliability.md").read_text(encoding="utf-8")
 
     assert "Peer Review Phase Reliability" in reliability
     assert "GPD/STATE.md" in reliability
     assert "GPD/ROADMAP.md" in reliability
     assert "GPD/phases/" in reliability
-    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in reliability
-    assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in reliability
-    assert "GPD/REFEREE-REPORT{round_suffix}.md" in reliability
-    assert "GPD/CONSISTENCY-REPORT.md" in reliability
-    assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in reliability
-    assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in reliability
+    assert "${selected_review_root}/REVIEW-LEDGER{round_suffix}.json" in reliability
+    assert "${selected_review_root}/REFEREE-DECISION{round_suffix}.json" in reliability
+    assert "${selected_publication_root}/REFEREE-REPORT{round_suffix}.md" in reliability
+    assert "${selected_publication_root}/CONSISTENCY-REPORT.md" in reliability
+    assert "${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md" in reliability
+    assert "${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md" in reliability
     assert "paired response artifacts are present" in reliability
     assert "Stage 6 Artifact Boundary" in reliability
     assert "fresh `gpd_return.files_written`" in reliability
     assert "gpd_return.status: blocked" in reliability
     assert "read-only upstream artifacts during Stage 6" in reliability
     assert "Stage 6 repaired upstream artifacts" in reliability
-    assert "gpd validate review-claim-index GPD/review/CLAIMS{round_suffix}.json" in reliability
-    assert "gpd validate review-stage-report GPD/review/STAGE-<stage_id>{round_suffix}.json" in reliability
-    assert "gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json" in reliability
+    assert "gpd validate review-claim-index ${selected_review_root}/CLAIMS{round_suffix}.json" in reliability
     assert (
-        "gpd validate referee-decision GPD/review/REFEREE-DECISION{round_suffix}.json --strict --ledger "
-        "GPD/review/REVIEW-LEDGER{round_suffix}.json"
+        "gpd validate review-stage-report ${selected_review_root}/STAGE-<stage_id>{round_suffix}.json"
+        in reliability
+    )
+    assert "gpd validate review-ledger ${selected_review_root}/REVIEW-LEDGER{round_suffix}.json" in reliability
+    assert (
+        "gpd validate referee-decision ${selected_review_root}/REFEREE-DECISION{round_suffix}.json --strict "
+        "--ledger ${selected_review_root}/REVIEW-LEDGER{round_suffix}.json"
     ) in reliability
     assert "bibliography_audit_clean" in reliability
     assert "reproducibility_ready" in reliability
@@ -110,8 +113,8 @@ def test_publication_reference_docs_keep_gpd_aux_outputs_separate_from_manuscrip
     assert "Keep GPD-authored auxiliary review, response, and packaging outputs under `GPD/`" in preflight
     assert "It does not decide whether a command may accept a standalone external manuscript/artifact" in bootstrap
     assert "Do not infer standalone external-artifact support from this pack alone." in bootstrap
-    assert "current project-backed canonical layout" in round_artifacts
-    assert "GPD-authored auxiliary outputs for a review round live under `GPD/` or `GPD/review/`" in round_artifacts
+    assert "default project-backed canonical layout" in round_artifacts
+    assert "centralized preflight resolves `selected_publication_root=GPD`" in round_artifacts
     assert "subject-owned publication root `GPD/publication/{subject_slug}`" in round_artifacts
     assert "does not by itself promise a full relocation" in round_artifacts
     assert "Do not copy manuscript-local artifacts into `GPD/` to satisfy strict review or submission gates." in round_artifacts
@@ -144,8 +147,8 @@ def test_peer_review_stage_six_boundary_aligns_reliability_workflow_panel_and_re
     ):
         assert artifact in panel
     for artifact in (
-        "GPD/review/REVIEW-LEDGER{round_suffix}.json",
-        "GPD/review/REFEREE-DECISION{round_suffix}.json",
+        "${selected_review_root}/REVIEW-LEDGER{round_suffix}.json",
+        "${selected_review_root}/REFEREE-DECISION{round_suffix}.json",
     ):
         assert artifact in reliability
     for artifact in (
@@ -167,8 +170,8 @@ def test_peer_review_stage_six_boundary_aligns_reliability_workflow_panel_and_re
         "`${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md` as read-only upstream evidence."
     ) in panel
     assert (
-        "Treat `GPD/review/CLAIMS{round_suffix}.json`, any `GPD/review/STAGE-*.json`, and "
-        "`GPD/review/PROOF-REDTEAM{round_suffix}.md` as read-only upstream artifacts during Stage 6."
+        "Treat `${selected_review_root}/CLAIMS{round_suffix}.json`, any `${selected_review_root}/STAGE-*.json`, "
+        "and `${selected_review_root}/PROOF-REDTEAM{round_suffix}.md` as read-only upstream artifacts during Stage 6."
     ) in reliability
     assert (
         "Never modify upstream staged-review inputs such as `${selected_review_root}/CLAIMS{round_suffix}.json`, "

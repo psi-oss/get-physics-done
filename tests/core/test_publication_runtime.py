@@ -9,7 +9,11 @@ from gpd.core.publication_rounds import (
     publication_review_round_path_maps,
     resolve_latest_publication_review_round_artifacts,
 )
-from gpd.core.publication_runtime import publication_runtime_snapshot_context, resolve_publication_runtime_snapshot
+from gpd.core.publication_runtime import (
+    publication_runtime_snapshot_context,
+    resolve_publication_response_freshness,
+    resolve_publication_runtime_snapshot,
+)
 from gpd.core.referee_policy import RefereeDecisionInput
 from gpd.core.reproducibility import compute_sha256
 from gpd.mcp.paper.models import (
@@ -298,6 +302,82 @@ def test_publication_runtime_snapshot_uses_the_matching_review_round_for_an_expl
     assert context["latest_referee_report_md"] == "GPD/REFEREE-REPORT-R2.md"
     assert context["latest_author_response"] == "GPD/AUTHOR-RESPONSE-R2.md"
     assert context["publication_subject"]["manuscript_entrypoint"] == "paper/main.tex"
+
+
+def test_publication_response_freshness_uses_newest_response_round_for_submission_gate(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+
+    review_dir = tmp_path / "GPD" / "review"
+    planning_dir = tmp_path / "GPD"
+    review_dir.mkdir(parents=True)
+    _write_review_round(review_dir, manuscript_path="paper/main.tex", round_number=2)
+    _write(planning_dir / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(planning_dir / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+    _write_response_pair(
+        planning_dir,
+        review_dir,
+        manuscript_path="paper/main.tex",
+        round_number=2,
+        project_root=tmp_path,
+    )
+    _write_response_pair(
+        planning_dir,
+        review_dir,
+        manuscript_path="paper/main.tex",
+        round_number=3,
+        project_root=tmp_path,
+    )
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    default_context = publication_runtime_snapshot_context(tmp_path, publication_subject=subject)
+    arxiv_context = publication_runtime_snapshot_context(
+        tmp_path,
+        publication_subject=subject,
+        pin_response_to_review_round=False,
+    )
+    freshness = resolve_publication_response_freshness(
+        tmp_path,
+        manuscript_entrypoint=tmp_path / "paper" / "main.tex",
+    )
+
+    assert default_context["latest_response_round"] == 2
+    assert arxiv_context["latest_response_round"] == 3
+    assert arxiv_context["latest_response_requires_fresh_review"] is True
+    assert arxiv_context["latest_response_required_review_round"] == 4
+    assert arxiv_context["latest_response_freshness_policy"] == "conservative_all_response_artifacts"
+    assert freshness.requires_fresh_review is True
+    assert freshness.required_review_round == 4
+    assert "conservative all-response policy" in freshness.detail
+
+
+def test_publication_response_freshness_allows_newer_review_after_response_round(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+
+    review_dir = tmp_path / "GPD" / "review"
+    review_dir.mkdir(parents=True)
+    _write_review_round(review_dir, manuscript_path="paper/main.tex", round_number=4)
+    _write_response_pair(
+        tmp_path / "GPD",
+        review_dir,
+        manuscript_path="paper/main.tex",
+        round_number=3,
+        project_root=tmp_path,
+    )
+
+    freshness = resolve_publication_response_freshness(
+        tmp_path,
+        manuscript_entrypoint=tmp_path / "paper" / "main.tex",
+    )
+
+    assert freshness.requires_fresh_review is False
+    assert freshness.required_review_round == 4
+    assert "newer than latest response round 3" in freshness.detail
 
 
 def test_publication_runtime_rejects_structurally_complete_review_round_with_invalid_strict_decision(

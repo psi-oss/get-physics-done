@@ -50,6 +50,7 @@ from gpd.core.public_surface_contract import recovery_cross_workspace_command, r
 from gpd.core.publication_runtime import (
     resolve_latest_publication_response_artifacts,
     resolve_latest_publication_review_artifacts,
+    resolve_publication_response_freshness,
 )
 from gpd.core.reproducibility import compute_sha256
 from gpd.core.runtime_command_surfaces import format_active_runtime_command
@@ -469,6 +470,13 @@ def _publication_review_package_allows_submission(cwd: Path, manuscript_entrypoi
         manuscript_entrypoint=manuscript_entrypoint,
     )
     if latest_review_artifacts is None:
+        return False
+    response_freshness = resolve_publication_response_freshness(
+        cwd,
+        manuscript_entrypoint=manuscript_entrypoint,
+        review_artifacts=latest_review_artifacts,
+    )
+    if response_freshness.requires_fresh_review:
         return False
 
     ledger_path = latest_review_artifacts.review_ledger

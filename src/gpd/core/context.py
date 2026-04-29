@@ -184,6 +184,12 @@ from gpd.core.workflow_staging import (
 from gpd.core.workflow_staging import (
     VERIFY_WORK_STRUCTURED_STATE_FIELDS as _VERIFY_WORK_STRUCTURED_STATE_FIELDS,
 )
+from gpd.core.write_paper_intake import (
+    WritePaperExternalAuthoringIntakeResolution,
+    has_write_paper_external_authoring_intake,
+    reject_write_paper_intake_inside_project_detail,
+    resolve_write_paper_external_authoring_intake,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1197,6 +1203,19 @@ def _relative_posix(cwd: Path, path: Path) -> str:
     return path.relative_to(cwd).as_posix()
 
 
+def _relative_or_absolute_posix(cwd: Path, path: Path | None) -> str | None:
+    """Return a project-relative path when possible, else an absolute POSIX path."""
+
+    if path is None:
+        return None
+    resolved_cwd = cwd.resolve(strict=False)
+    resolved_path = path.resolve(strict=False)
+    try:
+        return resolved_path.relative_to(resolved_cwd).as_posix()
+    except ValueError:
+        return resolved_path.as_posix()
+
+
 def _serialize_active_references(contract: ResearchContract | None) -> list[dict[str, object]]:
     """Return contract references ordered by planning relevance."""
     if contract is None:
@@ -1963,9 +1982,88 @@ def _build_staged_reference_runtime_context(
     )
 
 
+def _write_paper_external_authoring_bootstrap_context(
+    cwd: Path,
+    intake_resolution: WritePaperExternalAuthoringIntakeResolution,
+) -> dict[str, object]:
+    """Return publication bootstrap fields owned by a validated external intake."""
+
+    subject_slug = intake_resolution.subject_slug
+    if not subject_slug:
+        raise ValueError("resolved write-paper external authoring intake is missing a subject slug")
+
+    layout = ProjectLayout(cwd)
+    managed_publication_root = layout.publication_subject_dir(subject_slug)
+    managed_manuscript_root = intake_resolution.manuscript_root or layout.publication_manuscript_dir(subject_slug)
+    managed_intake_root = intake_resolution.intake_root or layout.publication_intake_dir(subject_slug)
+    selected_roots = _selected_publication_stage_roots(
+        publication_subject_slug=subject_slug,
+        publication_lane_kind="managed_publication_manuscript",
+        managed_publication_root=_relative_or_absolute_posix(cwd, managed_publication_root),
+    )
+    review_root = selected_roots["selected_review_root"]
+    publication_subject = {
+        "status": "bootstrap",
+        "source": "explicit_intake_manifest",
+        "detail": intake_resolution.detail,
+        "target_path": _relative_or_absolute_posix(cwd, intake_resolution.intake_path),
+        "artifact_base": _relative_or_absolute_posix(cwd, managed_manuscript_root),
+        "publication_root": _relative_or_absolute_posix(cwd, managed_publication_root),
+        "review_dir": review_root,
+        "manuscript_root": _relative_or_absolute_posix(cwd, managed_manuscript_root),
+        "manuscript_entrypoint": None,
+        "artifact_manifest": None,
+        "bibliography_audit": None,
+        "reproducibility_manifest": None,
+        "publication_subject_slug": subject_slug,
+        "publication_lane_kind": "managed_publication_manuscript",
+        "publication_lane_owner": "external_authoring_intake",
+        "managed_publication_root": _relative_or_absolute_posix(cwd, managed_publication_root),
+        "managed_intake_root": _relative_or_absolute_posix(cwd, managed_intake_root),
+        "managed_manuscript_root": _relative_or_absolute_posix(cwd, managed_manuscript_root),
+        "path_semantics": None,
+    }
+    bootstrap_payload = {
+        "mode": "fresh_project_bootstrap",
+        "detail": intake_resolution.detail,
+        "bootstrap_root": _relative_or_absolute_posix(cwd, managed_manuscript_root),
+    }
+    return {
+        "publication_subject": publication_subject,
+        "publication_subject_status": "bootstrap",
+        "publication_subject_source": "explicit_intake_manifest",
+        "publication_subject_detail": intake_resolution.detail,
+        "publication_subject_slug": subject_slug,
+        "publication_lane_kind": "managed_publication_manuscript",
+        "publication_lane_owner": "external_authoring_intake",
+        "publication_artifact_base": _relative_or_absolute_posix(cwd, managed_manuscript_root),
+        "publication_root": _relative_or_absolute_posix(cwd, managed_publication_root),
+        "review_dir": review_root,
+        "manuscript_resolution_status": "missing",
+        "manuscript_resolution_detail": (
+            "validated external authoring intake; manuscript scaffold has not been authored yet"
+        ),
+        "manuscript_root": _relative_or_absolute_posix(cwd, managed_manuscript_root),
+        "manuscript_entrypoint": None,
+        "artifact_manifest_path": None,
+        "bibliography_audit_path": None,
+        "reproducibility_manifest_path": None,
+        "managed_publication_root": _relative_or_absolute_posix(cwd, managed_publication_root),
+        "managed_intake_root": _relative_or_absolute_posix(cwd, managed_intake_root),
+        "managed_manuscript_root": _relative_or_absolute_posix(cwd, managed_manuscript_root),
+        **selected_roots,
+        "publication_intake_root": _relative_or_absolute_posix(cwd, managed_intake_root),
+        "publication_bootstrap": bootstrap_payload,
+        "publication_bootstrap_mode": bootstrap_payload["mode"],
+        "publication_bootstrap_root": bootstrap_payload["bootstrap_root"],
+        "publication_bootstrap_detail": bootstrap_payload["detail"],
+    }
+
+
 def _build_publication_bootstrap_runtime_context(
     cwd: Path,
     *,
+    external_authoring_intake: WritePaperExternalAuthoringIntakeResolution | None = None,
     persist_manuscript_proof_review_manifest: bool = False,
 ) -> dict[str, object]:
     """Build the lightweight contract/bundle/manuscript-status payload for publication bootstrap."""
@@ -2032,12 +2130,26 @@ def _build_publication_bootstrap_runtime_context(
         if isinstance(publication_context.get("managed_publication_root"), str)
         else None,
     )
+    if external_authoring_intake is not None:
+        publication_context = _write_paper_external_authoring_bootstrap_context(
+            cwd,
+            external_authoring_intake,
+        )
+        publication_bootstrap = publication_context["publication_bootstrap"]
+        publication_bootstrap_payload = publication_bootstrap if isinstance(publication_bootstrap, dict) else {}
+        selected_roots = {
+            "selected_publication_root": publication_context.get("selected_publication_root"),
+            "selected_review_root": publication_context.get("selected_review_root"),
+        }
     surfaced_contract_intake = None
     if project_contract_gate.get("visible") and visible_contract is not None:
         surfaced_contract_intake = visible_contract.context_intake.model_dump(mode="json")
     publication_intake_root = None
+    managed_intake_root = publication_context.get("managed_intake_root")
     managed_publication_root = publication_context.get("managed_publication_root")
-    if isinstance(managed_publication_root, str) and managed_publication_root:
+    if isinstance(managed_intake_root, str) and managed_intake_root:
+        publication_intake_root = managed_intake_root
+    elif isinstance(managed_publication_root, str) and managed_publication_root:
         publication_intake_root = f"{managed_publication_root}/intake"
     return {
         "project_contract": visible_context_contract.model_dump(mode="json")
@@ -2152,6 +2264,7 @@ def _build_publication_runtime_snapshot_context(
     *,
     subject: str | None = None,
     persist_manuscript_proof_review_manifest: bool = False,
+    pin_response_to_review_round: bool = True,
 ) -> dict[str, object]:
     """Build the canonical publication snapshot payload used by publication commands."""
 
@@ -2159,6 +2272,7 @@ def _build_publication_runtime_snapshot_context(
         cwd,
         subject=subject,
         persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest,
+        pin_response_to_review_round=pin_response_to_review_round,
     )
     publication_subject = snapshot.get("publication_subject")
     subject_context = publication_subject if isinstance(publication_subject, Mapping) else {}
@@ -3631,11 +3745,15 @@ def init_plan_phase(
             )
 
     phase_info = _try_find_phase(effective_cwd, selected_phase)
-    phase_target = phase_info or _roadmap_phase_target_payload(effective_cwd, selected_phase) or {
-        "phase_number": selected_phase,
-        "phase_name": None,
-        "phase_slug": None,
-    }
+    phase_target = (
+        phase_info
+        or _roadmap_phase_target_payload(effective_cwd, selected_phase)
+        or {
+            "phase_number": selected_phase,
+            "phase_name": None,
+            "phase_slug": None,
+        }
+    )
 
     result: dict[str, object] = {
         # Models
@@ -4358,10 +4476,41 @@ def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> 
     return staged_payload
 
 
+def _resolve_write_paper_external_authoring_intake_for_init(
+    effective_cwd: Path,
+    subject: str | None,
+    *,
+    launch_cwd: Path,
+) -> WritePaperExternalAuthoringIntakeResolution | None:
+    """Resolve and validate ``write-paper --intake`` before staged context assembly."""
+
+    if not has_write_paper_external_authoring_intake(subject):
+        return None
+    if _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"):
+        raise ValueError(reject_write_paper_intake_inside_project_detail())
+
+    resolution = resolve_write_paper_external_authoring_intake(
+        effective_cwd,
+        subject,
+        workspace_cwd=launch_cwd,
+    )
+    if resolution is None:
+        return None
+    if resolution.status != "resolved":
+        raise ValueError(resolution.detail)
+    return resolution
+
+
 def init_write_paper(cwd: Path, subject: str | None = None, stage: str | None = None) -> dict:
     """Assemble context for manuscript authoring and publication review."""
-    effective_cwd = _resolve_project_scoped_cwd(cwd)
+    launch_cwd = cwd.expanduser().resolve(strict=False)
+    effective_cwd = _resolve_project_scoped_cwd(launch_cwd)
     launch_subject = _write_paper_subject_from_launch_arguments(subject)
+    external_authoring_intake = _resolve_write_paper_external_authoring_intake_for_init(
+        effective_cwd,
+        subject,
+        launch_cwd=launch_cwd,
+    )
     config = load_config(effective_cwd)
     base_result: dict[str, object] = {
         "commit_docs": config["commit_docs"],
@@ -4374,8 +4523,14 @@ def init_write_paper(cwd: Path, subject: str | None = None, stage: str | None = 
     }
     if stage is None:
         result = dict(base_result)
-        result.update(_build_publication_bootstrap_runtime_context(effective_cwd))
-        result.update(_build_publication_runtime_snapshot_context(effective_cwd))
+        result.update(
+            _build_publication_bootstrap_runtime_context(
+                effective_cwd,
+                external_authoring_intake=external_authoring_intake,
+            )
+        )
+        if external_authoring_intake is None:
+            result.update(_build_publication_runtime_snapshot_context(effective_cwd))
         result["write_paper_argument_input"] = subject.strip() if isinstance(subject, str) else ""
         if launch_subject:
             result["write_paper_launch_subject"] = launch_subject
@@ -4405,9 +4560,19 @@ def init_write_paper(cwd: Path, subject: str | None = None, stage: str | None = 
     if needs_full_reference_context:
         staged_source.update(_build_reference_runtime_context(effective_cwd))
     elif needs_bootstrap_reference_context or needs_contract_gate_context or needs_publication_bootstrap_context:
-        staged_source.update(_build_publication_bootstrap_runtime_context(effective_cwd))
+        staged_source.update(
+            _build_publication_bootstrap_runtime_context(
+                effective_cwd,
+                external_authoring_intake=external_authoring_intake,
+            )
+        )
     if needs_full_reference_context and needs_publication_bootstrap_context:
-        staged_source.update(_build_publication_bootstrap_runtime_context(effective_cwd))
+        staged_source.update(
+            _build_publication_bootstrap_runtime_context(
+                effective_cwd,
+                external_authoring_intake=external_authoring_intake,
+            )
+        )
 
     if required_fields & _WRITE_PAPER_STATE_MEMORY_FIELDS:
         staged_source.update(_build_state_memory_runtime_context(effective_cwd))
@@ -4563,7 +4728,13 @@ def init_arxiv_submission(cwd: Path, subject: str | None = None, stage: str | No
     if stage is None:
         result = dict(base_result)
         result.update(_build_publication_bootstrap_runtime_context(effective_cwd))
-        result.update(_build_publication_runtime_snapshot_context(effective_cwd, subject=resolved_subject))
+        result.update(
+            _build_publication_runtime_snapshot_context(
+                effective_cwd,
+                subject=resolved_subject,
+                pin_response_to_review_round=False,
+            )
+        )
         return result
 
     manifest = load_arxiv_submission_stage_contract()
@@ -4580,7 +4751,13 @@ def init_arxiv_submission(cwd: Path, subject: str | None = None, stage: str | No
     if required_fields & ARXIV_SUBMISSION_BOOTSTRAP_FIELDS:
         staged_source.update(_build_publication_bootstrap_runtime_context(effective_cwd))
     if required_fields & ARXIV_SUBMISSION_SNAPSHOT_FIELDS:
-        staged_source.update(_build_publication_runtime_snapshot_context(effective_cwd, subject=resolved_subject))
+        staged_source.update(
+            _build_publication_runtime_snapshot_context(
+                effective_cwd,
+                subject=resolved_subject,
+                pin_response_to_review_round=False,
+            )
+        )
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
@@ -4794,7 +4971,9 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
     requested_cwd = cwd.expanduser().resolve(strict=False)
     resolution = resolve_project_roots(requested_cwd, policy=RootResolutionPolicy.PROJECT_SCOPED)
     project_exists = bool(resolution and resolution.has_project_layout)
-    effective_cwd = resolution.project_root if resolution is not None and resolution.has_project_layout else requested_cwd
+    effective_cwd = (
+        resolution.project_root if resolution is not None and resolution.has_project_layout else requested_cwd
+    )
     config = load_config(effective_cwd)
     now = datetime.now(UTC)
 

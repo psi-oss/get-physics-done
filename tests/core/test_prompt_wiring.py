@@ -975,6 +975,16 @@ def test_slides_workflow_references_templates_and_existing_output_policy() -> No
     assert "1. Refresh" in workflow
     assert "2. Update" in workflow
     assert "3. Skip" in workflow
+    assert "`slides/` is the only durable write root for this workflow" in workflow
+    assert "must not satisfy publication, peer-review, response, arXiv-package, or export gates" in workflow
+
+
+def test_export_workflow_keeps_outputs_under_exports_without_satisfying_publication_gates() -> None:
+    workflow = (WORKFLOWS_DIR / "export.md").read_text(encoding="utf-8")
+
+    assert "`exports/` is the only durable write root for this workflow" in workflow
+    assert "Do not write generated export files under `GPD/publication/`, `GPD/review/`, `GPD/exports/`" in workflow
+    assert "must not satisfy publication, peer-review, response, arXiv-package, or slides gates" in workflow
 
 
 def test_representative_prompts_use_centralized_command_context_preflight() -> None:
@@ -1122,7 +1132,10 @@ def test_publication_review_round_detection_prompts_are_shell_safe_and_pair_resp
         "The pipeline increments the round number only when the prior report and the canonical paired "
         "response artifacts are present" in reliability
     )
-    assert "`GPD/AUTHOR-RESPONSE{round_suffix}.md` plus `GPD/review/REFEREE_RESPONSE{round_suffix}.md`" in reliability
+    assert (
+        "`${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md` plus "
+        "`${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md`" in reliability
+    )
 
     assert re.search(r"\bfind\b[\s\S]{0,160}-name ['\"]REFEREE_RESPONSE\*\.md['\"]", respond)
     assert re.search(r"\bfind\b[\s\S]{0,160}-name ['\"]AUTHOR-RESPONSE\*\.md['\"]", respond)
@@ -1322,6 +1335,18 @@ def test_write_paper_and_arxiv_submission_keep_the_build_boundary_explicit() -> 
     assert "If `pdflatex` is available, run a local smoke check after the refreshed manuscript is in place." in arxiv
     assert "`pdflatex` is not available, report that the smoke check was skipped" in arxiv
     assert "Do not package stale audit artifacts." in arxiv
+
+
+def test_arxiv_submission_documents_conservative_response_freshness_policy() -> None:
+    command = (COMMANDS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
+    workflow = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
+
+    assert "latest response-round freshness status" in command
+    assert "same-round or newer response artifacts without newer staged peer-review clearance" in command
+    assert "Current executable policy is conservative" in workflow
+    assert "any same-round or newer `gpd:respond-to-referees` author/referee response artifact" in workflow
+    assert "all-response freshness policy" in workflow
+    assert "durable manuscript-change scope metadata" in workflow
 
 
 def test_remove_phase_workflow_stages_checkpoint_shelf_updates() -> None:
@@ -1738,8 +1763,14 @@ def test_stable_knowledge_remains_background_only_across_planning_verification_a
         "they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence."
         in planner_prompt
     )
-    assert "Stable knowledge docs in `{active_reference_context}` or `{reference_artifacts_content}` are advisory" in plan_phase
-    assert "If a plan relies on a knowledge doc in a downstream-gateable way, express that as explicit `knowledge_deps`." in plan_phase
+    assert (
+        "Stable knowledge docs in `{active_reference_context}` or `{reference_artifacts_content}` are advisory"
+        in plan_phase
+    )
+    assert (
+        "If a plan relies on a knowledge doc in a downstream-gateable way, express that as explicit `knowledge_deps`."
+        in plan_phase
+    )
     assert "never override `convention_lock`, `project_contract`, PLAN `contract`, or direct evidence." in plan_phase
     assert (
         "Stable knowledge docs that appear there are reviewed background synthesis: use them to clarify definitions, assumptions, and caveats only when they agree with stronger sources, and never as decisive evidence on their own."

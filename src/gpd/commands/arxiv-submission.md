@@ -37,6 +37,7 @@ review-contract:
     - manuscript-root reproducibility manifest
     - latest peer-review review ledger
     - latest peer-review referee decision
+    - latest response-round freshness status
   blocking_conditions:
     - missing project state
     - missing manuscript
@@ -48,6 +49,7 @@ review-contract:
     - missing latest staged peer-review decision evidence
     - manuscript-root reproducibility state is not ready for submission
     - unresolved publication blockers
+    - same-round or newer response artifacts without newer staged peer-review clearance
     - latest staged peer-review recommendation blocks submission packaging
     - degraded review integrity
   preflight_checks:
