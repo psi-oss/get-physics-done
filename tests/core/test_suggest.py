@@ -11,9 +11,10 @@ import pytest
 from gpd.adapters import get_adapter, list_runtimes
 from gpd.adapters.runtime_catalog import get_runtime_descriptor
 from gpd.core import suggest as suggest_module
-from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME
+from gpd.core.constants import ENV_DATA_DIR, ENV_GPD_ACTIVE_RUNTIME
 from gpd.core.conventions import KNOWN_CONVENTIONS
 from gpd.core.proof_review import resolve_manuscript_proof_review_status
+from gpd.core.recent_projects import record_recent_project
 from gpd.core.reproducibility import compute_sha256
 from gpd.core.runtime_command_surfaces import format_active_runtime_command
 from gpd.core.suggest import (
@@ -491,6 +492,41 @@ def test_no_project_suggests_new_project(tmp_path: Path) -> None:
     assert result.top_action is not None
     assert result.top_action.action == "new-project"
     assert result.top_action.priority == 1
+
+
+def test_no_project_with_recoverable_recent_projects_suggests_recent_resume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A projectless parent with recent projects should not route to fresh setup."""
+    data_dir = tmp_path / "gpd-data"
+    monkeypatch.setenv(ENV_DATA_DIR, str(data_dir))
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    recent_project = tmp_path / "recent-project"
+    recent_project.mkdir()
+    _setup_project(recent_project)
+    resume_file = recent_project / "GPD" / "phases" / "01" / ".continue-here.md"
+    resume_file.parent.mkdir(parents=True, exist_ok=True)
+    resume_file.write_text("resume here\n", encoding="utf-8")
+
+    record_recent_project(
+        recent_project,
+        session_data={
+            "last_date": "2026-03-29T12:00:00+00:00",
+            "stopped_at": "Phase 01",
+            "resume_file": "GPD/phases/01/.continue-here.md",
+            "resume_target_kind": "handoff",
+            "resume_target_recorded_at": "2026-03-29T12:00:00+00:00",
+        },
+    )
+
+    result = suggest_next(workspace)
+
+    assert result.suggestion_count == 1
+    assert result.top_action is not None
+    assert result.top_action.action == "resume-recent"
+    assert result.top_action.command == "gpd resume --recent"
+    assert "gpd:resume-work" in result.top_action.reason
 
 
 def test_no_project_uses_workspace_runtime_install_for_command_formatting(tmp_path: Path) -> None:

@@ -4415,6 +4415,14 @@ def suggest(
     _output(suggest_next(suggest_cwd, **kwargs))
 
 
+@app.command("suggest-next")
+def suggest_next_bridge(
+    limit: int | None = typer.Option(None, "--limit", help="Max suggestions to return"),
+) -> None:
+    """Alias for the runtime suggest-next command on the local raw bridge."""
+    suggest(limit=limit)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # pattern — Error pattern library
 # ═══════════════════════════════════════════════════════════════════════════

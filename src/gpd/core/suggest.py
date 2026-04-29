@@ -40,12 +40,13 @@ from gpd.core.manuscript_artifacts import (
     resolve_current_publication_subject,
 )
 from gpd.core.phases import _milestone_completion_snapshot
+from gpd.core.project_reentry import resolve_project_reentry
 from gpd.core.proof_review import (
     manuscript_requires_theorem_bearing_review,
     publication_lineage_roots,
     resolve_manuscript_proof_review_status,
 )
-from gpd.core.public_surface_contract import recovery_local_snapshot_command
+from gpd.core.public_surface_contract import recovery_cross_workspace_command, recovery_local_snapshot_command
 from gpd.core.publication_runtime import (
     resolve_latest_publication_response_artifacts,
     resolve_latest_publication_review_artifacts,
@@ -550,7 +551,8 @@ def _is_bounded_external_write_paper_lane(cwd: Path, manuscript_entrypoint: Path
         return False
     return (
         publication_subject.publication_lane_kind == "managed_publication_manuscript"
-        and publication_subject.manuscript_entrypoint.resolve(strict=False) == manuscript_entrypoint.resolve(strict=False)
+        and publication_subject.manuscript_entrypoint.resolve(strict=False)
+        == manuscript_entrypoint.resolve(strict=False)
     )
 
 
@@ -724,6 +726,45 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     manuscript_state_is_blocked = manuscript_resolution.status in {"ambiguous", "invalid"}
 
     if not project_exists and manuscript_entrypoint is None:
+        reentry = resolve_project_reentry(cwd)
+        if reentry.has_recoverable_current_workspace:
+            only = Recommendation(
+                action="resume-work",
+                priority=1,
+                command=format_command("resume-work"),
+                reason="Recoverable GPD state found in this workspace — resume or reconcile it before starting fresh",
+            )
+            return SuggestResult(
+                suggestions=[only],
+                total_suggestions=1,
+                suggestion_count=1,
+                top_action=only,
+                context=SuggestContext(),
+            )
+        recoverable_recent = [
+            candidate
+            for candidate in reentry.candidates
+            if candidate.source == "recent_project" and candidate.recoverable
+        ]
+        if recoverable_recent:
+            count = len(recoverable_recent)
+            only = Recommendation(
+                action="resume-recent",
+                priority=1,
+                command=recovery_cross_workspace_command(),
+                reason=(
+                    f"No active project found here, but {count} recent recoverable project"
+                    f"{'' if count == 1 else 's'} are available — choose one, reopen it, then run "
+                    f"{canonical_command_label('resume-work')}"
+                ),
+            )
+            return SuggestResult(
+                suggestions=[only],
+                total_suggestions=1,
+                suggestion_count=1,
+                top_action=only,
+                context=SuggestContext(),
+            )
         only = Recommendation(
             action="new-project",
             priority=1,
