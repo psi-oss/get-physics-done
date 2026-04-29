@@ -172,6 +172,10 @@ EM_DASH = "\u2014"
 # as semantic null on re-parse, so round-trip stability is preserved regardless
 # of which placeholder form is on disk.
 INACTIVE_FIELD_SENTINEL = "none"
+_BACKUP_ONLY_WITHOUT_PRIMARY_STATE_ISSUE = (
+    "state.json.bak exists without primary state.json or STATE.md; explicit recovery approval is required "
+    "before treating it as state authority"
+)
 
 
 def _recent_projects_index_path() -> Path:
@@ -3621,6 +3625,11 @@ def _load_state_json_with_integrity_issues(
                 )
             return normalized, integrity_issues, state_source
         except FileNotFoundError:
+            md_path = _state_md_path(cwd)
+            if not md_path.exists():
+                if bak_path.exists():
+                    return None, [_BACKUP_ONLY_WITHOUT_PRIMARY_STATE_ISSUE], None
+                return None, [], None
             restored, integrity_issues = _load_state_json_from_backup(
                 cwd,
                 bak_path,
