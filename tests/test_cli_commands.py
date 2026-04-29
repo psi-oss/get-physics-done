@@ -5249,6 +5249,61 @@ class TestReviewValidationCommands:
         assert payload["passed"] is True
         assert checks["project_context"]["passed"] is True
 
+    def test_raw_help_bridge_default_and_all_are_machine_readable(self, tmp_path: Path) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "help"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:help"
+        assert payload["ok"] is True
+        assert payload["default_sections"] == ["quick_start_extract", "wrapper_owned_all_hint"]
+        assert payload["recommended_commands"] == ["gpd:help --all"]
+        assert payload["local_cli_equivalence_guaranteed"] is False
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "help", "--all"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        commands = {entry["command"] for entry in payload["command_index"]}
+        assert "gpd:new-project" in commands
+        assert "gpd:help" in commands
+
+    def test_raw_help_bridge_command_specific_payload(self, tmp_path: Path) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "help", "--command", "new-project", "--minimal"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["ok"] is True
+        assert payload["canonical_command"] == "gpd:new-project"
+        assert payload["context_mode"] == "projectless"
+        assert payload["command_context"]["passed"] is True
+        assert payload["command_context"]["command"] == "gpd:new-project"
+
+    def test_raw_help_bridge_unknown_command_fails_closed(self, tmp_path: Path) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "help", "--command", "does-not-exist"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["ok"] is False
+        assert payload["error"] == "unknown_command"
+        assert payload["canonical_command"] == "gpd:does-not-exist"
+
     def test_command_context_projectless_command_passes_without_project(
         self,
         tmp_path: Path,

@@ -1201,6 +1201,84 @@ def main(
     _cwd = Path(cwd)
 
 
+@app.command("help")
+def help_bridge(
+    command_name: str | None = typer.Option(
+        None,
+        "--command",
+        help="Runtime command slug or label to inspect, for example new-project or gpd:new-project",
+    ),
+    all_commands: bool = typer.Option(False, "--all", help="Include the compact command index"),
+    minimal: bool = typer.Option(False, "--minimal", help="Return the minimal command-specific payload"),
+) -> None:
+    """Machine-readable bridge for the installed runtime help surface."""
+    from gpd.registry import get_command, list_commands
+
+    payload: dict[str, object] = {
+        "command": "gpd:help",
+        "surface": "local_cli_raw_help_bridge",
+        "validated_surface": "public_runtime_dollar_command",
+        "local_cli_equivalence_guaranteed": False,
+        "dispatch_note": (
+            "Runtime commands are installed into Codex/Claude/Gemini/OpenCode surfaces; "
+            "this local bridge exposes registry metadata for automation and live-audit probes."
+        ),
+        "default_sections": ["quick_start_extract", "wrapper_owned_all_hint"],
+        "recommended_commands": ["gpd:help --all"],
+        "read_only": True,
+    }
+    if command_name:
+        canonical = canonical_command_label(command_name)
+        try:
+            command = get_command(canonical)
+        except KeyError:
+            payload.update(
+                {
+                    "ok": False,
+                    "error": "unknown_command",
+                    "requested_command": command_name,
+                    "canonical_command": canonical,
+                    "guidance": "Unknown command. Run `gpd --raw help --all` for the compact command index.",
+                }
+            )
+            _output(payload)
+            raise typer.Exit(code=1) from None
+        preflight = _build_command_context_preflight(canonical)
+        preflight_payload = dataclasses.asdict(preflight) if dataclasses.is_dataclass(preflight) else preflight
+        payload.update(
+            {
+                "ok": True,
+                "requested_command": command_name,
+                "canonical_command": command.name,
+                "slug": parse_command_label(command.name).slug,
+                "description": command.description,
+                "argument_hint": command.argument_hint,
+                "context_mode": command.context_mode,
+                "project_reentry_capable": command.project_reentry_capable,
+                "allowed_tools": [] if minimal else command.allowed_tools,
+                "requires": {} if minimal else command.requires,
+                "command_context": preflight_payload,
+            }
+        )
+    elif all_commands:
+        payload.update(
+            {
+                "ok": True,
+                "command_index": [
+                    {
+                        "command": canonical_command_label(slug),
+                        "slug": slug,
+                        "description": get_command(slug).description,
+                    }
+                    for slug in list_commands(name_format="slug")
+                ],
+            }
+        )
+    else:
+        payload["ok"] = True
+    _output(payload)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # state — STATE.md and state.json management
 # ═══════════════════════════════════════════════════════════════════════════
