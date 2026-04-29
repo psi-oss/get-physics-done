@@ -10,9 +10,12 @@ from pathlib import Path
 
 import pytest
 
+from gpd.contracts import ResearchContract
 from gpd.core import state as state_module
 from gpd.core.constants import STATE_JSON_BACKUP_FILENAME, ProjectLayout
 from gpd.core.continuation import ContinuationBoundedSegment
+from gpd.core.contract_validation import contract_fingerprint
+from gpd.core.errors import StateError
 from gpd.core.state import (
     ContractAlignmentGate,
     _find_list_parent_loc,
@@ -112,6 +115,15 @@ def _project_contract_with_question(question: str) -> dict[str, object]:
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["scope"]["question"] = question
     return contract
+
+
+def _project_contract_fixture() -> dict[str, object]:
+    return json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+
+
+def _project_contract_hash(contract: dict[str, object]) -> str:
+    return contract_fingerprint(ResearchContract.model_validate(contract))
+
 
 # ─── default_state_dict ──────────────────────────────────────────────────────
 
@@ -418,11 +430,12 @@ def test_normalize_state_schema_drops_project_contract_that_fails_draft_scoping_
 
     assert normalized["project_contract"] is None
     assert any(
-        'schema normalization: dropped "project_contract" because contract failed draft scoping validation'
-        in issue
+        'schema normalization: dropped "project_contract" because contract failed draft scoping validation' in issue
         for issue in issues
     )
-    assert any("project_contract: claim claim-benchmark references unknown reference missing-ref" in issue for issue in issues)
+    assert any(
+        "project_contract: claim claim-benchmark references unknown reference missing-ref" in issue for issue in issues
+    )
 
 
 def test_peek_state_json_respects_project_root_for_project_contract_grounding(tmp_path: Path) -> None:
@@ -451,7 +464,7 @@ def test_peek_state_json_respects_project_root_for_project_contract_grounding(tm
 
     assert loaded is not None
     assert source == "state.json"
-    assert any("schema normalization: dropped \"project_contract\"" in issue for issue in issues)
+    assert any('schema normalization: dropped "project_contract"' in issue for issue in issues)
     assert loaded["project_contract"] is None
 
 
@@ -650,7 +663,9 @@ def test_load_state_json_readonly_reads_backup_without_persisting_recovery(
     assert layout.state_md.exists()
 
 
-def test_normalize_state_schema_irrecoverable_reset_drops_unknown_top_level_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_normalize_state_schema_irrecoverable_reset_drops_unknown_top_level_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     validation_error = state_module.PydanticValidationError.from_exception_data(
         "ResearchState",
         [
@@ -679,10 +694,7 @@ def test_normalize_state_schema_empty_dict_emits_reset_sentinel() -> None:
     normalized, issues = _normalize_state_schema({})
 
     assert normalized["position"]["progress_percent"] == 0  # got defaults
-    assert any(
-        "schema normalization: irrecoverable validation failure; reset to defaults" in issue
-        for issue in issues
-    )
+    assert any("schema normalization: irrecoverable validation failure; reset to defaults" in issue for issue in issues)
 
 
 def test_normalize_state_schema_none_returns_defaults_without_issues() -> None:
@@ -710,18 +722,13 @@ def test_state_validate_recovers_backup_when_primary_is_empty_dict(tmp_path: Pat
 
     # Corrupt primary to {}, keep backup valid
     layout.state_json.write_text("{}\n", encoding="utf-8")
-    layout.state_json_backup.write_text(
-        json.dumps(baseline, indent=2) + "\n", encoding="utf-8"
-    )
+    layout.state_json_backup.write_text(json.dumps(baseline, indent=2) + "\n", encoding="utf-8")
 
     validation = state_validate(tmp_path)
 
     assert validation.valid is True
     assert validation.integrity_status == "warning"
-    assert any(
-        "state.json root was recovered from state.json.bak" in warning
-        for warning in validation.warnings
-    )
+    assert any("state.json root was recovered from state.json.bak" in warning for warning in validation.warnings)
 
 
 def test_mutation_snapshot_graceful_fallback_when_primary_and_backup_are_empty_dict(
@@ -803,7 +810,9 @@ def test_ensure_state_schema_malformed_verification_record_preserves_intermediat
 
     ids = [item["id"] for item in result["intermediate_results"] if isinstance(item, dict)]
     assert ids == ["good-1", "bad-1", "good-2"]
-    bad_result = next(item for item in result["intermediate_results"] if isinstance(item, dict) and item["id"] == "bad-1")
+    bad_result = next(
+        item for item in result["intermediate_results"] if isinstance(item, dict) and item["id"] == "bad-1"
+    )
     assert bad_result["verification_records"] == []
 
 
@@ -815,8 +824,7 @@ def test_state_set_project_contract_persists_contract_and_unresolved_questions(t
 
     assert result.updated is True
     assert any(
-        "context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact"
-        in warning
+        "context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact" in warning
         for warning in result.warnings
     )
     saved = load_state_json(tmp_path)
@@ -1175,9 +1183,9 @@ def test_load_state_json_preserves_draft_invalid_project_contract_visibility(tmp
     assert loaded is not None
     assert loaded["project_contract"] is not None
     assert loaded["project_contract"]["claims"][0]["references"] == ["missing-ref"]
-    assert json.loads(layout.state_json.read_text(encoding="utf-8"))["project_contract"]["claims"][0][
-        "references"
-    ] == ["missing-ref"]
+    assert json.loads(layout.state_json.read_text(encoding="utf-8"))["project_contract"]["claims"][0]["references"] == [
+        "missing-ref"
+    ]
 
 
 def test_save_state_markdown_normalizes_visible_project_contract_when_primary_contract_has_singleton_list_drift(
@@ -1388,9 +1396,7 @@ def test_state_load_backup_recovery_does_not_promote_salvaged_backup_contract_to
     backup_state = default_state_dict()
     backup_state["position"]["current_phase"] = "9"
     backup_state["position"]["status"] = "Planning"
-    backup_state["project_contract"] = json.loads(
-        (FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8")
-    )
+    backup_state["project_contract"] = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     backup_state["project_contract"]["context_intake"]["must_read_refs"] = "ref-benchmark"
 
     layout.state_json.write_text("{not-json", encoding="utf-8")
@@ -1447,7 +1453,10 @@ def test_state_load_blocks_nested_collection_truncation_in_raw_project_contract(
     assert loaded.project_contract_load_info["status"] == "blocked_schema"
     assert loaded.project_contract_gate["visible"] is False
     assert loaded.project_contract_gate["repair_required"] is True
-    assert "claims.0.parameters.0.domain_or_type: Input should be a valid string" in loaded.project_contract_load_info["errors"]
+    assert (
+        "claims.0.parameters.0.domain_or_type: Input should be a valid string"
+        in loaded.project_contract_load_info["errors"]
+    )
 
 
 def test_state_load_backup_restore_surfaces_project_contract_salvage_diagnostics(
@@ -1544,9 +1553,10 @@ def test_load_state_json_accepts_newer_state_md_when_only_backup_bounded_segment
     assert loaded["continuation"]["handoff"]["stopped_at"] == "Phase 03 Plan 2"
     assert loaded["continuation"]["bounded_segment"]["segment_id"] == "segment-json-only"
     assert loaded["continuation"]["bounded_segment"]["pre_fanout_review_pending"] is True
-    assert json.loads(layout.state_json.read_text(encoding="utf-8"))["continuation"]["bounded_segment"][
-        "segment_id"
-    ] == "segment-json-only"
+    assert (
+        json.loads(layout.state_json.read_text(encoding="utf-8"))["continuation"]["bounded_segment"]["segment_id"]
+        == "segment-json-only"
+    )
 
 
 def test_state_md_rebuild_preserves_stale_backup_json_only_bounded_segment(tmp_path: Path) -> None:
@@ -1594,7 +1604,9 @@ def test_state_md_rebuild_preserves_stale_backup_json_only_bounded_segment(tmp_p
 
     assert loaded is not None
     assert state_source == "STATE.md"
-    assert "state.json root was recovered from STATE.md after primary state.json was unavailable or unreadable" in issues
+    assert (
+        "state.json root was recovered from STATE.md after primary state.json was unavailable or unreadable" in issues
+    )
     assert loaded["position"]["current_phase"] == "06"
     assert loaded["position"]["status"] == "Paused"
     assert loaded["continuation"]["handoff"]["stopped_at"] == "New markdown handoff"
@@ -1603,7 +1615,9 @@ def test_state_md_rebuild_preserves_stale_backup_json_only_bounded_segment(tmp_p
     assert loaded["continuation"]["bounded_segment"]["downstream_locked"] is True
 
 
-def test_load_state_json_recovers_backup_continuation_when_primary_continuation_section_is_invalid(tmp_path: Path) -> None:
+def test_load_state_json_recovers_backup_continuation_when_primary_continuation_section_is_invalid(
+    tmp_path: Path,
+) -> None:
     primary_state = default_state_dict()
     primary_state["continuation"] = []
 
@@ -1925,7 +1939,10 @@ def test_state_validate_keeps_normalized_primary_when_unrelated_section_is_schem
     assert result.valid is True
     assert result.integrity_status == "warning"
     assert result.state_source == "state.json"
-    assert any('schema normalization: dropped "blockers" because expected list, got str' in warning for warning in result.warnings)
+    assert any(
+        'schema normalization: dropped "blockers" because expected list, got str' in warning
+        for warning in result.warnings
+    )
     assert not any("state.json root was recovered from state.json.bak" in warning for warning in result.warnings)
 
 
@@ -2026,7 +2043,9 @@ def test_peek_state_json_fallback_does_not_consume_intent_marker(tmp_path: Path)
 
     assert loaded is not None
     assert loaded["position"]["current_phase"] == "01"
-    assert issues == ["state.json root was recovered from STATE.md after primary state.json was unavailable or unreadable"]
+    assert issues == [
+        "state.json root was recovered from STATE.md after primary state.json was unavailable or unreadable"
+    ]
     assert state_source == "STATE.md"
     assert layout.state_intent.exists()
     assert layout.state_intent.read_text(encoding="utf-8") == before_intent
@@ -2050,7 +2069,9 @@ def test_peek_state_json_state_md_fallback_projects_session_continuity_into_cont
 
     assert loaded is not None
     assert state_source == "STATE.md"
-    assert "state.json root was recovered from STATE.md after primary state.json was unavailable or unreadable" in issues
+    assert (
+        "state.json root was recovered from STATE.md after primary state.json was unavailable or unreadable" in issues
+    )
     assert loaded["continuation"]["handoff"]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
     assert loaded["continuation"]["machine"]["hostname"] == "stale-host"
 
@@ -2365,7 +2386,9 @@ def test_state_validate_review_surfaces_structural_errors_instead_of_not_found(t
 
     result = state_validate(tmp_path, integrity_mode="review")
 
-    assert any("state.json structural error: state root must be an object, got list" in issue for issue in result.issues)
+    assert any(
+        "state.json structural error: state root must be an object, got list" in issue for issue in result.issues
+    )
     assert not any("state.json not found" in issue for issue in result.issues)
 
     standard = load_state_json(tmp_path, integrity_mode="standard")
@@ -2650,9 +2673,7 @@ def test_state_load_recovers_backup_project_contract_when_primary_contract_is_bl
     assert loaded.state["project_contract"] is None
     assert loaded.state_source == "state.json"
     assert any(
-        "project_contract.references.0.must_surface must be a boolean"
-        in issue
-        for issue in loaded.integrity_issues
+        "project_contract.references.0.must_surface must be a boolean" in issue for issue in loaded.integrity_issues
     )
     assert any(
         'dropped "project_contract" because authoritative scalar fields required normalization' in issue
@@ -2887,8 +2908,7 @@ def test_state_validate_review_blocks_when_primary_project_contract_requires_blo
     assert validation.integrity_status == "blocked"
     assert validation.state_source == "state.json"
     assert any(
-        'dropped "project_contract" because contract schema required normalization'
-        in issue
+        'dropped "project_contract" because contract schema required normalization' in issue
         for issue in validation.issues
     )
     assert not any("state.json root was recovered from state.json.bak" in issue for issue in validation.issues)
@@ -2941,7 +2961,9 @@ def test_state_validate_review_blocks_missing_evidence_file(tmp_path):
     assert any('evidence_path "artifacts/reports/R-04.json" does not exist' in issue for issue in result.issues)
 
 
-def test_state_validate_does_not_surface_continuation_mismatch_when_session_continuity_roundtrips(tmp_path: Path) -> None:
+def test_state_validate_does_not_surface_continuation_mismatch_when_session_continuity_roundtrips(
+    tmp_path: Path,
+) -> None:
     save_state_json(tmp_path, default_state_dict())
 
     state_md = default_state_dict()
@@ -3062,9 +3084,7 @@ def test_state_record_session_recovers_when_state_markdown_is_missing(tmp_path: 
     assert repaired["continuation"]["handoff"]["resume_file"] == "NEXT.md"
 
 
-def test_state_record_session_updates_recent_project_index(
-    tmp_path: Path, state_project_factory, monkeypatch
-) -> None:
+def test_state_record_session_updates_recent_project_index(tmp_path: Path, state_project_factory, monkeypatch) -> None:
     monkeypatch.setenv("GPD_DATA_DIR", str(tmp_path / "gpd-data"))
     monkeypatch.setattr(
         state_module,
@@ -3444,10 +3464,9 @@ def test_save_state_markdown_does_not_override_canonical_continuation_session_mi
     save_state_json(cwd, state)
 
     markdown = (cwd / "GPD" / "STATE.md").read_text(encoding="utf-8")
-    edited_markdown = (
-        markdown.replace("**Stopped at:** Canonical handoff stop", "**Stopped at:** Edited in markdown", 1)
-        .replace("**Resume file:** canonical-handoff.md", "**Resume file:** edited-in-markdown.md", 1)
-    )
+    edited_markdown = markdown.replace(
+        "**Stopped at:** Canonical handoff stop", "**Stopped at:** Edited in markdown", 1
+    ).replace("**Resume file:** canonical-handoff.md", "**Resume file:** edited-in-markdown.md", 1)
 
     save_state_markdown(cwd, edited_markdown)
 
@@ -3656,9 +3675,7 @@ def _bootstrap_project_with_state(
     if extra_lines > 0:
         md += "\n" + "\n".join(f"<!-- padding line {i} -->" for i in range(extra_lines))
     (planning / "STATE.md").write_text(md, encoding="utf-8")
-    (planning / "state.json").write_text(
-        json.dumps(state, indent=2) + "\n", encoding="utf-8"
-    )
+    (planning / "state.json").write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
     return tmp_path
 
 
@@ -3686,10 +3703,7 @@ def test_state_compact_recovers_intent_before_reading(tmp_path):
     pos["progress_percent"] = 50
 
     # Add many old decisions so there is content to compact
-    state["decisions"] = [
-        {"phase": str((i % 3) + 1), "summary": f"Old decision {i}"}
-        for i in range(40)
-    ]
+    state["decisions"] = [{"phase": str((i % 3) + 1), "summary": f"Old decision {i}"} for i in range(40)]
 
     md = generate_state_markdown(state)
     md += "\n" + "\n".join(f"<!-- padding {i} -->" for i in range(100))
@@ -3704,9 +3718,7 @@ def test_state_compact_recovers_intent_before_reading(tmp_path):
     stale_state = default_state_dict()
     stale_state["position"]["current_phase"] = "01"
     stale_state["position"]["status"] = "Executing"
-    (planning / "state.json").write_text(
-        json.dumps(stale_state, indent=2) + "\n", encoding="utf-8"
-    )
+    (planning / "state.json").write_text(json.dumps(stale_state, indent=2) + "\n", encoding="utf-8")
     (planning / "STATE.md").write_text(md, encoding="utf-8")
 
     # Create temp files that _recover_intent_locked will promote —
@@ -3841,9 +3853,7 @@ def test_advance_plan_marks_phase_complete_on_last_plan(tmp_path):
 
     md = generate_state_markdown(state)
     (planning / "STATE.md").write_text(md, encoding="utf-8")
-    (planning / "state.json").write_text(
-        json.dumps(state, indent=2) + "\n", encoding="utf-8"
-    )
+    (planning / "state.json").write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
 
     result = state_advance_plan(tmp_path)
     assert result.advanced is False
@@ -3859,13 +3869,20 @@ def test_advance_plan_marks_phase_complete_on_last_plan(tmp_path):
 
 def test_normalize_preserves_valid_list_entries_when_one_is_malformed():
     """Bug B (FULL-002): one malformed approximation must not destroy valid siblings."""
-    valid_entry = {"name": "Large-N", "validity_range": "N >> 1", "status": "valid",
-                   "controlling_param": "N", "current_value": ""}
+    valid_entry = {
+        "name": "Large-N",
+        "validity_range": "N >> 1",
+        "status": "valid",
+        "controlling_param": "N",
+        "current_value": "",
+    }
     malformed_entry = {"label": "bad", "description": "wrong schema"}  # missing required 'name'
 
-    normalized, issues = _normalize_state_schema({
-        "approximations": [valid_entry, malformed_entry],
-    })
+    normalized, issues = _normalize_state_schema(
+        {
+            "approximations": [valid_entry, malformed_entry],
+        }
+    )
 
     # The valid entry must survive
     assert len(normalized["approximations"]) == 1
@@ -3885,9 +3902,11 @@ def test_normalize_preserves_empty_list_when_all_entries_malformed():
     bad_1 = {"label": "X", "description": "no name field"}
     bad_2 = {"scope": "global"}  # also missing required 'name'
 
-    normalized, issues = _normalize_state_schema({
-        "approximations": [bad_1, bad_2],
-    })
+    normalized, issues = _normalize_state_schema(
+        {
+            "approximations": [bad_1, bad_2],
+        }
+    )
 
     # Section must still exist as an empty list
     assert "approximations" in normalized
@@ -3897,16 +3916,28 @@ def test_normalize_preserves_empty_list_when_all_entries_malformed():
 
 def test_normalize_removes_multiple_malformed_list_entries():
     """Bug B (FULL-002): multiple malformed entries removed; valid ones survive."""
-    valid_1 = {"name": "Weak coupling", "validity_range": "g << 1", "status": "valid",
-               "controlling_param": "g", "current_value": "0.1"}
-    valid_2 = {"name": "Planar limit", "validity_range": "N -> inf", "status": "valid",
-               "controlling_param": "N", "current_value": ""}
+    valid_1 = {
+        "name": "Weak coupling",
+        "validity_range": "g << 1",
+        "status": "valid",
+        "controlling_param": "g",
+        "current_value": "0.1",
+    }
+    valid_2 = {
+        "name": "Planar limit",
+        "validity_range": "N -> inf",
+        "status": "valid",
+        "controlling_param": "N",
+        "current_value": "",
+    }
     bad_1 = {"label": "oops"}
     bad_2 = {"scope": "UV"}
 
-    normalized, issues = _normalize_state_schema({
-        "approximations": [valid_1, bad_1, valid_2, bad_2],
-    })
+    normalized, issues = _normalize_state_schema(
+        {
+            "approximations": [valid_1, bad_1, valid_2, bad_2],
+        }
+    )
 
     assert len(normalized["approximations"]) == 2
     names = {a["name"] for a in normalized["approximations"]}
@@ -3915,13 +3946,14 @@ def test_normalize_removes_multiple_malformed_list_entries():
 
 def test_normalize_preserves_valid_uncertainties_when_one_is_malformed():
     """Bug B (FULL-002): same fix applies to propagated_uncertainties list."""
-    valid = {"quantity": "mass", "value": "1.0 GeV", "uncertainty": "0.01 GeV",
-             "phase": "1", "method": "propagation"}
+    valid = {"quantity": "mass", "value": "1.0 GeV", "uncertainty": "0.01 GeV", "phase": "1", "method": "propagation"}
     malformed = {"label": "bad"}  # missing required 'quantity'
 
-    normalized, issues = _normalize_state_schema({
-        "propagated_uncertainties": [valid, malformed],
-    })
+    normalized, issues = _normalize_state_schema(
+        {
+            "propagated_uncertainties": [valid, malformed],
+        }
+    )
 
     assert len(normalized["propagated_uncertainties"]) == 1
     assert normalized["propagated_uncertainties"][0]["quantity"] == "mass"
@@ -3933,9 +3965,11 @@ def test_normalize_still_removes_top_level_section_for_non_list_errors():
     # 'position' is a dict (Position model), not a list. If it has a deeply invalid
     # field that can't be nested-removed, it should still be handled by the existing
     # top-level removal path.
-    normalized, issues = _normalize_state_schema({
-        "position": {"current_phase": [1, 2, 3]},  # current_phase expects str, not list
-    })
+    normalized, issues = _normalize_state_schema(
+        {
+            "position": {"current_phase": [1, 2, 3]},  # current_phase expects str, not list
+        }
+    )
 
     # Position should be reset to defaults (either dropped and re-defaulted, or
     # the string coercion path handles it). The key point: no crash, and the
@@ -4070,10 +4104,13 @@ def test_state_patch_mixed_success_and_failure(tmp_path: Path) -> None:
 
     cwd = _bootstrap_project_with_state(tmp_path)
 
-    result = state_patch(cwd, {
-        "current_plan": "2",
-        "nonexistent": "value",
-    })
+    result = state_patch(
+        cwd,
+        {
+            "current_plan": "2",
+            "nonexistent": "value",
+        },
+    )
 
     assert "current_plan" in result.updated
     assert "nonexistent" in result.failed
@@ -4126,8 +4163,12 @@ def test_state_patch_rejects_all_session_mirror_fields(tmp_path: Path) -> None:
     cwd = _bootstrap_project_with_state(tmp_path)
 
     mirror_fields = [
-        "last_session", "stopped_at", "resume_file",
-        "last_result_id", "hostname", "platform",
+        "last_session",
+        "stopped_at",
+        "resume_file",
+        "last_result_id",
+        "hostname",
+        "platform",
     ]
     result = state_patch(cwd, dict.fromkeys(mirror_fields, "test_value"))
 
@@ -4211,11 +4252,15 @@ def test_state_contract_alignment_default_is_empty() -> None:
 
 def test_state_records_contract_alignment_round_trip(tmp_path: Path) -> None:
     """state_record_contract_alignment persists timestamp + hashes through a reload."""
-    save_state_json(tmp_path, default_state_dict())
+    contract = _project_contract_fixture()
+    state = default_state_dict()
+    state["project_contract"] = contract
+    save_state_json(tmp_path, state)
+    contract_hash = _project_contract_hash(contract)
 
     state_record_contract_alignment(
         tmp_path,
-        contract_hash="sha256:abc",
+        contract_hash=contract_hash,
         context_hash="sha256:def",
         now="2026-04-23T12:00:00+00:00",
     )
@@ -4224,28 +4269,75 @@ def test_state_records_contract_alignment_round_trip(tmp_path: Path) -> None:
     assert reloaded is not None
     alignment = reloaded["contract_alignment"]
     assert alignment["confirmed_at"] == "2026-04-23T12:00:00+00:00"
-    assert alignment["confirmed_contract_hash"] == "sha256:abc"
+    assert alignment["confirmed_contract_hash"] == contract_hash
     assert alignment["confirmed_context_hash"] == "sha256:def"
 
 
-def test_state_record_contract_alignment_preserves_visible_non_authoritative_contract(
+def test_state_record_contract_alignment_rejects_stale_contract_hash(tmp_path: Path) -> None:
+    """Alignment recording must bind to the current authoritative contract fingerprint."""
+    contract = _project_contract_fixture()
+    state = default_state_dict()
+    state["project_contract"] = contract
+    save_state_json(tmp_path, state)
+
+    with pytest.raises(StateError, match="contract_hash does not match"):
+        state_record_contract_alignment(
+            tmp_path,
+            contract_hash="sha256:stale",
+            context_hash="sha256:def",
+            now="2026-04-23T12:00:00+00:00",
+        )
+
+    reloaded = load_state_json(tmp_path)
+    assert reloaded is not None
+    assert reloaded["contract_alignment"]["confirmed_contract_hash"] is None
+
+
+def test_state_record_contract_alignment_rejects_visible_non_authoritative_contract(
     tmp_path: Path,
 ) -> None:
-    """Recording alignment must not erase a visible contract with approval blockers."""
+    """Recording alignment must not accept or erase a visible contract with approval blockers."""
     state = default_state_dict()
     state["project_contract"] = _draft_invalid_project_contract()
     _write_raw_state_json(tmp_path, state)
 
-    state_record_contract_alignment(
-        tmp_path,
-        contract_hash="sha256:abc",
-        context_hash="sha256:def",
-        now="2026-04-23T12:00:00+00:00",
-    )
+    with pytest.raises(StateError, match="project_contract_gate.authoritative is not true"):
+        state_record_contract_alignment(
+            tmp_path,
+            contract_hash="sha256:abc",
+            context_hash="sha256:def",
+            now="2026-04-23T12:00:00+00:00",
+        )
 
     persisted = json.loads((tmp_path / "GPD" / "state.json").read_text(encoding="utf-8"))
     assert persisted["project_contract"]["claims"][0]["references"] == ["missing-ref"]
-    assert persisted["contract_alignment"]["confirmed_contract_hash"] == "sha256:abc"
+    assert persisted["contract_alignment"]["confirmed_contract_hash"] is None
+
+
+def test_state_record_contract_alignment_rejects_recoverably_normalized_contract(
+    tmp_path: Path,
+) -> None:
+    """Validation-valid schema drift remains non-authoritative for alignment recording."""
+    contract = _project_contract_fixture()
+    contract["claims"][0]["notes"] = "recoverable drift"
+    state = default_state_dict()
+    state["project_contract"] = contract
+    _write_raw_state_json(tmp_path, state)
+
+    status = state_module.project_contract_authority_status(tmp_path)
+    assert status["passed"] is False
+    assert status["project_contract_load_info"]["status"] == "loaded_with_schema_normalization"
+    assert status["project_contract_validation"]["valid"] is True
+    assert status["project_contract_gate"]["authoritative"] is False
+    assert status["project_contract_gate"]["repair_required"] is True
+
+    with pytest.raises(StateError, match="project_contract_gate.authoritative is not true"):
+        state_record_contract_alignment(
+            tmp_path,
+            contract_hash="sha256:abc",
+            context_hash="sha256:def",
+            now="2026-04-23T12:00:00+00:00",
+        )
 
 
 def test_state_contract_alignment_unconfirmed_omits_gate_keys(tmp_path: Path) -> None:
@@ -4264,11 +4356,15 @@ def test_state_contract_alignment_unconfirmed_omits_gate_keys(tmp_path: Path) ->
 
 def test_state_contract_alignment_surfaces_on_gate_dict(tmp_path: Path) -> None:
     """After recording, state_load surfaces alignment hashes on project_contract_gate."""
-    save_state_json(tmp_path, default_state_dict())
+    contract = _project_contract_fixture()
+    contract_hash = _project_contract_hash(contract)
+    state = default_state_dict()
+    state["project_contract"] = contract
+    save_state_json(tmp_path, state)
 
     state_record_contract_alignment(
         tmp_path,
-        contract_hash="sha256:contract",
+        contract_hash=contract_hash,
         context_hash="sha256:context",
         now="2026-04-23T13:00:00+00:00",
     )
@@ -4276,7 +4372,7 @@ def test_state_contract_alignment_surfaces_on_gate_dict(tmp_path: Path) -> None:
     loaded = state_load(tmp_path)
     gate = loaded.project_contract_gate or {}
     assert gate.get("confirmed_at") == "2026-04-23T13:00:00+00:00"
-    assert gate.get("confirmed_contract_hash") == "sha256:contract"
+    assert gate.get("confirmed_contract_hash") == contract_hash
     assert gate.get("confirmed_context_hash") == "sha256:context"
 
 

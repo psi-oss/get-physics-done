@@ -85,7 +85,18 @@ If `project_contract_load_info.status` starts with `blocked`, STOP and show the 
 
 If `project_contract_validation.valid` is false, STOP and show the explicit `project_contract_validation.errors` before execution. Do not treat a visible-but-blocked contract as an approved execution contract.
 
-Treat `project_contract` as the authoritative machine-readable execution contract only when `project_contract_gate.authoritative` is true.
+**If `project_contract_gate.authoritative` is not true:** STOP and checkpoint with the user. Show `project_contract_gate`, `project_contract_load_info.errors`, `project_contract_load_info.warnings`, and `project_contract_validation.errors` if present. Do not plan, execute, verify, fingerprint, align, or pass `project_contract` to subagents until the gate is authoritative. End with `## > Next Up`: primary `gpd:sync-state` or `gpd:new-project` as appropriate, then `gpd:execute-phase ${PHASE_ARG}` after repair, plus `gpd:suggest-next`.
+
+Run the executable lifecycle authority gate before branch handling, plan preflight, wave planning, contract fingerprinting, alignment summary, or any executor/verifier delegation:
+
+```bash
+LIFECYCLE_CONTRACT_GATE=$(gpd --raw validate lifecycle-contract-gate execute-phase "${PHASE_ARG}")
+if [ $? -ne 0 ]; then
+  echo "$LIFECYCLE_CONTRACT_GATE"
+  exit 1
+fi
+```
+
 Later staged refreshes surface `effective_reference_intake`, `active_reference_context`, and `reference_artifacts_content` for anchor-aware routing and wave planning. Stable knowledge docs may appear only through those shared reference surfaces as reviewed background; they do not become a separate authority tier. Do not assume bootstrap already loaded that broader reference context.
 Before launching any plan, require that the selected `PLAN.md` passes `gpd validate plan-preflight <PLAN.md>` when specialized tool requirements are declared.
 

@@ -61,6 +61,33 @@ def test_literature_review_workflow_surfaces_contract_gate_before_deferred_refer
     )
 
 
+@pytest.mark.parametrize(
+    ("workflow_name", "gate_command", "first_forbidden_marker"),
+    [
+        ("plan-phase.md", "gpd --raw validate lifecycle-contract-gate plan-phase", "### Spawn gpd-phase-researcher"),
+        (
+            "execute-phase.md",
+            "gpd --raw validate lifecycle-contract-gate execute-phase",
+            '<step name="handle_branching">',
+        ),
+        ("verify-work.md", "gpd --raw validate lifecycle-contract-gate verify-work", "gpd-check-proof"),
+    ],
+)
+def test_lifecycle_workflows_stop_on_non_authoritative_project_contract_gate(
+    workflow_name: str,
+    gate_command: str,
+    first_forbidden_marker: str,
+) -> None:
+    workflow = _workflow_text(workflow_name)
+    stop_line = "**If `project_contract_gate.authoritative` is not true"
+
+    assert stop_line in workflow
+    assert "Do not plan, execute, verify, fingerprint, align, or pass `project_contract` to subagents" in workflow
+    assert gate_command in workflow
+    assert workflow.index(stop_line) < workflow.index(first_forbidden_marker)
+    assert workflow.index(gate_command) < workflow.index(first_forbidden_marker)
+
+
 def test_write_paper_surfaces_manuscript_reference_status_before_using_it() -> None:
     workflow = _workflow_text("write-paper.md")
     surface_line = next(line for line in workflow.splitlines() if line.startswith("Parse bootstrap JSON using"))

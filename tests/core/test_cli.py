@@ -2813,6 +2813,16 @@ def test_validate_verification_contract_help_surfaces_stale_proof_gate_visibilit
     normalized_output = _normalize_cli_output(result.output)
     assert "Validate VERIFICATION frontmatter and contract-result alignment" in normalized_output
     assert "stale proof-audit blockers when recorded" in normalized_output
+    assert "oracle evidence" in normalized_output
+
+
+def test_validate_comparison_contract_help_surfaces_verdict_ledger_visibility() -> None:
+    result = runner.invoke(app, ["validate", "comparison-contract", "--help"])
+
+    assert result.exit_code == 0
+    normalized_output = _normalize_cli_output(result.output)
+    assert "Validate standalone comparison artifact frontmatter and comparison_verdicts" in normalized_output
+    assert "GPD/comparisons/*-COMPARISON.md" in normalized_output
 
 
 def test_validate_command_context_help_surfaces_registry_argument_name() -> None:

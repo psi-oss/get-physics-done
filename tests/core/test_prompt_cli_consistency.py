@@ -21,6 +21,7 @@ from gpd.core.public_surface_contract import (
     local_cli_validate_command_context_command,
     resume_authority_fields,
 )
+from gpd.core.state import VALID_STATUSES
 from gpd.registry import VALID_CONTEXT_MODES, _parse_frontmatter, get_command
 from tests.doc_surface_contracts import (
     DOCTOR_RUNTIME_SCOPE_RE,
@@ -630,6 +631,36 @@ def test_new_milestone_prompt_mentions_planning_commit_docs() -> None:
     for content in (command, workflow):
         assert "planning.commit_docs" in content
         assert "gpd:discuss-phase [N]" in content or "gpd:discuss-phase 1" in content
+
+
+def test_new_milestone_state_status_literals_are_valid() -> None:
+    workflow = (REPO_ROOT / "src/gpd/specs/workflows/new-milestone.md").read_text(encoding="utf-8")
+
+    statuses = re.findall(r'"--Status"\s+"([^"]+)"', workflow)
+
+    assert statuses
+    assert all(status in VALID_STATUSES for status in statuses)
+    assert "Defining objectives" not in workflow
+
+
+def test_new_milestone_roadmapper_stage_parse_and_artifact_words_match_payload() -> None:
+    workflow = (REPO_ROOT / "src/gpd/specs/workflows/new-milestone.md").read_text(encoding="utf-8")
+
+    roadmap_authoring = workflow[workflow.index("ROADMAPPER_INIT=") :]
+
+    assert "`planning_exists`" not in roadmap_authoring.split("Use the bootstrap init", maxsplit=1)[0]
+    assert "fresh `SUMMARY.md` proof" not in roadmap_authoring
+    assert "fresh ROADMAP/REQUIREMENTS proof" in roadmap_authoring
+    assert "shared_state_policy: return_only" in roadmap_authoring
+    assert "Do not accept a direct roadmapper edit to `GPD/STATE.md` as success proof." in roadmap_authoring
+
+
+def test_progress_route_d_includes_required_milestone_version_argument() -> None:
+    workflow = (WORKFLOWS_DIR / "progress.md").read_text(encoding="utf-8")
+    route_d = workflow[workflow.index("**Route D: Milestone complete**") :]
+
+    assert "`gpd:complete-milestone {milestone_version}`" in route_d
+    assert "`gpd:complete-milestone`\n" not in route_d
 
 
 def test_command_prompts_declare_valid_context_modes() -> None:

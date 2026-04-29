@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+from gpd.contracts import ResearchContract
 from gpd.core import context as context_module
 from gpd.core.constants import ProjectLayout
 from gpd.core.context import (
@@ -46,6 +47,7 @@ from gpd.core.context import (
     load_config,
 )
 from gpd.core.continuation import RESUMABLE_SEGMENT_STATUSES
+from gpd.core.contract_validation import contract_fingerprint
 from gpd.core.errors import ConfigError, ValidationError
 from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256
 from gpd.core.recent_projects import record_recent_project
@@ -347,6 +349,22 @@ def _install_fake_stage_manifest(
 
     monkeypatch.setattr("gpd.core.workflow_staging.load_workflow_stage_manifest", fake_load_workflow_stage_manifest)
     return manifest
+
+
+def _assert_staged_payload_matches_manifest(
+    payload: dict[str, object],
+    manifest: object,
+    *,
+    workflow_id: str,
+    stage_id: str,
+) -> None:
+    stage = manifest.stage_by_id(stage_id)
+
+    assert "staged_loading" in payload
+    assert tuple(field for field in payload if field != "staged_loading") == stage.required_init_fields
+    assert set(payload) == set(stage.required_init_fields) | {"staged_loading"}
+    assert payload["staged_loading"]["workflow_id"] == workflow_id
+    assert payload["staged_loading"]["stage_id"] == stage_id
 
 
 def _fail_if_context_builder_runs(name: str):
@@ -1056,6 +1074,7 @@ def _write_research_map_anchor_files(tmp_path: Path) -> None:
 """,
         encoding="utf-8",
     )
+
     (map_dir / "VALIDATION.md").write_text(
         """# Validation and Cross-Checks
 
@@ -1066,6 +1085,44 @@ def _write_research_map_anchor_files(tmp_path: Path) -> None:
 """,
         encoding="utf-8",
     )
+
+
+def _setup_lifecycle_staged_payload_project(tmp_path: Path) -> Path:
+    _setup_project(tmp_path)
+    planning = tmp_path / "GPD"
+    planning.joinpath("PROJECT.md").write_text("# Test Project\n", encoding="utf-8")
+    planning.joinpath("ROADMAP.md").write_text(
+        "# Roadmap\n\n## Phase 2: Analysis\n\n**Goal:** Compare the benchmark observable.\n",
+        encoding="utf-8",
+    )
+    planning.joinpath("REQUIREMENTS.md").write_text("# Requirements\n- Preserve benchmark anchors.\n", encoding="utf-8")
+    planning.joinpath("STATE.md").write_text("# State\nCurrent phase: 02\n", encoding="utf-8")
+
+    phase_dir = _create_phase_dir(tmp_path, "02-analysis")
+    (phase_dir / "02-PLAN.md").write_text("objective: compare benchmark observable\n", encoding="utf-8")
+    (phase_dir / "02-SUMMARY.md").write_text("# Summary\nExisting result.\n", encoding="utf-8")
+    (phase_dir / "02-CONTEXT.md").write_text("# Context\nLocked scope.\n", encoding="utf-8")
+    (phase_dir / "02-RESEARCH.md").write_text("# Research\nMethod comparison.\n", encoding="utf-8")
+    (phase_dir / "02-EXPERIMENT-DESIGN.md").write_text("# Experiment Design\nGrid scan.\n", encoding="utf-8")
+    (phase_dir / "02-VERIFICATION.md").write_text("# Verification\nGap notes.\n", encoding="utf-8")
+    (phase_dir / "02-VALIDATION.md").write_text("# Validation\nChecks.\n", encoding="utf-8")
+
+    _write_project_contract_state(tmp_path)
+    _write_structured_state_payload(tmp_path)
+    _write_literature_review_anchor_file(tmp_path)
+    _write_research_map_anchor_files(tmp_path)
+    _write_current_execution(
+        tmp_path,
+        {
+            "session_id": "sess-stage-parity",
+            "phase": "02",
+            "plan": "01",
+            "segment_status": "waiting_review",
+            "resume_file": "GPD/phases/02-analysis/.continue-here.md",
+            "pre_fanout_review_pending": True,
+        },
+    )
+    return phase_dir
 
 
 def _write_knowledge_doc(
@@ -1529,6 +1586,29 @@ class TestInitExecutePhase:
 
 
 class TestInitExecutePhaseStagedWiring:
+    def test_real_manifest_staged_payloads_match_required_fields(self, tmp_path: Path) -> None:
+        _setup_lifecycle_staged_payload_project(tmp_path)
+        manifest = load_workflow_stage_manifest("execute-phase")
+
+        for stage_id in manifest.stage_ids():
+            ctx = init_execute_phase(tmp_path, "2", stage=stage_id)
+            stage = manifest.stage_by_id(stage_id)
+
+            _assert_staged_payload_matches_manifest(
+                ctx,
+                manifest,
+                workflow_id="execute-phase",
+                stage_id=stage_id,
+            )
+            if "reference_artifacts_content" in stage.required_init_fields:
+                assert "Reference and Anchor Map" in ctx["reference_artifacts_content"]
+            else:
+                assert "reference_artifacts_content" not in ctx
+            if "current_execution" in stage.required_init_fields:
+                assert ctx["current_execution"]["session_id"] == "sess-stage-parity"
+            else:
+                assert "current_execution" not in ctx
+
     def test_stage_phase_bootstrap_returns_only_bootstrap_payload(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_phase_dir(tmp_path, "01-setup")
@@ -1585,6 +1665,29 @@ class TestInitExecutePhaseStagedWiring:
 
 
 class TestInitPlanPhase:
+    def test_real_manifest_staged_payloads_match_required_fields(self, tmp_path: Path) -> None:
+        _setup_lifecycle_staged_payload_project(tmp_path)
+        manifest = load_workflow_stage_manifest("plan-phase")
+
+        for stage_id in manifest.stage_ids():
+            ctx = init_plan_phase(tmp_path, "2", stage=stage_id)
+            stage = manifest.stage_by_id(stage_id)
+
+            _assert_staged_payload_matches_manifest(
+                ctx,
+                manifest,
+                workflow_id="plan-phase",
+                stage_id=stage_id,
+            )
+            if "reference_artifacts_content" in stage.required_init_fields:
+                assert "Reference and Anchor Map" in ctx["reference_artifacts_content"]
+            else:
+                assert "reference_artifacts_content" not in ctx
+            if "experiment_design_content" in stage.required_init_fields:
+                assert "Grid scan." in ctx["experiment_design_content"]
+            else:
+                assert "experiment_design_content" not in ctx
+
     def test_basic(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         phase_dir = _create_phase_dir(tmp_path, "02-analysis")
@@ -1597,6 +1700,52 @@ class TestInitPlanPhase:
         assert ctx["has_plans"] is False
         assert ctx["padded_phase"] == "02"
         assert "staged_loading" not in ctx
+
+    def test_infers_next_unplanned_roadmap_phase_when_phase_is_omitted(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_roadmap(
+            tmp_path,
+            """\
+            ## Milestone v1.0: Test
+
+            ### Phase 1: Setup
+            **Goal:** setup
+
+            ### Phase 2: Analyze
+            **Goal:** analyze
+            """,
+        )
+
+        ctx = init_plan_phase(tmp_path, None)
+
+        assert ctx["phase_found"] is False
+        assert ctx["phase_number"] == "1"
+        assert ctx["phase_name"] == "Setup"
+        assert ctx["phase_slug"] == "setup"
+        assert ctx["padded_phase"] == "01"
+
+    def test_stage_phase_bootstrap_accepts_omitted_phase_when_roadmap_can_infer_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _setup_project(tmp_path)
+        _create_roadmap(
+            tmp_path,
+            """\
+            ## Milestone v1.0: Test
+
+            ### Phase 1: Setup
+            **Goal:** setup
+            """,
+        )
+        _write_project_contract_state(tmp_path)
+        _install_fake_plan_phase_manifest(monkeypatch)
+
+        ctx = init_plan_phase(tmp_path, "", stage="phase_bootstrap")
+
+        assert ctx["phase_found"] is False
+        assert ctx["phase_number"] == "1"
+        assert ctx["phase_name"] == "Setup"
+        assert ctx["staged_loading"]["stage_id"] == "phase_bootstrap"
 
     def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -3437,6 +3586,12 @@ class TestInitQuick:
         assert "reference_artifacts_content" in ctx
         assert "active_reference_context" in ctx
 
+    def test_staged_quick_init_blocks_without_initialized_project(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+
+        with pytest.raises(ValueError, match="quick staged init requires an initialized GPD project"):
+            init_quick(tmp_path, "Quick reference check", stage="task_bootstrap")
+
     def test_no_description(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         ctx = init_quick(tmp_path)
@@ -4243,6 +4398,28 @@ class TestInitTodos:
         ctx = init_todos(tmp_path)
         assert ctx["todo_count"] == 0
         assert ctx["todos"] == []
+        assert ctx["project_exists"] is False
+        assert ctx["workspace_root"] == tmp_path.as_posix()
+        assert ctx["project_root"] == tmp_path.as_posix()
+
+    def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        (tmp_path / "GPD" / "STATE.md").write_text("# State\n", encoding="utf-8")
+        pending = tmp_path / "GPD" / "todos" / "pending"
+        pending.mkdir(parents=True)
+        (pending / "root-todo.md").write_text("title: Root todo\narea: theory\n", encoding="utf-8")
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+
+        ctx = init_todos(nested)
+
+        assert ctx["project_exists"] is True
+        assert ctx["workspace_root"] == nested.as_posix()
+        assert ctx["project_root"] == tmp_path.as_posix()
+        assert ctx["todo_count"] == 1
+        assert ctx["todos"][0]["path"] == "GPD/todos/pending/root-todo.md"
+        assert not (nested / "GPD").exists()
 
     def test_finds_todos(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -5768,9 +5945,13 @@ def test_context_reference_builder_surfaces_alignment_on_gate_dict(tmp_path: Pat
 
     _setup_project(tmp_path)
     _write_project_contract_state(tmp_path)
+    contract = ResearchContract.model_validate(
+        json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    )
+    contract_hash = contract_fingerprint(contract)
     state_record_contract_alignment(
         tmp_path,
-        contract_hash="sha256:contract-hash",
+        contract_hash=contract_hash,
         context_hash="sha256:context-hash",
         now="2026-04-23T12:00:00+00:00",
     )
@@ -5778,7 +5959,7 @@ def test_context_reference_builder_surfaces_alignment_on_gate_dict(tmp_path: Pat
     ctx = init_progress(tmp_path)
     gate = ctx["project_contract_gate"]
     assert gate["confirmed_at"] == "2026-04-23T12:00:00+00:00"
-    assert gate["confirmed_contract_hash"] == "sha256:contract-hash"
+    assert gate["confirmed_contract_hash"] == contract_hash
     assert gate["confirmed_context_hash"] == "sha256:context-hash"
 
 

@@ -3128,6 +3128,32 @@ def _try_find_phase(cwd: Path, phase: str) -> dict | None:
     return result.model_dump()
 
 
+def _infer_next_unplanned_roadmap_phase(cwd: Path) -> str | None:
+    """Return the first roadmap phase that still needs planning."""
+
+    roadmap = roadmap_analyze(cwd)
+    for phase in roadmap.phases:
+        if phase.disk_status in {"empty", "no_directory", "discussed", "researched"}:
+            return phase.number
+    return None
+
+
+def _roadmap_phase_target_payload(cwd: Path, phase: str) -> dict[str, object] | None:
+    """Return phase metadata from ROADMAP.md when no phase directory exists yet."""
+
+    normalized = _normalize_phase_name(phase)
+    roadmap = roadmap_analyze(cwd)
+    for roadmap_phase in roadmap.phases:
+        if _normalize_phase_name(roadmap_phase.number) != normalized:
+            continue
+        return {
+            "phase_number": roadmap_phase.number,
+            "phase_name": roadmap_phase.name,
+            "phase_slug": _generate_slug(roadmap_phase.name),
+        }
+    return None
+
+
 def _try_get_milestone_info(cwd: Path) -> dict:
     """Get milestone info from the canonical phases module."""
     from gpd.core.phases import get_milestone_info
@@ -3587,11 +3613,6 @@ def init_plan_phase(
         includes: Optional set of file sections to embed
                   (state, roadmap, requirements, context, research, verification, validation).
     """
-    if not phase:
-        raise ValidationError(
-            "phase is required for init plan-phase. Provide a phase identifier such as '1', '03', or '3.1'."
-        )
-
     includes = includes or set()
     if stage is not None and includes:
         raise ValueError(
@@ -3600,7 +3621,21 @@ def init_plan_phase(
         )
     effective_cwd = _resolve_project_scoped_cwd(cwd)
     config = load_config(effective_cwd)
-    phase_info = _try_find_phase(effective_cwd, phase)
+    selected_phase = phase.strip() if isinstance(phase, str) and phase.strip() else None
+    if selected_phase is None:
+        selected_phase = _infer_next_unplanned_roadmap_phase(effective_cwd)
+        if selected_phase is None:
+            raise ValidationError(
+                "phase is required for init plan-phase because no unplanned phase could be inferred from ROADMAP.md. "
+                "Provide a phase identifier such as '1', '03', or '3.1'."
+            )
+
+    phase_info = _try_find_phase(effective_cwd, selected_phase)
+    phase_target = phase_info or _roadmap_phase_target_payload(effective_cwd, selected_phase) or {
+        "phase_number": selected_phase,
+        "phase_name": None,
+        "phase_slug": None,
+    }
 
     result: dict[str, object] = {
         # Models
@@ -3616,10 +3651,10 @@ def init_plan_phase(
         # Phase info
         "phase_found": phase_info is not None,
         "phase_dir": phase_info["directory"] if phase_info else None,
-        "phase_number": phase_info["phase_number"] if phase_info else None,
-        "phase_name": phase_info.get("phase_name") if phase_info else None,
-        "phase_slug": phase_info.get("phase_slug") if phase_info else None,
-        "padded_phase": _normalize_phase_name(phase_info["phase_number"]) if phase_info else None,
+        "phase_number": phase_target["phase_number"],
+        "phase_name": phase_target.get("phase_name"),
+        "phase_slug": phase_target.get("phase_slug"),
+        "padded_phase": _normalize_phase_name(str(phase_target["phase_number"])),
         # Existing artifacts
         "has_research": phase_info.get("has_research", False) if phase_info else False,
         "has_context": phase_info.get("has_context", False) if phase_info else False,
@@ -3939,6 +3974,12 @@ def init_quick(cwd: Path, description: str | None = None, stage: str | None = No
         result.update(_build_reference_runtime_context(cwd))
         result.update(_build_state_memory_runtime_context(cwd))
         return result
+
+    if not result["project_exists"]:
+        raise ValueError(
+            "quick staged init requires an initialized GPD project (GPD/PROJECT.md); "
+            "run command-context validation before loading staged quick authoring context"
+        )
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
@@ -4750,10 +4791,14 @@ def init_literature_review(cwd: Path, topic: str | None = None, stage: str | Non
 
 def init_todos(cwd: Path, area: str | None = None) -> dict:
     """Assemble context for todo management."""
-    config = load_config(cwd)
+    requested_cwd = cwd.expanduser().resolve(strict=False)
+    resolution = resolve_project_roots(requested_cwd, policy=RootResolutionPolicy.PROJECT_SCOPED)
+    project_exists = bool(resolution and resolution.has_project_layout)
+    effective_cwd = resolution.project_root if resolution is not None and resolution.has_project_layout else requested_cwd
+    config = load_config(effective_cwd)
     now = datetime.now(UTC)
 
-    pending_dir = cwd / PLANNING_DIR_NAME / TODOS_DIR_NAME / "pending"
+    pending_dir = effective_cwd / PLANNING_DIR_NAME / TODOS_DIR_NAME / "pending"
     todos: list[dict[str, str]] = []
 
     try:
@@ -4787,6 +4832,10 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
         pass
 
     return {
+        "init_root_policy": InitRootPolicy.PROJECT_SCOPED.value,
+        "workspace_root": requested_cwd.as_posix(),
+        "project_root": effective_cwd.as_posix(),
+        "project_exists": project_exists,
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -4803,11 +4852,11 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
         "pending_dir": f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}/pending",
         "done_dir": f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}/done",
         # File existence
-        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
-        "todos_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}"),
-        "pending_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}/pending"),
+        "planning_exists": _path_exists(effective_cwd, PLANNING_DIR_NAME),
+        "todos_dir_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}"),
+        "pending_dir_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}/pending"),
         # Platform
-        "platform": _detect_platform(cwd),
+        "platform": _detect_platform(effective_cwd),
     }
 
 

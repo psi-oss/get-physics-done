@@ -50,10 +50,28 @@ def test_plan_phase_reloads_each_stage_and_validates_only_fresh_plan_files() -> 
     assert 'gpd --raw init plan-phase "$PHASE" --stage research_routing' in source
     assert 'gpd --raw init plan-phase "$PHASE" --stage planner_authoring' in source
     assert 'gpd --raw init plan-phase "$PHASE" --stage checker_revision' in source
+    assert "PLANNER_RETURN=$(\ntask(" in source
+    assert source.index("PLANNER_RETURN=$(") < source.index(
+        'FRESH_PLAN_FILES=$(echo "$PLANNER_RETURN" | gpd json list .gpd_return.files_written --default "")'
+    )
     assert 'FRESH_PLAN_FILES=$(echo "$PLANNER_RETURN" | gpd json list .gpd_return.files_written --default "")' in source
+    assert "gpd validate handoff-artifacts -" in source
+    assert "--allowed-root \"$PHASE_DIR\"" in source
+    assert '--expected-glob "${PHASE_DIR}/*-PLAN.md"' in source
+    assert "--required-suffix=-PLAN.md" in source
+    assert "[ -f \"$plan_file\" ] || continue" not in source
+    assert "ERROR: planner artifact is missing or unreadable" in source
     assert 'for plan_file in $FRESH_PLAN_FILES;' in source
     assert 'PLANS_CONTENT=""' in source
     assert "Before the checker loop, validate only the fresh plan artifacts named by the planner return:" in source
+
+
+def test_plan_phase_captures_state_sensitive_spawn_returns() -> None:
+    source = PLAN_PHASE.read_text(encoding="utf-8")
+
+    assert "PLANNER_RETURN=$(\ntask(" in source
+    assert "CHECKER_RETURN=$(\ntask(" in source
+    assert source.count("PLANNER_RETURN=$(\ntask(") >= 2
 
 
 def test_plan_phase_researcher_checkpoint_path_is_a_fresh_continuation_handoff() -> None:

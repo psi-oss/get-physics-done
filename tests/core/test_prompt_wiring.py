@@ -427,9 +427,9 @@ def test_plan_phase_applies_planner_roadmap_updates_in_orchestrator() -> None:
     plan_phase = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
 
     assert "gpd_return.roadmap_updates" in plan_phase
-    assert "The spawned planner does not own `GPD/ROADMAP.md` in default mode" in plan_phase
-    assert "Apply that update to `GPD/ROADMAP.md`" in plan_phase
-    assert "verify the phase's plan placeholders/count match the fresh `*-PLAN.md` artifacts" in plan_phase
+    assert "The planner returns proposed roadmap edits" in plan_phase
+    assert "the orchestrator applies them to `GPD/ROADMAP.md`" in plan_phase
+    assert "verifies placeholders/count against fresh `*-PLAN.md` artifacts" in plan_phase
 
 
 def test_executor_completion_examples_use_command_based_next_actions() -> None:
@@ -1738,18 +1738,9 @@ def test_stable_knowledge_remains_background_only_across_planning_verification_a
         "they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence."
         in planner_prompt
     )
-    assert (
-        "Stable knowledge docs may appear inside `{active_reference_context}` and `{reference_artifacts_content}`."
-        in plan_phase
-    )
-    assert (
-        "If a plan materially depends on a reviewed knowledge doc and that reliance must be gateable downstream, express it with explicit `knowledge_deps`; keep implicit stable background advisory only."
-        in plan_phase
-    )
-    assert (
-        "they do not override `convention_lock`, `project_contract`, the PLAN `contract`, or direct evidence."
-        in plan_phase
-    )
+    assert "Stable knowledge docs in `{active_reference_context}` or `{reference_artifacts_content}` are advisory" in plan_phase
+    assert "If a plan relies on a knowledge doc in a downstream-gateable way, express that as explicit `knowledge_deps`." in plan_phase
+    assert "never override `convention_lock`, `project_contract`, PLAN `contract`, or direct evidence." in plan_phase
     assert (
         "Stable knowledge docs that appear there are reviewed background synthesis: use them to clarify definitions, assumptions, and caveats only when they agree with stronger sources, and never as decisive evidence on their own."
         in verify_workflow

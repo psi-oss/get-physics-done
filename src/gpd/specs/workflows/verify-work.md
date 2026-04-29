@@ -142,6 +142,18 @@ If `project_contract_load_info.status` starts with `blocked`, stop and show the 
 
 If `project_contract_validation.valid` is false, stop and show `project_contract_validation.errors` before delegation.
 
+**If `project_contract_gate.authoritative` is not true:** STOP and checkpoint with the user. Show `project_contract_gate`, `project_contract_load_info.errors`, `project_contract_load_info.warnings`, and `project_contract_validation.errors` if present. Do not plan, execute, verify, fingerprint, align, or pass `project_contract` to subagents until the gate is authoritative. End with `## > Next Up`: primary `gpd:sync-state` or `gpd:new-project` as appropriate, then `gpd:verify-work ${PHASE_ARG}` after repair, plus `gpd:suggest-next`.
+
+Run the executable lifecycle authority gate before proof repair, inventory building, contract checks, or verifier delegation:
+
+```bash
+LIFECYCLE_CONTRACT_GATE=$(gpd --raw validate lifecycle-contract-gate verify-work "${PHASE_ARG}")
+if [ $? -ne 0 ]; then
+  echo "$LIFECYCLE_CONTRACT_GATE"
+  exit 1
+fi
+```
+
 Use canonical artifact discovery helpers during bootstrap:
 
 ```bash

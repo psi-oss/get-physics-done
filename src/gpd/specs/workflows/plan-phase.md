@@ -142,10 +142,18 @@ bind_plan_phase_init "$INIT"
 
 **If `project_contract` is empty or null:** STOP and checkpoint with the user. Planning requires an approved scoping contract in `GPD/state.json`; do not infer phase scope from `ROADMAP.md` or `REQUIREMENTS.md` alone. End with `## > Next Up`: primary `gpd:new-project` for project setup repair or `gpd:sync-state` if state exists but drifted, then `gpd:plan-phase {PHASE}`, plus `gpd:suggest-next`.
 
-**Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true.** If the gate is false, keep the contract visible as context and diagnostics, not as approved planning scope.
-
 **If `project_contract_validation.valid` is false:** STOP and checkpoint with the user. Quote the `project_contract_validation.errors` explicitly and repair the contract before planning; a visible-but-blocked contract is not an approved planning contract. End with `## > Next Up`: primary `gpd:sync-state`, then `gpd:plan-phase {PHASE}` after repair, plus `gpd:suggest-next`.
 
+**If `project_contract_gate.authoritative` is not true:** STOP and checkpoint with the user. Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. Show `project_contract_gate`, load errors/warnings, and validation errors. Do not plan, execute, verify, fingerprint, align, or pass `project_contract` to subagents until the gate is authoritative. End with `## > Next Up`: primary `gpd:sync-state` or `gpd:new-project`, then `gpd:plan-phase {PHASE}` after repair, plus `gpd:suggest-next`.
+Run the executable lifecycle authority gate before any research, planning, checker, fingerprint, or alignment step:
+
+```bash
+LIFECYCLE_CONTRACT_GATE=$(gpd --raw validate lifecycle-contract-gate plan-phase "${PHASE}")
+if [ $? -ne 0 ]; then
+  echo "$LIFECYCLE_CONTRACT_GATE"
+  exit 1
+fi
+```
 ## 1.5 Proof-Obligation Planning Gate
 
 The planner template owns the detailed theorem and proof-redteam policy. The workflow only needs to keep proof-bearing work fail-closed: `--skip-verify` does NOT waive checker review, checker-disabled config does not waive proof review, and any proof-bearing plan set still needs checker review or an equivalent main-context audit before planning is considered complete. Proof-bearing work includes theorem-style claims, `claim`, lemma, corollary, proposition, proof, prove, existence, and uniqueness tasks.
@@ -172,7 +180,7 @@ When `--inline-discuss` is present, combine discuss-phase and plan-phase into a 
 
 This is NOT the full discuss-phase flow — just the 2-3 most impactful questions. If the phase is complex enough to need full discussion, the researcher should run `gpd:discuss-phase` separately.
 
-**If no phase number:** Detect next unplanned phase from roadmap.
+**If no phase number:** Use the `phase_number` returned by bootstrap; `gpd --raw init plan-phase --stage phase_bootstrap` auto-detects the first roadmap phase whose disk status is `empty`, `no_directory`, `discussed`, or `researched`. If bootstrap cannot infer one, stop and ask for an explicit phase.
 
 **If `phase_found` is false:** Validate phase exists in ROADMAP.md. If valid, resolve directory metadata from the roadmap before continuing:
 
@@ -654,19 +662,22 @@ Render the template's `## Standard Planning Template` into `filled_prompt` with 
 - `{verification_content}` -> {verification_content}
 - `{validation_content}` -> {validation_content}
 Keep `{contract_intake}` and `{effective_reference_intake}` visible in the rendered prompt.
-Stable knowledge docs may appear inside `{active_reference_context}` and `{reference_artifacts_content}`. Treat them as reviewed background syntheses only; they may refine assumptions, caveats, or method choice when consistent with stronger sources, but they do not override `convention_lock`, `project_contract`, the PLAN `contract`, or direct evidence.
-If a plan materially depends on a reviewed knowledge doc and that reliance must be gateable downstream, express it with explicit `knowledge_deps`; keep implicit stable background advisory only.
+Stable knowledge docs in `{active_reference_context}` or `{reference_artifacts_content}` are advisory: they may refine assumptions but never override `convention_lock`, `project_contract`, PLAN `contract`, or direct evidence.
+If a plan relies on a knowledge doc in a downstream-gateable way, express that as explicit `knowledge_deps`.
 
 Do not restate template-owned contract gates, tangent control, tool-requirement policy, proof-bearing plan policy, context-budget guidance, downstream-consumer rules, or the quality gate here.
 ```
 
 ```
+PLANNER_HANDOFF_STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+PLANNER_RETURN=$(
 task(
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.\n\n" + filled_prompt,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.\n\n" + filled_prompt + "\n\n<spawn_contract>\nwrite_scope:\n  mode: scoped_write\n  allowed_paths:\n    - \"{phase_dir}/*-PLAN.md\"\nexpected_artifacts:\n  - \"readable {phase_dir}/*-PLAN.md named in gpd_return.files_written\"\nshared_state_policy: return_only\nartifact_gate: orchestrator validates files_written, scope, freshness, readability, suffix, and plan-contract\n</spawn_contract>",
   subagent_type="gpd-planner",
   model="{planner_model}",
   readonly=false,
   description="Plan Phase {phase}"
+)
 )
 ```
 
@@ -674,15 +685,15 @@ task(
 
 ## 9. Handle Planner Return
 
-**If the planner agent fails to spawn or returns an error:** Do not infer completion from files that already exist on disk. Treat any preexisting `PLAN.md` artifacts as a stale baseline unless this run returns a fresh typed `gpd_return` that names them in `gpd_return.files_written`. If no fresh planner return is available, keep the handoff incomplete. Offer: 1) Retry planner, 2) Create plans in the main context, 3) Abort.
+**If the planner agent fails to spawn or returns an error:** Do not infer completion from existing `PLAN.md` files. Without a fresh typed `gpd_return` naming `files_written`, keep the handoff incomplete. Offer: Retry planner / Main-context plan / Abort.
 
-Human-readable headings such as `## PLANNING COMPLETE`, `## CHECKPOINT REACHED`, and `## PLANNING INCONCLUSIVE` are presentation only. Route on the planner's structured `gpd_return.status`, `gpd_return.files_written`, and the on-disk artifact check.
+Ignore presentation headings; route on structured `gpd_return.status`, `files_written`, and the on-disk artifact check.
 
-- **`gpd_return.status: completed`:** Before accepting the success state, verify that at least one readable `*-PLAN.md` artifact exists in `${PHASE_DIR}` and extract the fresh plan artifact list from `gpd_return.files_written`; verify that every named file exists, is readable, and ends in `-PLAN.md`. Do not accept the planner return text alone. Use the init snapshot (`has_plans`, `plan_count`) as the stale baseline: a plan file that already existed before this handoff only counts as fresh output if this planner return explicitly names it in `gpd_return.files_written`. If the planner says complete but no plan files are present, treat the handoff as incomplete until a fresh continuation names them in `gpd_return.files_written`. Display plan count. If `AUTONOMY=supervised`, show the written draft plans and get user confirmation before advancing to checker or next-step output. If `--skip-verify` or `plan_checker_enabled` is false (from init): skip to step 13 only when no proof-bearing plans were written. Proof-bearing plans still require checker review or an equivalent main-context audit before planning is considered complete. Otherwise: step 10.
+- **`gpd_return.status: completed`:** Accept only after `gpd_return.files_written` names at least one fresh, readable `${PHASE_DIR}/*-PLAN.md`; do not trust return text or preexisting files alone. Display plan count. In `AUTONOMY=supervised`, show draft plans and get user confirmation before checker or next-step output. If `--skip-verify` or `plan_checker_enabled` is false, skip to step 13 only when no proof-bearing plans were written; proof-bearing plans still need checker review or an equivalent main-context audit. Otherwise: step 10.
 - **`gpd_return.status: checkpoint`:** Present to user, get response, spawn a fresh planner continuation handoff. Do not route planner checkpoints into the checker revision loop.
 - **`gpd_return.status: blocked` or `failed`:** Show attempts, offer: Add context / Retry / Manual
 
-On completed returns, consume `gpd_return.roadmap_updates` before checker review or next-step output. The spawned planner does not own `GPD/ROADMAP.md` in default mode; it returns the proposed roadmap patch, replacement, or structured edit for the orchestrator to apply. Apply that update to `GPD/ROADMAP.md`, then verify the phase's plan placeholders/count match the fresh `*-PLAN.md` artifacts. If `roadmap_updates` is absent, malformed, or cannot apply cleanly, treat the handoff as incomplete and choose Retry planner / Apply manually / Abort rather than accepting stale roadmap state.
+On completed returns, consume `gpd_return.roadmap_updates` before checker review or next-step output. The planner returns proposed roadmap edits; the orchestrator applies them to `GPD/ROADMAP.md` and verifies placeholders/count against fresh `*-PLAN.md` artifacts. If missing, malformed, or unapplied, treat the handoff as incomplete: Retry planner / Apply manually / Abort.
 
 Before the checker loop, validate only the fresh plan artifacts named by the planner return:
 
@@ -693,8 +704,23 @@ if [ -z "$FRESH_PLAN_FILES" ]; then
   exit 1
 fi
 
+HANDOFF_ARTIFACT_ARGS=(
+  --allowed-root "$PHASE_DIR"
+  --expected-glob "${PHASE_DIR}/*-PLAN.md"
+  --required-suffix=-PLAN.md
+  --require-files-written
+)
+if [ -n "$PLANNER_HANDOFF_STARTED_AT" ]; then
+  HANDOFF_ARTIFACT_ARGS+=(--fresh-after "$PLANNER_HANDOFF_STARTED_AT")
+fi
+printf '%s\n' "$PLANNER_RETURN" | gpd validate handoff-artifacts - "${HANDOFF_ARTIFACT_ARGS[@]}" || exit 1
+
 for plan_file in $FRESH_PLAN_FILES; do
-  [ -f "$plan_file" ] || continue
+  case "$plan_file" in
+    "${PHASE_DIR}"/*-PLAN.md) ;;
+    *) echo "ERROR: unexpected planner artifact path: $plan_file"; exit 1 ;;
+  esac
+  [ -r "$plan_file" ] || { echo "ERROR: planner artifact is missing or unreadable: $plan_file"; exit 1; }
   gpd validate plan-contract "$plan_file" || exit 1
 done
 ```
@@ -800,12 +826,14 @@ In addition to structural checks, verify:
 ```
 
 ```
+CHECKER_RETURN=$(
 task(
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-plan-checker.md for your role and instructions.\n\n" + checker_prompt,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-plan-checker.md for your role and instructions.\n\n" + checker_prompt + "\n\n<spawn_contract>\nwrite_scope:\n  mode: read_only\n  allowed_paths: []\nexpected_artifacts: []\nshared_state_policy: return_only\nartifact_gate: checker returns approved_plans, blocked_plans, and files_written: []; orchestrator reconciles IDs against FRESH_PLAN_FILES\n</spawn_contract>",
   subagent_type="gpd-plan-checker",
   model="{checker_model}",
   readonly=false,
   description="Verify Phase {phase} plans"
+)
 )
 ```
 
@@ -915,12 +943,15 @@ Keep the revision prompt scoped to targeted checker fixes. Do not restate templa
 ```
 
 ```
+PLANNER_HANDOFF_STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+PLANNER_RETURN=$(
 task(
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.\n\n" + revision_prompt,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.\n\n" + revision_prompt + "\n\n<spawn_contract>\nwrite_scope:\n  mode: scoped_write\n  allowed_paths:\n    - \"{phase_dir}/*-PLAN.md\"\nexpected_artifacts:\n  - \"revised readable {phase_dir}/*-PLAN.md named in gpd_return.files_written\"\nshared_state_policy: return_only\nartifact_gate: orchestrator validates files_written, scope, freshness, readability, suffix, and plan-contract before re-checking\n</spawn_contract>",
   subagent_type="gpd-planner",
   model="{planner_model}",
   readonly=false,
   description="Revise Phase {phase} plans"
+)
 )
 ```
 

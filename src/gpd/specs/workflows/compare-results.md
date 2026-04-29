@@ -81,6 +81,14 @@ The frontmatter must include:
 - `comparison_sources`
 - `subject_id` / `reference_id` linkage when available
 
+After writing `${COMPARISON_OUTPUT_PATH}`, run:
+
+```bash
+gpd validate comparison-contract "${COMPARISON_OUTPUT_PATH}"
+```
+
+If validation fails, treat the comparison artifact as incomplete: fix the frontmatter ledger before routing, committing, or presenting it as decisive evidence.
+
 If the comparison is load-bearing for a figure or table, note the resulting artifact path so the figure tracker can point back to it.
 Any additional GPD-authored notes, tables, or helper artifacts created for this comparison should stay under the same current-workspace `GPD/comparisons/` subtree.
 

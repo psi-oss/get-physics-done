@@ -283,12 +283,11 @@ def test_new_milestone_roadmapper_spawn_contract_keeps_return_only_shared_state_
         content,
         (
             "GPD/ROADMAP.md",
-            "GPD/STATE.md",
+            "GPD/REQUIREMENTS.md",
         ),
         shared_state_policy="return_only",
         expected_write_paths=(
             "GPD/ROADMAP.md",
-            "GPD/STATE.md",
             "GPD/REQUIREMENTS.md",
         ),
     )
@@ -302,9 +301,10 @@ def test_new_milestone_roadmapper_spawn_contract_keeps_return_only_shared_state_
     assert "Effective reference intake: {effective_reference_intake}" in task.text
     assert "gpd_return.files_written" in task.text
     assert "treat existing files as stale unless the same paths appear in `gpd_return.files_written`" in task.text
+    assert "Do not write STATE.md directly" in task.text
     assert "GPD/REQUIREMENTS.md" in content
     assert (
-        "If the roadmapper reports `gpd_return.status: completed`, verify that `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/REQUIREMENTS.md` are readable and named in `gpd_return.files_written`."
+        "If the roadmapper reports `gpd_return.status: completed`, verify that `GPD/ROADMAP.md` and `GPD/REQUIREMENTS.md` are readable and named in `gpd_return.files_written`."
         in content
     )
     assert (
@@ -566,7 +566,7 @@ def test_new_milestone_research_and_roadmapper_gate_success_path_artifacts() -> 
         in content
     )
     assert (
-        "If the roadmapper reports `gpd_return.status: completed`, verify that `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/REQUIREMENTS.md` are readable and named in `gpd_return.files_written`."
+        "If the roadmapper reports `gpd_return.status: completed`, verify that `GPD/ROADMAP.md` and `GPD/REQUIREMENTS.md` are readable and named in `gpd_return.files_written`."
         in content
     )
     assert (
@@ -589,6 +589,7 @@ def test_new_milestone_research_and_roadmapper_gate_success_path_artifacts() -> 
     assert 'subagent_type="gpd-roadmapper"' in content
     assert "GPD/ROADMAP.md" in content
     assert "GPD/STATE.md" in content
+    assert "Do not accept a direct roadmapper edit to `GPD/STATE.md` as success proof." in content
 
 
 def test_peer_review_stages_use_fresh_context_and_stage_artifacts() -> None:

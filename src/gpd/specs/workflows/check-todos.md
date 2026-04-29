@@ -19,7 +19,16 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Extract from init JSON: `todo_count`, `todos`, `pending_dir`.
+Extract from init JSON: `todo_count`, `todos`, `pending_dir`, `done_dir`, `project_exists`, `workspace_root`, `project_root`.
+
+Before file operations, bind to the effective root returned by init so nested workspaces use the ancestor project todo tree instead of creating a second local `GPD/` tree:
+
+```bash
+project_root=$(echo "$INIT" | gpd json get .project_root --default "$(pwd)")
+pending_dir=$(echo "$INIT" | gpd json get .pending_dir --default "GPD/todos/pending")
+done_dir=$(echo "$INIT" | gpd json get .done_dir --default "GPD/todos/done")
+cd "$project_root" || exit 1
+```
 
 If `todo_count` is 0:
 
@@ -138,10 +147,10 @@ Use ask_user:
 **Work on it now:**
 ```bash
 todo_name="$(basename "$todo_file")"
-done_file="GPD/todos/done/${todo_name}"
+done_file="${done_dir}/${todo_name}"
 mv "$todo_file" "$done_file"
 ```
-Update STATE.md todo count. Present problem/solution context. Begin work or ask how to proceed.
+Do not hand-edit STATE.md todo count. Present problem/solution context. Begin work or ask how to proceed.
 
 **Add to phase plan:**
 Note todo reference in phase planning notes. Keep in pending. Return to list or exit.
@@ -160,7 +169,7 @@ Return to list_todos step.
 <step name="update_state">
 After any action that changes todo count:
 
-Re-run `init todos` to get updated count, then update STATE.md "### Pending Todos" section if exists.
+Re-run `init todos` to get the updated count. The todo files are the source of truth; do not hand-edit STATE.md "### Pending Todos" with ad hoc text manipulation.
 </step>
 
 <step name="git_commit">
@@ -169,10 +178,10 @@ If todo was moved to done/, commit the change:
 ```bash
 git rm --cached "$todo_file" 2>/dev/null || true
 
-PRE_CHECK=$(gpd pre-commit-check --files "$done_file" GPD/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files "$done_file" 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: start work on todo - ${title}" --files "$done_file" GPD/STATE.md
+gpd commit "docs: start work on todo - ${title}" --files "$todo_file" "$done_file"
 ```
 
 Tool respects `commit_docs` config and gitignore automatically.
@@ -190,7 +199,7 @@ Confirm: "Committed: docs: start work on todo - ${title}"
 - [ ] Roadmap context checked for phase match
 - [ ] Appropriate actions offered
 - [ ] Selected action executed
-- [ ] STATE.md updated if todo count changed
+- [ ] STATE.md not hand-edited; todo count remains file-derived
 - [ ] Changes committed to git (if todo moved to done/)
 
 </success_criteria>

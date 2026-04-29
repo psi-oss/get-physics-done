@@ -1674,6 +1674,19 @@ def _require_project_root(cwd: Path, *, command_label: str) -> Path:
     return project_root
 
 
+def _load_authoritative_project_contract_or_error(
+    project_root: Path,
+) -> tuple[object, dict[str, object], dict[str, object], dict[str, object]]:
+    """Load the current contract for alignment commands, failing closed on non-authority."""
+    from gpd.core.errors import StateError
+    from gpd.core.state import _load_authoritative_project_contract_for_runtime_context
+
+    try:
+        return _load_authoritative_project_contract_for_runtime_context(project_root)
+    except StateError as exc:
+        _error(str(exc))
+
+
 @contract_app.command("record-alignment")
 def contract_record_alignment(
     contract_hash: str = typer.Option(
@@ -1684,14 +1697,18 @@ def contract_record_alignment(
     ),
 ) -> None:
     """Persist operator confirmation that the claim-deliverable alignment was reviewed."""
+    from gpd.core.errors import StateError
     from gpd.core.state import state_record_contract_alignment
 
     project_root = _require_project_root(_get_cwd(), command_label="gpd contract commands")
-    state_record_contract_alignment(
-        project_root,
-        contract_hash=contract_hash,
-        context_hash=context_hash,
-    )
+    try:
+        state_record_contract_alignment(
+            project_root,
+            contract_hash=contract_hash,
+            context_hash=context_hash,
+        )
+    except StateError as exc:
+        _error(str(exc))
     if _raw:
         _emit_raw_json({"result": "recorded"})
     else:
@@ -1719,12 +1736,9 @@ def contract_alignment_status() -> None:
 def contract_fingerprint_cmd() -> None:
     """Print the canonical sha256 fingerprint of the current machine contract."""
     from gpd.core.contract_validation import contract_fingerprint
-    from gpd.core.state import _load_project_contract_for_runtime_context
 
     project_root = _require_project_root(_get_cwd(), command_label="gpd contract commands")
-    contract, _load_info = _load_project_contract_for_runtime_context(project_root)
-    if contract is None:
-        _error("No project contract is available; cannot fingerprint.")
+    contract, _load_info, _validation, _gate = _load_authoritative_project_contract_or_error(project_root)
     _output(contract_fingerprint(contract))
 
 
@@ -1772,12 +1786,9 @@ def contract_context_fingerprint_cmd(
 def contract_alignment_summary_cmd() -> None:
     """Print the claim-deliverable alignment row projection as JSON."""
     from gpd.core.contract_validation import claim_deliverable_alignment_summary
-    from gpd.core.state import _load_project_contract_for_runtime_context
 
     project_root = _require_project_root(_get_cwd(), command_label="gpd contract commands")
-    contract, _load_info = _load_project_contract_for_runtime_context(project_root)
-    if contract is None:
-        _error("No project contract is available; cannot render alignment summary.")
+    contract, _load_info, _validation, _gate = _load_authoritative_project_contract_or_error(project_root)
     rows = [
         {"claim": claim, "deliverable": deliverable, "acceptance_test": acceptance}
         for claim, deliverable, acceptance in claim_deliverable_alignment_summary(contract)
@@ -11370,6 +11381,38 @@ def validate_review_preflight(
         raise typer.Exit(code=1)
 
 
+@validate_app.command(
+    "lifecycle-contract-gate", context_settings={"allow_extra_args": True, "ignore_unknown_options": True}
+)
+def validate_lifecycle_contract_gate(
+    ctx: typer.Context,
+    command_name: str = typer.Argument(..., help="Lifecycle command being gated"),
+    subject: str | None = typer.Argument(None, help="Optional phase or lifecycle subject"),
+) -> None:
+    """Fail closed unless the current project contract gate is authoritative."""
+    from gpd.core.state import project_contract_authority_status
+
+    command = command_name.removeprefix("gpd:").strip()
+    if command not in {"plan-phase", "execute-phase", "verify-work"}:
+        _error(
+            f"lifecycle-contract-gate only supports plan-phase, execute-phase, and verify-work (got {command_name!r})"
+        )
+    arguments: list[str] = []
+    if subject is not None:
+        arguments.append(subject)
+    arguments.extend(str(arg) for arg in ctx.args)
+
+    project_root = _require_project_root(_get_cwd(), command_label="gpd validate lifecycle-contract-gate")
+    payload = {
+        "command": command,
+        "subject": " ".join(arguments) or None,
+        **project_contract_authority_status(project_root),
+    }
+    _output(payload)
+    if payload.get("passed") is not True:
+        raise typer.Exit(code=1)
+
+
 @validate_app.command("artifact-text")
 def validate_artifact_text_cmd(
     input_path: str = typer.Argument(..., help="Path to an artifact that should expose a readable text surface"),
@@ -11589,9 +11632,105 @@ def validate_summary_contract_cmd(
 def validate_verification_contract_cmd(
     input_path: str = typer.Argument(..., help="Path to a VERIFICATION.md file"),
 ) -> None:
-    """Validate VERIFICATION frontmatter and contract-result alignment, including stale proof-audit blockers when recorded."""
+    """Validate VERIFICATION frontmatter and contract-result alignment, stale proof-audit blockers when recorded, and oracle evidence."""
 
-    _run_frontmatter_validation(input_path, "verification")
+    from gpd.core.correctness_validators import validate_verification_oracle_evidence
+    from gpd.core.frontmatter import validate_frontmatter
+
+    file_path, content = _load_text_document_or_error(input_path)
+    schema_result = validate_frontmatter(content, "verification", source_path=file_path)
+    oracle_result = validate_verification_oracle_evidence(content, source_path=file_path)
+    errors = [*schema_result.errors, *oracle_result.errors]
+    result = {
+        "valid": len(schema_result.missing) == 0 and not errors,
+        "missing": schema_result.missing,
+        "present": schema_result.present,
+        "errors": errors,
+        "schema_name": schema_result.schema_name,
+        "oracle_evidence_count": oracle_result.evidence_count,
+    }
+    _output(result)
+    if not result["valid"]:
+        raise typer.Exit(code=1)
+
+
+@validate_app.command("comparison-contract")
+def validate_comparison_contract_cmd(
+    input_path: str = typer.Argument(..., help="Path to a GPD/comparisons/*-COMPARISON.md file"),
+) -> None:
+    """Validate standalone comparison artifact frontmatter and comparison_verdicts."""
+
+    from gpd.core.correctness_validators import validate_comparison_contract
+
+    file_path, content = _load_text_document_or_error(input_path)
+    result = validate_comparison_contract(content, source_path=file_path)
+    _output(result)
+    if not result.valid:
+        raise typer.Exit(code=1)
+
+
+@validate_app.command("handoff-artifacts")
+def validate_handoff_artifacts_cmd(
+    input_path: str = typer.Argument(..., help="Path to a file containing a gpd_return YAML block, or '-' for stdin"),
+    expected: list[str] | None = typer.Option(
+        None,
+        "--expected",
+        help="Expected artifact path that must exist and be named in gpd_return.files_written. Repeatable.",
+    ),
+    expected_glob: list[str] | None = typer.Option(
+        None,
+        "--expected-glob",
+        help="Glob pattern that must match at least one gpd_return.files_written entry. Repeatable.",
+    ),
+    allowed_root: list[str] | None = typer.Option(
+        None,
+        "--allowed-root",
+        help="Allowed project-local artifact root. Repeatable. Defaults to the project root.",
+    ),
+    required_suffix: list[str] | None = typer.Option(
+        None,
+        "--required-suffix",
+        help="Required suffix for each checked artifact path. Repeatable.",
+    ),
+    require_files_written: bool = typer.Option(
+        False,
+        "--require-files-written",
+        help="Fail when gpd_return.files_written is empty.",
+    ),
+    fresh_after: str | None = typer.Option(
+        None,
+        "--fresh-after",
+        help="ISO 8601 timestamp; checked artifacts must be modified at or after this time.",
+    ),
+) -> None:
+    """Validate that a spawned-agent return names real, fresh, in-scope artifacts."""
+    from gpd.core.handoff_artifacts import parse_fresh_after, validate_handoff_artifacts_markdown
+
+    launch_cwd = _get_cwd()
+    project_root = _read_only_project_scoped_cwd(launch_cwd)
+    if input_path == "-":
+        content = sys.stdin.read()
+    else:
+        resolved = _resolve_return_file_path(input_path, launch_cwd=launch_cwd, project_root=project_root)
+        _, content = _load_text_document_or_error(str(resolved))
+    try:
+        freshness_cutoff = parse_fresh_after(fresh_after)
+    except ValueError as exc:
+        _error(str(exc))
+
+    result = validate_handoff_artifacts_markdown(
+        project_root,
+        content,
+        expected_artifacts=expected or [],
+        expected_globs=expected_glob or [],
+        allowed_roots=allowed_root or [],
+        required_suffixes=required_suffix or [],
+        require_files_written=require_files_written,
+        fresh_after=freshness_cutoff,
+    )
+    _output(result)
+    if not result.passed:
+        raise typer.Exit(code=1)
 
 
 @validate_app.command("review-claim-index")

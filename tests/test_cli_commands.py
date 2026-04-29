@@ -168,6 +168,27 @@ _CANONICAL_MANUSCRIPT_REL = canonical_manuscript_relpath()
 _CANONICAL_MANUSCRIPT_BASENAME = f"{CANONICAL_MANUSCRIPT_STEM}.tex"
 _CANONICAL_MANUSCRIPT_PDF_BASENAME = f"{CANONICAL_MANUSCRIPT_STEM}.pdf"
 _CANONICAL_MARKDOWN_BASENAME = f"{CANONICAL_MANUSCRIPT_STEM}.md"
+
+
+def _project_contract_fixture() -> dict[str, object]:
+    return json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+
+
+def _write_project_contract_to_state(
+    project_root: Path,
+    *,
+    recoverable_schema_drift: bool = False,
+) -> dict[str, object]:
+    contract = _project_contract_fixture()
+    if recoverable_schema_drift:
+        contract["claims"][0]["notes"] = "recoverable drift"
+    state_path = project_root / "GPD" / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["project_contract"] = contract
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    return contract
+
+
 _ALIASABLE_RUNTIME_DESCRIPTOR = next(
     descriptor
     for descriptor in _RUNTIME_DESCRIPTORS
@@ -1503,6 +1524,65 @@ class TestStateCommands:
         assert state["project_contract"] is None
 
 
+class TestContractCommands:
+    def test_lifecycle_contract_gate_accepts_authoritative_project_contract(self, gpd_project: Path) -> None:
+        _write_project_contract_to_state(gpd_project)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(gpd_project), "validate", "lifecycle-contract-gate", "plan-phase", "1"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["passed"] is True
+        assert payload["project_contract_gate"]["authoritative"] is True
+        assert payload["project_contract_validation"]["valid"] is True
+
+    def test_lifecycle_contract_gate_rejects_recoverably_normalized_contract(self, gpd_project: Path) -> None:
+        _write_project_contract_to_state(gpd_project, recoverable_schema_drift=True)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(gpd_project), "validate", "lifecycle-contract-gate", "execute-phase", "1"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["passed"] is False
+        assert payload["project_contract_load_info"]["status"] == "loaded_with_schema_normalization"
+        assert payload["project_contract_validation"]["valid"] is True
+        assert payload["project_contract_gate"]["authoritative"] is False
+        assert payload["project_contract_gate"]["repair_required"] is True
+        assert "project_contract_gate.authoritative is not true" in payload["error"]
+
+    def test_contract_alignment_commands_reject_recoverably_normalized_contract(self, gpd_project: Path) -> None:
+        _write_project_contract_to_state(gpd_project, recoverable_schema_drift=True)
+
+        for args in (
+            ["contract", "fingerprint"],
+            ["--raw", "contract", "alignment-summary"],
+            [
+                "contract",
+                "record-alignment",
+                "--contract-hash",
+                "sha256:abc",
+                "--context-hash",
+                "sha256:def",
+            ],
+        ):
+            result = runner.invoke(
+                app,
+                ["--cwd", str(gpd_project), *args],
+                catch_exceptions=False,
+            )
+            combined_output = result.output + getattr(result, "stderr", "")
+            assert result.exit_code == 1, combined_output
+            assert "project_contract_gate.authoritative is not true" in combined_output
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Regression check commands
 # ═══════════════════════════════════════════════════════════════════════════
@@ -2162,6 +2242,29 @@ review_summary:
         assert payload["staged_loading"]["loaded_authorities"] == ["workflows/quick.md"]
         assert "active_reference_context" in payload
         assert "effective_reference_intake" in payload
+
+    def test_quick_init_stage_task_bootstrap_blocks_without_project_file(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "quick-without-project"
+        (workspace / "GPD").mkdir(parents=True)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(workspace),
+                "init",
+                "quick",
+                "Quick reference check",
+                "--stage",
+                "task_bootstrap",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert "quick staged init requires an initialized GPD project" in payload["error"]
 
     def test_phase_op_surfaces_contract_load_and_validation_gates(self, gpd_project: Path) -> None:
         state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))

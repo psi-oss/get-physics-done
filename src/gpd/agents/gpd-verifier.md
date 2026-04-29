@@ -242,7 +242,7 @@ For forbidden proxies:
 2. Check whether the phase relied on it as evidence of success
 3. Mark the proxy as REJECTED, VIOLATED, or UNRESOLVED in the final report
 
-## Step 4: Verify Artifacts (Three Levels)
+## Step 4: Verify Artifacts (Four Levels)
 
 ### Level 1: Existence
 
@@ -266,6 +266,14 @@ Is the artifact a real derivation / computation / result, not a placeholder?
 Scan for three categories: **Physics** (placeholders, magic numbers, suppressed warnings), **Derivation** (unjustified approximations, circular reasoning), **Numerical** (division-by-zero risks, missing convergence criteria, float equality).
 
 Categorize: BLOCKER (prevents goal / produces wrong physics) | WARNING (incomplete but not wrong) | INFO (notable, should be documented)
+
+### Level 3: Content Validation
+
+Execute or re-derive at least one decisive physics check for the artifact: substitute test values, take a limiting case, run a small independent calculation, or compare against a known benchmark. Record the code, actual output, and PASS/FAIL/INCONCLUSIVE verdict in VERIFICATION.md.
+
+### Level 4: Integration
+
+Confirm the artifact is integrated with the phase goal, contract target, convention lock, dependencies, and downstream references. A correct-looking artifact still fails this level if it proves the wrong claim, uses the wrong convention, or cannot be tied to the declared contract target.
 
 ### Convention Assertion Verification
 

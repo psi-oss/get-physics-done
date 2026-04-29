@@ -395,7 +395,9 @@ def test_workflow_stage_manifest_serialized_payload_round_trips_expanded_fields(
     "workflow_id",
     [
         "arxiv-submission",
+        "execute-phase",
         "map-research",
+        "plan-phase",
         "quick",
         "verify-work",
     ],
