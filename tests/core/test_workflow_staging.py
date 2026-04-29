@@ -330,6 +330,54 @@ def test_staged_loading_payload_exposes_eager_authority_metadata() -> None:
     assert payload["produced_state"] == list(stage.produced_state)
 
 
+def test_workflow_stage_manifest_expands_required_init_field_groups() -> None:
+    manifest = validate_workflow_stage_manifest_payload(
+        {
+            "schema_version": 1,
+            "workflow_id": "quick",
+            "required_init_field_groups": {
+                "bootstrap": ["executor_model", "commit_docs"],
+            },
+            "stages": [
+                {
+                    "id": "task_bootstrap",
+                    "order": 1,
+                    "purpose": "Load task bootstrap context.",
+                    "mode_paths": ["workflows/quick.md"],
+                    "required_init_field_groups": ["bootstrap"],
+                    "required_init_fields": ["autonomy"],
+                    "loaded_authorities": ["workflows/quick.md"],
+                    "conditional_authorities": [],
+                    "must_not_eager_load": [],
+                    "allowed_tools": ["file_read"],
+                    "writes_allowed": [],
+                    "produced_state": [],
+                    "next_stages": [],
+                    "checkpoints": [],
+                },
+            ],
+        },
+        expected_workflow_id="quick",
+    )
+
+    stage = manifest.stage("task_bootstrap")
+    assert stage.required_init_fields == ("executor_model", "commit_docs", "autonomy")
+    assert manifest.staged_loading_payload(stage.id)["required_init_fields"] == [
+        "executor_model",
+        "commit_docs",
+        "autonomy",
+    ]
+    assert "required_init_field_groups" not in manifest.to_payload()["stages"][0]
+
+
+def test_workflow_stage_manifest_rejects_unknown_required_init_field_groups() -> None:
+    payload = _workflow_payload("quick")
+    payload["stages"][0]["required_init_field_groups"] = ["missing"]
+
+    with pytest.raises(ValueError, match="unknown group"):
+        validate_workflow_stage_manifest_payload(payload, expected_workflow_id="quick")
+
+
 def test_load_workflow_stage_manifest_from_path_without_expected_id_uses_manifest_workflow_id(
     tmp_path: Path,
 ) -> None:

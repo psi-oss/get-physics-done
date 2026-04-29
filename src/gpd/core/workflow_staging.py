@@ -1010,7 +1010,15 @@ _DEFAULT_KNOWN_INIT_FIELDS_BY_WORKFLOW = {
     "execute-phase": EXECUTE_PHASE_INIT_FIELDS,
 }
 
-_ALLOWED_TOP_LEVEL_KEYS = frozenset({"schema_version", "workflow_id", "prompt_usage", "stages"})
+_ALLOWED_TOP_LEVEL_KEYS = frozenset(
+    {
+        "schema_version",
+        "workflow_id",
+        "prompt_usage",
+        "required_init_field_groups",
+        "stages",
+    }
+)
 _REQUIRED_TOP_LEVEL_KEYS = frozenset({"schema_version", "workflow_id", "stages"})
 _ALLOWED_PROMPT_USAGE_VALUES = frozenset({"staged_init", "metadata_only"})
 _ALLOWED_STAGE_KEYS = frozenset(
@@ -1019,6 +1027,7 @@ _ALLOWED_STAGE_KEYS = frozenset(
         "order",
         "purpose",
         "mode_paths",
+        "required_init_field_groups",
         "required_init_fields",
         "loaded_authorities",
         "conditional_authorities",
@@ -1030,6 +1039,8 @@ _ALLOWED_STAGE_KEYS = frozenset(
         "checkpoints",
     }
 )
+_OPTIONAL_STAGE_KEYS = frozenset({"required_init_field_groups", "required_init_fields"})
+_REQUIRED_STAGE_KEYS = _ALLOWED_STAGE_KEYS - _OPTIONAL_STAGE_KEYS
 _ALLOWED_CONDITIONAL_KEYS = frozenset({"when", "authorities"})
 _AUTHORITY_ROOTS = ("workflows/", "references/", "templates/")
 
@@ -1301,6 +1312,61 @@ def _validate_conditional_authorities(
     return tuple(items)
 
 
+def _validate_required_init_field_groups(raw: object) -> dict[str, tuple[str, ...]]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError("required_init_field_groups must be an object")
+
+    groups: dict[str, tuple[str, ...]] = {}
+    for raw_name, raw_fields in raw.items():
+        name = _require_string(raw_name, label="required_init_field_groups key")
+        if name in groups:
+            raise ValueError("required_init_field_groups must not contain duplicate names")
+        groups[name] = _require_string_tuple(
+            raw_fields,
+            label=f"required_init_field_groups.{name}",
+        )
+    return groups
+
+
+def _expand_required_init_fields(
+    raw: dict[str, object],
+    *,
+    index: int,
+    groups: dict[str, tuple[str, ...]],
+) -> tuple[str, ...]:
+    group_names = _require_string_tuple(
+        raw.get("required_init_field_groups", []),
+        label=f"stages[{index}].required_init_field_groups",
+        allow_empty=True,
+    )
+    explicit_fields = _require_string_tuple(
+        raw.get("required_init_fields", []),
+        label=f"stages[{index}].required_init_fields",
+        allow_empty=True,
+    )
+
+    fields: list[str] = []
+    seen: set[str] = set()
+    for group_name in group_names:
+        group_fields = groups.get(group_name)
+        if group_fields is None:
+            raise ValueError(f"stages[{index}].required_init_field_groups references unknown group: {group_name}")
+        for field_name in group_fields:
+            if field_name in seen:
+                raise ValueError(f"stages[{index}].required_init_fields contains duplicate field: {field_name}")
+            seen.add(field_name)
+            fields.append(field_name)
+
+    for field_name in explicit_fields:
+        if field_name in seen:
+            raise ValueError(f"stages[{index}].required_init_fields contains duplicate field: {field_name}")
+        seen.add(field_name)
+        fields.append(field_name)
+    return tuple(fields)
+
+
 def _validate_stage(
     raw: object,
     *,
@@ -1308,6 +1374,7 @@ def _validate_stage(
     workflow_id: str,
     allowed_tools: frozenset[str],
     known_init_fields: frozenset[str] | None,
+    required_init_field_groups: dict[str, tuple[str, ...]],
 ) -> WorkflowStage:
     if not isinstance(raw, dict):
         raise ValueError(f"stages[{index}] must be a JSON object")
@@ -1316,7 +1383,9 @@ def _validate_stage(
     if unknown_keys:
         raise ValueError(f"stages[{index}] contains unexpected key(s): {', '.join(unknown_keys)}")
 
-    missing_keys = sorted(key for key in _ALLOWED_STAGE_KEYS if key not in raw)
+    missing_keys = sorted(key for key in _REQUIRED_STAGE_KEYS if key not in raw)
+    if "required_init_fields" not in raw and "required_init_field_groups" not in raw:
+        missing_keys.append("required_init_fields")
     if missing_keys:
         raise ValueError(f"stages[{index}] is missing required key(s): {', '.join(missing_keys)}")
 
@@ -1329,10 +1398,10 @@ def _validate_stage(
             _require_string_tuple(raw["mode_paths"], label=f"stages[{index}].mode_paths")
         )
     )
-    required_init_fields = _require_string_tuple(
-        raw["required_init_fields"],
-        label=f"stages[{index}].required_init_fields",
-        allow_empty=True,
+    required_init_fields = _expand_required_init_fields(
+        raw,
+        index=index,
+        groups=required_init_field_groups,
     )
     loaded_authorities = tuple(
         _normalize_manifest_doc_path(authority, label=f"stages[{index}].loaded_authorities[{authority_index}]")
@@ -1454,6 +1523,7 @@ def validate_workflow_stage_manifest_payload(
 
     normalized_allowed_tools = _normalize_tool_set(allowed_tools, workflow_id=workflow_id)
     normalized_known_init_fields = _normalize_init_field_set(known_init_fields, workflow_id=workflow_id)
+    required_init_field_groups = _validate_required_init_field_groups(raw.get("required_init_field_groups"))
     stages = tuple(
         _validate_stage(
             stage,
@@ -1461,6 +1531,7 @@ def validate_workflow_stage_manifest_payload(
             workflow_id=workflow_id,
             allowed_tools=normalized_allowed_tools,
             known_init_fields=normalized_known_init_fields,
+            required_init_field_groups=required_init_field_groups,
         )
         for index, stage in enumerate(stages_raw)
     )
