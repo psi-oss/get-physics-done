@@ -4864,12 +4864,14 @@ def init_milestone_op(cwd: Path) -> dict:
 
 def init_map_research(cwd: Path, focus: str | None = None, stage: str | None = None) -> dict:
     """Assemble context for research mapping."""
-    effective_cwd = _resolve_project_scoped_cwd(cwd)
+    requested_cwd = cwd.expanduser().resolve(strict=False)
+    effective_cwd = _resolve_project_scoped_cwd(requested_cwd)
     config = load_config(effective_cwd)
     normalized_focus = focus.strip() if isinstance(focus, str) and focus.strip() else ""
 
     # Check for existing research maps
     research_map_dir = effective_cwd / PLANNING_DIR_NAME / RESEARCH_MAP_DIR_NAME
+    research_map_dir_absolute = research_map_dir.resolve(strict=False).as_posix()
     existing_maps: list[str] = []
     try:
         existing_maps = sorted(f.name for f in research_map_dir.iterdir() if f.is_file() and f.name.endswith(".md"))
@@ -4880,6 +4882,8 @@ def init_map_research(cwd: Path, focus: str | None = None, stage: str | None = N
         # Models
         "mapper_model": _resolve_model(effective_cwd, "gpd-research-mapper", config),
         "init_root_policy": InitRootPolicy.PROJECT_SCOPED.value,
+        "workspace_root": requested_cwd.as_posix(),
+        "project_root": effective_cwd.as_posix(),
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -4889,6 +4893,7 @@ def init_map_research(cwd: Path, focus: str | None = None, stage: str | None = N
         "parallelization": config["parallelization"],
         # Paths
         "research_map_dir": f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}",
+        "research_map_dir_absolute": research_map_dir_absolute,
         # Existing maps
         "existing_maps": existing_maps,
         "has_maps": len(existing_maps) > 0,

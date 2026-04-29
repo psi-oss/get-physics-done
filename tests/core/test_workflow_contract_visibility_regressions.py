@@ -56,7 +56,9 @@ def test_literature_review_workflow_surfaces_contract_gate_before_deferred_refer
 
     assert "project_contract_gate" in surface_line
     assert workflow.index(surface_line) < workflow.index("project_contract_gate.authoritative")
-    assert workflow.index(surface_line) < workflow.index("Do not use `reference_artifact_files` or `reference_artifacts_content` yet.")
+    assert workflow.index(surface_line) < workflow.index(
+        "Do not use `reference_artifact_files` or `reference_artifacts_content` yet."
+    )
 
 
 def test_write_paper_surfaces_manuscript_reference_status_before_using_it() -> None:
@@ -83,9 +85,9 @@ def test_execute_phase_latex_compile_guidance_uses_resolved_manuscript_root() ->
 
 def test_peer_review_reliability_reference_matches_peer_review_workflow_invocation() -> None:
     workflow = _workflow_text("peer-review.md")
-    reliability = (
-        REPO_ROOT / "src/gpd/specs/references/publication/peer-review-reliability.md"
-    ).read_text(encoding="utf-8")
+    reliability = (REPO_ROOT / "src/gpd/specs/references/publication/peer-review-reliability.md").read_text(
+        encoding="utf-8"
+    )
 
     expected = 'gpd validate review-preflight peer-review "$REVIEW_TARGET" --strict'
 
@@ -121,7 +123,9 @@ def test_new_milestone_roadmapper_prompt_surfaces_contract_gate_inputs() -> None
     assert "Active references: {active_reference_context}" in contract_context
     assert "Effective reference intake: {effective_reference_intake}" in contract_context
     assert "Reference artifacts: {reference_artifacts_content}" in contract_context
-    assert workflow.index("Project contract gate: {project_contract_gate}") < workflow.index("approved project contract")
+    assert workflow.index("Project contract gate: {project_contract_gate}") < workflow.index(
+        "approved project contract"
+    )
     assert "`project_contract_gate.authoritative` is true" in workflow
     assert "shared_state_policy: return_only" in workflow
     assert "expected_artifacts:" in workflow
@@ -189,22 +193,32 @@ def test_sync_state_keeps_state_json_authority_before_markdown_repair() -> None:
         assert "do not invent a field-by-field merge" in content
 
 
-def test_resume_workflow_routes_new_projects_before_state_reconstruction() -> None:
+def test_resume_workflow_routes_recent_project_ambiguity_before_new_projects_and_state_reconstruction() -> None:
     workflow = _workflow_text("resume-work.md")
 
-    new_project_line = "**If `planning_exists` is false:** This is a new project - route to gpd:new-project and do not attempt STATE.md reconstruction."
+    ambiguity_line = (
+        '**If `project_reentry_requires_selection` is true or `project_reentry_mode="ambiguous-recent-projects"`:**'
+    )
+    auto_recent_line = '**If `project_root_auto_selected` is true or `project_root_source="recent_project"`:**'
+    new_project_line = "**If `planning_exists` is false and no recent-project selection is required:** This is a new project - route to gpd:new-project and do not attempt STATE.md reconstruction."
     reconstruction_line = "If STATE.md is missing but other artifacts exist and `planning_exists` is true:"
 
+    assert ambiguity_line in workflow
+    assert auto_recent_line in workflow
     assert new_project_line in workflow
     assert reconstruction_line in workflow
+    assert workflow.index(ambiguity_line) < workflow.index(new_project_line)
+    assert workflow.index(auto_recent_line) < workflow.index(new_project_line)
     assert workflow.index(new_project_line) < workflow.index(reconstruction_line)
 
 
-def test_resume_workflow_prioritizes_blocked_contract_repair_before_resume_targets_and_incomplete_plan_completion() -> None:
+def test_resume_workflow_prioritizes_blocked_contract_repair_before_resume_targets_and_incomplete_plan_completion() -> (
+    None
+):
     workflow = _workflow_text("resume-work.md")
 
     blocked_contract_line = "**If `project_contract_gate.authoritative` is false:**"
-    bounded_segment_line = "**If `active_resume_kind=\"bounded_segment\"` and `active_bounded_segment` exists:**"
+    bounded_segment_line = '**If `active_resume_kind="bounded_segment"` and `active_bounded_segment` exists:**'
     incomplete_plan_line = "**If incomplete plan (PLAN without SUMMARY) and no higher-priority blocker is active:**"
 
     assert blocked_contract_line in workflow
@@ -220,15 +234,12 @@ def test_arxiv_submission_does_not_instruct_unsupported_explicit_submission_root
     assert "submission/topic_stem.tex" not in workflow
     assert (
         "inspect only the documented GPD-owned manuscript roots: `paper/`, `manuscript/`, `draft/`, "
-        "and a unique `GPD/publication/<subject_slug>/manuscript/` lane"
-        in workflow
+        "and a unique `GPD/publication/<subject_slug>/manuscript/` lane" in workflow
     )
 
 
 def test_paper_quality_scoring_reference_tracks_per_journal_gate_and_generic_fallback() -> None:
-    scoring = (
-        REPO_ROOT / "src/gpd/specs/references/publication/paper-quality-scoring.md"
-    ).read_text(encoding="utf-8")
+    scoring = (REPO_ROOT / "src/gpd/specs/references/publication/paper-quality-scoring.md").read_text(encoding="utf-8")
 
     assert "minimum_submission_score" in scoring
     assert "score ≥ 80" not in scoring
@@ -237,11 +248,12 @@ def test_paper_quality_scoring_reference_tracks_per_journal_gate_and_generic_fal
 
 def test_write_paper_and_scoring_docs_distinguish_builder_supported_vs_manual_only_journals() -> None:
     workflow = _workflow_text("write-paper.md")
-    scoring = (
-        REPO_ROOT / "src/gpd/specs/references/publication/paper-quality-scoring.md"
-    ).read_text(encoding="utf-8")
+    scoring = (REPO_ROOT / "src/gpd/specs/references/publication/paper-quality-scoring.md").read_text(encoding="utf-8")
 
-    assert "These are the only valid `journal` values in `PAPER-CONFIG.json` and `${PAPER_DIR}/ARTIFACT-MANIFEST.json`." in workflow
+    assert (
+        "These are the only valid `journal` values in `PAPER-CONFIG.json` and `${PAPER_DIR}/ARTIFACT-MANIFEST.json`."
+        in workflow
+    )
     assert "artifact-driven `--from-project` path" in scoring
     assert "Manual JSON is also the only supported path today for scoring-only profiles" in scoring
     assert "`prd`, `prb`, `prc`, and `nature_physics`" in scoring

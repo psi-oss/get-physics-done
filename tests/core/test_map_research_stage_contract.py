@@ -26,8 +26,15 @@ def test_map_research_stage_manifest_defers_heavy_context_and_delegation_until_a
     authoring = manifest.stage("mapper_authoring")
 
     assert bootstrap.loaded_authorities == ("workflows/map-research.md",)
+    assert "project_root" in bootstrap.required_init_fields
+    assert "workspace_root" in bootstrap.required_init_fields
+    assert "research_map_dir_absolute" in bootstrap.required_init_fields
     assert "reference_artifacts_content" not in bootstrap.required_init_fields
     assert "references/orchestration/runtime-delegation-note.md" in bootstrap.must_not_eager_load
+    assert bootstrap.writes_allowed == (
+        "GPD/research-map",
+        "GPD/research-map.archive-*",
+    )
 
     assert authoring.loaded_authorities == (
         "workflows/map-research.md",
@@ -36,3 +43,22 @@ def test_map_research_stage_manifest_defers_heavy_context_and_delegation_until_a
     assert "reference_artifacts_content" in authoring.required_init_fields
     assert "GPD/research-map/FORMALISM.md" in authoring.writes_allowed
     assert "GPD/research-map/CONCERNS.md" in authoring.writes_allowed
+
+
+def test_map_research_workflow_uses_project_rooted_map_targets_for_side_effects() -> None:
+    text = (WORKFLOWS_DIR / "map-research.md").read_text(encoding="utf-8")
+
+    assert 'PROJECT_ROOT=$(echo "$BOOTSTRAP_INIT" | gpd json get .project_root --default "")' in text
+    assert (
+        'RESEARCH_MAP_DIR_ABS=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_map_dir_absolute --default "")' in text
+    )
+    assert 'mkdir -p "$RESEARCH_MAP_DIR_ABS"' in text
+    assert 'mv "$RESEARCH_MAP_DIR_ABS" "$RESEARCH_MAP_ARCHIVE_DIR"' in text
+    assert 'ls -la "$RESEARCH_MAP_DIR_ABS/"' in text
+    assert 'gpd --cwd "$PROJECT_ROOT" commit "docs: map existing research project" --files "$RESEARCH_MAP_DIR"' in text
+    assert "option_id: refresh_archive" in text
+    assert "option_id: update_selected" in text
+    assert "option_id: skip_existing" in text
+    assert "Delete GPD/research-map" not in text
+    assert "mkdir -p GPD/research-map" not in text
+    assert "rm -rf GPD/research-map" not in text

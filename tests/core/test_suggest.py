@@ -68,6 +68,7 @@ def _isolate_runtime_detection(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     """Keep suggest tests independent from the host machine's runtime installs."""
     for key in _RUNTIME_ENV_VARS_TO_CLEAR:
         monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv(ENV_DATA_DIR, str(tmp_path / "gpd-data"))
     monkeypatch.setattr("gpd.hooks.runtime_detect.Path.home", lambda: tmp_path / "home")
 
 

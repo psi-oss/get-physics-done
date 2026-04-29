@@ -160,55 +160,55 @@ Normalize the reply to one stable `option_id`; labels are aliases only.
 **If the researcher chooses option_id `resume_work` (`Resume this project (recommended)`, `Continue where I left off`, `Inspect recovery state (recommended)`, or `Inspect recovery state`):**
 
 - Read `{GPD_INSTALL_DIR}/workflows/resume-work.md` with the file-read tool.
-- Follow that workflow as if the researcher had run `gpd:resume-work`.
+- Use `gpd:resume-work` as the selected runtime command label while following that workflow.
 
 **If the researcher chooses option_id `sync_state` (`Reconcile state files`):**
 
 - Read `{GPD_INSTALL_DIR}/workflows/sync-state.md` with the file-read tool.
-- Follow that workflow as if the researcher had run `gpd:sync-state`.
+- Use `gpd:sync-state` as the selected runtime command label while following that workflow.
 
 **If the researcher chooses option_id `progress` (`Review the project status first`, `Review project status first`, or `Review visible progress`):**
 
 - Read `{GPD_INSTALL_DIR}/workflows/progress.md` with the file-read tool.
-- Follow that workflow as if the researcher had run `gpd:progress`.
+- Use `gpd:progress` as the selected runtime command label while following that workflow.
 
 **If the researcher chooses option_id `suggest_next` (`Suggest the next best step`):**
 
 - `suggest-next` is a workflow-exempt command, not a shared workflow include.
-- Follow the installed `gpd:suggest-next` command contract directly, as if the researcher had run it.
+- Use `gpd:suggest-next` as the selected runtime command label and follow its installed command contract directly.
 
 **If the researcher chooses option_id `map_research` (`Map this folder first (recommended)` or `Refresh the research map`):**
 
 - Read `{GPD_INSTALL_DIR}/workflows/map-research.md` with the file-read tool.
-- Follow that workflow as if the researcher had run `gpd:map-research`.
+- Use `gpd:map-research` as the selected runtime command label while following that workflow.
 
 **If the researcher chooses option_id `new_project_minimal` (`Fast start (recommended)`, `Fast start`, or `Start a brand-new GPD project anyway`):**
 
-- Follow the installed `gpd:new-project --minimal` command contract directly, as if the researcher had run it.
+- Use `gpd:new-project --minimal` as the selected runtime command label and follow its installed command contract directly.
 
 **If the researcher chooses option_id `new_project_full` (`Full guided setup`, `Turn this into a full GPD project (recommended)`, or `Turn this into a full GPD project`):**
 
-- Follow the installed `gpd:new-project` command contract directly, as if the researcher had run it.
+- Use `gpd:new-project` as the selected runtime command label and follow its installed command contract directly.
 
 **If the researcher chooses option_id `tour` (`Take a guided tour first` or `tour`):**
 
-- Follow the installed `gpd:tour` command contract directly, as if the researcher had run it.
+- Use `gpd:tour` as the selected runtime command label and follow its installed command contract directly.
 
 **If the researcher chooses option_id `quick` (`Do one small bounded task`):**
 
 - Read `{GPD_INSTALL_DIR}/workflows/quick.md` with the file-read tool.
-- Follow that workflow as if the researcher had run `gpd:quick`.
+- Use `gpd:quick` as the selected runtime command label while following that workflow.
 
 **If the researcher chooses option_id `explain` (`Explain one concept`):**
 
 - If `$ARGUMENTS` contains a usable concept or question, reuse it.
 - Otherwise ask for one short concept or question before continuing.
 - Read `{GPD_INSTALL_DIR}/workflows/explain.md` with the file-read tool.
-- Follow that workflow as if the researcher had run `gpd:explain <topic>`.
+- Use `gpd:explain <topic>` as the selected runtime command label while following that workflow.
 
 **If the researcher chooses option_id `help_all` (`Show all commands`):**
 
-- Follow the installed `gpd:help --all` command contract directly, as if the researcher had run it.
+- Use `gpd:help --all` as the selected runtime command label and follow its installed command contract directly.
 
 **If the researcher chooses option_id `reopen_recent` (`Reopen a different GPD project`):**
 
@@ -217,7 +217,7 @@ Normalize the reply to one stable `option_id`; labels are aliases only.
   - `Use \`gpd resume --recent\` in your normal terminal to find the project first.`
   - `The recent-project picker is advisory; choose the workspace there, then \`gpd:resume-work\` reloads canonical state for that project.`
   - `If there is exactly one recoverable project, GPD may auto-select it; otherwise choose the project explicitly from the recent-project picker.`
-  - `Then open that project folder in the runtime and run \`gpd:resume-work\`.`
+  - `Then open that project folder in the runtime and choose the \`gpd:resume-work\` command.`
   - `In GPD terms, \`resume-work\` is the in-runtime continuation step once the recovery ladder has identified the right project and reopened its workspace.`
 - STOP after giving those instructions.
 </step>

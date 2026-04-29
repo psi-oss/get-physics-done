@@ -2094,7 +2094,7 @@ def test_workflows_use_raw_json_when_shell_snippets_pipe_cli_output_into_gpd_jso
     assert 'gpd --raw init phase-op --include state,config "${PHASE}"' not in research_command
     assert "BOOTSTRAP_INIT=$(load_map_research_stage map_bootstrap)" in map_workflow
     assert "MAPPER_AUTHORING_INIT=$(load_map_research_stage mapper_authoring)" in map_workflow
-    assert 'gpd --raw init map-research --stage "${stage_name}" -- "${ARGUMENTS:-}"' in map_workflow
+    assert 'gpd --raw --cwd "$target_cwd" init map-research --stage "${stage_name}" -- "${ARGUMENTS:-}"' in map_workflow
     assert 'RESEARCH_MODE=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_mode --default balanced)' in map_workflow
     assert "MAP_RESEARCH_FOCUS=" not in map_workflow
     assert "MAP_FOCUS=" not in map_workflow
@@ -3083,7 +3083,8 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     assert "state.json is authoritative for structured fields" in sync_state
     assert "This workflow is intentionally fail-closed" in sync_state
     assert "optional_commit" in sync_state
-    assert "save_state_markdown" in sync_state
+    assert 'gpd --raw --cwd "$PROJECT_ROOT" state repair-sync' in sync_state
+    assert "Do not move or delete files from the prompt." in sync_state
     assert "gpd --raw state snapshot" not in sync_state
     assert "Proceed with reconciliation? (y/n)" not in sync_state
     assert "determine which source is more recent" not in sync_state
@@ -4368,12 +4369,10 @@ def test_pause_resume_and_derivation_templates_preserve_result_id_continuity() -
         "The `<persistent_state>` and `<intermediate_results>` sections in `.continue-here.md` are filled (documenting what was appended to DERIVATION-STATE.md)"
         in pause_work
     )
-    assert "gpd state record-session \\" in pause_work
+    assert 'gpd state record-session "${record_session_args[@]}"' in pause_work
     assert "Treat an explicit `--last-result-id` override as a manual repair path" in pause_work
-    assert (
-        "If the active bounded-segment continuity already carries a canonical `last_result_id`, omit `--last-result-id`"
-        in pause_work
-    )
+    assert "If the active bounded-segment continuity already carries a canonical" in pause_work
+    assert "last_result_id, omit --last-result-id and let the automatic continuity path" in pause_work
     assert "canonical `last_result_id`" in resume_work
     assert "preferred continuity anchor" in resume_work
     assert "Reference the result IDs added to state.json this session" in continue_here

@@ -2497,6 +2497,8 @@ class TestInitNewProject:
             "GPD/ROADMAP.md",
             "GPD/STATE.md",
             "GPD/state.json",
+            "GPD/state.json.bak",
+            "GPD/state.json.lock",
             "GPD/config.json",
             "GPD/CONVENTIONS.md",
             "GPD/init-progress.json",
@@ -2579,7 +2581,19 @@ class TestInitNewProject:
             "surface the first scoping question",
             "preserve contract gate visibility without assuming approval-stage authority",
         ]
-        assert ctx["staged_loading"]["writes_allowed"] == ["GPD/init-progress.json"]
+        assert ctx["staged_loading"]["writes_allowed"] == []
+
+    def test_stage_scope_intake_existing_research_is_read_only_before_mapping_gate(self, tmp_path: Path) -> None:
+        (tmp_path / "analysis.py").write_text("print('existing result')\n", encoding="utf-8")
+
+        ctx = init_new_project(tmp_path, stage="scope_intake")
+
+        assert ctx["has_git"] is False
+        assert ctx["has_research_files"] is True
+        assert ctx["needs_research_map"] is True
+        assert ctx["staged_loading"]["writes_allowed"] == []
+        assert not (tmp_path / ".git").exists()
+        assert not (tmp_path / "GPD").exists()
 
     def test_stage_scope_approval_returns_only_contract_fields(self, tmp_path: Path) -> None:
         ctx = init_new_project(tmp_path, stage="scope_approval")
@@ -2598,7 +2612,12 @@ class TestInitNewProject:
             "templates/project-contract-grounding-linkage.md",
             "references/shared/canonical-schema-discipline.md",
         ]
-        assert ctx["staged_loading"]["writes_allowed"] == ["GPD/state.json"]
+        assert ctx["staged_loading"]["writes_allowed"] == [
+            "GPD/state.json",
+            "GPD/STATE.md",
+            "GPD/state.json.bak",
+            "GPD/state.json.lock",
+        ]
 
     def test_stage_rejection_is_clean(self, tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="Unknown new-project stage"):

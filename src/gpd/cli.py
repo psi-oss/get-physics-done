@@ -1259,7 +1259,7 @@ def help_bridge(
         "validated_surface": "public_runtime_dollar_command",
         "local_cli_equivalence_guaranteed": False,
         "dispatch_note": (
-            "Runtime commands are installed into Codex/Claude/Gemini/OpenCode surfaces; "
+            "Runtime commands are installed into configured agent surfaces; "
             "this local bridge exposes registry metadata for automation and live-audit probes."
         ),
         "default_sections": ["quick_start_extract", "wrapper_owned_all_hint"],
@@ -1542,6 +1542,17 @@ def state_validate() -> None:
     )
     _output(result)
     if hasattr(result, "valid") and not result.valid:
+        raise typer.Exit(code=1)
+
+
+@state_app.command("repair-sync")
+def state_repair_sync() -> None:
+    """Repair STATE.md/state.json using the recovery-aware backend path."""
+    from gpd.core.state import state_repair_sync as core_state_repair_sync
+
+    result = core_state_repair_sync(_state_command_cwd())
+    _output(result)
+    if not result.repaired:
         raise typer.Exit(code=1)
 
 
@@ -1949,6 +1960,12 @@ def milestone_complete(
 def _resume_status_message(payload: dict[str, object], *, recovery_advice: RecoveryAdvice) -> str:
     """Return a concise human summary of resume readiness for this workspace."""
     auto_selected = _payload_flag(payload, "project_root_auto_selected")
+    if recovery_advice.decision_source == "ambiguous-recent-projects":
+        return (
+            recovery_advice.project_reentry_reason
+            or recovery_advice.primary_reason
+            or "Multiple recoverable recent projects were found; choose one explicitly."
+        )
     if not _payload_flag(payload, "planning_exists"):
         return "No GPD planning directory is present in this workspace."
     if not any(_payload_flag(payload, key) for key in ("state_exists", "roadmap_exists", "project_exists")):
@@ -3033,6 +3050,10 @@ def _render_resume_summary(payload: dict[str, object]) -> None:
             "Re-entry",
             _project_root_source_label(public_payload.get("project_root_source"), auto_selected=False),
         )
+    if recovery_advice.decision_source == "ambiguous-recent-projects":
+        recent_project_count = recovery_advice.resumable_projects_count or recovery_advice.recent_projects_count
+        summary.add_row("Recent projects", f"{recent_project_count} recoverable choices require explicit selection")
+        summary.add_row("Required action", f"`{local_cli_resume_recent_command()}`")
     summary.add_row("Status", _resume_status_message(public_payload, recovery_advice=recovery_advice))
     summary.add_row("Recovery", _resume_status_label(recovery_advice.status))
     active_resume_kind = public_payload.get("active_resume_kind")
@@ -9612,6 +9633,11 @@ def _build_command_context_preflight(
                 if current_workspace_candidate is not None or current_workspace_reentry_only
                 else reentry.mode
             )
+            resume_work_requires_reopened_workspace = (
+                public_command_name == "gpd:resume-work"
+                and selected_root_auto_selected
+                and selected_root_source == "recent_project"
+            )
             layout = ProjectLayout(selected_root)
             state_exists, roadmap_exists, project_exists = recoverable_project_context(selected_root)
             resolved_subject = _build_resolved_command_subject(
@@ -9656,6 +9682,16 @@ def _build_command_context_preflight(
                     "project_reentry",
                     False,
                     "no recoverable current-workspace project target found",
+                    blocking=False,
+                )
+            elif resume_work_requires_reopened_workspace:
+                add_check(
+                    "project_reentry",
+                    False,
+                    (
+                        "unique recoverable recent project found, but resume-work will not switch runtime "
+                        "workspaces silently"
+                    ),
                     blocking=False,
                 )
             elif reentry.auto_selected and reentry.project_root:
@@ -9784,6 +9820,7 @@ def _build_command_context_preflight(
                 and reconcile_confirmation_passed
                 and (not subject_required or subject_context_ready)
                 and not selected_root_requires_user_selection
+                and not resume_work_requires_reopened_workspace
             )
             guidance = (
                 ""
@@ -9793,18 +9830,25 @@ def _build_command_context_preflight(
                     f"Use `{local_cli_resume_recent_command()}` to pick the right project explicitly, then reopen it in the runtime."
                     if selected_root_requires_user_selection
                     else (
-                        _build_recoverable_workspace_guidance(init_command=init_command)
-                        if not (state_exists or roadmap_exists or project_exists)
+                        "This command found a unique recoverable recent GPD project, but resume-work will not "
+                        "continue from an unrelated runtime workspace. "
+                        f"Use `{local_cli_resume_recent_command()}` to verify the target, then open that project "
+                        "folder in the runtime and rerun resume-work."
+                        if resume_work_requires_reopened_workspace
                         else (
-                            resolved_subject.detail
-                            if resolved_subject is not None
-                            else f"Either provide {', '.join(explicit_inputs)} explicitly."
+                            _build_recoverable_workspace_guidance(init_command=init_command)
+                            if not (state_exists or roadmap_exists or project_exists)
+                            else (
+                                resolved_subject.detail
+                                if resolved_subject is not None
+                                else f"Either provide {', '.join(explicit_inputs)} explicitly."
+                            )
+                            if subject_required and not subject_context_ready
+                            else manuscript_context_detail
+                            if not manuscript_context_passed
+                            else "This command requires one of the declared required files: "
+                            + ", ".join(required_file_patterns)
                         )
-                        if subject_required and not subject_context_ready
-                        else manuscript_context_detail
-                        if not manuscript_context_passed
-                        else "This command requires one of the declared required files: "
-                        + ", ".join(required_file_patterns)
                     )
                 )
             )

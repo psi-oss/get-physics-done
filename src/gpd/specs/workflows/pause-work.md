@@ -117,8 +117,11 @@ EOF
    if [ "$SESSION_COUNT" -gt 5 ]; then
      echo "DERIVATION-STATE.md has ${SESSION_COUNT} session blocks (cap: 5). Pruning oldest..."
 
-     # Atomic read-modify-write: write to .tmp, validate, then replace
-     TMP_FILE="GPD/DERIVATION-STATE.md.tmp.$$"
+     # Atomic read-modify-write: write to same-directory temp, validate, then rename
+     TMP_FILE=$(mktemp GPD/DERIVATION-STATE.md.tmp.XXXXXX) || {
+       echo "WARNING: Failed to create DERIVATION-STATE.md temp file. Keeping original."
+       exit 1
+     }
      trap "rm -f '$TMP_FILE'" EXIT
 
      # Keep only the 5 most recent session blocks
@@ -143,10 +146,11 @@ EOF
        echo "WARNING: Pruned file missing required header. Keeping original."
        rm -f "$TMP_FILE"
      else
-       # Atomic replace: cp to preserve original on failure, then rm tmp
-       cp "$TMP_FILE" GPD/DERIVATION-STATE.md && \
-         rm -f "$TMP_FILE" || \
+       # Same-directory rename is atomic on the project filesystem.
+       if ! mv -f "$TMP_FILE" GPD/DERIVATION-STATE.md; then
          echo "WARNING: Failed to replace DERIVATION-STATE.md. Original preserved."
+         rm -f "$TMP_FILE"
+       fi
      fi
      trap - EXIT
    fi
@@ -203,16 +207,28 @@ timestamp=$(gpd --raw timestamp full)
 **Update STATE.md with pause context:**
 
 ```bash
-# Record session continuity so gpd:resume-work, local gpd resume,
-# and gpd resume --recent
-# see the same recorded continuation pointer
-gpd state record-session \
-  --stopped-at "Paused at task [X]/[Y] in phase [{phase_slug}]" \
-  --resume-file "GPD/phases/[{phase_slug}]/.continue-here.md" \
-  [--last-result-id "{result_id}"]
+phase_slug="03-dispersion"      # replace with the detected phase directory
+task_index="2"                  # replace with the current task number
+task_total="5"                  # replace with the current total task count
+resume_file="GPD/phases/${phase_slug}/.continue-here.md"
+last_result_id=""               # set only when manually overriding or repairing the carried anchor
+
+# Record session continuity so runtime resume-work, local gpd resume,
+# and gpd resume --recent see the same recorded continuation pointer.
+record_session_args=(
+  --stopped-at "Paused at task ${task_index}/${task_total} in phase ${phase_slug}"
+  --resume-file "$resume_file"
+)
+if [ -n "$last_result_id" ]; then
+  record_session_args+=(--last-result-id "$last_result_id")
+fi
+gpd state record-session "${record_session_args[@]}"
 if [ $? -ne 0 ]; then echo "WARNING: state record-session failed — resume info may be lost"; fi
 
-If the active bounded-segment continuity already carries a canonical `last_result_id`, omit `--last-result-id` and let the automatic continuity path supply it. Pass `--last-result-id` only when you are manually overriding or repairing the carried anchor.
+# If the active bounded-segment continuity already carries a canonical
+# last_result_id, omit --last-result-id and let the automatic continuity path
+# supply it. Pass --last-result-id only when manually overriding or repairing
+# the carried anchor.
 
 # Set status to Paused so resume-work detects it. This updates the session
 # handoff surface; the bounded continuation record is managed separately.
@@ -224,10 +240,14 @@ if [ $? -ne 0 ]; then echo "WARNING: state patch failed — status not marked as
 
 <step name="commit">
 ```bash
+phase_slug="03-dispersion"      # replace with the detected phase directory
+task_index="2"                  # replace with the current task number
+task_total="5"                  # replace with the current total task count
+
 PRE_CHECK=$(gpd pre-commit-check --files GPD/phases/*/.continue-here.md GPD/STATE.md GPD/state.json 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "wip: [phase-name] paused at task [X]/[Y]" --files GPD/phases/*/.continue-here.md GPD/STATE.md GPD/state.json
+gpd commit "wip: ${phase_slug} paused at task ${task_index}/${task_total}" --files GPD/phases/*/.continue-here.md GPD/STATE.md GPD/state.json
 ```
 
 </step>

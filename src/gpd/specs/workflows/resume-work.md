@@ -44,6 +44,10 @@ Parse JSON semantically:
 
 The recent-project list is advisory and machine-local; once you choose a workspace, `gpd:resume-work` reloads that project's canonical state.
 
+**If `project_reentry_requires_selection` is true or `project_reentry_mode="ambiguous-recent-projects"`:** Stop before new-project routing or reconstruction. Show the recent-project count; tell the user to run `gpd resume --recent`, open the chosen workspace, and rerun `gpd:resume-work`.
+
+**If `project_root_auto_selected` is true or `project_root_source="recent_project"`:** Runtime started outside the selected project. Do not quick-resume or act from the unrelated workspace. On bare "continue" or "go", stop. Show `project_root`; require explicit confirmation or a reopened project folder.
+
 When `active_resume_result` is present, treat it as the hydrated canonical result context for the current resume target. Use its `id` as the continuity anchor, but prefer its structured fields for the user-facing resume summary instead of restating only the raw identifier.
 
 `workspace_state_exists` means the requested workspace could recover usable state from `GPD/state.json` or `GPD/STATE.md`. `GPD/state.json.bak` is backup support for a real state file, not a backup-only project anchor. A stray unreadable file path by itself does not count as recoverable state.
@@ -59,7 +63,7 @@ The shared resume resolver distinguishes canonical continuation authority, hando
 
 The shared resume resolver is canonical-first: `state.json.continuation` wins, the canonical bounded segment and recorded handoff fields define the primary resume target, and the derived execution head supplies live status. Do not treat a single `.continue-here.md` file or live-status snapshot as the sole authority.
 
-**If `planning_exists` is false:** This is a new project - route to gpd:new-project and do not attempt STATE.md reconstruction.
+**If `planning_exists` is false and no recent-project selection is required:** This is a new project - route to gpd:new-project and do not attempt STATE.md reconstruction.
 **If `state_exists` is false but `roadmap_exists` or `project_exists` is true:** Offer to reconstruct STATE.md from the existing project artifacts.
 
 If `active_resume_kind="bounded_segment"` and `active_bounded_segment` exists, treat that as the primary bounded resume target. The derived execution head may still project the bounded segment when canonical continuation is missing or incomplete, but it does not define a second resume system.
@@ -169,7 +173,7 @@ SESSION_COUNT=$(grep -c "^## Session:" GPD/DERIVATION-STATE.md 2>/dev/null || ec
 if [ "$SESSION_COUNT" -gt 5 ]; then
   echo "WARNING: DERIVATION-STATE.md has ${SESSION_COUNT} session blocks (recommended cap: 5)."
   echo "Read and summarize the file as-is; do not prune, rewrite, or replace it during resume restoration."
-  echo "After restoration, suggest gpd:pause-work or an explicit maintenance pass if the researcher wants capping."
+  echo "After restoration, suggest the pause-work runtime command or an explicit maintenance pass if the researcher wants capping."
 fi
 ```
 
@@ -502,16 +506,25 @@ Based on user selection, route to appropriate workflow:
   </step>
 
 <step name="update_continuation">
-Before proceeding to routed workflow, refresh canonical continuation via CLI
-(which then updates the STATE.md Session Continuity block):
+Before proceeding, refresh canonical continuation via paste-safe CLI examples:
 
 ```bash
+# Keep pointer.
 gpd state record-session \
-  --stopped-at "Session resumed, proceeding to [action]" \
-  --resume-file "[updated if applicable; omit to keep the current pointer, or pass `—` to clear it]"
+  --stopped-at "Resumed, executing phase 3"
+
+# Set pointer.
+gpd state record-session \
+  --stopped-at "Resumed, planning phase 3" \
+  --resume-file "GPD/phases/03-dispersion/.continue-here.md"
+
+# Clear pointer.
+gpd state record-session \
+  --stopped-at "Resumed; pointer cleared" \
+  --resume-file none
 ```
 
-This ensures the canonical continuation payload reflects the resumed handoff state if the session ends unexpectedly. STATE.md should render that authoritative update after persistence.
+STATE.md should render the authoritative continuation update.
 </step>
 
 </process>
@@ -541,6 +554,7 @@ This handles cases where:
 <quick_resume>
 If user says "continue" or "go":
 
+- If `project_root_auto_selected` is true or `project_root_source="recent_project"`, quick resume is disabled; show the project path, require explicit confirmation or reopened folder, and do not continue automatically.
 - Load state silently
 - Determine primary action
 - Execute immediately without presenting options

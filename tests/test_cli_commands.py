@@ -1802,10 +1802,44 @@ class TestInitCommands:
 
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
+        assert payload["workspace_root"] == nested.resolve().as_posix()
+        assert payload["project_root"] == gpd_project.resolve().as_posix()
+        assert payload["research_map_dir"] == "GPD/research-map"
+        assert payload["research_map_dir_absolute"] == map_dir.resolve().as_posix()
         assert payload["planning_exists"] is True
         assert payload["research_map_dir_exists"] is True
         assert payload["has_maps"] is True
         assert "theory.md" in payload["existing_maps"]
+        assert not (nested / "GPD").exists()
+
+    def test_init_map_research_stage_exposes_project_rooted_targets_from_nested_workspace(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        root_map_dir = gpd_project / "GPD" / "research-map"
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "init", "map-research", "--stage", "map_bootstrap"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["workspace_root"] == nested.resolve().as_posix()
+        assert payload["project_root"] == gpd_project.resolve().as_posix()
+        assert payload["research_map_dir"] == "GPD/research-map"
+        assert payload["research_map_dir_absolute"] == root_map_dir.resolve(strict=False).as_posix()
+        assert (
+            payload["research_map_dir_absolute"] != (nested / "GPD" / "research-map").resolve(strict=False).as_posix()
+        )
+        assert payload["research_map_dir_exists"] is False
+        assert payload["staged_loading"]["stage_id"] == "map_bootstrap"
+        assert not (nested / "GPD").exists()
 
     def test_init_map_research_stage_preserves_focus_argument(self, gpd_project: Path) -> None:
         result = runner.invoke(
@@ -2017,6 +2051,46 @@ review_summary:
         assert "project_contract_load_info" in payload
         assert "project_contract_validation" in payload
 
+    def test_new_project_init_scope_intake_is_read_only_for_existing_research(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "candidate"
+        workspace.mkdir()
+        (workspace / "analysis.py").write_text("print('existing result')\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "init", "new-project", "--stage", "scope_intake"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["has_git"] is False
+        assert payload["has_research_files"] is True
+        assert payload["needs_research_map"] is True
+        assert payload["staged_loading"]["writes_allowed"] == []
+        assert not (workspace / ".git").exists()
+        assert not (workspace / "GPD").exists()
+
+    def test_new_project_init_scope_approval_declares_state_writer_side_effects(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "candidate"
+        workspace.mkdir()
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "init", "new-project", "--stage", "scope_approval"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["staged_loading"]["writes_allowed"] == [
+            "GPD/state.json",
+            "GPD/STATE.md",
+            "GPD/state.json.bak",
+            "GPD/state.json.lock",
+        ]
+        assert not (workspace / "GPD").exists()
+
     def test_new_project_init_stage_post_scope_filters_payload(self, gpd_project: Path) -> None:
         from gpd.core.workflow_staging import load_workflow_stage_manifest
 
@@ -2050,6 +2124,8 @@ review_summary:
             "GPD/ROADMAP.md",
             "GPD/STATE.md",
             "GPD/state.json",
+            "GPD/state.json.bak",
+            "GPD/state.json.lock",
             "GPD/config.json",
             "GPD/CONVENTIONS.md",
             "GPD/init-progress.json",
@@ -3105,7 +3181,7 @@ class TestReviewValidationCommands:
         assert checks["project_reentry"]["passed"] is True
         assert "auto-selected recoverable recent project" in checks["project_reentry"]["detail"]
 
-    def test_command_context_resume_work_auto_selects_unique_recoverable_recent_project(
+    def test_command_context_resume_work_requires_reopen_for_unique_recent_project(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -3139,12 +3215,15 @@ class TestReviewValidationCommands:
             catch_exceptions=False,
         )
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
-        assert payload["passed"] is True
-        assert checks["project_reentry"]["passed"] is True
-        assert "auto-selected recoverable recent project" in checks["project_reentry"]["detail"]
+        assert payload["passed"] is False
+        assert checks["project_reentry"]["passed"] is False
+        assert "resume-work will not switch runtime workspaces silently" in checks["project_reentry"]["detail"]
+        assert "unique recoverable recent GPD project" in payload["guidance"]
+        assert "open that project folder in the runtime" in payload["guidance"]
+        assert "gpd resume --recent" in payload["guidance"]
 
     def test_command_context_resume_work_requires_explicit_selection_when_recent_projects_are_ambiguous(
         self,

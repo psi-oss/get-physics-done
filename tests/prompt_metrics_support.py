@@ -16,6 +16,7 @@ DEFAULT_PROMPT_BUDGET_MARGIN = 0.03
 
 __all__ = [
     "DEFAULT_PROMPT_BUDGET_MARGIN",
+    "MarkdownFence",
     "PromptSurfaceMetrics",
     "budget_from_baseline",
     "count_raw_includes",
@@ -23,6 +24,7 @@ __all__ = [
     "expanded_include_markers",
     "expanded_prompt_text",
     "first_line_containing_any",
+    "iter_markdown_fences",
     "iter_unfenced_lines",
     "line_number_for_fragment",
     "measure_prompt_surface",
@@ -43,6 +45,16 @@ class PromptSurfaceMetrics:
     expanded_char_count: int
     first_question_line: int | None = None
     first_question_marker: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MarkdownFence:
+    """One fenced code block with source line metadata."""
+
+    info: str
+    body: str
+    start_line: int
+    end_line: int
 
 
 def budget_from_baseline(
@@ -104,6 +116,50 @@ def _markdown_fence_marker(stripped_line: str) -> str | None:
     if stripped_line.startswith("~~~"):
         return "~~~"
     return None
+
+
+def iter_markdown_fences(text: str) -> Sequence[MarkdownFence]:
+    """Return fenced code blocks with 1-based source line metadata."""
+
+    fences: list[MarkdownFence] = []
+    active_fence_marker: str | None = None
+    active_info = ""
+    active_start_line = 0
+    active_body: list[str] = []
+
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        stripped = line.strip()
+        fence_marker = _markdown_fence_marker(stripped)
+        if fence_marker is None:
+            if active_fence_marker is not None:
+                active_body.append(line)
+            continue
+
+        if active_fence_marker is None:
+            active_fence_marker = fence_marker
+            active_info = stripped[len(fence_marker) :].strip()
+            active_start_line = line_number
+            active_body = []
+            continue
+
+        if fence_marker == active_fence_marker:
+            fences.append(
+                MarkdownFence(
+                    info=active_info,
+                    body="\n".join(active_body),
+                    start_line=active_start_line,
+                    end_line=line_number,
+                )
+            )
+            active_fence_marker = None
+            active_info = ""
+            active_start_line = 0
+            active_body = []
+            continue
+
+        active_body.append(line)
+
+    return fences
 
 
 def count_raw_includes(text: str) -> int:

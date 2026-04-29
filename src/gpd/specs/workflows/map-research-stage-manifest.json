@@ -4,6 +4,8 @@
   "required_init_field_groups": {
     "map_bootstrap_context": [
       "mapper_model",
+      "workspace_root",
+      "project_root",
       "commit_docs",
       "autonomy",
       "research_mode",
@@ -11,6 +13,7 @@
       "map_focus_provided",
       "parallelization",
       "research_map_dir",
+      "research_map_dir_absolute",
       "existing_maps",
       "has_maps",
       "planning_exists",
@@ -52,10 +55,14 @@
         "shell",
         "task"
       ],
-      "writes_allowed": [],
+      "writes_allowed": [
+        "GPD/research-map",
+        "GPD/research-map.archive-*"
+      ],
       "produced_state": [
         "map bootstrap state",
-        "existing map routing state"
+        "existing map routing state",
+        "project-rooted research-map directory"
       ],
       "next_stages": [
         "mapper_authoring"

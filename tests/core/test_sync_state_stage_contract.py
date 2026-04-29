@@ -74,8 +74,13 @@ def test_sync_state_workflow_uses_staged_fields_instead_of_manual_state_probing(
     assert "CONFLICT_ANALYSIS_INIT=$(gpd --raw init sync-state --stage conflict_analysis)" in text
     assert "RECONCILE_INIT=$(gpd --raw init sync-state --stage reconcile_and_validate)" in text
     assert 'PROJECT_ROOT=$(echo "$SYNC_BOOTSTRAP_INIT" | gpd json get .project_root)' in text
-    assert 'cwd = Path(os.environ["PROJECT_ROOT"])' in text
     assert 'cwd = Path(".")' not in text
+    assert 'gpd --raw --cwd "$PROJECT_ROOT" state repair-sync' in text
+    assert 'gpd --raw --cwd "$PROJECT_ROOT" state validate' in text
+    assert "gpd --raw state validate" not in text
+    assert "json.loads" not in text
+    assert "save_state_markdown" not in text
+    assert "save_state_json" not in text
     assert "--prefer" not in text
     assert "Do not re-probe `GPD/STATE.md`, `GPD/state.json`, or `GPD/state.json.bak` by hand during routing." in text
     assert "Do not re-read the mirrored files by hand for comparison." in text

@@ -3,7 +3,7 @@ Orchestrate parallel research-mapper agents to analyze a physics research projec
 
 Each agent has fresh context, explores a specific focus area, and **writes documents directly**. The orchestrator receives typed returns plus confirmation and line counts, verifies the expected files on disk, then writes a summary.
 
-Output: GPD/research-map/ folder with 7 structured documents covering theoretical content, computational methods, data artifacts, conventions, and open questions.
+Output: `GPD/research-map/` under the resolved project root, with 7 structured documents covering theoretical content, computational methods, data artifacts, conventions, and open questions.
 </purpose>
 
 <philosophy>
@@ -42,11 +42,12 @@ Load research mapping context:
 load_map_research_stage() {
   local stage_name="$1"
   local init_payload=""
+  local target_cwd="${PROJECT_ROOT:-$PWD}"
 
   if [ -n "${ARGUMENTS:-}" ]; then
-    init_payload=$(gpd --raw init map-research --stage "${stage_name}" -- "${ARGUMENTS:-}" 2>/dev/null)
+    init_payload=$(gpd --raw --cwd "$target_cwd" init map-research --stage "${stage_name}" -- "${ARGUMENTS:-}" 2>/dev/null)
   else
-    init_payload=$(gpd --raw init map-research --stage "${stage_name}" 2>/dev/null)
+    init_payload=$(gpd --raw --cwd "$target_cwd" init map-research --stage "${stage_name}" 2>/dev/null)
   fi
   if [ $? -ne 0 ] || [ -z "$init_payload" ]; then
     echo "ERROR: staged gpd initialization failed for stage '${stage_name}': ${init_payload}"
@@ -62,9 +63,20 @@ if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $BOOTSTRAP_INIT"
   # STOP — display the error to the user and do not proceed.
 fi
+
+PROJECT_ROOT=$(echo "$BOOTSTRAP_INIT" | gpd json get .project_root --default "")
+WORKSPACE_ROOT=$(echo "$BOOTSTRAP_INIT" | gpd json get .workspace_root --default "")
+RESEARCH_MAP_DIR=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_map_dir --default "GPD/research-map")
+RESEARCH_MAP_DIR_ABS=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_map_dir_absolute --default "")
+if [ -z "$PROJECT_ROOT" ] || [ -z "$RESEARCH_MAP_DIR_ABS" ]; then
+  echo "ERROR: map-research init did not return project_root and research_map_dir_absolute"
+  # STOP — display the error to the user and do not proceed.
+fi
 ```
 
-Extract from init JSON: `mapper_model`, `commit_docs`, `research_mode`, `map_focus`, `map_focus_provided`, `research_map_dir`, `existing_maps`, `has_maps`, `research_map_dir_exists`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`.
+Extract from init JSON: `mapper_model`, `workspace_root`, `project_root`, `commit_docs`, `research_mode`, `map_focus`, `map_focus_provided`, `research_map_dir`, `research_map_dir_absolute`, `existing_maps`, `has_maps`, `research_map_dir_exists`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`.
+
+All filesystem actions in this workflow must use `PROJECT_ROOT` / `RESEARCH_MAP_DIR_ABS` from the staged payload. Do not create, delete, archive, verify, or commit `GPD/research-map` relative to the shell launch directory; a nested launch cwd inside a project is valid and must still target the resolved project root.
 
 **Read mode settings:**
 
@@ -87,41 +99,55 @@ Each mapper agent is a one-shot file-producing handoff. Route on `gpd_return.sta
 </step>
 
 <step name="check_existing">
-Check if GPD/research-map/ already exists using `has_maps` from init context.
+Check if the project-rooted research-map directory already exists using `has_maps` and `research_map_dir_exists` from init context.
 
 If `research_map_dir_exists` is true:
 
 ```bash
-ls -la GPD/research-map/
+ls -la "$RESEARCH_MAP_DIR_ABS/"
 ```
 
 **If exists:**
 
 ```
-GPD/research-map/ already exists with these documents:
+GPD/research-map/ already exists at:
+{research_map_dir_absolute}
+
+Existing documents:
 [List files found]
 
 What's next?
-1. Refresh - Delete existing and remap research project
-2. Update - Keep existing, only update specific documents
-3. Skip - Use existing research map as-is
+- option_id: refresh_archive - archive existing map beside it, create a new empty map, remap.
+- option_id: update_selected - keep existing files and update selected documents.
+- option_id: skip_existing - use existing research map as-is.
 ```
 
-Wait for user response.
+Wait for user response and route by exact `option_id`, not option number or label.
 
-If "Refresh": Delete GPD/research-map/, continue to create_structure
-If "Update": Ask which documents to update, continue to spawn_agents (filtered)
-If "Skip": Exit workflow
+If `refresh_archive`: archive first, then continue to create_structure:
+
+```bash
+RESEARCH_MAP_ARCHIVE_DIR="${RESEARCH_MAP_DIR_ABS}.archive-$(date +%Y%m%d-%H%M%S)"
+if [ -e "$RESEARCH_MAP_ARCHIVE_DIR" ]; then
+  RESEARCH_MAP_ARCHIVE_DIR="${RESEARCH_MAP_ARCHIVE_DIR}-$$"
+fi
+mv "$RESEARCH_MAP_DIR_ABS" "$RESEARCH_MAP_ARCHIVE_DIR"
+mkdir -p "$RESEARCH_MAP_DIR_ABS"
+echo "Archived previous research map at: $RESEARCH_MAP_ARCHIVE_DIR"
+```
+
+If `update_selected`: Ask which documents to update, continue to spawn_agents (filtered)
+If `skip_existing`: Exit workflow
 
 **If doesn't exist:**
 Continue to create_structure.
 </step>
 
 <step name="create_structure">
-Create GPD/research-map/ directory:
+Create the project-rooted research-map directory:
 
 ```bash
-mkdir -p GPD/research-map
+mkdir -p "$RESEARCH_MAP_DIR_ABS"
 ```
 
 **Expected output files:**
@@ -161,6 +187,8 @@ Use task tool with `subagent_type="gpd-research-mapper"`, `model="{mapper_model}
 
 Each mapper prompt must carry the staged intake fields, active reference context, reference excerpts, contract load/validation status, and the project contract. Contract IDs are preferred only when `project_contract_gate.authoritative` is true; otherwise the contract stays context-only.
 
+Mapper write paths are project-rooted. Resolve every relative `GPD/research-map/...` path against `{project_root}` and write to the corresponding absolute target under `{research_map_dir_absolute}`. Never write under the runtime shell cwd unless it is the same directory as `{project_root}`.
+
 **Agent 1: Theory Focus**
 
 task(
@@ -181,13 +209,11 @@ Contract load/validation: {project_contract_load_info} / {project_contract_valid
 Project contract for gated IDs/context: {project_contract}
 Use contract IDs only when the gate is authoritative; otherwise treat the contract as context.
 
-Write these documents to GPD/research-map/:
-- FORMALISM.md - Lagrangians/Hamiltonians, symmetries, gauge groups, field content, key equations, approximation schemes, effective theories, governing PDEs/ODEs, boundary conditions, conservation laws
-- REFERENCES.md - Active anchor registry: papers cited, benchmarks, prior artifacts, required carry-forward actions, open questions from literature, experimental data sources, collaboration context. Every row must have a stable `Anchor ID` and concrete `Source / Locator`. Use `Carry Forward To` for workflow stages only; if exact contract claim/deliverable IDs are known, record them separately as `Contract Subject IDs`.
+- FORMALISM.md - equations, symmetries, approximations, boundary conditions, conservation laws
+- REFERENCES.md - anchor registry for papers, benchmarks, prior artifacts, required carry-forward actions, and open questions. Every row needs `Anchor ID` and `Source / Locator`; record exact contract IDs separately when known.
 
 Write to: GPD/research-map/FORMALISM.md
 Write to: GPD/research-map/REFERENCES.md
-
 <spawn_contract>
 write_scope:
   mode: scoped_write
@@ -226,13 +252,11 @@ Contract load/validation: {project_contract_load_info} / {project_contract_valid
 Project contract for gated IDs/context: {project_contract}
 Use contract IDs only when the gate is authoritative; otherwise treat the contract as context.
 
-Write these documents to GPD/research-map/:
-- ARCHITECTURE.md - Computational pipeline, solver choices (ODE/PDE/linear algebra), algorithm design, parallelization strategy, key libraries used (NumPy, SciPy, PETSc, etc.), MCP simulation servers, data flow from input to output, performance bottlenecks
-- STRUCTURE.md - Directory layout, file organization (code vs data vs docs vs notebooks), naming conventions, input/output formats (HDF5, CSV, JSON), dependency graph between scripts, build system, job submission scripts
+- ARCHITECTURE.md - computational pipeline, solver choices, libraries, data flow, performance bottlenecks
+- STRUCTURE.md - directory layout, file roles, naming conventions, formats, dependencies, build/job scripts
 
 Write to: GPD/research-map/ARCHITECTURE.md
 Write to: GPD/research-map/STRUCTURE.md
-
 <spawn_contract>
 write_scope:
   mode: scoped_write
@@ -271,13 +295,11 @@ Contract load/validation: {project_contract_load_info} / {project_contract_valid
 Project contract for gated IDs/context: {project_contract}
 Use contract IDs only when the gate is authoritative; otherwise treat the contract as context.
 
-Write these documents to GPD/research-map/:
-- CONVENTIONS.md - Notation system, sign conventions (metric signature, Fourier transforms), unit system (natural/SI/CGS), index placement conventions (Einstein summation), coordinate labeling, variable naming in code vs equations, coupling constant definitions, Wick rotation conventions
-- VALIDATION.md - Known limits checked (analytic benchmarks, exact solutions), convergence tests performed, consistency checks (conservation laws, sum rules, Ward identities), comparison with published results, test suite structure, regression tests, error analysis methodology
+- CONVENTIONS.md - notation, signs, units, indices, coordinates, variable naming, coupling definitions
+- VALIDATION.md - known limits, convergence, consistency checks, comparisons, tests, error analysis
 
 Write to: GPD/research-map/CONVENTIONS.md
 Write to: GPD/research-map/VALIDATION.md
-
 <spawn_contract>
 write_scope:
   mode: scoped_write
@@ -316,11 +338,9 @@ Contract load/validation: {project_contract_load_info} / {project_contract_valid
 Project contract for gated IDs/context: {project_contract}
 Use contract IDs only when the gate is authoritative; otherwise treat the contract as context.
 
-Write this document to GPD/research-map/:
-- CONCERNS.md - Known issues (unresolved divergences, numerical instabilities, sign ambiguities), theoretical gaps (missing diagrams, uncontrolled approximations, gauge artifacts), TODO items found in code and notes, fragile areas (code that breaks easily, calculations sensitive to parameter choices), missing validation (untested regimes, unchecked limits), computational bottlenecks, stale or abandoned branches of investigation
+- CONCERNS.md - known issues, theoretical gaps, TODOs, fragile code/calculations, missing validation, bottlenecks, stale branches
 
 Write to: GPD/research-map/CONCERNS.md
-
 <spawn_contract>
 write_scope:
   mode: scoped_write
@@ -371,8 +391,8 @@ Continue to verify_output.
 Verify all documents created successfully:
 
 ```bash
-ls -la GPD/research-map/
-wc -l GPD/research-map/*.md
+ls -la "$RESEARCH_MAP_DIR_ABS/"
+wc -l "$RESEARCH_MAP_DIR_ABS"/*.md
 ```
 
 **Verification checklist:**
@@ -392,7 +412,7 @@ Run secret pattern detection:
 
 ```bash
 # Check for common API key patterns in generated docs
-grep -E '(sk-[a-zA-Z0-9]{20,}|sk_live_[a-zA-Z0-9]+|sk_test_[a-zA-Z0-9]+|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9_-]+|AKIA[A-Z0-9]{16}|xox[baprs]-[a-zA-Z0-9-]+|-----BEGIN.*PRIVATE KEY|eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.)' GPD/research-map/*.md 2>/dev/null && SECRETS_FOUND=true || SECRETS_FOUND=false
+grep -E '(sk-[a-zA-Z0-9]{20,}|sk_live_[a-zA-Z0-9]+|sk_test_[a-zA-Z0-9]+|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9_-]+|AKIA[A-Z0-9]{16}|xox[baprs]-[a-zA-Z0-9-]+|-----BEGIN.*PRIVATE KEY|eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.)' "$RESEARCH_MAP_DIR_ABS"/*.md 2>/dev/null && SECRETS_FOUND=true || SECRETS_FOUND=false
 ```
 
 **If SECRETS_FOUND=true:**
@@ -424,10 +444,10 @@ Continue to commit_research_map.
 Commit the research map:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files GPD/research-map/*.md 2>&1) || true
+PRE_CHECK=$(gpd --cwd "$PROJECT_ROOT" pre-commit-check --files "$RESEARCH_MAP_DIR" 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: map existing research project" --files GPD/research-map/*.md
+gpd --cwd "$PROJECT_ROOT" commit "docs: map existing research project" --files "$RESEARCH_MAP_DIR"
 ```
 
 Continue to offer_next.
@@ -439,7 +459,7 @@ Present completion summary and next steps.
 **Get line counts:**
 
 ```bash
-wc -l GPD/research-map/*.md
+wc -l "$RESEARCH_MAP_DIR_ABS"/*.md
 ```
 
 **Output format:**

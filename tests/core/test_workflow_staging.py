@@ -135,6 +135,8 @@ def test_load_workflow_stage_manifest_is_cached() -> None:
         "GPD/ROADMAP.md",
         "GPD/STATE.md",
         "GPD/state.json",
+        "GPD/state.json.bak",
+        "GPD/state.json.lock",
         "GPD/config.json",
         "GPD/CONVENTIONS.md",
         "GPD/init-progress.json",

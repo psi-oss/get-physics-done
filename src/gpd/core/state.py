@@ -116,6 +116,7 @@ __all__ = [
     "StateGetResult",
     "StateLoadResult",
     "StatePatchResult",
+    "SyncStateRepairResult",
     "StateSnapshotResult",
     "StateUpdateResult",
     "StateValidateResult",
@@ -149,6 +150,7 @@ __all__ = [
     "state_record_metric",
     "state_record_session",
     "state_record_verification",
+    "state_repair_sync",
     "state_replace_field",
     "state_set_project_contract",
     "state_set_continuation_bounded_segment",
@@ -530,6 +532,24 @@ class StateValidateResult(BaseModel):
     project_contract_load_info: dict | None = None
     project_contract_validation: dict | None = None
     project_contract_gate: dict | None = None
+
+
+class SyncStateRepairResult(BaseModel):
+    """Returned by :func:`state_repair_sync`."""
+
+    model_config = ConfigDict(frozen=True)
+
+    repaired: bool
+    state_mutated: bool = False
+    source_used: str | None = None
+    project_root: str | None = None
+    validation_valid: bool | None = None
+    validation_status: str | None = None
+    integrity_issues: list[str] = Field(default_factory=list)
+    issues: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    error: str | None = None
+    reason: str | None = None
 
 
 class StateUpdateResult(BaseModel):
@@ -2999,7 +3019,10 @@ def _backup_is_stale_for_markdown(backup_path: Path, md_path: Path) -> bool:
 
     try:
         backup_payload = json.loads(backup_path.read_text(encoding="utf-8"))
-        md_payload = parse_state_to_json(md_path.read_text(encoding="utf-8"))
+        md_content = md_path.read_text(encoding="utf-8")
+        if _state_markdown_structure_issues(md_content):
+            return False
+        md_payload = parse_state_to_json(md_content)
     except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return True
     if not isinstance(backup_payload, dict):
@@ -4115,6 +4138,89 @@ def save_state_markdown(cwd: Path, md_content: str) -> dict:
     """Save STATE.md + state.json atomically from markdown content."""
     with _state_lock(cwd):
         return save_state_markdown_locked(cwd, md_content)
+
+
+@instrument_gpd_function("state.repair_sync")
+def state_repair_sync(cwd: Path) -> SyncStateRepairResult:
+    """Repair the dual state files through the recovery-aware backend path."""
+
+    layout = ProjectLayout(cwd)
+    before = {
+        "STATE.md": safe_read_file(layout.state_md),
+        "state.json": safe_read_file(layout.state_json),
+        "state.json.bak": safe_read_file(layout.state_json_backup),
+    }
+
+    with _state_lock(cwd):
+        _recover_intent_locked(cwd)
+        state_obj, integrity_issues, state_source = _load_state_json_with_integrity_issues(
+            cwd,
+            persist_recovery=False,
+            recover_intent=False,
+            surface_blocked_project_contract=True,
+            acquire_lock=False,
+        )
+        if not isinstance(state_obj, dict) or state_source is None:
+            return SyncStateRepairResult(
+                repaired=False,
+                project_root=cwd.resolve(strict=False).as_posix(),
+                integrity_issues=integrity_issues,
+                issues=["No recoverable state source found"],
+                error="No recoverable state source found",
+                reason="missing_or_unrecoverable_state",
+            )
+
+        if state_source == "STATE.md":
+            try:
+                md_content = layout.state_md.read_text(encoding="utf-8")
+            except (FileNotFoundError, OSError, UnicodeDecodeError) as exc:
+                return SyncStateRepairResult(
+                    repaired=False,
+                    source_used=state_source,
+                    project_root=cwd.resolve(strict=False).as_posix(),
+                    integrity_issues=integrity_issues,
+                    issues=[f"STATE.md parse error: {exc}"],
+                    error=f"STATE.md parse error: {exc}",
+                    reason="state_md_unreadable",
+                )
+            md_structure_issues = _state_markdown_structure_issues(md_content)
+            if md_structure_issues:
+                return SyncStateRepairResult(
+                    repaired=False,
+                    source_used=state_source,
+                    project_root=cwd.resolve(strict=False).as_posix(),
+                    integrity_issues=integrity_issues,
+                    issues=md_structure_issues,
+                    error="STATE.md is not a valid recovery source",
+                    reason="state_md_malformed",
+                )
+
+        save_state_json_locked(cwd, state_obj)
+
+    validation = state_validate(
+        cwd,
+        recover_intent=False,
+        acquire_lock=False,
+        surface_blocked_project_contract=True,
+    )
+    after = {
+        "STATE.md": safe_read_file(layout.state_md),
+        "state.json": safe_read_file(layout.state_json),
+        "state.json.bak": safe_read_file(layout.state_json_backup),
+    }
+    return SyncStateRepairResult(
+        repaired=validation.valid,
+        state_mutated=after != before,
+        source_used=state_source,
+        project_root=cwd.resolve(strict=False).as_posix(),
+        validation_valid=validation.valid,
+        validation_status=validation.integrity_status,
+        integrity_issues=integrity_issues,
+        issues=validation.issues,
+        warnings=validation.warnings,
+        error=None if validation.valid else "State validation failed after repair",
+        reason=None if validation.valid else "validation_failed",
+    )
 
 
 # ─── State Commands ────────────────────────────────────────────────────────────

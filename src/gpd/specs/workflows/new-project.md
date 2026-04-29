@@ -11,6 +11,18 @@ Read all files referenced by the invoking prompt's execution_context before star
 ## Auto Mode Detection
 
 Check if `--auto` flag is present in $ARGUMENTS.
+Check if `--minimal` flag is also present in $ARGUMENTS.
+
+**If both `--auto` and `--minimal` are present, stop before any durable write:**
+
+```
+Error: --auto and --minimal cannot be combined.
+
+Choose either `gpd:new-project --auto @proposal.md` for full auto intake or
+`gpd:new-project --minimal [@file.md]` for the lean core-artifact path.
+```
+
+Do not initialize git, create `GPD/`, write state, or write progress for this conflict exit.
 
 **If auto mode:**
 
@@ -38,6 +50,8 @@ Usage: gpd:new-project --auto @your-proposal.md
 The document should describe the physics problem you want to investigate.
 ```
 
+Stop before git initialization, `GPD/` creation, state writes, or progress writes.
+
 </auto_mode>
 
 <minimal_mode>
@@ -46,7 +60,7 @@ The document should describe the physics problem you want to investigate.
 
 Check if `--minimal` flag is present in $ARGUMENTS.
 
-**If minimal mode:** After Step 1 (Setup), skip the entire standard flow (Steps 2-9) and execute the **Minimal Initialization Path** below instead.
+**If minimal mode:** After Step 1 read-only setup and Step 2 existing-work routing complete, skip the rest of the standard flow (Steps 3-9) and execute the **Minimal Initialization Path** below instead.
 
 Minimal mode creates the core startup artifacts only: `GPD/PROJECT.md`, `GPD/config.json`, `GPD/REQUIREMENTS.md`, `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/state.json` with the approved `project_contract`. It does not promise optional literature-survey files or `GPD/CONVENTIONS.md`. It still must produce a scoping contract with decisive outputs, anchors, and explicit approval so downstream workflows (`gpd:plan-phase`, `gpd:execute-phase`, etc.) have authoritative scope.
 
@@ -59,7 +73,7 @@ Minimal mode creates the core startup artifacts only: `GPD/PROJECT.md`, `GPD/con
 
 ### Minimal Initialization Path
 
-**After Step 1 completes (init checks, git, project/recovery guard):**
+**After Step 1 read-only setup and Step 2 existing-work routing complete:**
 
 #### M1. Gather Research Context
 
@@ -193,11 +207,21 @@ printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract - -
 
 If validation fails, show the errors, revise the scoping contract, and do NOT continue to downstream artifact generation.
 
+Before persistence, cross the **First Mutation Gate**: invalid-argument exits, existing-work routing, recovery routing, scoping repair, explicit approval, and approved-mode validation have all passed.
+
+If `has_git` from the Step 1 init payload is false, initialize git now and only now:
+
+```bash
+git init
+```
+
 After validation passes, persist the approved contract into `GPD/state.json` from the same stdin payload:
 
 ```bash
 printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -
 ```
+
+This state-writer call writes `state.json`, regenerates `STATE.md`, refreshes `state.json.bak`, and may leave `state.json.lock`.
 
 Do not write `/tmp` intermediates for the approved contract. Prefer piping the exact approved JSON directly to `gpd ... -`. Only write a file if the user explicitly wants a durable saved copy, and if so place it under the project, not an OS temp directory.
 
@@ -436,17 +460,9 @@ Parse JSON for: `researcher_model`, `synthesizer_model`, `commit_docs`, `autonom
 - Before `GPD/config.json` exists, the `autonomy` and `research_mode` values from `gpd --raw init new-project --stage scope_intake` are temporary defaults, not a durable user choice. Let those defaults govern the initial questioning and scoping pass, then run Step 5 immediately after scope approval and before the first project-artifact commit so the durable config takes over before research and roadmap execution.
 - Treat `project_contract` as approved scope only when `project_contract_gate.authoritative` is true. If the gate is false, keep the contract visible for scoping diagnostics and repair, not as authoritative downstream scope.
 
-**If `project_exists` is true:** Error — project already initialized. Use `gpd:progress`.
+Setup is read-only. Do not initialize git, create `GPD/`, write state, or write/delete `GPD/init-progress.json` here. Treat `has_git` as input to the First Mutation Gate.
 
-**If `recoverable_project_exists` is true but `project_exists` is false:** Error — this folder contains partial/recoverable GPD state, not a fresh project. Do not overwrite it. Use `gpd:resume-work` or `gpd:sync-state` to inspect/recover it; if the user really wants a clean restart, ask them to explicitly move or delete the existing `GPD/` artifacts first. A `GPD/` folder with `state.json`/`STATE.md` plus `ROADMAP.md` but no `PROJECT.md` belongs in this branch.
-
-**If `has_git` is false:** Initialize git:
-
-```bash
-git init
-```
-
-**Check for previous initialization attempt:**
+**Check for previous initialization attempt before generic project/recovery hard-stops:**
 
 ```bash
 if [ -f GPD/init-progress.json ]; then
@@ -459,15 +475,16 @@ if [ -f GPD/init-progress.json ]; then
     PREV_DESC=$(echo "$INIT_PROGRESS_RAW" | gpd json get .description --default "" 2>/dev/null)
   fi
 
-  # If JSON was corrupted (empty step), treat as fresh start
+  # If JSON was corrupted (empty step), stop for explicit recovery handling.
   if [ -z "$PREV_STEP" ]; then
-    echo "WARNING: init-progress.json exists but is corrupted or empty. Starting fresh."
-    rm -f GPD/init-progress.json
+    echo "ERROR: GPD/init-progress.json exists but is corrupted or empty."
+    echo "Do not delete it automatically; ask the user to inspect, move, or delete it before restarting."
+    # STOP -- display the conflict and do not proceed with new-project writes.
   fi
 fi
 ```
 
-If `init-progress.json` exists and is valid, offer to resume:
+If `GPD/init-progress.json` exists and is valid, offer to resume even when `project_exists` or `recoverable_project_exists` is also true; this file means an interrupted initialization checkpoint owns the next routing decision:
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -484,7 +501,13 @@ Options:
 ```
 
 If resume: continue from the next unfinished checkpoint after `PREV_STEP` (check which artifacts already exist on disk to confirm).
-If start fresh: delete `init-progress.json` and proceed normally.
+If start fresh: delete `init-progress.json` only after the user explicitly chooses that option, then proceed normally.
+
+If no valid `GPD/init-progress.json` is present, apply the generic project/recovery guards:
+
+**If `project_exists` is true:** Error — project already initialized. Use `gpd:progress`.
+
+**If `recoverable_project_exists` is true but `project_exists` is false:** Error — this folder contains partial/recoverable GPD state, not a fresh project. Do not overwrite it. Use `gpd:resume-work` or `gpd:sync-state` to inspect/recover it; if the user really wants a clean restart, ask them to explicitly move or delete the existing `GPD/` artifacts first. A `GPD/` folder with `state.json`/`STATE.md` plus `ROADMAP.md` but no `PROJECT.md` belongs in this branch.
 
 ## 2. Existing Work Offer
 
@@ -520,7 +543,7 @@ Exit command.
 
 If `project_contract` is present in the init JSON, keep `project_contract` and `project_contract_load_info` visible while deciding whether this is fresh work or a continuation. Treat `project_contract_validation` as approval-stage authority rather than a stage-1 requirement. Preserve blockers, warnings, and approval state rather than flattening them into a blank-slate prompt.
 
-**If "Skip mapping" OR `needs_research_map` is false:** Continue to Step 3.
+**If "Skip mapping" OR `needs_research_map` is false:** Existing-work routing is complete. If `--minimal` is active, go to the Minimal Initialization Path now. Otherwise continue to Step 3.
 
 ## 3. Deep Questioning
 

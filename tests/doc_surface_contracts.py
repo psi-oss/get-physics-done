@@ -777,6 +777,10 @@ def assert_start_workflow_router_contract(content: str) -> None:
             tuple(
                 f"Follow the installed `{command}` command contract directly"
                 for command in _runtime_command_variants("new-project --minimal")
+            )
+            + tuple(
+                f"Use `{command}` as the selected runtime command label and follow its installed command contract directly"
+                for command in _runtime_command_variants("new-project --minimal")
             ),
         ),
         (
@@ -784,12 +788,20 @@ def assert_start_workflow_router_contract(content: str) -> None:
             tuple(
                 f"Follow the installed `{command}` command contract directly"
                 for command in _runtime_command_variants("new-project")
+            )
+            + tuple(
+                f"Use `{command}` as the selected runtime command label and follow its installed command contract directly"
+                for command in _runtime_command_variants("new-project")
             ),
         ),
         (
             "start help-command-contract handoff",
             tuple(
                 f"Follow the installed `{command}` command contract directly"
+                for command in _runtime_command_variants("help --all")
+            )
+            + tuple(
+                f"Use `{command}` as the selected runtime command label and follow its installed command contract directly"
                 for command in _runtime_command_variants("help --all")
             ),
         ),

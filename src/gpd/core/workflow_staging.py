@@ -625,6 +625,8 @@ RESEARCH_PHASE_INIT_FIELDS = frozenset(
 MAP_RESEARCH_INIT_FIELDS = frozenset(
     {
         "mapper_model",
+        "workspace_root",
+        "project_root",
         "commit_docs",
         "autonomy",
         "research_mode",
@@ -632,6 +634,7 @@ MAP_RESEARCH_INIT_FIELDS = frozenset(
         "map_focus_provided",
         "parallelization",
         "research_map_dir",
+        "research_map_dir_absolute",
         "existing_maps",
         "has_maps",
         "planning_exists",

@@ -1579,6 +1579,64 @@ def test_resume_plain_output_hints_recent_when_workspace_is_missing(tmp_path: Pa
     assert local_cli_resume_recent_command() in result.output
 
 
+def test_resume_plain_output_surfaces_ambiguous_recent_project_reason(tmp_path: Path, monkeypatch) -> None:
+    workspace = tmp_path / "outside-ambiguous"
+    workspace.mkdir()
+    first_project = tmp_path / "first-project"
+    second_project = tmp_path / "second-project"
+    monkeypatch.chdir(workspace)
+    monkeypatch.setattr(
+        "gpd.core.context.init_resume",
+        lambda _cwd: {
+            "workspace_root": workspace.as_posix(),
+            "project_root": None,
+            "project_root_source": None,
+            "project_root_auto_selected": False,
+            "project_reentry_mode": "ambiguous-recent-projects",
+            "project_reentry_requires_selection": True,
+            "project_reentry_selected_candidate": None,
+            "project_reentry_candidates": [
+                {
+                    "source": "recent_project",
+                    "project_root": first_project.as_posix(),
+                    "available": True,
+                    "recoverable": True,
+                    "resumable": True,
+                },
+                {
+                    "source": "recent_project",
+                    "project_root": second_project.as_posix(),
+                    "available": True,
+                    "recoverable": True,
+                    "resumable": True,
+                },
+            ],
+            "workspace_state_exists": False,
+            "workspace_roadmap_exists": False,
+            "workspace_project_exists": False,
+            "workspace_planning_exists": False,
+            "planning_exists": False,
+            "state_exists": False,
+            "roadmap_exists": False,
+            "project_exists": False,
+            "resume_candidates": [],
+            "has_live_execution": False,
+            "execution_resumable": False,
+            "execution_paused_at": None,
+            "autonomy": None,
+            "research_mode": None,
+        },
+    )
+
+    result = runner.invoke(app, ["resume"])
+
+    assert result.exit_code == 0
+    output = _normalize_cli_output(result.output)
+    assert "GPD found 2 recoverable recent projects on this machine, so you need to choose one." in output
+    assert "2 recoverable choices require explicit selection" in output
+    assert local_cli_resume_recent_command() in output
+
+
 def test_resume_plain_output_surfaces_auto_selected_recent_project(tmp_path: Path, monkeypatch) -> None:
     workspace = tmp_path / "outside"
     workspace.mkdir()

@@ -1936,6 +1936,7 @@ class TestSuggest:
         fake_home = workspace / "fake-home"
         fake_home.mkdir(parents=True, exist_ok=True)
         monkeypatch.setattr("gpd.hooks.runtime_detect.Path.home", lambda: fake_home)
+        monkeypatch.setenv("GPD_DATA_DIR", str(workspace / "gpd-data"))
 
         result = _invoke("--raw", "--cwd", str(workspace), "suggest")
         parsed = json.loads(result.output)
@@ -1961,6 +1962,7 @@ class TestSuggest:
         fake_home = workspace / "fake-home"
         fake_home.mkdir(parents=True, exist_ok=True)
         monkeypatch.setattr("gpd.hooks.runtime_detect.Path.home", lambda: fake_home)
+        monkeypatch.setenv("GPD_DATA_DIR", str(workspace / "gpd-data"))
 
         result = _invoke("--raw", "--cwd", str(workspace), "suggest-next")
         parsed = json.loads(result.output)
