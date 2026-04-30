@@ -1,5 +1,5 @@
 <purpose>
-Initialize a new physics research project through unified flow: questioning, literature survey (optional), mathematical framework, computational setup, target venue identification. This is the most leveraged moment in any research project — deep questioning here means better formulations, better methods, better results. One workflow takes you from research idea to ready-for-investigation.
+Initialize a physics research project through one flow: intake, optional survey, framework, computational setup, venue target, and ready-for-investigation roadmap.
 </purpose>
 
 <required_reading>
@@ -26,12 +26,9 @@ Do not initialize git, create `GPD/`, write state, or write progress for this co
 
 **If auto mode:**
 
-- Auto mode compresses intake; it does not override autonomy review gates after the scoping contract is approved
-- Do not assume scope is already correct just because a document exists
-- Existing-work routing may be compressed to one lightweight question, but cannot be skipped when prior artifacts are detected
-- Skip full deep questioning, but still synthesize a scoping contract from the supplied document
-- Ask at most one repair prompt if blocking scoping fields are missing
-- Config questions still required (Step 5)
+- Compress intake, but do not skip existing-work routing, scoping skepticism, or later autonomy gates
+- Synthesize the scoping contract from the supplied document; ask at most one repair prompt for missing blocking fields
+- Config questions still run in Step 5
 - Require one explicit scoping approval gate before requirements and roadmap generation
 - After config and scope approval: run Steps 6-9 automatically with smart defaults:
   - Literature survey: Always yes
@@ -62,7 +59,7 @@ Check if `--minimal` flag is present in $ARGUMENTS.
 
 **If minimal mode:** After Step 1 read-only setup and Step 2 existing-work routing complete, skip the rest of the standard flow (Steps 3-9) and execute the **Minimal Initialization Path** below instead.
 
-Minimal mode creates the core startup artifacts only: `GPD/PROJECT.md`, `GPD/config.json`, `GPD/REQUIREMENTS.md`, `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/state.json` with the approved `project_contract`. It does not promise optional literature-survey files or `GPD/CONVENTIONS.md`. It still must produce a scoping contract with decisive outputs, anchors, and explicit approval so downstream workflows (`gpd:plan-phase`, `gpd:execute-phase`, etc.) have authoritative scope.
+Minimal mode creates only `GPD/PROJECT.md`, `GPD/config.json`, `GPD/REQUIREMENTS.md`, `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/state.json` with the approved `project_contract`. It does not promise literature-survey files or `GPD/CONVENTIONS.md`, but still needs decisive outputs, anchors, and explicit scope approval for downstream workflows.
 
 **Two variants:**
 
@@ -81,13 +78,10 @@ Minimal mode creates the core startup artifacts only: `GPD/PROJECT.md`, `GPD/con
 
 Parse the input markdown for:
 
-- **Research question** — Look for headings like "Research Question", "Objective", "Goal", or the first substantive paragraph
-- **Decisive observables and deliverables** — Look for explicit plots, figures, datasets, calculations, derivations, or benchmark outputs the user says matter
-- **Existing decomposition, if any** — Look for numbered lists, headings like "Phases", "Plan", "Steps", "Milestones", or any clear sequence of investigation chunks. Treat these as optional grounding, not as a setup prerequisite.
-- **Key parameters** — Look for mentions of physical parameters, coupling constants, energy scales, system sizes
-- **Theoretical framework** — Infer from terminology (QFT, condensed matter, GR, statistical mechanics, etc.)
-- **Computational tools** — Any mentioned software, libraries, or numerical methods
-- **Must-keep context** — Look for must-read references, benchmark values, prior outputs, figures, notebooks, and any stop/rethink conditions
+- Research question or objective
+- Decisive observables, deliverables, plots, figures, datasets, calculations, derivations, or benchmark outputs
+- Existing decomposition, if any; treat it as optional grounding, not a setup prerequisite
+- Key parameters, theoretical framework, computational tools, must-read references, benchmarks, prior outputs, figures, notebooks, and stop/rethink conditions
 
 If the file cannot be parsed (no discernible research question or objective), error:
 
@@ -97,7 +91,7 @@ Error: Could not extract research context from the provided file.
 The file should contain at minimum:
 - A research question or objective
 
-It should ideally also name at least one decisive output, anchor, prior output, or explicit "anchor unknown / need grounding / target not yet chosen" note so any repair prompt can stay narrow. Such notes keep uncertainty visible but are not approval-ready grounding.
+It should ideally also name one decisive output, anchor, prior output, or explicit "need grounding / target not yet chosen" note so repair stays narrow.
 
 Example structure:
   # Research Question
@@ -108,9 +102,6 @@ Example structure:
 
   # Anchors
   Compare against the known 3D Ising result from the literature.
-
-  # Optional First Investigation Chunk
-  Set up the Monte Carlo simulation and finite-size scaling workflow.
 ```
 
 Stop after this error with `## > Next Up`: tell the user to edit the file and rerun `gpd:new-project --minimal @your-file.md`.
@@ -195,6 +186,8 @@ Then present a concise scoping summary and require explicit approval:
   - "Review raw contract" -- show the structured contract
   - "Stop here" -- do not create downstream artifacts
 
+Headless or non-interactive mode is not scope approval. If you cannot get an explicit "Approve scope", stop with `## > Next Up`; never auto-select approval.
+
 If the user selects "Stop here", end with `## > Next Up`: primary `gpd:new-project` (or `gpd:new-project --minimal @file.md` for file-backed minimal intake) and `gpd:suggest-next` if any project state was written.
 
 **CRITICAL:** Minimal mode is still allowed to be lean, but it is not allowed to be contract-free.
@@ -206,6 +199,8 @@ printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract - -
 ```
 
 If validation fails, show the errors, revise the scoping contract, and do NOT continue to downstream artifact generation.
+If repair would require inventing anchors, references, baselines, DOI/arXiv/file locators, or prior outputs, stop and ask instead.
+If a validation or persistence shell call is denied by runtime policy, stop and report the policy block; do not substitute unvalidated file writes.
 
 Before persistence, cross the **First Mutation Gate**: invalid-argument exits, existing-work routing, recovery routing, scoping repair, explicit approval, and approved-mode validation have all passed.
 
@@ -433,6 +428,8 @@ Use ask_user:
 </minimal_mode>
 
 <process>
+
+Runtime label: Show `gpd:` as native labels; keep local CLI `gpd ...` unchanged.
 
 ## 1. Setup
 
@@ -1871,16 +1868,16 @@ Present completion with next steps:
 
 **Phase 1: [Phase Name]** — [Goal from ROADMAP.md]
 
-`gpd:plan-phase 1`
+`gpd:discuss-phase 1`
 
-<sub>Start a fresh context window, then run `gpd:plan-phase 1`.</sub>
+<sub>Start a fresh context window, then run `gpd:discuss-phase 1`.</sub>
 
-Phases 2+ are stubbed on purpose — flesh each one out with `gpd:plan-phase N` when its turn comes.
+Discuss first; plan after context is clear. Phase stubs stay lean; expand them with `gpd:plan-phase N` when reached.
 
 ---
 
 **Also available:**
-- `gpd:discuss-phase 1` — talk through Phase 1 before planning
+- `gpd:plan-phase 1` — skip discussion only when Phase 1 is already clear enough to plan
 - `gpd:suggest-next` — confirm the next action
 
 ---------------------------------------------------------------

@@ -42,7 +42,7 @@ Exit.
 </step>
 
 <step name="parse_arguments">
-**Parse export arguments from $ARGUMENTS:**
+**Parse export arguments from `$ARGUMENTS` safely:**
 
 | Argument | Default | Meaning |
 |----------|---------|---------|
@@ -56,6 +56,8 @@ Exit.
 | `--output-dir <path>` | `GPD/exports/logs/` | Custom output directory |
 
 If no arguments provided, use defaults (all sessions, JSONL format, include traces, default output dir).
+
+Treat `$ARGUMENTS` as opaque user input, not shell syntax. Do not evaluate it, run it through a shell-interpreter wrapper, or concatenate it into a shell command. Preserve spaces inside values such as output paths or command/category labels. If a value cannot be unambiguously assigned to one of the known flags above, stop and ask the user for the exact format, filter, or output path instead of guessing.
 
 **If format is not recognized:**
 
@@ -73,26 +75,20 @@ Exit.
 <step name="run_export">
 **Execute the export via CLI:**
 
-Build the CLI invocation from parsed arguments:
+Invoke `gpd --raw observe export` once. Pass only the recognized options that were actually requested, and pass every option value as its own quoted argv value:
 
-```bash
-EXPORT_ARGS=""
-if [ -n "$FORMAT" ]; then EXPORT_ARGS="$EXPORT_ARGS --format $FORMAT"; fi
-if [ -n "$SESSION" ]; then EXPORT_ARGS="$EXPORT_ARGS --session $SESSION"; fi
-if [ -n "$LAST" ]; then EXPORT_ARGS="$EXPORT_ARGS --last $LAST"; fi
-if [ -n "$COMMAND" ]; then EXPORT_ARGS="$EXPORT_ARGS --command $COMMAND"; fi
-if [ -n "$PHASE" ]; then EXPORT_ARGS="$EXPORT_ARGS --phase $PHASE"; fi
-if [ -n "$CATEGORY" ]; then EXPORT_ARGS="$EXPORT_ARGS --category $CATEGORY"; fi
-if [ -n "$OUTPUT_DIR" ]; then EXPORT_ARGS="$EXPORT_ARGS --output-dir $OUTPUT_DIR"; fi
-if [ "$NO_TRACES" = "true" ]; then EXPORT_ARGS="$EXPORT_ARGS --no-traces"; fi
+- `--format "$FORMAT"`
+- `--session "$SESSION"`
+- `--last "$LAST"`
+- `--command "$COMMAND"`
+- `--phase "$PHASE"`
+- `--category "$CATEGORY"`
+- `--output-dir "$OUTPUT_DIR"`
+- `--no-traces`
 
-RESULT=$(gpd --raw observe export $EXPORT_ARGS)
+Never pass raw `$ARGUMENTS` to `observe export`, never build `EXPORT_ARGS`, and never run the export through a shell-interpreter wrapper. For example, a spaced path must be passed as one quoted `--output-dir` value.
 
-if [ $? -ne 0 ]; then
-  echo "ERROR: export failed: $RESULT"
-  exit 1
-fi
-```
+If the command exits nonzero, display the raw CLI error and stop.
 
 Parse the JSON result for `exported`, `output_dir`, `sessions_exported`, `events_exported`, `traces_exported`, and `files_written`.
 Also parse `empty_export` and `reason`; if true, label the output as an intentionally empty filtered export.

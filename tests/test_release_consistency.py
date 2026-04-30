@@ -466,6 +466,22 @@ def test_public_metadata_records_psi_affiliation() -> None:
     assert pyproject["project"]["maintainers"] == [{"name": "Physical Superintelligence PBC"}]
 
 
+def test_contributor_docs_describe_gemini_completion_at_cli_boundary() -> None:
+    repo_root = _repo_root()
+    contributing = (repo_root / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    normalized = re.sub(r"\s+", " ", contributing)
+
+    assert "Gemini installs are expected to be complete on disk after `GeminiAdapter.install()`" not in contributing
+    assert "Gemini public installs are expected to be complete on disk after the CLI-level install path succeeds" in normalized
+    assert "`gpd install gemini" in normalized
+    assert "`npx -y get-physics-done --gemini" in normalized
+    assert "Raw `GeminiAdapter.install()` prepares deferred settings" in normalized
+    assert "must call `finalize_install()` before asserting complete Gemini artifacts" in normalized
+    assert ".gemini/settings.json" in contributing
+    assert "policyPaths" in contributing
+    assert "policies/gpd-auto-edit.toml" in contributing
+
+
 def test_public_release_surfaces_share_agentic_system_positioning() -> None:
     repo_root = _repo_root()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")

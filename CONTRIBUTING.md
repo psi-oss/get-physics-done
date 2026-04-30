@@ -69,7 +69,12 @@ Cross-runtime release checks:
 - `tests/test_release_consistency.py` covers the public install flow, release artifacts, and release-facing messaging.
 - `uv build` validates the published Python wheel and sdist. Use an isolated `UV_CACHE_DIR` with `UV_NO_CONFIG=1` and `UV_PYTHON_DOWNLOADS=never` to match release validation.
 - `npm pack --dry-run --json` validates the published `npx` bootstrap package surface before release. Use a temporary cache outside the repo so the worktree does not gain a local `.npm-cache/`.
-- Gemini installs are expected to be complete on disk after `GeminiAdapter.install()`: `.gemini/settings.json` should already exist with `experimental.enableAgents`, GPD hooks, GPD MCP servers, and `policyPaths` configured, and `policies/gpd-auto-edit.toml` should already be present.
+- Gemini public installs are expected to be complete on disk after the CLI-level install path succeeds
+  (`gpd install gemini ...` or `npx -y get-physics-done --gemini ...`): `.gemini/settings.json`
+  should exist with `experimental.enableAgents`, GPD hooks, GPD MCP servers, and `policyPaths`
+  configured, and `policies/gpd-auto-edit.toml` should be present. Raw `GeminiAdapter.install()`
+  prepares deferred settings; adapter-level tests or direct callers must call `finalize_install()`
+  before asserting complete Gemini artifacts.
 - OpenCode installs are expected to leave `opencode.json` complete on disk with GPD-managed `permission.read` / `permission.external_directory` entries and built-in MCP servers under the `mcp` key.
 
 ## Sharing Published Research

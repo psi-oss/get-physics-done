@@ -178,6 +178,7 @@ def convert_claude_to_opencode_frontmatter(content: str, path_prefix: str | None
     """
     converted = content
     converted = convert_tool_references_in_body(converted, _TOOL_REFERENCE_MAP)
+    converted = converted.replace("`gpd:`", "`gpd-`")
     converted = _GPD_SLASH_COMMAND_RE.sub(r"/gpd-\g<command>", converted)
     converted = _GPD_BARE_COMMAND_RE.sub(r"gpd-\1", converted)
 
@@ -954,6 +955,7 @@ class OpenCodeAdapter(RuntimeAdapter):
 
     def translate_shared_command_references(self, content: str) -> str:
         result = content.replace("/gpd:", self.public_command_surface_prefix)
+        result = result.replace("`gpd:`", "`gpd-`")
         result = _GPD_BARE_COMMAND_RE.sub(r"gpd-\1", result)
         return result
 

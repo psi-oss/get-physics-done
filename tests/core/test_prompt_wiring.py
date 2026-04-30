@@ -5054,14 +5054,14 @@ def test_new_milestone_keeps_full_roadmap_detail_shallow_mode_false() -> None:
     assert "<shallow_mode>false</shallow_mode>" in new_milestone
 
 
-def test_new_project_next_up_recommends_plan_phase_1_primary() -> None:
+def test_new_project_next_up_recommends_discuss_phase_1_primary() -> None:
     new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
     # The standard-mode Next Up block is the final occurrence; the first is the --minimal path.
     next_up_block = new_project[new_project.rindex("## > Next Up") :]
-    # plan-phase 1 should appear before discuss-phase 1 in that block.
-    plan_idx = next_up_block.index("`gpd:plan-phase 1`")
+    # discuss-phase 1 should appear before plan-phase 1 in that block.
     discuss_idx = next_up_block.index("`gpd:discuss-phase 1`")
-    assert plan_idx < discuss_idx, "plan-phase 1 must be the primary Next Up recommendation, not discuss-phase"
+    plan_idx = next_up_block.index("`gpd:plan-phase 1`")
+    assert discuss_idx < plan_idx, "discuss-phase 1 must be the primary Next Up recommendation, not plan-phase"
 
 
 def test_roadmapper_documents_shallow_mode_behavior() -> None:

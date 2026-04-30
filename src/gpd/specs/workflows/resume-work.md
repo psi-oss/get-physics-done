@@ -21,6 +21,8 @@ Bootstrap loads only immediate resume vocabulary. Later staged payloads name
 
 <process>
 
+Runtime label: Show `gpd:` as native labels; keep local CLI `gpd ...` unchanged.
+
 <step name="initialize">
 Load the shared resume bootstrap stage. `gpd:resume-work` is the guided runtime path, `gpd resume` is the public local read-only summary, `gpd resume --recent` is the cross-project discovery surface, and `gpd --raw resume` is the raw local view:
 
@@ -505,24 +507,21 @@ Based on user selection, route to appropriate workflow:
   </step>
 
 <step name="update_continuation">
-Before proceeding, refresh canonical continuation via paste-safe CLI examples:
+Refresh canonical continuation only after the selected route, phase, and handoff file are known. Do not write a generic resume marker just because this workflow was opened.
 
-```bash
-# Keep pointer.
-gpd state record-session \
-  --stopped-at "Resumed, executing phase 3"
+Template only - do not run as-is:
 
-# Set pointer.
+```text
 gpd state record-session \
-  --stopped-at "Resumed, planning phase 3" \
-  --resume-file "GPD/phases/03-dispersion/.continue-here.md"
+  --stopped-at "<actual selected route and phase>" \
+  --resume-file "<actual project-relative handoff path>"
 
-# Clear pointer.
 gpd state record-session \
-  --stopped-at "Resumed; pointer cleared" \
+  --stopped-at "<actual selected route; pointer intentionally cleared>" \
   --resume-file none
 ```
 
+Use the second form only when the selected route intentionally clears the pointer. Never copy placeholder phase numbers, prose, or file paths into state.
 STATE.md should render the authoritative continuation update.
 </step>
 

@@ -23,6 +23,8 @@ A physics research project may contain derivations, code, data, notebooks, figur
 
 <process>
 
+Runtime label: Show `gpd:` as native labels; keep local CLI `gpd ...` unchanged.
+
 <step name="init_context" priority="first">
 Load research mapping context:
 
@@ -325,7 +327,7 @@ Search TODO/FIXME/HACK/XXX, issue trackers, commented-out code, notebooks with e
 "
 )
 
-**If any mapper agent fails to spawn or returns an error:** Continue with remaining agents. After all complete, report failed focus areas and offer retry or skip; do not abort the whole mapping operation for individual failures.
+**If any mapper agent fails to spawn or returns an error:** Finish remaining agents, but missing expected documents block completion unless the user explicitly accepts a partial map; default to retrying missing mapper slices.
 
 Continue to collect_confirmations.
 </step>
@@ -350,8 +352,6 @@ gpd_return:
 
 If an agent reports `gpd_return.status: completed`, treat the handoff as provisional until every expected artifact exists on disk and the same paths appear in `gpd_return.files_written`.
 
-If any agent failed, note the failure and continue with successful documents.
-
 Continue to verify_output.
 </step>
 
@@ -368,9 +368,11 @@ wc -l "$RESEARCH_MAP_DIR_ABS"/*.md
 - All 7 documents exist
 - No empty documents (each should have >20 lines)
 
-If any documents missing or empty, note which agents may have failed.
+If any documents are missing or empty, stop before secret scan and commit unless the user explicitly chooses partial mode. Say `Research project mapping is partial, not complete.`, list missing docs/focus, ask `retry` or `accept partial map`, and make `gpd:map-research [missing focus]` the primary `## > Next Up`.
 
-Continue to scan_for_secrets.
+`retry` reruns missing focus areas. `accept partial map` sets `MAP_STATUS=partial`. Never call partial output complete or make `gpd:new-project` the primary next step. If all documents exist and are non-empty, set `MAP_STATUS=complete`.
+
+After complete verification or explicit partial-map acceptance, continue to scan_for_secrets.
 </step>
 
 <step name="scan_for_secrets">
@@ -430,7 +432,9 @@ Present completion summary and next steps.
 wc -l "$RESEARCH_MAP_DIR_ABS"/*.md
 ```
 
-**Output format:**
+**If `MAP_STATUS=partial`, output `Research project mapping partial.`, list missing documents, and end with `## > Next Up` primary `gpd:map-research [missing focus]`. Do not print `Research project mapping complete.` or make `gpd:new-project` primary. End workflow after the partial summary.
+
+**If `MAP_STATUS=complete`, use this output format:**
 
 ```
 Research project mapping complete.

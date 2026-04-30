@@ -26,6 +26,8 @@ Then explain the two places beginners will see GPD commands:
 - the normal terminal, where you install GPD and run setup / status commands
 - the runtime, where you use the GPD command prefix provided for that runtime
 
+Runtime label: Show `gpd:` as native labels; keep local CLI `gpd ...` unchanged.
+
 When you first use an official GPD term such as `runtime`, `read-only`, or
 `resume-work`, explain it in one short plain-English phrase.
 

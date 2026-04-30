@@ -24,6 +24,7 @@ from gpd.adapters.install_utils import (
     build_runtime_install_repair_command,
 )
 from gpd.adapters.runtime_catalog import (
+    get_runtime_descriptor,
     get_shared_install_metadata,
     normalize_runtime_name,
     resolve_global_config_dir_candidates,
@@ -725,6 +726,20 @@ def _untrusted_manifest_metadata_error_message(
     )
 
 
+def _runtime_config_env_names(runtime: str) -> tuple[str, ...]:
+    """Return runtime config env vars that should point at the bridge target."""
+    try:
+        descriptor = get_runtime_descriptor(runtime)
+    except KeyError:
+        return ()
+    global_config = descriptor.global_config
+    return tuple(
+        env_var
+        for env_var in (global_config.env_var, global_config.env_dir_var)
+        if isinstance(env_var, str) and env_var
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     """Validate the install contract, then dispatch into ``gpd.cli``."""
     raw_argv = list(sys.argv[1:] if argv is None else argv)
@@ -815,8 +830,12 @@ def main(argv: list[str] | None = None) -> int:
 
     prior_active_runtime = os.environ.get(ENV_GPD_ACTIVE_RUNTIME)
     prior_disable_checkout_reexec = os.environ.get(ENV_GPD_DISABLE_CHECKOUT_REEXEC)
+    runtime_config_env_names = _runtime_config_env_names(adapter.runtime_name)
+    prior_runtime_config_env = {name: os.environ.get(name) for name in runtime_config_env_names}
     os.environ[ENV_GPD_ACTIVE_RUNTIME] = adapter.runtime_name
     os.environ[ENV_GPD_DISABLE_CHECKOUT_REEXEC] = "1"
+    for env_name in runtime_config_env_names:
+        os.environ[env_name] = str(config_dir)
 
     from gpd.cli import entrypoint
 
@@ -834,6 +853,11 @@ def main(argv: list[str] | None = None) -> int:
             os.environ.pop(ENV_GPD_DISABLE_CHECKOUT_REEXEC, None)
         else:
             os.environ[ENV_GPD_DISABLE_CHECKOUT_REEXEC] = prior_disable_checkout_reexec
+        for env_name, prior_value in prior_runtime_config_env.items():
+            if prior_value is None:
+                os.environ.pop(env_name, None)
+            else:
+                os.environ[env_name] = prior_value
 
     if result is None:
         return 0

@@ -7,6 +7,7 @@ import os
 import re
 import shlex
 import shutil
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -18,9 +19,11 @@ from gpd.adapters.gemini import (
     _convert_frontmatter_to_gemini,
     _convert_gemini_tool_name,
     _convert_to_gemini_toml,
+    _gemini_policy_command_prefixes,
     _inject_gemini_command_runtime_note,
     _render_gemini_command_prompt,
     _render_gemini_policy_toml,
+    _render_gemini_shell_allowlist,
     _rewrite_gemini_shell_workflow_guidance,
     _rewrite_gpd_cli_invocations,
 )
@@ -448,7 +451,23 @@ class TestGeminiCommandRuntimeNotes:
         assert "enforced shell-prefix allowlist" in result
         assert f"`{bridge_command}`" in result
         assert "`git init`" in result
+        assert "`mkdir -p GPD`" in result
+        assert "PROJECT_CONTRACT_JSON" not in result
+        assert "printf '%s\\n'" not in result
+        assert "If `run_shell_command` is denied by policy, stop and report the policy block" in result
         assert f"{bridge_command} status" in result
+
+    def test_rendered_shell_allowlist_matches_policy_prefixes(self) -> None:
+        bridge_command = "/runtime/gpd-cli"
+        rendered_allowlist = _render_gemini_shell_allowlist(bridge_command)
+        policy_prefixes = _gemini_policy_command_prefixes(bridge_command)
+        parsed_policy = tomllib.loads(_render_gemini_policy_toml(bridge_command))
+
+        assert tuple(parsed_policy["rule"][0]["commandPrefix"]) == policy_prefixes
+        for prefix in policy_prefixes:
+            assert f"`{prefix}`" in rendered_allowlist
+        assert "PROJECT_CONTRACT_JSON" not in rendered_allowlist
+        assert "printf '%s\\n'" not in rendered_allowlist
 
 
 class TestInstall:
@@ -913,12 +932,15 @@ class TestInstall:
         assert 'toolName = "run_shell_command"' in policy
         assert 'modes = ["autoEdit"]' in policy
         assert "allow_redirection = true" in policy
-        import tomllib
 
         parsed_policy = tomllib.loads(policy)
         bridge = expected_gemini_bridge(target)
-        assert bridge in parsed_policy["rule"][0]["commandPrefix"]
+        policy_prefixes = parsed_policy["rule"][0]["commandPrefix"]
+        assert bridge in policy_prefixes
+        assert not any("PROJECT_CONTRACT_JSON" in prefix for prefix in policy_prefixes)
+        assert not any(prefix.startswith("printf") for prefix in policy_prefixes)
         assert '"git init"' in policy
+        assert '"mkdir -p GPD"' in policy
         assert "GPD/research" not in policy
 
     def test_install_surfaces_shell_prefix_allowlist_in_model_facing_content(
@@ -941,7 +963,8 @@ class TestInstall:
         assert "`git init`" in command
         assert "`mkdir -p GPD`" in command
         assert "`mkdir -p GPD/research`" not in command
-        assert "`printf '%s\\n' \"$PROJECT_CONTRACT_JSON\"`" in command
+        assert "PROJECT_CONTRACT_JSON" not in command
+        assert "printf '%s\\n'" not in command
 
     def test_install_preserves_existing_policy_paths_and_mcp_trust_choice(
         self,
@@ -1064,6 +1087,8 @@ class TestInstall:
         assert ' gpd commit "' not in workflow
         assert f"{expected_bridge} --raw validate project-contract {_GEMINI_APPROVED_CONTRACT_PATH}" in command
         assert f"{expected_bridge} state set-project-contract {_GEMINI_APPROVED_CONTRACT_PATH}" in command
+        assert "PROJECT_CONTRACT_JSON" not in command
+        assert "printf '%s\\n'" not in command
         assert "PROJECT_CONTRACT_JSON" not in workflow
         assert "PROJECT_CONTRACT_JSON" not in state_schema
         assert "PRE_CHECK=$(" not in workflow
@@ -1785,3 +1810,5 @@ class TestPolicyTomlWindowsPath:
         prefixes = parsed["rule"][0]["commandPrefix"]
         assert any("python" in p for p in prefixes)
         assert any("git init" in p for p in prefixes)
+        assert all("PROJECT_CONTRACT_JSON" not in p for p in prefixes)
+        assert all(not p.startswith("printf") for p in prefixes)

@@ -92,6 +92,26 @@ After your first successful start or later, use `/gpd:settings` to review
 autonomy, workflow defaults, and model-cost posture. Use `/gpd:set-tier-models`
 when you only want to pin concrete `tier-1`, `tier-2`, and `tier-3` model ids.
 
+## Readiness before unattended runs
+
+After `/gpd:settings` changes autonomy, or before an overnight run, check the
+active runtime from your normal terminal:
+
+```bash
+gpd validate unattended-readiness --runtime claude-code --autonomy supervised
+```
+
+Use the autonomy mode you selected if it is not `supervised`. If the verdict is
+`not-ready`, apply the runtime permission update and check again:
+
+```bash
+gpd permissions sync --runtime claude-code --autonomy supervised
+gpd validate unattended-readiness --runtime claude-code --autonomy supervised
+```
+
+If the verdict is `relaunch-required`, exit Claude Code and relaunch `claude`
+from this project folder before treating unattended use as ready.
+
 ## What success looks like
 
 - `claude --version` prints a version.

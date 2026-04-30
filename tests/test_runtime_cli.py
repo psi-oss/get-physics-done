@@ -27,6 +27,9 @@ from tests.runtime_install_helpers import seed_complete_runtime_install
 
 _RUNTIME_DESCRIPTORS = tuple(iter_runtime_descriptors())
 _RUNTIME_NAMES = tuple(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS)
+_SLASH_RUNTIME_DESCRIPTORS = tuple(
+    descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.validated_command_surface.endswith("_slash_command")
+)
 _SHARED_INSTALL = get_shared_install_metadata()
 MANIFEST_NAME = _SHARED_INSTALL.manifest_name
 BOOTSTRAP_COMMAND = _SHARED_INSTALL.bootstrap_command
@@ -819,6 +822,9 @@ def test_runtime_cli_dispatches_with_runtime_pin(monkeypatch, tmp_path: Path, de
         observed["argv"] = list(sys.argv)
         observed["runtime"] = os.environ.get(ENV_GPD_ACTIVE_RUNTIME)
         observed["disable_reexec"] = os.environ.get(ENV_GPD_DISABLE_CHECKOUT_REEXEC)
+        config_env_name = descriptor.global_config.env_var or descriptor.global_config.env_dir_var
+        if config_env_name:
+            observed["config_env"] = os.environ.get(config_env_name)
         return 0
 
     monkeypatch.setattr("gpd.cli.entrypoint", fake_entrypoint)
@@ -840,6 +846,48 @@ def test_runtime_cli_dispatches_with_runtime_pin(monkeypatch, tmp_path: Path, de
     assert observed["argv"] == ["gpd", "state", "load"]
     assert observed["runtime"] == descriptor.runtime_name
     assert observed["disable_reexec"] == "1"
+    if descriptor.global_config.env_var or descriptor.global_config.env_dir_var:
+        assert observed["config_env"] == str(config_dir)
+
+
+@pytest.mark.parametrize("descriptor", _SLASH_RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_bridge_pins_raw_help_to_target_runtime_surface(
+    monkeypatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    descriptor,
+) -> None:
+    adapter = get_adapter(descriptor.runtime_name)
+    config_dir = tmp_path / adapter.config_dir_name
+    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            [
+                "--runtime",
+                descriptor.runtime_name,
+                "--config-dir",
+                f"./{adapter.config_dir_name}",
+                "--install-scope",
+                "local",
+                "--raw",
+                "help",
+                "--command",
+                "progress",
+                "--minimal",
+            ]
+        )
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 0, captured.err
+    payload = json.loads(captured.out)
+    assert payload["validated_surface"] == descriptor.validated_command_surface
+    assert payload["public_runtime_command_prefix"] == descriptor.public_command_surface_prefix
+    assert payload["command_context"]["validated_surface"] == descriptor.validated_command_surface
+    assert payload["command_context"]["public_runtime_command_prefix"] == descriptor.public_command_surface_prefix
 
 
 @pytest.mark.parametrize(

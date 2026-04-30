@@ -88,6 +88,27 @@ After your first successful start or later, use `/gpd:settings` to review
 autonomy, workflow defaults, and model-cost posture. Use `/gpd:set-tier-models`
 when you only want to pin concrete `tier-1`, `tier-2`, and `tier-3` model ids.
 
+## Readiness before unattended runs
+
+After `/gpd:settings` changes autonomy, or before an overnight run, check the
+active runtime from your normal terminal:
+
+```bash
+gpd validate unattended-readiness --runtime gemini --autonomy supervised
+```
+
+Use the autonomy mode you selected if it is not `supervised`. If the verdict is
+`not-ready`, apply the runtime permission update and check again:
+
+```bash
+gpd permissions sync --runtime gemini --autonomy supervised
+gpd validate unattended-readiness --runtime gemini --autonomy supervised
+```
+
+If the verdict is `relaunch-required`, exit Gemini CLI and relaunch through the
+GPD-managed launcher wrapper shown by the command output before treating
+unattended use as ready.
+
 ## 5) What success looks like
 
 - `gemini --help` works.

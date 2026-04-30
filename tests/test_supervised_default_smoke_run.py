@@ -27,7 +27,7 @@ def _section_from_last_marker(text: str, marker: str) -> str:
 def test_new_project_emits_shallow_roadmap_and_standard_next_up_order() -> None:
     """gpd:new-project must (a) offer shallow-mode where Phase 1 is detailed
     and Phases 2+ are stubs, and (b) in standard mode prioritize
-    ``gpd:plan-phase 1`` over ``gpd:discuss-phase 1`` in the Next-Up block."""
+    ``gpd:discuss-phase 1`` over ``gpd:plan-phase 1`` in the Next-Up block."""
     new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
 
     assert "<shallow_mode>true</shallow_mode>" in new_project
@@ -35,4 +35,4 @@ def test_new_project_emits_shallow_roadmap_and_standard_next_up_order() -> None:
     standard_next_up = _section_from_last_marker(new_project, "## > Next Up")
     plan_idx = standard_next_up.index("`gpd:plan-phase 1`")
     discuss_idx = standard_next_up.index("`gpd:discuss-phase 1`")
-    assert plan_idx < discuss_idx
+    assert discuss_idx < plan_idx

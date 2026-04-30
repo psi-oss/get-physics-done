@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 import pytest
 
+import gpd.adapters.gemini as gemini_module
 from gpd.adapters.install_utils import (
+    DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES,
     build_runtime_cli_bridge_command,
     expand_at_includes,
     project_markdown_for_runtime,
@@ -144,6 +147,32 @@ def _project_fixture_command(content: str, runtime: str, target_dir: Path) -> st
         workflow_target_dir=target_dir,
         command_name="projection-probe",
     )
+
+
+def _shell_fence_bodies(text: str) -> tuple[str, ...]:
+    bodies: list[str] = []
+    lines = text.splitlines()
+    index = 0
+    while index < len(lines):
+        stripped = lines[index].lstrip()
+        fence = stripped[:3]
+        if fence in {"```", "~~~"} and stripped[3:].strip().lower() in DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES:
+            index += 1
+            body: list[str] = []
+            while index < len(lines) and not lines[index].lstrip().startswith(fence):
+                body.append(lines[index])
+                index += 1
+            bodies.append("\n".join(body))
+        index += 1
+    return tuple(bodies)
+
+
+def _first_shell_command(body: str) -> str | None:
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            return stripped
+    return None
 
 
 def _assert_fragments_visible(text: str, fragments: tuple[str, ...], *, label: str) -> None:
@@ -304,6 +333,63 @@ def test_gemini_projected_command_surface_matches_install_runtime_rewrites(tmp_p
     assert f"{bridge} --raw init progress --include state,config --no-project-reentry" in projected
     assert "INIT=$(gpd --raw init progress --include state,config)" not in projected
     assert 'echo "$INIT"' not in projected
+
+
+def test_gemini_projected_shell_allowlist_matches_policy_prefixes(tmp_path: Path) -> None:
+    target_dir = tmp_path / ".gemini"
+    bridge = _bridge_for_projection("gemini", target_dir)
+    source = (
+        "---\n"
+        "name: gpd:projection-probe\n"
+        "description: Projection probe\n"
+        "allowed-tools:\n"
+        "  - shell\n"
+        "---\n"
+        "Runnable contract persistence must be file-backed in Gemini:\n"
+        "\n"
+        "```bash\n"
+        "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\" | gpd --raw validate project-contract - --mode approved\n"
+        "```\n"
+        "\n"
+        "```bash\n"
+        "git init\n"
+        "```\n"
+        "\n"
+        "```bash\n"
+        "mkdir -p GPD\n"
+        "```\n"
+        "\n"
+        "Non-runnable contract-variable shorthand, for explanation only:\n"
+        "\n"
+        "```text\n"
+        "PROJECT_CONTRACT_JSON={...}\n"
+        "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\"\n"
+        "```\n"
+    )
+
+    projected = _project_fixture_command(source, "gemini", target_dir)
+    policy_prefixes = tuple(
+        tomllib.loads(gemini_module._render_gemini_policy_toml(bridge))["rule"][0]["commandPrefix"]
+    )
+
+    assert policy_prefixes == gemini_module._gemini_policy_command_prefixes(bridge)
+    for prefix in policy_prefixes:
+        assert f"  - `{prefix}`" in projected
+    assert all("PROJECT_CONTRACT_JSON" not in prefix for prefix in policy_prefixes)
+    assert all(not prefix.startswith("printf") for prefix in policy_prefixes)
+
+    shell_bodies = _shell_fence_bodies(projected)
+    assert shell_bodies
+    first_commands = tuple(command for body in shell_bodies if (command := _first_shell_command(body)))
+    assert first_commands == (
+        f"{bridge} --raw validate project-contract GPD/.approved-project-contract.json --mode approved",
+        "git init",
+        "mkdir -p GPD",
+    )
+    assert all(command.startswith(policy_prefixes) for command in first_commands)
+    assert "PROJECT_CONTRACT_JSON" not in "\n".join(shell_bodies)
+    assert "printf '%s\\n'" not in "\n".join(shell_bodies)
+    assert "```text\nPROJECT_CONTRACT_JSON={...}" in projected
 
 
 @pytest.mark.parametrize("runtime", ("claude-code", "opencode"))

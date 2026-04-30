@@ -24,7 +24,9 @@ def test_export_logs_wrapper_surfaces_passthrough_filters() -> None:
     assert "local-only CLI passthrough filters `--command`, `--phase`, and `--category`" in text
     assert "validates the requested format before creating directories" in text
     assert "empty_export: true" in text
-    assert 'gpd --raw observe export $ARGUMENTS' in text
+    assert "Never pass raw `$ARGUMENTS` to `observe export`" in text
+    assert 'gpd --raw observe export $ARGUMENTS' not in text
+    assert "$EXPORT_ARGS" not in text
 
 
 def test_export_workflow_makes_commit_opt_in() -> None:
@@ -44,8 +46,10 @@ def test_export_logs_workflow_parses_and_forwards_passthrough_filters() -> None:
     for flag in ("--command <label>", "--phase <phase>", "--category <name>"):
         assert flag in text
 
-    assert '--command $COMMAND' in text
-    assert '--phase $PHASE' in text
-    assert '--category $CATEGORY' in text
+    assert '--command "$COMMAND"' in text
+    assert '--phase "$PHASE"' in text
+    assert '--category "$CATEGORY"' in text
+    assert 'gpd --raw observe export $ARGUMENTS' not in text
+    assert "$EXPORT_ARGS" not in text
     assert "validates the requested format before creating output directories" in text
     assert "empty_export" in text

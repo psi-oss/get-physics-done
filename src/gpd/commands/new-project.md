@@ -36,7 +36,7 @@ If no project config exists yet, start with physics questioning, surface a prese
 
 **Minimal mode creates only the core startup set:** `GPD/PROJECT.md`, `GPD/config.json`, `GPD/REQUIREMENTS.md`, `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/state.json` with the approved `project_contract`. It does not promise `GPD/literature/` or `GPD/CONVENTIONS.md`.
 
-**After this command:** Run `gpd:discuss-phase 1` to clarify the first phase before planning.
+**After this command:** Run `gpd:discuss-phase 1`; show native runtime label.
 </objective>
 
 <execution_context>
