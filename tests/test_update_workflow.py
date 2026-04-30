@@ -45,6 +45,7 @@ def test_update_workflow_uses_current_runtime_agnostic_contract() -> None:
     assert "{GPD_INSTALL_SCOPE_FLAG}" in content
     assert "{GPD_UPDATE_COMMAND}" in content
     assert "{GPD_PATCH_META}" in content
+    assert "{GPD_BOOTSTRAP_COMMAND}" in content
     assert "{GPD_RELEASE_LATEST_URL}" in content
     assert "{GPD_RELEASES_API_URL}" in content
     assert "{GPD_RELEASES_PAGE_URL}" in content
@@ -80,10 +81,20 @@ def test_update_workflow_executes_assigned_update_command_without_literal_placeh
 
     assert shell_blocks
     assert all("<UPDATE_COMMAND>" not in block for block in shell_blocks)
-    assert "${UPDATE_COMMAND:?ERROR:" in run_update_block
+    assert "UPDATE_COMMAND is empty; this install is missing trusted update provenance" in run_update_block
+    assert "{GPD_BOOTSTRAP_COMMAND} install <runtime>" in run_update_block
     assert 'sh -c "$UPDATE_COMMAND"' in run_update_block
     assert '"$UPDATE_COMMAND"' in run_update_block
     assert "eval " not in run_update_block
+
+
+def test_update_workflow_empty_update_command_has_fail_closed_repair_guidance() -> None:
+    content = (GPD_ROOT / "specs" / "workflows" / "update.md").read_text(encoding="utf-8")
+
+    assert "line 3 is empty, do not run a generic update command" in content
+    assert "install provenance is missing or legacy" in content
+    assert "`{GPD_BOOTSTRAP_COMMAND} install <runtime> <line 2> --target-dir <line 4>`" in content
+    assert "If line 3 is empty, use the install-provenance repair guidance from step 1 instead." in content
 
 
 def test_reapply_patches_workflow_uses_runtime_config_placeholders() -> None:

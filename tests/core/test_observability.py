@@ -2374,3 +2374,69 @@ def test_export_logs_writes_filtered_json_exports(tmp_path: Path) -> None:
         }
     ]
     assert traces_payload[0]["summary"] == "trace entry"
+
+
+def test_export_logs_rejects_invalid_format_before_creating_output_dir(tmp_path: Path) -> None:
+    project = _bootstrap_project(tmp_path)
+    output_dir = project / "exports" / "logs"
+
+    from gpd.core.observability import export_logs
+
+    result = export_logs(project, output_dir=str(output_dir), format="xml")
+
+    assert result.exported is False
+    assert result.files_written == []
+    assert "Unsupported format" in (result.reason or "")
+    assert not output_dir.exists()
+
+
+def test_export_logs_refuses_no_session_export_without_creating_output_dir(tmp_path: Path) -> None:
+    project = _bootstrap_project(tmp_path)
+    output_dir = project / "exports" / "logs"
+
+    from gpd.core.observability import export_logs
+
+    result = export_logs(project, output_dir=str(output_dir), format="jsonl")
+
+    assert result.exported is False
+    assert result.files_written == []
+    assert "No observability sessions found" in (result.reason or "")
+    assert not output_dir.exists()
+
+
+def test_export_logs_labels_filtered_empty_exports(tmp_path: Path) -> None:
+    project = _bootstrap_project(tmp_path)
+    sessions_dir = project / "GPD" / "observability" / "sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    (sessions_dir / "session-filter-source.jsonl").write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-03-10T00:00:00+00:00",
+                "event_id": "evt-1",
+                "session_id": "session-filter-source",
+                "category": "session",
+                "name": "lifecycle",
+                "action": "start",
+                "status": "active",
+                "command": "execute-phase",
+                "data": {"cwd": str(project), "source": "cli", "pid": 100, "metadata": {}},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    from gpd.core.observability import export_logs
+
+    output_dir = project / "exports" / "logs"
+    result = export_logs(project, output_dir=str(output_dir), command="missing-command", format="jsonl")
+
+    assert result.exported is True
+    assert result.empty_export is True
+    assert "No matching sessions" in (result.reason or "")
+    assert result.sessions_exported == 0
+    assert result.events_exported == 0
+    assert result.traces_exported == 0
+    assert len(result.files_written) == 2
+    for exported in result.files_written:
+        assert Path(exported).read_text(encoding="utf-8") == ""

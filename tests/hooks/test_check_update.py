@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
 from gpd.hooks.check_update import (
+    UNKNOWN_LATEST_UPDATE_CHECK_TTL_SECONDS,
     UPDATE_CHECK_TTL_SECONDS,
     _do_check,
     _is_older_than,
@@ -388,6 +389,51 @@ class TestMainThrottle:
         cache_dir.mkdir(parents=True)
         cache_file = cache_dir / "gpd-update-check.json"
         cache_file.write_text(json.dumps({"checked": int(time.time()), "update_available": False}), encoding="utf-8")
+
+        with (
+            patch(
+                "gpd.hooks.runtime_detect.get_update_cache_candidates",
+                return_value=[_cache_candidate(cache_file)],
+            ),
+            patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
+            patch("subprocess.Popen") as mock_popen,
+        ):
+            main()
+
+        mock_popen.assert_not_called()
+
+    def test_unknown_latest_cache_uses_short_retry_ttl(self, tmp_path: Path) -> None:
+        """Unknown latest-version results retry sooner than normal no-update caches."""
+        cache_dir = tmp_path / ".gpd" / "cache"
+        cache_dir.mkdir(parents=True)
+        cache_file = cache_dir / "gpd-update-check.json"
+        checked = int(time.time()) - UNKNOWN_LATEST_UPDATE_CHECK_TTL_SECONDS - 1
+        cache_file.write_text(
+            json.dumps({"checked": checked, "update_available": False, "latest": "unknown"}),
+            encoding="utf-8",
+        )
+
+        with (
+            patch(
+                "gpd.hooks.runtime_detect.get_update_cache_candidates",
+                return_value=[_cache_candidate(cache_file)],
+            ),
+            patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
+            patch("subprocess.Popen") as mock_popen,
+        ):
+            main()
+
+        mock_popen.assert_called_once()
+
+    def test_fresh_unknown_latest_cache_still_throttles_briefly(self, tmp_path: Path) -> None:
+        """Unknown latest-version results do not create an immediate spawn loop."""
+        cache_dir = tmp_path / ".gpd" / "cache"
+        cache_dir.mkdir(parents=True)
+        cache_file = cache_dir / "gpd-update-check.json"
+        cache_file.write_text(
+            json.dumps({"checked": int(time.time()), "update_available": False, "latest": "unknown"}),
+            encoding="utf-8",
+        )
 
         with (
             patch(

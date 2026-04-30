@@ -1166,7 +1166,7 @@ class TestCheckUpdateHook:
         ):
             assert _check_update() == ""
 
-    def test_home_update_cache_falls_back_to_runtime_neutral_update_command(self, tmp_path: Path) -> None:
+    def test_home_update_cache_without_live_install_emits_no_update_command(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
         gpd_cache = home / ".gpd" / "cache"
         gpd_cache.mkdir(parents=True)
@@ -1180,27 +1180,34 @@ class TestCheckUpdateHook:
         ):
             result = _check_update()
 
-        assert update_command_for_runtime("unknown") in result
-        assert "gpd-update" not in result
+        assert result == ""
 
-    def test_home_update_cache_resolves_known_runtime_scope_for_bootstrap_update_command(self, tmp_path: Path) -> None:
-        """Known runtimes should still resolve scope before rendering the bootstrap command."""
+    def test_home_update_cache_uses_trusted_live_install_command(self, tmp_path: Path) -> None:
+        """Neutral caches may use a trusted live install, but not a generic fallback."""
         home = tmp_path / "home"
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        live_runtime_dir = home / ".claude"
+        _mark_complete_install(live_runtime_dir, runtime="claude-code", install_scope="global")
         gpd_cache = home / ".gpd" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
 
         with (
             patch.dict(os.environ, {"GPD_DATA_DIR": ""}),
-            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=workspace),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
             patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="claude-code"),
-            patch("gpd.hooks.runtime_detect.detect_install_scope") as mock_scope,
         ):
             result = _check_update()
 
-        mock_scope.assert_called_once_with("claude-code", cwd=None, home=home)
-        assert result != ""
+        expected = _repair_command(
+            "claude-code",
+            install_scope="global",
+            target_dir=live_runtime_dir,
+            explicit_target=False,
+        )
+        assert expected in result
 
 
 # ─── main() integration ───────────────────────────────────────────────────

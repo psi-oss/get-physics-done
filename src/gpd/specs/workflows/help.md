@@ -97,7 +97,7 @@ Use the path that matches your current situation:
 3. `gpd:resume-work` - Continue inside the reopened project's canonical state
 4. `gpd:progress` - See the broader project snapshot
 5. `gpd:suggest-next` - Get the fastest next action
-6. `gpd observe execution` - Watch progress / waiting state, conservative `possibly stalled` wording, and the next read-only checks from your normal terminal
+6. `gpd observe execution` - Read-only progress / waiting state snapshot, conservative `possibly stalled` wording, and the next read-only checks from your normal terminal
 7. `gpd cost` - Review recorded machine-local usage / cost from your normal terminal
 
 **Post-startup settings**
@@ -189,7 +189,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:check-todos [area]` - Review pending todos and pick one
 - `gpd:decisions [phase or keyword]` - Search the decision log
 - `gpd:graph` - Visualize phase dependencies
-- `gpd:export [--format html|latex|zip|all]` - Export project artifacts
+- `gpd:export [--format html|latex|zip|all] [--commit]` - Export project artifacts; generated text exports are committed only with explicit `--commit`
 - `gpd:export-logs [--format jsonl|json|markdown] [--session <id>] [--last N] [--command <label>] [--phase <phase>] [--category <name>] [--no-traces] [--output-dir <path>]` - Export observability logs
 - `gpd:error-patterns [category]` - Review common project-specific errors
 - `gpd:record-backtrack [--reverted-commit=<sha>] [--trigger=<text>] [--phase=<NN-slug>] [description]` - Capture a backtrack event (what went wrong, what got reverted)
@@ -520,6 +520,7 @@ Check research status and intelligently route to next action.
 - Use `--brief` when returning and you only need orientation
 - Use `--reconcile` only on the runtime `gpd:progress` surface when state appears out of sync with disk artifacts
 - The local CLI `gpd progress` is a separate read-only renderer and uses `json|bar|table` instead of these runtime flags
+- Local observability checks stay split by side effect: `gpd observe execution`, `gpd observe sessions`, `gpd observe show`, and `gpd trace show` inspect only; `gpd observe event`, `gpd observe export`, and `gpd trace start|log|stop` write observability, export, or trace files.
 
 Usage: `gpd:progress`
 Usage: `gpd:progress --full` (detailed runtime view with all phase artifacts)
@@ -971,15 +972,17 @@ Usage: `gpd:graph`
 
 > **Note:** Wave dependency validation runs automatically when executing phases. To validate manually, use `gpd phase validate-waves <phase>` — checks depends_on targets, file overlap within waves, wave consistency, and circular dependencies.
 
-**`gpd:export [--format html|latex|zip|all]`**
+**`gpd:export [--format html|latex|zip|all] [--commit]`**
 Export research results to HTML, LaTeX, or ZIP package.
 
 - HTML: standalone page with MathJax rendering
 - LaTeX: document with proper equations and bibliography
 - ZIP: complete archive of all planning artifacts
+- Does not commit generated files by default; add `--commit` to opt in to committing generated HTML, LaTeX, and BibTeX exports
 
 Usage: `gpd:export --format html`
 Usage: `gpd:export --format all`
+Usage: `gpd:export --format latex --commit`
 
 **`gpd:export-logs [--format jsonl|json|markdown] [--session <id>] [--last N] [--command <label>] [--phase <phase>] [--category <name>] [--no-traces] [--output-dir <path>]`**
 Export observability sessions and optional traces to files for review, sharing, or archival.
@@ -988,6 +991,7 @@ Export observability sessions and optional traces to files for review, sharing, 
 - Writes filtered exports to `GPD/exports/logs/` or a custom directory
 - Supports JSONL, JSON, and markdown output
 - Supports passthrough filters `--command <label>`, `--phase <phase>`, and `--category <name>`
+- Validates the output format before creating directories; refuses to write if no observability sessions exist; labels filtered empty exports with `empty_export: true`
 - Useful when you need to share or inspect the recorded execution history outside the runtime
 
 Usage: `gpd:export-logs`

@@ -1,7 +1,7 @@
 ---
 name: gpd:export
 description: Export research results to HTML, LaTeX, or ZIP package
-argument-hint: "[--format html|latex|zip|all]"
+argument-hint: "[--format html|latex|zip|all] [--commit]"
 context_mode: project-required
 allowed-tools:
   - file_read
@@ -23,6 +23,7 @@ Export research results into shareable formats. Collects key results, equations,
 - `all`: Generate all formats
 
 Use this when sharing results with collaborators, preparing for publication, or archiving a milestone.
+
 </objective>
 
 <execution_context>
@@ -30,7 +31,7 @@ Use this when sharing results with collaborators, preparing for publication, or 
 </execution_context>
 
 <context>
-Format: $ARGUMENTS (optional -- if not provided, ask user)
+Format and commit intent: $ARGUMENTS (optional -- if not provided, ask user)
 
 @GPD/PROJECT.md
 @GPD/ROADMAP.md
@@ -39,9 +40,10 @@ Format: $ARGUMENTS (optional -- if not provided, ask user)
 
 <process>
 Execute the included export workflow end-to-end.
-The workflow owns project loading, format resolution, export generation, file writing, and reporting.
+The workflow owns loading, format resolution, generation, file writing, and reporting.
 Write files to `exports/`.
 Files written to exports/ are reported by the workflow.
+Do not commit generated exports unless `$ARGUMENTS` includes `--commit`.
 </process>
 
 <success_criteria>
@@ -49,4 +51,5 @@ Files written to exports/ are reported by the workflow.
 - [ ] Export workflow executed as the authority for export mechanics
 - [ ] Requested format from `$ARGUMENTS` handed to workflow-owned resolution
 - [ ] Workflow-owned output and reporting contract preserved
+- [ ] Text export commit skipped unless `--commit` was explicitly requested
 </success_criteria>

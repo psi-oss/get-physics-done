@@ -18,6 +18,8 @@ Reads session event streams from `GPD/observability/sessions/` and trace logs fr
 
 The local-only CLI passthrough filters `--command`, `--phase`, and `--category` are forwarded to the underlying export command; they only narrow what gets exported.
 
+The raw export validates the requested format before creating directories, refuses to write when no sessions exist, and labels filtered empty exports with `empty_export: true`.
+
 **Formats:**
 
 - `jsonl` (default): Raw JSONL — one JSON object per line, suitable for machine consumption or log-processing pipelines
@@ -74,6 +76,7 @@ gpd --raw observe export $ARGUMENTS
 ## Step 4: Report results
 
 Display the export summary: files written, event counts, and output location.
+If `empty_export: true`, state that the requested filters matched no sessions, events, or traces.
 </process>
 
 <success_criteria>
@@ -82,6 +85,7 @@ Display the export summary: files written, event counts, and output location.
 - [ ] Observability sessions discovered and read
 - [ ] Filters applied correctly (session, command, phase, last N)
 - [ ] Output files written in requested format
+- [ ] Empty filtered exports explicitly labeled when no content matched
 - [ ] Traces included unless --no-traces specified
 - [ ] File locations and counts reported to user
       </success_criteria>

@@ -111,7 +111,9 @@ def test_settings_workflow_surfaces_optional_usd_budget_guardrails_as_advisory_o
 
     assert "project_usd_budget" in settings_workflow
     assert "session_usd_budget" in settings_workflow
-    assert "Blank / `none` should clear the corresponding USD budget." in settings_workflow
+    assert "To clear a configured USD budget, use literal JSON `null`." in settings_workflow
+    assert "Do not advertise or pass `none` or an empty string as a clearing value." in settings_workflow
+    assert "Blank / `none` should clear the corresponding USD budget." not in settings_workflow
     assert "never stop work automatically" in settings_workflow
     assert "live budget enforcement" not in settings_workflow
 
@@ -177,8 +179,24 @@ def test_settings_workflow_writes_canonical_config_keys_through_cli() -> None:
     assert 'gpd config set execution.review_cadence "$SELECTED_REVIEW_CADENCE"' in update_step
     assert 'gpd config set git.branching_strategy "$SELECTED_BRANCHING_STRATEGY"' in update_step
     assert 'gpd config set model_overrides "$MODEL_OVERRIDES_JSON"' in update_step
+    assert 'gpd config set git.phase_branch_template "$SELECTED_PHASE_BRANCH_TEMPLATE"' not in update_step
+    assert 'gpd config set git.milestone_branch_template "$SELECTED_MILESTONE_BRANCH_TEMPLATE"' not in update_step
+    assert "Preserve `git.phase_branch_template` and `git.milestone_branch_template`" in update_step
     for stale_nested_key in ('"planning": {', '"workflow": {', '"execution": {', '"git": {'):
         assert stale_nested_key not in update_step
+
+
+def test_settings_update_config_selected_variables_are_collected_before_use() -> None:
+    settings_workflow = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
+    update_step = settings_workflow.split('<step name="update_config">', 1)[1].split("</step>", 1)[0]
+
+    selected_vars_used = set(re.findall(r"\$(SELECTED_[A-Z0-9_]+)\b", update_step))
+    selected_vars_collected = set(re.findall(r"- `(SELECTED_[A-Z0-9_]+)`", update_step))
+
+    assert selected_vars_used
+    assert selected_vars_used <= selected_vars_collected
+    assert "SELECTED_PHASE_BRANCH_TEMPLATE" not in selected_vars_used
+    assert "SELECTED_MILESTONE_BRANCH_TEMPLATE" not in selected_vars_used
 
 
 def test_settings_and_profile_docs_keep_supervised_dense_defaults_consistent() -> None:

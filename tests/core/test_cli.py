@@ -948,6 +948,38 @@ def test_observe_help_surfaces_read_only_execution_snapshot_command() -> None:
     assert "Show the current local execution status without modifying project state." in result.output
 
 
+def test_observe_and_trace_help_label_read_only_and_writing_subcommands() -> None:
+    observe_help = runner.invoke(app, ["observe", "--help"])
+    assert observe_help.exit_code == 0
+    observe_output = _normalize_cli_output(observe_help.output)
+    assert "event/export are the subcommands that write files" in observe_output
+
+    observe_event_help = runner.invoke(app, ["observe", "event", "--help"])
+    assert observe_event_help.exit_code == 0
+    assert "Record one local observability event (writes session logs)." in observe_event_help.output
+
+    observe_show_help = runner.invoke(app, ["observe", "show", "--help"])
+    assert observe_show_help.exit_code == 0
+    assert "without modifying project state" in _normalize_cli_output(observe_show_help.output)
+
+    trace_help = runner.invoke(app, ["trace", "--help"])
+    assert trace_help.exit_code == 0
+    trace_output = _normalize_cli_output(trace_help.output)
+    assert "show is read-only" in trace_output
+    assert "start/log/stop write trace state" in trace_output
+
+    trace_show_help = runner.invoke(app, ["trace", "show", "--help"])
+    assert trace_show_help.exit_code == 0
+    assert (
+        "Inspect trace events with optional filters without modifying project state."
+        in _normalize_cli_output(trace_show_help.output)
+    )
+
+    trace_stop_help = runner.invoke(app, ["trace", "stop", "--help"])
+    assert trace_stop_help.exit_code == 0
+    assert "writes trace and observability state" in _normalize_cli_output(trace_stop_help.output)
+
+
 def test_doctor_help_surfaces_runtime_readiness_mode() -> None:
     result = runner.invoke(app, ["doctor", "--help"])
     normalized_output = _normalize_cli_output(result.output)
@@ -991,6 +1023,19 @@ def test_permissions_sync_help_surfaces_guided_runtime_changes() -> None:
     assert "--runtime" in normalized_output
     assert "--autonomy" in normalized_output
     assert "--target-dir" in normalized_output
+
+
+def test_config_set_tier_models_help_surfaces_targeted_runtime_options() -> None:
+    result = runner.invoke(app, ["config", "set-tier-models", "--help"])
+    normalized_output = _normalize_cli_output(result.output)
+
+    assert result.exit_code == 0
+    assert "Update model_overrides for one runtime" in normalized_output
+    assert "--runtime" in normalized_output
+    assert "--tier-1" in normalized_output
+    assert "--tier-2" in normalized_output
+    assert "--tier-3" in normalized_output
+    assert "--clear" in normalized_output
 
 
 def test_active_runtime_settings_command_falls_back_to_runtime_neutral_reference(

@@ -558,3 +558,80 @@ def test_update_command_for_candidate_fails_closed_for_non_self_legacy_manifest(
         command = update_command_for_candidate(candidate, hook_file=__file__, cwd=workspace)
 
     assert command is None
+
+
+def test_update_command_for_candidate_does_not_synthesize_from_stale_runtime_cache(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    stale_cache = workspace / ".codex" / "cache" / "gpd-update-check.json"
+    stale_cache.parent.mkdir(parents=True)
+    candidate = SimpleNamespace(path=stale_cache, runtime="codex", scope="local")
+
+    with patch("gpd.hooks.install_context.detect_self_owned_install", return_value=None):
+        command = update_command_for_candidate(candidate, hook_file=__file__, cwd=workspace)
+
+    assert command is None
+
+
+def test_update_command_for_candidate_does_not_synthesize_from_neutral_cache_without_live_install(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    home = tmp_path / "home"
+    workspace.mkdir()
+    home.mkdir()
+    neutral_cache = home / ".gpd" / "cache" / "gpd-update-check.json"
+    candidate = SimpleNamespace(path=neutral_cache, runtime=None, scope=None)
+
+    with (
+        patch("gpd.hooks.install_context.detect_self_owned_install", return_value=None),
+        patch(
+            "gpd.hooks.install_context.resolve_hook_lookup_context",
+            return_value=SimpleNamespace(
+                lookup_cwd=workspace,
+                resolved_home=home,
+                active_runtime=None,
+                preferred_runtime=None,
+            ),
+        ),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
+    ):
+        command = update_command_for_candidate(candidate, hook_file=__file__, cwd=workspace)
+
+    assert command is None
+
+
+def test_update_command_for_candidate_uses_trusted_live_install_for_neutral_cache(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    home = tmp_path / "home"
+    workspace.mkdir()
+    home.mkdir()
+
+    adapter = get_adapter("codex")
+    global_runtime_dir = adapter.resolve_global_config_dir(home=home)
+    seed_complete_runtime_install(
+        global_runtime_dir,
+        runtime="codex",
+        install_scope="global",
+        home=home,
+        explicit_target=False,
+    )
+    neutral_cache = home / ".gpd" / "cache" / "gpd-update-check.json"
+    candidate = SimpleNamespace(path=neutral_cache, runtime=None, scope=None)
+
+    with (
+        patch("gpd.hooks.install_context.detect_self_owned_install", return_value=None),
+        patch(
+            "gpd.hooks.install_context.resolve_hook_lookup_context",
+            return_value=SimpleNamespace(
+                lookup_cwd=workspace,
+                resolved_home=home,
+                active_runtime="codex",
+                preferred_runtime="codex",
+            ),
+        ),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="codex"),
+    ):
+        command = update_command_for_candidate(candidate, hook_file=__file__, cwd=workspace)
+
+    assert command == _repair_command("codex", install_scope="global", target_dir=global_runtime_dir, explicit_target=False)

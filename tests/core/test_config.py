@@ -425,6 +425,19 @@ class TestLoadConfig:
         cfg = load_config(tmp_path)
         assert cfg.model_overrides == overrides
 
+    def test_model_overrides_preserve_runtime_native_model_strings(self, tmp_path: Path) -> None:
+        runtime_name = _RUNTIME_DESCRIPTORS[0].runtime_name
+        exact_model = "Provider/OpenAI:GPT-5[Reasoning=High]"
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            json.dumps({"model_overrides": {runtime_name: {"tier-1": exact_model}}}),
+            encoding="utf-8",
+        )
+
+        cfg = load_config(tmp_path)
+
+        assert cfg.model_overrides == {runtime_name: {"tier-1": exact_model}}
+
     def test_invalid_model_overrides_runtime_raises(self, tmp_path: Path):
         (tmp_path / "GPD").mkdir()
         (tmp_path / "GPD" / "config.json").write_text(

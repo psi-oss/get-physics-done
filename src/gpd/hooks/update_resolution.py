@@ -213,10 +213,20 @@ def update_command_for_candidate(
     from gpd.hooks.runtime_detect import (
         RUNTIME_UNKNOWN,
         detect_active_runtime_with_gpd_install,
-        detect_install_scope,
+        detect_runtime_install_target,
+        normalize_runtime_name,
         runtime_has_gpd_install,
-        update_command_for_runtime,
+        supported_runtime_names,
     )
+
+    def _trusted_live_install_command(runtime: object, *, lookup_cwd: Path | None, home: Path) -> str | None:
+        normalized_runtime = normalize_runtime_name(runtime if isinstance(runtime, str) else None)
+        if normalized_runtime not in supported_runtime_names():
+            return None
+        install_target = detect_runtime_install_target(normalized_runtime, cwd=lookup_cwd, home=home)
+        if install_target is None:
+            return None
+        return installed_update_command(install_target.config_dir)
 
     candidate_path = getattr(candidate, "path", None)
     candidate_config_dir = _candidate_config_dir(candidate_path)
@@ -226,6 +236,8 @@ def update_command_for_candidate(
             if not _manifest_matches_candidate(candidate, config_dir=candidate_config_dir):
                 return None
             return installed_update_command(candidate_config_dir)
+        if getattr(candidate, "runtime", None) is not None:
+            return None
 
     self_install = hook_layout.detect_self_owned_install(hook_file)
     if self_install is not None and candidate_path == self_install.cache_file:
@@ -235,16 +247,12 @@ def update_command_for_candidate(
     workspace_path = lookup.lookup_cwd
     scope_lookup_cwd = workspace_path if cwd is not None else None
     runtime = getattr(candidate, "runtime", None) or RUNTIME_UNKNOWN
-    scope = getattr(candidate, "scope", None)
     if runtime != RUNTIME_UNKNOWN and not runtime_has_gpd_install(
         runtime,
         cwd=workspace_path,
         home=lookup.resolved_home,
     ):
         runtime = RUNTIME_UNKNOWN
-        scope = None
     if runtime == RUNTIME_UNKNOWN:
         runtime = detect_active_runtime_with_gpd_install(cwd=scope_lookup_cwd, home=lookup.resolved_home)
-    if scope is None and runtime != RUNTIME_UNKNOWN:
-        scope = detect_install_scope(runtime, cwd=scope_lookup_cwd, home=lookup.resolved_home)
-    return update_command_for_runtime(runtime, scope=scope)
+    return _trusted_live_install_command(runtime, lookup_cwd=scope_lookup_cwd, home=lookup.resolved_home)

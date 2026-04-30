@@ -34,7 +34,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from gpd.adapters.runtime_catalog import normalize_runtime_name
+from gpd.adapters.runtime_catalog import list_runtime_names, normalize_runtime_name
 from gpd.command_labels import canonical_command_label, parse_command_label, validated_public_command_prefix
 from gpd.core.artifact_text import (
     DIGEST_KNOWLEDGE_SOURCE_SUFFIXES,
@@ -4558,7 +4558,7 @@ def pattern_seed() -> None:
 # trace — JSONL execution tracing
 # ═══════════════════════════════════════════════════════════════════════════
 
-trace_app = typer.Typer(help="JSONL execution tracing for debugging and audit")
+trace_app = typer.Typer(help="Trace inspection and recording: show is read-only; start/log/stop write trace state")
 app.add_typer(trace_app, name="trace")
 
 
@@ -4567,7 +4567,7 @@ def trace_start(
     phase: str = typer.Argument(..., help="Phase number"),
     plan: str = typer.Argument(..., help="Plan name"),
 ) -> None:
-    """Start a new trace session."""
+    """Start a new trace session (writes trace state)."""
     from gpd.core.trace import trace_start
 
     _output(trace_start(_get_cwd(), phase, plan))
@@ -4578,7 +4578,7 @@ def trace_log(
     event: str = typer.Argument(..., help="Event type"),
     data: str | None = typer.Option(None, "--data", help="JSON event data"),
 ) -> None:
-    """Log an event to the active trace."""
+    """Record an event to the active trace (writes trace log)."""
     from gpd.core.trace import trace_log
 
     parsed_data = None
@@ -4592,7 +4592,7 @@ def trace_log(
 
 @trace_app.command("stop")
 def trace_stop() -> None:
-    """Stop the active trace session."""
+    """Stop the active trace session (writes trace and observability state)."""
     from gpd.core.trace import trace_stop
 
     _output(trace_stop(_get_cwd()))
@@ -4605,7 +4605,7 @@ def trace_show(
     event_type: str | None = typer.Option(None, "--type", help="Filter by event type"),
     last: int | None = typer.Option(None, "--last", help="Show last N events"),
 ) -> None:
-    """Show trace events with optional filters."""
+    """Inspect trace events with optional filters without modifying project state."""
     from gpd.core.trace import trace_show
 
     _output(trace_show(_get_cwd(), phase=phase, plan=plan, event_type=event_type, last=last))
@@ -4818,7 +4818,9 @@ def _render_observe_execution(result: ObserveExecutionResult) -> None:
         console.print("[dim]No live execution snapshot is currently recorded for this workspace.[/]")
 
 
-observe_app = typer.Typer(help="Inspect local observability sessions, live execution status, and events")
+observe_app = typer.Typer(
+    help="Inspect local observability; event/export are the subcommands that write files"
+)
 app.add_typer(observe_app, name="observe")
 
 
@@ -4838,7 +4840,7 @@ def observe_sessions(
     command: str | None = typer.Option(None, "--command", help="Filter by command label"),
     last: int | None = typer.Option(None, "--last", help="Show most recent N sessions"),
 ) -> None:
-    """List recorded local observability sessions."""
+    """List recorded local observability sessions without modifying project state."""
     _output(_filter_observability_sessions(_get_cwd(), status=status, command=command, last=last))
 
 
@@ -4854,7 +4856,7 @@ def observe_event(
     session: str | None = typer.Option(None, "--session", help="Explicit session id"),
     data: str | None = typer.Option(None, "--data", help="JSON event payload"),
 ) -> None:
-    """Append one local observability event."""
+    """Record one local observability event (writes session logs)."""
     parsed_data = None
     if data:
         try:
@@ -4892,7 +4894,7 @@ def observe_show(
     plan: str | None = typer.Option(None, "--plan", help="Filter by plan"),
     last: int | None = typer.Option(None, "--last", help="Show last N matching events"),
 ) -> None:
-    """Show local observability events with optional filters."""
+    """Inspect local observability events with optional filters without modifying project state."""
     _output(
         _filter_observability_events(
             _get_cwd(),
@@ -4920,7 +4922,7 @@ def observe_export(
     format: str = typer.Option("jsonl", "--format", "-f", help="Output format: jsonl, json, or markdown"),
     no_traces: bool = typer.Option(False, "--no-traces", help="Exclude execution traces from export"),
 ) -> None:
-    """Export session logs and traces to files."""
+    """Export session logs and traces to files (writes export files)."""
     from gpd.core.observability import export_logs
 
     resolved_output_dir = str(_resolve_cli_target_dir(output_dir)) if output_dir is not None else None
@@ -5991,6 +5993,7 @@ app.add_typer(config_app, name="config")
 
 _WOLFRAM_INTEGRATION_NAME = WOLFRAM_MANAGED_INTEGRATION.integration_id
 _INSTALL_RESULT_ADAPTER_KEY = "__gpd_install_adapter_instance__"
+_INSTALL_RESULT_ROLLBACK_KEY = "__gpd_install_rollback_snapshot__"
 
 
 def _integrations_config_path(cwd: Path) -> Path:
@@ -6480,13 +6483,36 @@ def config_get(
     _output({"key": key, "value": value, "found": True})
 
 
+_NULLABLE_CONFIG_VALUE_KEYS = frozenset({"project_usd_budget", "session_usd_budget"})
+_MODEL_OVERRIDE_TIERS = ("tier-1", "tier-2", "tier-3")
+
+
+def _parse_config_set_value(canonical_key: str | None, raw_value: str) -> object:
+    """Parse a CLI config value, including prompt-friendly nullable clears."""
+    if canonical_key in _NULLABLE_CONFIG_VALUE_KEYS and raw_value.strip().lower() in {"", "none"}:
+        return None
+    try:
+        return json.loads(raw_value)
+    except (json.JSONDecodeError, ValueError):
+        return raw_value
+
+
+def _normalize_tier_model_value(raw_value: str) -> str | None:
+    """Return a model id, or None when the tier should use the runtime default."""
+    stripped = raw_value.strip()
+    normalized_clear_token = " ".join(stripped.casefold().replace("-", " ").replace("_", " ").split())
+    if not stripped or normalized_clear_token in {"none", "runtime default"}:
+        return None
+    return stripped
+
+
 @config_app.command("set")
 def config_set(
     key: str = typer.Argument(..., help="Config key path (dot-separated)"),
     value: str = typer.Argument(..., help="Value to set"),
 ) -> None:
     """Set a configuration value (advanced local override)."""
-    from gpd.core.config import apply_config_update, effective_config_value, load_config
+    from gpd.core.config import apply_config_update, canonical_config_key, effective_config_value, load_config
     from gpd.core.constants import ProjectLayout
     from gpd.core.utils import atomic_write, file_lock
 
@@ -6504,10 +6530,7 @@ def config_set(
             _error(f"Cannot read config.json: {exc}")
         if not isinstance(raw, dict):
             _error("config.json must be a JSON object")
-        try:
-            parsed = json.loads(value)
-        except (json.JSONDecodeError, ValueError):
-            parsed = value
+        parsed = _parse_config_set_value(canonical_config_key(key), value)
         try:
             updated_config, canonical_key = apply_config_update(raw, key, parsed)
         except ConfigError as exc:
@@ -6521,14 +6544,111 @@ def config_set(
         result["guided_path"] = (
             f"Use `{_active_runtime_settings_command(cwd=project_cwd)}` inside the runtime for guided autonomy changes."
         )
-        result["runtime_permissions"] = _runtime_permissions_payload(
-            runtime=None,
-            autonomy=str(effective_value),
-            target_dir=None,
-            apply_sync=True,
-            strict=False,
-        )
+        result["runtime_permissions"] = None
     _output(result)
+
+
+@config_app.command("set-tier-models")
+def config_set_tier_models(
+    runtime: str = typer.Option(..., "--runtime", help="Runtime whose tier model overrides should be updated"),
+    tier_1: str | None = typer.Option(None, "--tier-1", help="Exact tier-1 model id; blank/none clears tier 1"),
+    tier_2: str | None = typer.Option(None, "--tier-2", help="Exact tier-2 model id; blank/none clears tier 2"),
+    tier_3: str | None = typer.Option(None, "--tier-3", help="Exact tier-3 model id; blank/none clears tier 3"),
+    clear: bool = typer.Option(False, "--clear", help="Clear all tier model overrides for the selected runtime"),
+) -> None:
+    """Update model_overrides for one runtime without touching other runtime maps."""
+    from gpd.core.config import apply_config_update, effective_config_value, effective_raw_config_value, load_config
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.utils import atomic_write, file_lock
+
+    runtime_name = normalize_runtime_name(runtime)
+    if runtime_name is None:
+        _error(f"Unknown runtime {runtime!r}. Supported runtimes: {', '.join(sorted(list_runtime_names()))}")
+
+    requested_tiers = {"tier-1": tier_1, "tier-2": tier_2, "tier-3": tier_3}
+    supplied_tiers = {tier: value for tier, value in requested_tiers.items() if value is not None}
+    if clear and supplied_tiers:
+        _error("Use either --clear or tier model options, not both.")
+    if not clear and not supplied_tiers:
+        _error("Provide at least one of --tier-1, --tier-2, --tier-3, or --clear.")
+
+    project_cwd = _config_project_scoped_cwd()
+    config_path = ProjectLayout(project_cwd).config_json
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    changed_tiers: list[str] = []
+    cleared_tiers: list[str] = []
+    with file_lock(config_path):
+        try:
+            raw = json.loads(config_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            raw = {}
+        except json.JSONDecodeError as e:
+            _error(f"Malformed config.json: {e}")
+        except OSError as exc:
+            _error(f"Cannot read config.json: {exc}")
+        if not isinstance(raw, dict):
+            _error("config.json must be a JSON object")
+
+        try:
+            _found, current_effective = effective_raw_config_value(raw, "model_overrides")
+        except ConfigError as exc:
+            _error(str(exc))
+        current_overrides = current_effective if isinstance(current_effective, dict) else {}
+        next_overrides: dict[str, dict[str, str]] = {
+            str(existing_runtime): dict(tier_map)
+            for existing_runtime, tier_map in current_overrides.items()
+            if isinstance(tier_map, dict)
+        }
+
+        if clear:
+            cleared_tiers = sorted(next_overrides.get(runtime_name, {}))
+            next_overrides.pop(runtime_name, None)
+        else:
+            runtime_overrides = dict(next_overrides.get(runtime_name, {}))
+            for tier in _MODEL_OVERRIDE_TIERS:
+                raw_model = requested_tiers[tier]
+                if raw_model is None:
+                    continue
+                model = _normalize_tier_model_value(raw_model)
+                if model is None:
+                    if tier in runtime_overrides:
+                        cleared_tiers.append(tier)
+                    runtime_overrides.pop(tier, None)
+                    continue
+                runtime_overrides[tier] = model
+                changed_tiers.append(tier)
+
+            if runtime_overrides:
+                next_overrides[runtime_name] = runtime_overrides
+            else:
+                next_overrides.pop(runtime_name, None)
+
+        try:
+            updated_config, canonical_key = apply_config_update(
+                raw,
+                "model_overrides",
+                next_overrides or None,
+            )
+        except ConfigError as exc:
+            _error(str(exc))
+        atomic_write(config_path, json.dumps(updated_config, indent=2) + "\n")
+
+    config = load_config(project_cwd)
+    _found, effective_value = effective_config_value(config, canonical_key)
+    runtime_model_overrides = None
+    if isinstance(effective_value, dict):
+        runtime_model_overrides = effective_value.get(runtime_name)
+    _output(
+        {
+            "runtime": runtime_name,
+            "updated": True,
+            "cleared": clear,
+            "changed_tiers": changed_tiers,
+            "cleared_tiers": cleared_tiers,
+            "model_overrides": effective_value,
+            "runtime_model_overrides": runtime_model_overrides,
+        }
+    )
 
 
 @config_app.command("ensure-section")
@@ -12789,6 +12909,9 @@ def _install_single_runtime(
     target_dir_override: str | None = None,
 ) -> dict[str, object]:
     """Install GPD for a single runtime. Returns install result dict."""
+    from contextlib import nullcontext
+
+    from gpd.adapters.base import INSTALL_ROLLBACK_RESULT_KEY
     from gpd.version import resolve_install_gpd_root
 
     adapter = _get_adapter_or_error(runtime_name, action="install")
@@ -12799,14 +12922,130 @@ def _install_single_runtime(
     else:
         dest = adapter.resolve_target_dir(is_global, _get_cwd())
 
-    result = adapter.install(
-        gpd_root,
-        dest,
-        is_global=is_global,
-        explicit_target=target_dir_override is not None,
-    )
+    defer_rollback = getattr(adapter, "defer_install_rollback_discard", None)
+    rollback_context = defer_rollback() if callable(defer_rollback) else nullcontext()
+    with rollback_context:
+        result = adapter.install(
+            gpd_root,
+            dest,
+            is_global=is_global,
+            explicit_target=target_dir_override is not None,
+        )
+    install_rollback = result.pop(INSTALL_ROLLBACK_RESULT_KEY, None)
     result[_INSTALL_RESULT_ADAPTER_KEY] = adapter
+    if install_rollback is not None:
+        result[_INSTALL_RESULT_ROLLBACK_KEY] = install_rollback
     return result
+
+
+def _install_repair_command(
+    runtime_name: str,
+    *,
+    target_dir: Path,
+    is_global: bool,
+    explicit_target: bool,
+) -> str:
+    """Return a deterministic repair command for a CLI install target."""
+    from gpd.adapters.install_utils import build_runtime_install_repair_command
+
+    return build_runtime_install_repair_command(
+        runtime_name,
+        install_scope="global" if is_global else "local",
+        target_dir=target_dir,
+        explicit_target=explicit_target,
+    )
+
+
+def _mark_install_incomplete_after_rollback_failure(
+    *,
+    runtime_name: str,
+    target_dir: Path,
+    reason: str,
+    repair_command: str,
+) -> str:
+    """Best-effort marker for install targets that could not be rolled back."""
+    from gpd.adapters.install_utils import MANIFEST_NAME
+
+    if not target_dir.exists():
+        return "Rollback failed, but the target no longer exists; rerun install after fixing the error."
+    marker_path = target_dir / "gpd-install-incomplete.json"
+    try:
+        manifest_path = target_dir / MANIFEST_NAME
+        if manifest_path.exists() or manifest_path.is_symlink():
+            manifest_path.unlink()
+        marker_path.write_text(
+            json.dumps(
+                {
+                    "status": "incomplete",
+                    "runtime": runtime_name,
+                    "reason": reason,
+                    "repair_command": repair_command,
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    except Exception as marker_exc:  # noqa: BLE001
+        return (
+            "Rollback failed and GPD could not mark the target incomplete "
+            f"({marker_exc}). Inspect {target_dir} before using it."
+        )
+    return (
+        f"Rollback failed; GPD removed the install manifest and wrote {marker_path} so the target is not treated "
+        "as a complete install. Inspect the target, then rerun the repair command."
+    )
+
+
+def _restore_install_after_finalize_failure(
+    *,
+    runtime_name: str,
+    target_dir: Path,
+    is_global: bool,
+    explicit_target: bool,
+    rollback: object | None,
+    error: Exception,
+) -> str:
+    """Rollback a CLI install whose adapter finalization failed."""
+    if rollback is None:
+        return str(error)
+
+    repair_command = _install_repair_command(
+        runtime_name,
+        target_dir=target_dir,
+        is_global=is_global,
+        explicit_target=explicit_target,
+    )
+    try:
+        rollback.restore()
+    except Exception as rollback_exc:  # noqa: BLE001
+        incomplete_message = _mark_install_incomplete_after_rollback_failure(
+            runtime_name=runtime_name,
+            target_dir=target_dir,
+            reason=f"finalize_install failed: {error}; rollback failed: {rollback_exc}",
+            repair_command=repair_command,
+        )
+        return (
+            f"{error} Rollback of partial install at {_format_display_path(target_dir)} failed: {rollback_exc}. "
+            f"{incomplete_message} Repair command: `{repair_command}`"
+        )
+
+    return (
+        f"{error} Rolled back partial install at {_format_display_path(target_dir)}. "
+        f"After fixing the finalize error, rerun: `{repair_command}`"
+    )
+
+
+def _discard_install_rollback(rollback: object | None) -> None:
+    """Discard a deferred install rollback snapshot after finalization succeeds."""
+    if rollback is None:
+        return
+    discard = getattr(rollback, "discard", None)
+    if callable(discard):
+        try:
+            discard()
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to discard install rollback snapshot")
 
 
 def _print_install_summary(
@@ -13388,7 +13627,21 @@ def install(
             try:
                 result = _install_single_runtime(rt, is_global=is_global, target_dir_override=target_dir)
                 install_adapter = result.pop(_INSTALL_RESULT_ADAPTER_KEY, adapter)
-                install_adapter.finalize_install(result, force_statusline=force_statusline)
+                install_rollback = result.pop(_INSTALL_RESULT_ROLLBACK_KEY, None)
+                result_target = Path(str(result.get("target") or adapter.resolve_target_dir(is_global, _get_cwd())))
+                try:
+                    install_adapter.finalize_install(result, force_statusline=force_statusline)
+                except Exception as exc:
+                    failure_message = _restore_install_after_finalize_failure(
+                        runtime_name=rt,
+                        target_dir=result_target,
+                        is_global=is_global,
+                        explicit_target=target_dir is not None,
+                        rollback=install_rollback,
+                        error=exc,
+                    )
+                    raise RuntimeError(failure_message) from exc
+                _discard_install_rollback(install_rollback)
                 results.append((rt, result))
                 progress.update(task, description=f"[green]✓[/] {adapter.display_name}")
             except Exception as exc:

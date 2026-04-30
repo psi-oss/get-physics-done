@@ -10,6 +10,7 @@ import os
 import shutil
 import tempfile
 from collections.abc import Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -61,6 +62,7 @@ if TYPE_CHECKING:
     from gpd.registry import AgentDef
 
 logger = logging.getLogger(__name__)
+INSTALL_ROLLBACK_RESULT_KEY = "__gpd_install_rollback_snapshot__"
 
 
 class _InstallRollbackSnapshot:
@@ -631,6 +633,16 @@ class RuntimeAdapter(abc.ABC):
         """Validate that an explicit target belongs to this runtime's install surface."""
         self._validate_target_runtime(target_dir, action=action)
 
+    @contextmanager
+    def defer_install_rollback_discard(self):
+        """Keep the install rollback snapshot alive for caller-owned finalization."""
+        previous = getattr(self, "_defer_install_rollback_discard", False)
+        self._defer_install_rollback_discard = True
+        try:
+            yield
+        finally:
+            self._defer_install_rollback_discard = previous
+
     def _has_authoritative_install_manifest(self, target_dir: Path) -> bool:
         """Return whether *target_dir* has a trusted manifest for this runtime."""
         from gpd.hooks.install_metadata import assess_install_target
@@ -647,7 +659,8 @@ class RuntimeAdapter(abc.ABC):
         if explicit_target and assessment.manifest_state in {"corrupt", "invalid"}:
             raise RuntimeError(
                 f"Refusing to {action} `{target_dir}` because its GPD manifest cannot be trusted.\n"
-                "Ownership cannot be determined safely."
+                "Ownership cannot be determined safely. If this is your target, move the corrupt manifest or "
+                "clear the GPD-managed artifacts before reinstalling."
             )
         if assessment.state == "foreign_runtime":
             other_runtime = assessment.manifest_runtime or "unknown"
@@ -658,7 +671,8 @@ class RuntimeAdapter(abc.ABC):
             raise RuntimeError(
                 f"Refusing to {action} `{target_dir}`.\n"
                 f"Its GPD manifest belongs to {other_runtime_label} (`{other_runtime}`), "
-                f"not {self.display_name} (`{self.runtime_name}`)."
+                f"not {self.display_name} (`{self.runtime_name}`). Use the owning runtime's repair/uninstall "
+                "path for this target, or choose a different --target-dir."
             )
 
         if assessment.state == "untrusted_manifest":
@@ -673,15 +687,19 @@ class RuntimeAdapter(abc.ABC):
             if assessment.manifest_state != "missing":
                 raise RuntimeError(
                     f"Refusing to {action} `{target_dir}` because its GPD manifest cannot be trusted.\n"
-                    "Ownership cannot be determined safely."
+                    "Ownership cannot be determined safely. If this is your target, move the corrupt manifest or "
+                    "clear the GPD-managed artifacts before reinstalling."
                 )
             if assessment.has_managed_markers:
                 raise RuntimeError(
-                    f"Refusing to {action} `{target_dir}` because it already contains GPD artifacts but no manifest to establish ownership."
+                    f"Refusing to {action} `{target_dir}` because it already contains GPD artifacts but no manifest "
+                    "to establish ownership. Restore the manifest or move the GPD-managed artifacts aside before "
+                    "retrying."
                 )
             raise RuntimeError(
                 f"Refusing to {action} `{target_dir}` because its GPD manifest cannot be trusted.\n"
-                "Ownership cannot be determined safely."
+                "Ownership cannot be determined safely. If this is your target, move the corrupt manifest or "
+                "clear the GPD-managed artifacts before reinstalling."
             )
 
     def runtime_cli_bridge_command(self, target_dir: Path) -> str:
@@ -793,6 +811,8 @@ class RuntimeAdapter(abc.ABC):
                 self._validate_target_runtime(target_dir, action="install into")
                 self._preflight_runtime_config(target_dir, is_global)
                 rollback = _InstallRollbackSnapshot(self._install_rollback_paths(gpd_root, target_dir, is_global))
+                deferred_rollback = None
+                defer_rollback_discard = bool(getattr(self, "_defer_install_rollback_discard", False))
                 try:
                     path_prefix = self._compute_path_prefix(target_dir, is_global)
                     self._pre_cleanup(target_dir)
@@ -822,7 +842,10 @@ class RuntimeAdapter(abc.ABC):
                         )
                     raise
                 else:
-                    rollback.discard()
+                    if defer_rollback_discard:
+                        deferred_rollback = rollback
+                    else:
+                        rollback.discard()
 
                 span.set_attribute("gpd.commands_count", command_count)
                 span.set_attribute("gpd.agents_count", agent_count)
@@ -841,6 +864,8 @@ class RuntimeAdapter(abc.ABC):
                 }
                 if extra:
                     summary.update(extra)
+                if deferred_rollback is not None:
+                    summary[INSTALL_ROLLBACK_RESULT_KEY] = deferred_rollback
                 return summary
             finally:
                 self._install_explicit_target = previous_explicit_target

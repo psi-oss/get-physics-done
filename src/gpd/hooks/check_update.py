@@ -18,6 +18,7 @@ from gpd.hooks.install_metadata import config_dir_has_complete_install, load_ins
 _SHARED_INSTALL_METADATA = get_shared_install_metadata()
 SECONDS_PER_HOUR = 3600
 UPDATE_CHECK_TTL_SECONDS = 12 * SECONDS_PER_HOUR
+UNKNOWN_LATEST_UPDATE_CHECK_TTL_SECONDS = SECONDS_PER_HOUR
 UPDATE_CHECK_INFLIGHT_TTL_SECONDS = 5 * 60
 LATEST_RELEASE_URL = _SHARED_INSTALL_METADATA.latest_release_url
 _VERSION_RELEASE_RE = re.compile(r"^\s*v?(?P<release>\d+(?:\.\d+)*)(?P<suffix>.*)$")
@@ -261,6 +262,14 @@ def _clear_inflight_marker(cache_file: Path) -> None:
         return
 
 
+def _cache_ttl_seconds(cache: dict[str, object]) -> int:
+    """Return the throttle TTL for one update-cache payload."""
+    latest = cache.get("latest")
+    if isinstance(latest, str) and latest.strip().lower() == "unknown":
+        return UNKNOWN_LATEST_UPDATE_CHECK_TTL_SECONDS
+    return UPDATE_CHECK_TTL_SECONDS
+
+
 def _relevant_update_cache_candidates(
     *,
     self_config_dir: Path | None,
@@ -361,7 +370,7 @@ def main(argv: list[str] | None = None) -> None:
             checked = cache.get("checked")
             if isinstance(checked, (int, float)):
                 age = int(time.time()) - int(checked)
-                if 0 <= age < UPDATE_CHECK_TTL_SECONDS:
+                if 0 <= age < _cache_ttl_seconds(cache):
                     return
         except Exception as exc:
             _debug(f"Failed to read update cache {candidate_path}: {exc}")

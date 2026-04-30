@@ -497,9 +497,9 @@ Translate cadence config plus wave risk into concrete execution boundaries befor
 ```bash
 REVIEW_CADENCE=$(echo "$INIT" | gpd json get .review_cadence --default dense)
 RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
-MAX_UNATTENDED_MINUTES_PER_PLAN=$(echo "$INIT" | gpd json get .max_unattended_minutes_per_plan --default 45)
-MAX_UNATTENDED_MINUTES_PER_WAVE=$(echo "$INIT" | gpd json get .max_unattended_minutes_per_wave --default 90)
-CHECKPOINT_AFTER_N_TASKS=$(echo "$INIT" | gpd json get .checkpoint_after_n_tasks --default 3)
+MAX_UNATTENDED_MINUTES_PER_PLAN=$(echo "$INIT" | gpd json get .max_unattended_minutes_per_plan --default 15)
+MAX_UNATTENDED_MINUTES_PER_WAVE=$(echo "$INIT" | gpd json get .max_unattended_minutes_per_wave --default 30)
+CHECKPOINT_AFTER_N_TASKS=$(echo "$INIT" | gpd json get .checkpoint_after_n_tasks --default 1)
 CHECKPOINT_AFTER_FIRST_RESULT=$(echo "$INIT" | gpd json get .checkpoint_after_first_load_bearing_result --default true)
 CHECKPOINT_BEFORE_DOWNSTREAM=$(echo "$INIT" | gpd json get .checkpoint_before_downstream_dependent_tasks --default true)
 STRICT_WAIT=$(gpd --raw config get strict_wait 2>/dev/null || echo false)
@@ -508,8 +508,8 @@ NEVER_AUTO_CLOSE_CHILDREN=$(gpd --raw config get never_auto_close_child_agents 2
 
 # strict_wait disables the unattended-minutes timeouts entirely: workers are
 # allowed to run to natural completion rather than returning early checkpoints
-# at the 45 / 90 minute marks. never_interrupt_running_workers is a narrower
-# form of the same guarantee.
+# at the configured unattended-minute marks. never_interrupt_running_workers is
+# a narrower form of the same guarantee.
 if [ "$STRICT_WAIT" = "true" ] || [ "$NEVER_INTERRUPT_WORKERS" = "true" ]; then
   MAX_UNATTENDED_MINUTES_PER_PLAN=0
   MAX_UNATTENDED_MINUTES_PER_WAVE=0

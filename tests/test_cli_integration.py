@@ -2778,6 +2778,112 @@ class TestConfigCommands:
         config = json.loads((gpd_project / "GPD" / "config.json").read_text(encoding="utf-8"))
         assert config["parallelization"] is False
 
+    @pytest.mark.parametrize(
+        ("key", "field", "clear_token"),
+        [
+            ("execution.project_usd_budget", "project_usd_budget", "none"),
+            ("execution.session_usd_budget", "session_usd_budget", ""),
+        ],
+    )
+    def test_config_set_nullable_budget_clear_tokens(
+        self,
+        gpd_project: Path,
+        key: str,
+        field: str,
+        clear_token: str,
+    ) -> None:
+        config_path = gpd_project / "GPD" / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["execution"] = {"project_usd_budget": 12.5, "session_usd_budget": 2.25}
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+
+        result = _invoke("--raw", "config", "set", key, clear_token)
+        parsed = json.loads(result.output)
+
+        written = json.loads(config_path.read_text(encoding="utf-8"))
+        assert parsed["canonical_key"] == field
+        assert parsed["value"] is None
+        assert written["execution"][field] is None
+
+    def test_config_set_tier_models_updates_selected_runtime_and_preserves_other_maps(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        descriptor = _RUNTIME_DESCRIPTORS[0]
+        other_descriptor = _RUNTIME_DESCRIPTORS[1]
+        exact_model = "Provider/OpenAI:GPT-5[Reasoning=High]"
+        config_path = gpd_project / "GPD" / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["model_overrides"] = {
+            descriptor.runtime_name: {
+                "tier-1": "old-tier-1",
+                "tier-2": "old-tier-2",
+                "tier-3": "old-tier-3",
+            },
+            other_descriptor.runtime_name: {
+                "tier-1": "other-tier-1",
+                "tier-2": "other-tier-2",
+            },
+        }
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+
+        result = _invoke(
+            "--raw",
+            "config",
+            "set-tier-models",
+            "--runtime",
+            descriptor.display_name,
+            "--tier-1",
+            exact_model,
+            "--tier-2",
+            "none",
+            "--tier-3",
+            "",
+        )
+        parsed = json.loads(result.output)
+
+        written = json.loads(config_path.read_text(encoding="utf-8"))
+        assert parsed["runtime"] == descriptor.runtime_name
+        assert parsed["changed_tiers"] == ["tier-1"]
+        assert parsed["cleared_tiers"] == ["tier-2", "tier-3"]
+        assert parsed["runtime_model_overrides"] == {"tier-1": exact_model}
+        assert written["model_overrides"][descriptor.runtime_name] == {"tier-1": exact_model}
+        assert written["model_overrides"][other_descriptor.runtime_name] == {
+            "tier-1": "other-tier-1",
+            "tier-2": "other-tier-2",
+        }
+
+    def test_config_set_tier_models_clear_removes_only_selected_runtime(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        descriptor = _RUNTIME_DESCRIPTORS[0]
+        other_descriptor = _RUNTIME_DESCRIPTORS[1]
+        config_path = gpd_project / "GPD" / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["model_overrides"] = {
+            descriptor.runtime_name: {"tier-1": "selected-tier-1", "tier-3": "selected-tier-3"},
+            other_descriptor.runtime_name: {"tier-2": "other-tier-2"},
+        }
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+
+        result = _invoke(
+            "--raw",
+            "config",
+            "set-tier-models",
+            "--runtime",
+            descriptor.runtime_name,
+            "--clear",
+        )
+        parsed = json.loads(result.output)
+
+        written = json.loads(config_path.read_text(encoding="utf-8"))
+        assert parsed["cleared"] is True
+        assert parsed["runtime_model_overrides"] is None
+        assert parsed["cleared_tiers"] == ["tier-1", "tier-3"]
+        assert descriptor.runtime_name not in written["model_overrides"]
+        assert written["model_overrides"] == {other_descriptor.runtime_name: {"tier-2": "other-tier-2"}}
+
     def test_config_set_rejects_stale_autonomy_value(self, gpd_project: Path) -> None:
         result = _invoke("--raw", "config", "set", "autonomy", "guided", expect_ok=False)
 
@@ -3104,7 +3210,7 @@ class TestConfigCommands:
         assert f"`{_SECONDARY_PERMISSIONS_DESCRIPTOR.runtime_name}`" in parsed["error"]
         assert _target_file_snapshot(target) == snapshot_before
 
-    def test_config_set_autonomy_attempts_runtime_permission_sync(
+    def test_config_set_autonomy_keeps_runtime_permissions_unchanged(
         self,
         gpd_project: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -3118,9 +3224,8 @@ class TestConfigCommands:
         status = adapter.runtime_permissions_status(target, autonomy="balanced")
 
         assert parsed["value"] == "balanced"
-        assert parsed["runtime_permissions"]["runtime"] == _ENV_OVERRIDE_DESCRIPTOR.runtime_name
-        assert parsed["runtime_permissions"]["sync_applied"] is True
-        assert status["config_aligned"] is True
+        assert parsed["runtime_permissions"] is None
+        assert status["config_aligned"] is False
 
     def test_permissions_sync_prefers_installed_runtime_over_stale_active_runtime(
         self,

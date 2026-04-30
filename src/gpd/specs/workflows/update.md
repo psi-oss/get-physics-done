@@ -49,6 +49,20 @@ Parse output as:
 - line 5: expected local-patch metadata path
 
 If the version file is missing, treat the install as version `0.0.0` and continue.
+
+If line 3 is empty, do not run a generic update command. Show:
+
+```text
+## GPD Update
+
+This installed workflow cannot derive a trusted update command because the install provenance is missing or legacy.
+
+Repair the install explicitly, then rerun update:
+`{GPD_BOOTSTRAP_COMMAND} install <runtime> <line 2> --target-dir <line 4>`
+
+Replace `<runtime>` with the runtime you are using. Use line 2 exactly as printed (`--local` or `--global`) and line 4 exactly as printed for the target directory.
+```
+Then exit.
 </step>
 
 <step name="check_latest_version">
@@ -81,6 +95,7 @@ If that fails, show:
 Couldn't check for updates (offline or release metadata unavailable).
 
 To update manually, run the command from line 3 of the install detection output.
+If line 3 is empty, use the install-provenance repair guidance from step 1 instead.
 ```
 
 Then exit.
@@ -158,7 +173,12 @@ If the user cancels, exit.
 Run the update with the public bootstrap command from step 1:
 
 ```bash
-: "${UPDATE_COMMAND:?ERROR: UPDATE_COMMAND is empty; use line 3 from detect_current_install.}"
+if [ -z "$UPDATE_COMMAND" ]; then
+  printf '%s\n' \
+    "ERROR: UPDATE_COMMAND is empty; this install is missing trusted update provenance." \
+    "Repair explicitly: {GPD_BOOTSTRAP_COMMAND} install <runtime> ${INSTALL_SCOPE:-<line 2>} --target-dir ${GPD_CONFIG_DIR:-<line 4>}"
+  exit 2
+fi
 sh -c "$UPDATE_COMMAND"
 ```
 

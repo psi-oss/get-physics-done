@@ -22,7 +22,20 @@ def test_export_logs_wrapper_surfaces_passthrough_filters() -> None:
     assert '--phase <phase>' in text
     assert '--category <name>' in text
     assert "local-only CLI passthrough filters `--command`, `--phase`, and `--category`" in text
+    assert "validates the requested format before creating directories" in text
+    assert "empty_export: true" in text
     assert 'gpd --raw observe export $ARGUMENTS' in text
+
+
+def test_export_workflow_makes_commit_opt_in() -> None:
+    command = (COMMANDS_DIR / "export.md").read_text(encoding="utf-8")
+    workflow = (WORKFLOWS_DIR / "export.md").read_text(encoding="utf-8")
+
+    assert 'argument-hint: "[--format html|latex|zip|all] [--commit]"' in command
+    assert "Do not commit generated exports unless `$ARGUMENTS` includes `--commit`" in command
+    assert "Generated files are not committed unless `$ARGUMENTS` includes explicit `--commit`" in workflow
+    assert "If `--commit` is absent, skip this step" in workflow
+    assert "Text exports committed only if `--commit` was explicitly requested" in workflow
 
 
 def test_export_logs_workflow_parses_and_forwards_passthrough_filters() -> None:
@@ -34,3 +47,5 @@ def test_export_logs_workflow_parses_and_forwards_passthrough_filters() -> None:
     assert '--command $COMMAND' in text
     assert '--phase $PHASE' in text
     assert '--category $CATEGORY' in text
+    assert "validates the requested format before creating output directories" in text
+    assert "empty_export" in text

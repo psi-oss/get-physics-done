@@ -1,5 +1,5 @@
 <purpose>
-Export GPD observability session logs and execution traces to files. Reads session event streams from `GPD/observability/sessions/` and trace logs from `GPD/traces/`, applies optional filters, and writes results to `GPD/exports/logs/` or a custom directory. Supports JSONL (raw), JSON (pretty-printed), and markdown (human-readable report) formats.
+Export GPD observability session logs and execution traces to files. Reads session event streams from `GPD/observability/sessions/` and trace logs from `GPD/traces/`, applies optional filters, and writes results to `GPD/exports/logs/` or a custom directory. Supports JSONL (raw), JSON (pretty-printed), and markdown (human-readable report) formats. The raw exporter validates the requested format before creating output directories and refuses to write when no session logs exist.
 </purpose>
 
 <required_reading>
@@ -95,6 +95,7 @@ fi
 ```
 
 Parse the JSON result for `exported`, `output_dir`, `sessions_exported`, `events_exported`, `traces_exported`, and `files_written`.
+Also parse `empty_export` and `reason`; if true, label the output as an intentionally empty filtered export.
 </step>
 
 <step name="present_results">
@@ -143,6 +144,8 @@ No events matched the specified filters.
 Try broadening filters or run `gpd observe sessions` to see available sessions.
 ```
 
+If `empty_export` is true, use the same warning even when timestamped empty files were written.
+
 </step>
 
 </process>
@@ -151,6 +154,7 @@ Try broadening filters or run `gpd observe sessions` to see available sessions.
 
 - Don't export without checking that observability data exists first
 - Don't silently overwrite previous exports — timestamped filenames prevent collisions
+- Don't treat `empty_export: true` as a meaningful data export; label it as empty and explain the filters
 - Don't include the `.active-trace` marker file in trace exports
 - Don't fail on malformed JSONL lines — skip them gracefully
 - Don't export binary or non-JSONL files from the observability tree
@@ -164,6 +168,7 @@ Export is complete when:
 - [ ] Session logs read and filtered
 - [ ] Traces included (unless --no-traces)
 - [ ] Files written to output directory with timestamped names
+- [ ] Empty filtered exports labeled when `empty_export` is true
 - [ ] Summary displayed with file paths and counts
 
 </success_criteria>

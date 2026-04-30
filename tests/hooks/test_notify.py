@@ -22,7 +22,6 @@ from gpd.core.constants import (
 )
 from gpd.core.costs import usage_ledger_path
 from gpd.hooks.notify import _check_and_notify_update, _emit_execution_notification, _hook_payload_policy, main
-from gpd.hooks.runtime_detect import update_command_for_runtime
 from tests.hooks.helpers import mark_complete_install as _mark_complete_install
 from tests.hooks.helpers import repair_command as _repair_command
 
@@ -522,7 +521,7 @@ def test_record_usage_telemetry_prefers_resolved_active_runtime_when_supplied(tm
     assert mock_record.call_args.kwargs["runtime"] == _TELEMETRY_RUNTIME
 
 
-def test_notify_home_update_cache_falls_back_to_runtime_neutral_update_command(tmp_path: Path) -> None:
+def test_notify_home_update_cache_without_live_install_emits_no_update_command(tmp_path: Path) -> None:
     home_cache = tmp_path / "home" / ".gpd" / "cache"
     home_cache.mkdir(parents=True)
     (home_cache / "gpd-update-check.json").write_text(
@@ -548,8 +547,7 @@ def test_notify_home_update_cache_falls_back_to_runtime_neutral_update_command(t
         _check_and_notify_update()
 
     output = stderr.getvalue()
-    assert f"Run: {update_command_for_runtime('unknown')}" in output
-    assert "Run: gpd-update" not in output
+    assert output == ""
 
 
 def test_notify_ignores_stale_project_local_update_cache(tmp_path: Path) -> None:
