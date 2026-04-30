@@ -912,12 +912,23 @@ def _explicit_workspace_layout_context(cwd: Path) -> tuple[Path, dict[str, objec
         or layout.execution_lineage_ledger.exists()
     )
     has_local_config_surface = resolution.walk_up_steps == 0 and layout.config_json.exists()
-    if not resolution.has_project_layout and not has_execution_resume_surface and not has_local_config_surface:
+    has_local_phase_surface = resolution.walk_up_steps == 0 and layout.phases_dir.exists()
+    if (
+        not resolution.has_project_layout
+        and not has_execution_resume_surface
+        and not has_local_config_surface
+        and not has_local_phase_surface
+    ):
         return None
 
     state_exists, roadmap_exists, project_exists = recoverable_project_context(project_root)
     recoverable = (
-        state_exists or roadmap_exists or project_exists or has_execution_resume_surface or has_local_config_surface
+        state_exists
+        or roadmap_exists
+        or project_exists
+        or has_execution_resume_surface
+        or has_local_config_surface
+        or has_local_phase_surface
     )
     if resolution.walk_up_steps > 0:
         reason = "workspace resolved to ancestor project root"
@@ -925,6 +936,8 @@ def _explicit_workspace_layout_context(cwd: Path) -> tuple[Path, dict[str, objec
         reason = "workspace carries live execution state"
     elif has_local_config_surface and not (state_exists or roadmap_exists or project_exists):
         reason = "workspace carries local GPD config"
+    elif has_local_phase_surface and not (state_exists or roadmap_exists or project_exists):
+        reason = "workspace carries local GPD phase directory"
     elif not project_exists and recoverable:
         reason = "workspace carries partial recoverable GPD state"
     else:

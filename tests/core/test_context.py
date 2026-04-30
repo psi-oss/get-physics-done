@@ -4996,6 +4996,36 @@ class TestInitProgress:
         assert ctx["next_phase"] is None
         assert ctx["paused_at"] is None
 
+    def test_progress_prefers_local_phase_surface_over_recent_project(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        recent_project = tmp_path / "recent-project"
+        data_root = tmp_path / "data"
+
+        _setup_project(workspace)
+        _setup_project(recent_project)
+        (recent_project / "GPD" / "PROJECT.md").write_text("# Recent project\n", encoding="utf-8")
+        (recent_project / "GPD" / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+        phase_dir = _create_phase_dir(recent_project, "01-recent")
+        (phase_dir / "01-PLAN.md").write_text("plan\n", encoding="utf-8")
+        resume_file = phase_dir / ".continue-here.md"
+        resume_file.write_text("resume\n", encoding="utf-8")
+        record_recent_project(
+            recent_project,
+            session_data={
+                "last_date": "2026-03-29T12:00:00+00:00",
+                "resume_file": "GPD/phases/01-recent/.continue-here.md",
+            },
+            store_root=data_root,
+        )
+
+        ctx = init_progress(workspace, data_root=data_root)
+
+        assert ctx["project_root"] == workspace.resolve().as_posix()
+        assert ctx["project_root_source"] == "current_workspace"
+        assert ctx["project_reentry_mode"] == "current-workspace"
+        assert ctx["project_reentry_selected_candidate"]["reason"] == "workspace carries local GPD phase directory"
+        assert ctx["phase_count"] == 0
+
     def test_progress_does_not_create_state_lock(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _write_structured_state_memory(tmp_path)
