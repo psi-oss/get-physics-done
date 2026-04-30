@@ -189,7 +189,7 @@ wheels = [
 
 [[package]]
 name = "arxiv-mcp-server"
-version = "0.4.11"
+version = "0.4.12"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
@@ -206,9 +206,9 @@ dependencies = [
     { name = "sse-starlette" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8a/28/8122ec22a8e2cac0dda33fb74bdafb3342fe336512764c7bcca88edf2534/arxiv_mcp_server-0.4.11.tar.gz", hash = "sha256:148390b3eb1476852f6e60ab2f4a0d964987236970ca034ec85cf87ec0f5e078", size = 6853231, upload-time = "2026-04-03T17:34:27.803Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ed/9f/46920b2530e528e9cafbfd616d92c2acacf437f7f0d5c4584fe83d6eab2d/arxiv_mcp_server-0.4.12.tar.gz", hash = "sha256:92163add27d42a0363c8008d112110a58f6adee25294b86e24111a04a1a6672f", size = 219708, upload-time = "2026-04-25T20:14:50.145Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/24/44/e727c28198643f549844c37c7769e67502e93fb75a6d9c0fe29243d585bb/arxiv_mcp_server-0.4.11-py3-none-any.whl", hash = "sha256:493ad21cca84d5d47c47765f1eff52866a30f635392c3dde3158ae50251746a6", size = 47148, upload-time = "2026-04-03T17:34:26.222Z" },
+    { url = "https://files.pythonhosted.org/packages/65/d4/2c9c3428366ce3eef8634b1267f9c61819115ac3c32163f0f5dbfde66005/arxiv_mcp_server-0.4.12-py3-none-any.whl", hash = "sha256:91f083d659c0f91a4f4dad7d7e2034232effe3ffcb106480768a0e6be6be519a", size = 47833, upload-time = "2026-04-25T20:14:48.54Z" },
 ]
 
 [[package]]
@@ -948,12 +948,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/8b/eb/c0cfc62075dc6e1ec1c64d352ae09ac051d9334311ed226f1f425312848a/mcp-1.27.0.tar.gz", hash = "sha256:d3dc35a7eec0d458c1da4976a48f982097ddaab87e278c5511d5a4a56e852b83", size = 607509, upload-time = "2026-04-02T14:48:08.88Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9c/46/f6b4ad632c67ef35209a66127e4bddc95759649dd595f71f13fba11bdf9a/mcp-1.27.0-py3-none-any.whl", hash = "sha256:5ce1fa81614958e267b21fb2aa34e0aea8e2c6ede60d52aba45fd47246b4d741", size = 215967, upload-time = "2026-04-02T14:48:07.24Z" },
-]
-
-[package.optional-dependencies]
-cli = [
-    { name = "python-dotenv" },
-    { name = "typer" },
 ]
 
 [[package]]
