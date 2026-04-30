@@ -82,6 +82,8 @@ Ask the user to choose exactly one of the four options.
 
 > **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
+Until a concrete `$TANGENT_DECISION` is captured, do not name `gpd:quick`, `gpd:add-todo`, `gpd:branch-hypothesis`, `gpd:execute-phase`, or autonomous continuation as the selected next command. The safe stop is the visible four-way choice itself, or re-running `gpd:tangent {description}` with the same tangent description.
+
 Use ask_user:
 
 - header: `Tangent`
@@ -125,6 +127,7 @@ Route immediately into the corresponding existing workflow.
 This workflow must not invent a new tangent state machine or auto-spawn parallel work without the explicit choice above.
 
 It may be the explicit follow-up when a live execution review stop surfaces a tangent proposal or when `gpd observe execution` surfaces a tangent proposal or `branch later` recommendation, but it remains the chooser rather than a persistent execution-state workflow. Do not skip straight from that suggestion to `gpd:branch-hypothesis`; branching stays optional until this chooser explicitly selects it.
+Likewise, do not skip straight to `gpd:quick`, `gpd:add-todo`, or `gpd:execute-phase` from a correction/tangent proposal unless the user has already made that exact choice in this tangent workflow.
 </step>
 
 <step name="guardrails">

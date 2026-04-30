@@ -136,6 +136,21 @@ PHASE=$(echo "$INIT" | gpd json get .phase_number --default "${REQUESTED_PHASE}"
 bind_plan_phase_init "$INIT"
 ```
 
+**Dirty worktree safety gate:** before phase directory creation, handoffs, fingerprints, alignment, or write-capable reloads, inspect only the project worktree:
+
+```bash
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  DIRTY_STATUS=$(git status --porcelain --untracked-files=all)
+  if [ -n "$DIRTY_STATUS" ]; then
+    echo "ERROR: dirty project worktree detected before planning:"
+    echo "$DIRTY_STATUS"
+    echo "Choose: git status --short, gpd:commit, or explicitly approve a project-local cleanup path."
+    echo "HALTING -- plan-phase never stashes, resets, cleans, overwrites, or hides user work."
+    exit 1
+  fi
+fi
+```
+
 **If `planning_exists` is false:** Error -- run `gpd:new-project` first.
 
 **If `project_contract_load_info.status` starts with `blocked`:** STOP and checkpoint with the user. Show the specific `project_contract_load_info.errors` / `warnings`; do not silently continue from `ROADMAP.md` or `REQUIREMENTS.md` alone when the stored contract could not even be loaded cleanly. End with `## > Next Up`: primary `gpd:sync-state`, then `gpd:plan-phase {PHASE}` after repair, plus `gpd:suggest-next`.
@@ -154,6 +169,15 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 ```
+
+<step name="fail_closed_on_state_conflict" priority="first">
+Before resolving a missing phase, creating `PHASE_DIR`, spawning agents, or writing plans, compare `state_content`, `roadmap_content`, `requirements_content`, phase directories, and conventions. If they disagree about phase/scope, STOP: no new plan, roadmap rewrite, execution, or generic health check. Repair route:
+
+- state/roadmap phase mismatch or missing active phase directory -> `gpd:sync-state`
+- convention-lock or `GPD/CONVENTIONS.md` mismatch -> `gpd:validate-conventions`
+
+Canonical conflict-stop labels: `status: blocked`, `phase_state: contract_conflict`, `plan_authority: blocked`, `execution_state: not_started`, `checkpoint: convention_conflict`, artifacts+writes `none`, `gpd:sync-state`/`gpd:validate-conventions`
+</step>
 
 ## 1.5 Proof-Obligation Planning Gate
 
@@ -260,12 +284,15 @@ already explores that path.
 ```bash
 CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
 if [ $? -ne 0 ]; then
-  echo "WARNING: Convention verification failed — resolve before planning"
+  echo "ERROR: Convention verification failed -- resolve before planning"
   echo "$CONV_CHECK"
+  echo "Next: gpd:validate-conventions"
+  echo "HALTING -- convention mismatches compound into every planned task."
+  exit 1
 fi
 ```
 
-If the check fails, warn the user before spawning the researcher or planner. Convention mismatches in the plan will propagate into every task during execution.
+If the check fails, stop before spawning the researcher or planner. Convention mismatches in the plan propagate into every task during execution.
 
 ## 4.6. Tangent Control During Planning
 

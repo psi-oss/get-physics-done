@@ -808,6 +808,24 @@ def test_complete_unverified_suggests_verify(tmp_path: Path) -> None:
     assert "verify-work" in actions
 
 
+def test_stale_verification_blocks_audit_and_paper_suggestions(tmp_path: Path) -> None:
+    """Stale verification is verification debt, not milestone/paper readiness."""
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    phase_dir = _create_phase(root, "01-setup", plans=1, summaries=1, verification=True)
+    (phase_dir / "01-VERIFICATION.md").write_text("status: stale\n", encoding="utf-8")
+
+    result = suggest_next(root)
+
+    actions = [s.action for s in result.suggestions]
+    assert "verify-work" in actions
+    assert "audit-milestone" not in actions
+    assert "write-paper" not in actions
+    verify = next(s for s in result.suggestions if s.action == "verify-work")
+    assert verify.command == "gpd init verify-work 01"
+    assert "stale" in verify.reason
+
+
 def test_researched_phase_suggests_plan(tmp_path: Path) -> None:
     """Phase with research but no plans suggests planning."""
     root = _setup_project(tmp_path)

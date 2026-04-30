@@ -92,6 +92,22 @@ Parse the JSON `phases` array.
 
 **If no incomplete phases remain:**
 
+Before completion, stale/missing/non-passing verification blocks audit/paper.
+
+```bash
+for COMPLETE_PHASE in "${COMPLETED_PHASES[@]}"; do
+  D=$(gpd --raw init phase-op "${COMPLETE_PHASE}" | gpd json get .phase_dir --default "")
+  VS=$(grep -iE "^status:" "$D"/*-VERIFICATION.md 2>/dev/null | head -1 | cut -d: -f2 | tr -d ' ' | tr '[:upper:]' '[:lower:]')
+  case "$VS" in
+    passed|verified|complete|completed) ;;
+    *)
+      echo "Phase ${COMPLETE_PHASE}: verify before closeout."
+      echo "Next: gpd:verify-work ${COMPLETE_PHASE}"
+      exit 1 ;;
+  esac
+done
+```
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GPD ► AUTONOMOUS ▸ COMPLETE
@@ -219,6 +235,17 @@ PHASE_STATE=$(gpd --raw init phase-op ${PHASE_NUM})
 Check `has_context`. If false → go to handle_blocker: "Smart discuss for phase ${PHASE_NUM} did not produce CONTEXT.md."
 
 **3c. Plan**
+
+Before plan/execute, keep the lifecycle authority blocker from `gpd:plan-phase`/`gpd:execute-phase`:
+
+```bash
+PHASE_CONTRACT_GATE=$(gpd --raw validate lifecycle-contract-gate plan-phase "${PHASE_NUM}")
+if [ $? -ne 0 ]; then
+  echo "$PHASE_CONTRACT_GATE"
+  echo "Next: gpd:sync-state or gpd:new-project; then gpd:plan-phase ${PHASE_NUM}"
+  # STOP -- route to handle_blocker. Do not relabel this as missing plan authority.
+fi
+```
 
 ```
 Invoke the runtime-installed `gpd:plan-phase` command with `${PHASE_NUM}`.

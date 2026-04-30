@@ -164,6 +164,7 @@ class _PhaseAnalysis:
     incomplete_count: int
     has_research: bool
     has_verification: bool
+    verification_status: str
 
 
 # ─── Internal Helpers ─────────────────────────────────────────────────────────
@@ -191,6 +192,52 @@ def _is_research_file(name: str) -> bool:
 
 def _is_verification_file(name: str) -> bool:
     return name.endswith(VERIFICATION_SUFFIX)
+
+
+def _phase_verification_status(phase_path: Path, files: list[str]) -> str:
+    """Classify phase verification freshness from local verification artifacts."""
+    verification_files = sorted(file for file in files if _is_verification_file(file))
+    if not verification_files:
+        return "missing"
+
+    statuses: list[str] = []
+    for filename in verification_files:
+        try:
+            text = (phase_path / filename).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            statuses.append("invalid")
+            continue
+        match = re.search(r"(?im)^\s*status\s*:\s*([a-zA-Z0-9_-]+)\s*$", text)
+        if match:
+            statuses.append(match.group(1).strip().lower())
+            continue
+        lowered = text.lower()
+        if re.search(r"\b(stale|expired|outdated)\b", lowered):
+            statuses.append("stale")
+        elif re.search(r"\b(gaps?_found|gap[s ]+found|failed|invalid)\b", lowered):
+            statuses.append("gaps_found")
+        else:
+            statuses.append("passed")
+
+    blocking = {
+        "stale",
+        "gaps_found",
+        "gap_found",
+        "failed",
+        "failure",
+        "invalid",
+        "human_needed",
+        "expert_needed",
+        "needs_human",
+        "needs_expert",
+        "missing",
+    }
+    for status in statuses:
+        if status in blocking:
+            return "gaps_found" if status in {"gap_found", "failed", "failure"} else status
+    if any(status in {"passed", "verified", "complete", "completed"} for status in statuses):
+        return "passed"
+    return "present"
 
 
 def _load_config(cwd: Path) -> dict[str, object]:
@@ -282,7 +329,8 @@ def _scan_phases(cwd: Path) -> list[_PhaseAnalysis]:
         plans = [f for f in files if _is_plan_file(f)]
         summaries = [f for f in files if _is_summary_file(f)]
         has_research = any(_is_research_file(f) for f in files)
-        has_verification = any(_is_verification_file(f) for f in files)
+        verification_status = _phase_verification_status(phase_path, files)
+        has_verification = verification_status != "missing"
 
         plan_count = len(plans)
         summary_count = _matching_phase_artifact_count(plans, summaries)
@@ -307,6 +355,7 @@ def _scan_phases(cwd: Path) -> list[_PhaseAnalysis]:
                 incomplete_count=max(0, plan_count - summary_count),
                 has_research=has_research,
                 has_verification=has_verification,
+                verification_status=verification_status,
             )
         )
 
@@ -869,18 +918,25 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
             )
         )
 
-    # 5b. Verify completed phase that lacks verification
+    # 5b. Verify completed phase that lacks fresh/passing verification
     unverified_complete = next(
-        (p for p in phase_analysis if p.status == "complete" and not p.has_verification),
+        (p for p in phase_analysis if p.status == "complete" and p.verification_status != "passed"),
         None,
     )
     if unverified_complete:
+        if unverified_complete.verification_status == "missing":
+            reason = f"Phase {unverified_complete.number} is complete but unverified — run verification"
+        else:
+            reason = (
+                f"Phase {unverified_complete.number} verification is {unverified_complete.verification_status} "
+                "— refresh verification before closeout"
+            )
         suggestions.append(
             _MutableRecommendation(
                 action="verify-work",
-                priority=4,
+                priority=2,
                 command=f"{format_command('verify-work')} {unverified_complete.number}",
-                reason=f"Phase {unverified_complete.number} is complete but unverified — run verification",
+                reason=reason,
                 phase=unverified_complete.number,
             )
         )
@@ -1001,7 +1057,10 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
         )
 
     # ── 12. All phases complete → milestone audit ───────────────────────
-    if all_complete and phase_analysis:
+    all_complete_verified = all_complete and phase_analysis and all(
+        phase.verification_status == "passed" for phase in phase_analysis
+    )
+    if all_complete_verified:
         suggestions.append(
             _MutableRecommendation(
                 action="audit-milestone",
@@ -1025,8 +1084,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
 
     # 13a. All phases complete + verified → suggest paper writing
     if all_complete and phase_analysis and not has_paper_flag and not manuscript_state_is_blocked:
-        all_verified = all(p.has_verification for p in phase_analysis)
-        if all_verified:
+        if all_complete_verified:
             suggestions.append(
                 _MutableRecommendation(
                     action="write-paper",

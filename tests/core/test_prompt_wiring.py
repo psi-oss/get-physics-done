@@ -4802,6 +4802,11 @@ def test_help_and_execution_surfaces_wire_tangent_control_path() -> None:
     assert "{GPD_INSTALL_DIR}/workflows/quick.md" in tangent_workflow
     assert "{GPD_INSTALL_DIR}/workflows/add-todo.md" in tangent_workflow
     assert "{GPD_INSTALL_DIR}/workflows/branch-hypothesis.md" in tangent_workflow
+    assert "Until a concrete `$TANGENT_DECISION` is captured" in tangent_workflow
+    assert "do not name `gpd:quick`, `gpd:add-todo`, `gpd:branch-hypothesis`, `gpd:execute-phase`" in tangent_workflow
+    assert "do not present `gpd:quick`, `gpd:add-todo`, `gpd:branch-hypothesis`, `gpd:execute-phase`" in (
+        COMMANDS_DIR / "tangent.md"
+    ).read_text(encoding="utf-8")
 
 
 def test_planner_and_plan_phase_keep_no_silent_branching_and_exploit_tangent_suppression() -> None:
@@ -5094,6 +5099,23 @@ def test_route_workflow_uses_physics_scope_examples_and_ordered_compound_contrac
         in route_workflow
     )
     assert "ordered compound sequence `gpd:complete-milestone` then `gpd:new-milestone`" in help_workflow
+
+
+def test_phase_lifecycle_workflows_fail_closed_on_dirty_state_and_stale_verification() -> None:
+    plan_phase = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
+    autonomous = (WORKFLOWS_DIR / "autonomous.md").read_text(encoding="utf-8")
+
+    assert "Dirty worktree safety gate" in plan_phase
+    assert "git status --porcelain --untracked-files=all" in plan_phase
+    assert "plan-phase never stashes, resets, cleans, overwrites, or hides user work" in plan_phase
+    assert "fail_closed_on_state_conflict" in plan_phase
+    assert "Canonical conflict-stop labels" in plan_phase
+    assert "ERROR: Convention verification failed -- resolve before planning" in plan_phase
+
+    assert "stale/missing/non-passing verification blocks audit/paper" in autonomous
+    assert "Next: gpd:verify-work ${COMPLETE_PHASE}" in autonomous
+    assert "gpd --raw validate lifecycle-contract-gate plan-phase" in autonomous
+    assert "Do not relabel this as missing plan authority" in autonomous
 
 
 def test_new_project_customize_settings_matches_supervised_dense_defaults() -> None:
