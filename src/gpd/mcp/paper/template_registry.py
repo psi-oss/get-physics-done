@@ -15,6 +15,7 @@ from jinja2 import BaseLoader, Environment, TemplateNotFound
 
 from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section, normalize_acknowledgments
 from gpd.utils.latex import clean_latex_fences, escape_user_text_for_latex, fix_bibliography_conflict, sanitize_latex
+from gpd.utils.pandoc import PandocNotAvailable, PandocStatus, detect_pandoc, markdown_to_latex_fragment
 
 logger = logging.getLogger(__name__)
 
@@ -72,11 +73,24 @@ def _clean_author(author: Author) -> Author:
     )
 
 
-def _clean_section(section: Section) -> Section:
+def _clean_section(section: Section, pandoc_status: PandocStatus | None = None) -> Section:
+    content = section.content
+    if section.content_format == "markdown":
+        if pandoc_status is None:
+            pandoc_status = detect_pandoc()
+        if not pandoc_status.available or not pandoc_status.meets_minimum:
+            reason = pandoc_status.error or (
+                "pandoc version below minimum" if pandoc_status.available else "pandoc not found on PATH"
+            )
+            raise PandocNotAvailable(
+                f"Section {section.title!r} has content_format='markdown' which requires pandoc, "
+                f"but {reason}. Install pandoc or switch the section to content_format='latex'."
+            )
+        content = markdown_to_latex_fragment(content, status=pandoc_status)
     return section.model_copy(
         update={
             "title": clean_latex_fences(section.title),
-            "content": clean_latex_fences(section.content),
+            "content": clean_latex_fences(content),
             "label": clean_latex_fences(section.label),
         }
     )
@@ -103,11 +117,19 @@ def render_paper(config: PaperConfig) -> str:
 
     Loads the template for config.journal, renders it with all config fields,
     and applies LaTeX sanitization to the output.
+
+    Sections with ``content_format="markdown"`` are converted to LaTeX
+    fragments via pandoc before template substitution. Pandoc is probed
+    once per render call and the status is shared across sections.
     """
     template = load_template(config.journal)
     authors = [_clean_author(author) for author in config.authors]
-    sections = [_clean_section(section) for section in config.sections]
-    appendix_sections = [_clean_section(section) for section in config.appendix_sections]
+    all_sections = list(config.sections) + list(config.appendix_sections)
+    pandoc_status: PandocStatus | None = None
+    if any(section.content_format == "markdown" for section in all_sections):
+        pandoc_status = detect_pandoc()
+    sections = [_clean_section(section, pandoc_status) for section in config.sections]
+    appendix_sections = [_clean_section(section, pandoc_status) for section in config.appendix_sections]
     figures = [_clean_figure(figure) for figure in config.figures]
     rendered = template.render(
         title=_clean_user_text(config.title),

@@ -2,11 +2,18 @@
 %# Jinja2 template with custom LaTeX-safe delimiters
 \documentclass[a4paper,11pt]{article}
 
+%# jheppub loads natbib internally, so \citet/\citep (from pandoc's
+%# --natbib output) resolve correctly without layering another natbib load.
 \usepackage{jheppub}
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{wasysym}
+
+%# Pandoc emits \tightlist for compact bullet lists; define as a no-op
+%# fallback so lists don't crash the compile when the macro isn't provided
+%# elsewhere.
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 
 \title{\VAR{title}}
 

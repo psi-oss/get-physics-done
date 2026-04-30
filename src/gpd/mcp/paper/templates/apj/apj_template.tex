@@ -2,12 +2,19 @@
 %# Jinja2 template with custom LaTeX-safe delimiters
 %# Note: AASTeX v7.0 (aastex701) is available for users who have it installed.
 %# v7.0 removes \affil command; use \affiliation instead.
+%# aastex631 loads natbib internally -- \citet/\citep (from pandoc's
+%# --natbib output) resolve without an extra \usepackage{natbib}.
 \documentclass[twocolumn]{aastex631}
 
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{wasysym}
+
+%# Pandoc emits \tightlist for compact bullet lists; define as a no-op
+%# fallback so lists don't crash the compile when the macro isn't provided
+%# elsewhere.
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 
 \begin{document}
 

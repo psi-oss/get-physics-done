@@ -222,13 +222,22 @@ class Author(BaseModel):
 
 
 class Section(BaseModel):
-    """A paper section with title and LaTeX content."""
+    """A paper section with title and body content.
+
+    ``content_format`` controls how ``content`` is interpreted during
+    rendering. The default ``"latex"`` preserves the legacy contract --
+    ``content`` is raw LaTeX and is substituted into the journal template
+    unchanged. Passing ``"markdown"`` opts the section into pandoc-driven
+    markdown-to-LaTeX conversion (requires pandoc on the host; the render
+    step raises ``PandocNotAvailable`` otherwise).
+    """
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     title: str = Field(alias="heading")
     content: str
     label: str = ""
+    content_format: Literal["latex", "markdown"] = "latex"
 
     @field_validator("title", "content")
     @classmethod

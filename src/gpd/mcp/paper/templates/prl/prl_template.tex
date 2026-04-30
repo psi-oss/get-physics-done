@@ -1,12 +1,22 @@
 %# PRL template -- RevTeX 4.2
 %# Jinja2 template with custom LaTeX-safe delimiters
-\documentclass[aps,prl,twocolumn,superscriptaddress]{revtex4-2}
+%# Pass 'natbib' as a revtex4-2 class option (NOT \usepackage{natbib}).
+%# revtex4-2 loads natbib internally when the class option is set; layering
+%# \usepackage{natbib} on top causes option-clash warnings and can break on
+%# some TeX Live versions. Without this option, revtex uses its own cite
+%# engine and \citet/\citep (from pandoc's --natbib output) are undefined.
+\documentclass[aps,prl,twocolumn,superscriptaddress,natbib]{revtex4-2}
 
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{wasysym}
 \usepackage{hyperref}
+
+%# Pandoc emits \tightlist for compact bullet lists; define as a no-op
+%# fallback so lists don't crash the compile when the macro isn't provided
+%# elsewhere.
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 
 \begin{document}
 

@@ -11,6 +11,17 @@
 \usepackage{hyperref}
 \usepackage[margin=1in]{geometry}
 
+%# natbib with Nature's expected superscript-numeric style.
+%# The legacy naturemag.bst predates natbib and has no author-name macro,
+%# so pandoc's \citet renders as '(author?)'. unsrtnat is the natbib-aware
+%# drop-in that produces the same visual output under these options.
+\usepackage[numbers,super,sort&compress]{natbib}
+
+%# Pandoc emits \tightlist for compact bullet lists; define as a no-op
+%# fallback so lists don't crash the compile when the macro isn't provided
+%# elsewhere.
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
 \title{\VAR{title}}
 
 \author{
@@ -72,7 +83,7 @@
 \BLOCK{endfor}
 \BLOCK{endif}
 
-\bibliographystyle{naturemag}
+\bibliographystyle{unsrtnat}
 \bibliography{\VAR{bib_file}}
 
 \BLOCK{if attribution_footer}

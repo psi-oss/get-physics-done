@@ -1,5 +1,7 @@
 %# MNRAS template -- Monthly Notices of the Royal Astronomical Society
 %# Jinja2 template with custom LaTeX-safe delimiters
+%# The usenatbib class option turns on natbib inside mnras.cls so
+%# \citet/\citep (from pandoc's --natbib output) resolve correctly.
 \documentclass[usenatbib]{mnras}
 
 \usepackage{graphicx}
@@ -7,6 +9,11 @@
 \usepackage{amssymb}
 \usepackage{wasysym}
 \usepackage{hyperref}
+
+%# Pandoc emits \tightlist for compact bullet lists; define as a no-op
+%# fallback so lists don't crash the compile when the macro isn't provided
+%# elsewhere.
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 
 \title[\VAR{title}]{\VAR{title}}
 
