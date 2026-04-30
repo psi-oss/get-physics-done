@@ -119,10 +119,17 @@ RESUME_WORK_INIT_FIELDS = frozenset(
 )
 SYNC_STATE_INIT_FIELDS = frozenset(
     {
+        "workspace_root",
         "project_root",
+        "project_root_source",
+        "project_root_auto_selected",
+        "init_root_policy",
+        "project_reentry_mode",
+        "project_reentry_guidance",
         "state_md_exists",
         "state_json_exists",
         "state_json_backup_exists",
+        "state_recovery_guidance",
         "state_md_content",
         "state_json_content",
         "state_json_backup_content",

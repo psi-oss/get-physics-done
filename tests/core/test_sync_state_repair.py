@@ -103,6 +103,7 @@ def test_sync_state_repair_fails_closed_on_backup_without_primary_state_surface(
     assert bootstrap["state_md_exists"] is False
     assert bootstrap["state_json_backup_exists"] is True
     assert bootstrap["state_load_source"] is None
+    assert "will not promote the backup automatically" in bootstrap["state_recovery_guidance"]
     assert any(
         "state.json.bak exists without primary state.json or STATE.md" in issue
         for issue in bootstrap["state_integrity_issues"]
@@ -117,7 +118,9 @@ def test_sync_state_repair_fails_closed_on_backup_without_primary_state_surface(
 
     assert result.repaired is False
     assert result.reason == "missing_or_unrecoverable_state"
-    assert any("state.json.bak exists without primary state.json or STATE.md" in issue for issue in result.integrity_issues)
+    assert any(
+        "state.json.bak exists without primary state.json or STATE.md" in issue for issue in result.integrity_issues
+    )
     assert not (tmp_path / "GPD" / "state.json").exists()
     assert not (tmp_path / "GPD" / "STATE.md").exists()
 

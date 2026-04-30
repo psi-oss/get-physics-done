@@ -48,7 +48,7 @@ from gpd.core.publication_rounds import (
 from gpd.core.referee_policy import evaluate_referee_decision, validate_referee_decision_ledger_consistency
 from gpd.core.reference_ingestion import ManuscriptReferenceStatusIngestion, ingest_manuscript_reference_status
 from gpd.core.reproducibility import compute_sha256
-from gpd.core.state import load_state_json
+from gpd.core.state import load_state_json_readonly
 from gpd.mcp.paper.models import ReviewIssueStatus
 from gpd.mcp.paper.review_artifacts import read_referee_decision, read_review_ledger
 
@@ -92,7 +92,7 @@ def _looks_like_publication_blocker(text: str) -> bool:
 def publication_blockers_for_project(cwd: Path) -> tuple[str, ...]:
     """Return unresolved publication blockers from state.json."""
 
-    state_obj = load_state_json(cwd)
+    state_obj = load_state_json_readonly(cwd)
     if not isinstance(state_obj, dict):
         return ()
 

@@ -367,13 +367,34 @@ def _current_workspace_candidate(workspace: Path | None) -> ProjectReentryCandid
         return None
 
     project_root = resolution.project_root.expanduser().resolve(strict=False)
+    layout = ProjectLayout(project_root)
     state_exists, roadmap_exists, project_exists = recoverable_project_context(project_root)
-    recoverable = state_exists or roadmap_exists or project_exists
+    has_execution_resume_surface = (
+        layout.current_observability_execution.exists()
+        or layout.execution_lineage_head.exists()
+        or layout.execution_lineage_ledger.exists()
+    )
+    has_local_config_surface = resolution.walk_up_steps == 0 and layout.config_json.exists()
+    has_local_phase_surface = resolution.walk_up_steps == 0 and layout.phases_dir.exists()
+    recoverable = (
+        state_exists
+        or roadmap_exists
+        or project_exists
+        or has_execution_resume_surface
+        or has_local_config_surface
+        or has_local_phase_surface
+    )
     if not recoverable:
         return None
 
     if resolution.basis == "workspace" and resolution.has_project_layout and resolution.walk_up_steps > 0:
         reason = "workspace resolved to ancestor project root"
+    elif has_execution_resume_surface and not (state_exists or roadmap_exists or project_exists):
+        reason = "workspace carries live execution state"
+    elif has_local_config_surface and not (state_exists or roadmap_exists or project_exists):
+        reason = "workspace carries local GPD config"
+    elif has_local_phase_surface and not (state_exists or roadmap_exists or project_exists):
+        reason = "workspace carries local GPD phase directory"
     elif resolution.has_project_layout and not project_exists and recoverable:
         reason = "workspace carries partial recoverable GPD state"
     elif resolution.has_project_layout:

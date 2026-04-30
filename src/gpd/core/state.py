@@ -123,6 +123,7 @@ __all__ = [
     "UpdateProgressResult",
     "VALID_STATUSES",
     "VALID_TRANSITIONS",
+    "backup_only_state_guidance",
     "default_state_dict",
     "ensure_state_schema",
     "generate_state_markdown",
@@ -177,6 +178,17 @@ _BACKUP_ONLY_WITHOUT_PRIMARY_STATE_ISSUE = (
     "state.json.bak exists without primary state.json or STATE.md; explicit recovery approval is required "
     "before treating it as state authority"
 )
+_BACKUP_ONLY_STATE_GUIDANCE = (
+    "GPD/state.json.bak exists, but primary GPD/state.json and GPD/STATE.md are missing. "
+    "GPD will not promote the backup automatically; inspect the backup and restore one primary state file only "
+    "after explicit recovery approval, then rerun sync-state from this workspace."
+)
+
+
+def backup_only_state_guidance() -> str:
+    """Return user-facing guidance for a backup-only state surface."""
+
+    return _BACKUP_ONLY_STATE_GUIDANCE
 
 
 def _recent_projects_index_path() -> Path:
@@ -507,6 +519,7 @@ class StateLoadResult(BaseModel):
     integrity_status: str = "healthy"
     integrity_issues: list[str] = Field(default_factory=list)
     state_source: str | None = None
+    recovery_guidance: str | None = None
     project_contract_load_info: dict | None = None
     project_contract_validation: dict | None = None
     project_contract_gate: dict | None = None
@@ -4385,6 +4398,12 @@ def state_load(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
         integrity_status=integrity_status,
         integrity_issues=integrity_issues,
         state_source=state_source,
+        recovery_guidance=(
+            backup_only_state_guidance()
+            if state_obj is None
+            and any(_BACKUP_ONLY_WITHOUT_PRIMARY_STATE_ISSUE in issue for issue in integrity_issues)
+            else None
+        ),
         project_contract_load_info=project_contract_load_info,
         project_contract_validation=project_contract_validation,
         project_contract_gate=project_contract_gate,
@@ -4446,6 +4465,12 @@ def state_load_readonly(cwd: Path, integrity_mode: str = "standard") -> StateLoa
         integrity_status=integrity_status,
         integrity_issues=integrity_issues,
         state_source=state_source,
+        recovery_guidance=(
+            backup_only_state_guidance()
+            if state_obj is None
+            and any(_BACKUP_ONLY_WITHOUT_PRIMARY_STATE_ISSUE in issue for issue in integrity_issues)
+            else None
+        ),
         project_contract_load_info=project_contract_load_info,
         project_contract_validation=project_contract_validation,
         project_contract_gate=project_contract_gate,

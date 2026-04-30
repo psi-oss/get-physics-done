@@ -3332,6 +3332,111 @@ class TestReviewValidationCommands:
         assert checks["project_reentry"]["passed"] is True
         assert "auto-selected recoverable recent project" in checks["project_reentry"]["detail"]
 
+        init_result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "init", "progress"],
+            catch_exceptions=False,
+        )
+
+        assert init_result.exit_code == 0, init_result.output
+        init_payload = json.loads(init_result.output)
+        assert init_payload["project_root"] == project.resolve().as_posix()
+        assert init_payload["project_reentry_mode"] == "auto-recent-project"
+
+        def _progress_render(cwd: Path, fmt: str) -> dict[str, str]:
+            return {"cwd": cwd.resolve(strict=False).as_posix(), "fmt": fmt}
+
+        monkeypatch.setattr("gpd.core.phases.progress_render", _progress_render)
+
+        progress_result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "progress"],
+            catch_exceptions=False,
+        )
+
+        assert progress_result.exit_code == 0, progress_result.output
+        assert json.loads(progress_result.output) == {
+            "cwd": project.resolve().as_posix(),
+            "fmt": "json",
+        }
+
+    def test_progress_surfaces_keep_local_phase_workspace_over_recent_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = tmp_path.parent / f"{tmp_path.name}-progress-local"
+        local_phase = workspace / "GPD" / "phases" / "01-local"
+        local_phase.mkdir(parents=True)
+        (local_phase / "01-PLAN.md").write_text("local plan\n", encoding="utf-8")
+        project = tmp_path / "recoverable-project"
+        gpd_dir = project / "GPD"
+        gpd_dir.mkdir(parents=True)
+        (gpd_dir / "STATE.md").write_text("# Research State\n", encoding="utf-8")
+        (gpd_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+        (gpd_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        resume_file = gpd_dir / "phases" / "02" / ".continue-here.md"
+        resume_file.parent.mkdir(parents=True, exist_ok=True)
+        resume_file.write_text("resume\n", encoding="utf-8")
+        data_root = tmp_path / "data"
+        monkeypatch.setenv("GPD_DATA_DIR", str(data_root))
+        record_recent_project(
+            project,
+            session_data={
+                "last_date": "2026-03-29T12:00:00+00:00",
+                "stopped_at": "Phase 02",
+                "resume_file": "GPD/phases/02/.continue-here.md",
+            },
+            store_root=data_root,
+        )
+
+        validate_result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "command-context", "progress"],
+            catch_exceptions=False,
+        )
+
+        assert validate_result.exit_code == 1, validate_result.output
+        validate_payload = json.loads(validate_result.output)
+        checks = {check["name"]: check for check in validate_payload["checks"]}
+        assert validate_payload["passed"] is False
+        assert checks["project_reentry"]["passed"] is True
+        assert checks["project_reentry"]["detail"] == "current workspace or ancestor project root is recoverable"
+        assert "auto-selected recoverable recent project" not in checks["project_reentry"]["detail"]
+        assert "recent-project" not in checks["project_exists"]["detail"]
+
+        init_result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "init", "progress"],
+            catch_exceptions=False,
+        )
+
+        assert init_result.exit_code == 0, init_result.output
+        init_payload = json.loads(init_result.output)
+        assert init_payload["project_root"] == workspace.resolve().as_posix()
+        assert init_payload["project_reentry_mode"] == "current-workspace"
+        assert (
+            init_payload["project_reentry_selected_candidate"]["reason"]
+            == "workspace carries local GPD phase directory"
+        )
+
+        def _progress_render(cwd: Path, fmt: str) -> dict[str, str]:
+            return {"cwd": cwd.resolve(strict=False).as_posix(), "fmt": fmt}
+
+        monkeypatch.setattr("gpd.core.phases.progress_render", _progress_render)
+
+        progress_result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "progress"],
+            catch_exceptions=False,
+        )
+
+        assert progress_result.exit_code == 0, progress_result.output
+        assert json.loads(progress_result.output) == {
+            "cwd": workspace.resolve().as_posix(),
+            "fmt": "json",
+        }
+
     def test_command_context_resume_work_requires_reopen_for_unique_recent_project(
         self,
         tmp_path: Path,

@@ -3402,7 +3402,7 @@ def progress(
     """Render progress in the specified format."""
     from gpd.core.phases import progress_render
 
-    cwd = _read_only_project_scoped_cwd()
+    cwd = _status_command_cwd()
     if not watch:
         _output(progress_render(cwd, fmt))
         return
@@ -4820,9 +4820,7 @@ def _render_observe_execution(result: ObserveExecutionResult) -> None:
         console.print("[dim]No live execution snapshot is currently recorded for this workspace.[/]")
 
 
-observe_app = typer.Typer(
-    help="Inspect local observability; event/export are the subcommands that write files"
-)
+observe_app = typer.Typer(help="Inspect local observability; event/export are the subcommands that write files")
 app.add_typer(observe_app, name="observe")
 
 

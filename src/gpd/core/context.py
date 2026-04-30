@@ -113,7 +113,7 @@ from gpd.core.root_resolution import (
     resolve_project_roots,
     resolve_state_json_root,
 )
-from gpd.core.state import _current_machine_identity, _finalize_project_contract_gate
+from gpd.core.state import _current_machine_identity, _finalize_project_contract_gate, backup_only_state_guidance
 from gpd.core.state import peek_state_json as _peek_state_json
 from gpd.core.utils import (
     generate_slug as _generate_slug_impl,
@@ -200,12 +200,77 @@ class InitRootPolicy(StrEnum):
     WORKSPACE_LOCKED = "workspace_locked"
     PROJECT_SCOPED = "project_scoped"
     PROJECT_REENTRY_ALLOWED = "project_reentry_allowed"
+    CURRENT_WORKSPACE_ONLY = "current_workspace_only"
 
 
 # Research file extensions for project detection.
-_RESEARCH_EXTENSIONS = frozenset({".tex", ".ipynb", ".py", ".jl", ".f90", ".pdf", ".csv"})
+_RESEARCH_EXTENSIONS = frozenset(
+    {
+        ".bib",
+        ".c",
+        ".cc",
+        ".cls",
+        ".cpp",
+        ".csv",
+        ".cu",
+        ".cuh",
+        ".cxx",
+        ".dat",
+        ".f",
+        ".f03",
+        ".f08",
+        ".f77",
+        ".f90",
+        ".f95",
+        ".fits",
+        ".for",
+        ".ftn",
+        ".h",
+        ".h5",
+        ".hdf5",
+        ".hh",
+        ".hpp",
+        ".hxx",
+        ".ipynb",
+        ".jl",
+        ".m",
+        ".mat",
+        ".nb",
+        ".npy",
+        ".npz",
+        ".pdf",
+        ".py",
+        ".root",
+        ".sty",
+        ".tex",
+        ".tsv",
+    }
+)
 _RESEARCH_FILE_SAMPLE_LIMIT = 5
 _RESEARCH_SCAN_MAX_DEPTH = 3
+_RESEARCH_FOCUSED_SCAN_MAX_DEPTH = 6
+_RESEARCH_FOCUSED_SCAN_DIR_NAMES = frozenset(
+    {
+        "analysis",
+        "analyses",
+        "bibliography",
+        "code",
+        "data",
+        "datasets",
+        "notebook",
+        "notebooks",
+        "paper",
+        "papers",
+        "refs",
+        "references",
+        "script",
+        "scripts",
+        "simulation",
+        "simulations",
+        "source",
+        "src",
+    }
+)
 _LITERATURE_DIR_NAME = "literature"
 _REFERENCE_MAP_DOCS = ("REFERENCES.md", "VALIDATION.md")
 _LITERATURE_INCLUDE_LIMIT = 2
@@ -743,13 +808,20 @@ def _ignore_dirs() -> frozenset[str]:
             PLANNING_DIR_NAME,
             *_runtime_config_dirs(),
             ".venv",
+            ".eggs",
+            ".nox",
             ".tox",
             ".pytest_cache",
             ".mypy_cache",
             ".ruff_cache",
             ".vscode",
             ".idea",
+            "build",
+            "cmake-build-debug",
+            "cmake-build-release",
+            "dist",
             "node_modules",
+            "target",
             "__pycache__",
             GPD_INSTALL_DIR_NAME,
         }
@@ -797,6 +869,15 @@ def _state_exists(cwd: Path) -> bool:
         acquire_lock=False,
     )
     return isinstance(state, dict)
+
+
+def _backup_only_state_guidance(cwd: Path) -> str | None:
+    """Return conservative recovery guidance for a lone backup state file."""
+
+    layout = ProjectLayout(cwd)
+    if layout.state_json_backup.exists() and not layout.state_json.exists() and not layout.state_md.exists():
+        return backup_only_state_guidance()
+    return None
 
 
 def _resolve_project_scoped_cwd(cwd: Path) -> Path:
@@ -1279,13 +1360,28 @@ def _should_skip_research_scan_entry(cwd: Path, entry: Path) -> bool:
     return False
 
 
+def _research_scan_max_depth_for_directory(cwd: Path, directory: Path) -> int:
+    """Return the depth limit for this bounded research-file scan branch."""
+
+    try:
+        relative_parts = directory.relative_to(cwd).parts
+    except ValueError:
+        return _RESEARCH_SCAN_MAX_DEPTH
+    if any(part.casefold() in _RESEARCH_FOCUSED_SCAN_DIR_NAMES for part in relative_parts):
+        return _RESEARCH_FOCUSED_SCAN_MAX_DEPTH
+    return _RESEARCH_SCAN_MAX_DEPTH
+
+
 def _discover_research_file_samples(cwd: Path) -> list[str]:
     """Return bounded project-relative research-looking file samples."""
 
     samples: list[str] = []
 
     def _walk(directory: Path, depth: int) -> None:
-        if depth > _RESEARCH_SCAN_MAX_DEPTH or len(samples) >= _RESEARCH_FILE_SAMPLE_LIMIT:
+        if (
+            depth > _research_scan_max_depth_for_directory(cwd, directory)
+            or len(samples) >= _RESEARCH_FILE_SAMPLE_LIMIT
+        ):
             return
         try:
             entries = sorted(directory.iterdir())
@@ -4337,13 +4433,26 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
 
 def init_sync_state(cwd: Path, *, stage: str | None = None) -> dict:
     """Assemble context for state reconciliation."""
-    effective_cwd = _resolve_project_scoped_cwd(cwd)
+    requested_cwd = cwd.expanduser().resolve(strict=False)
+    effective_cwd = _resolve_project_scoped_cwd(requested_cwd)
+    sync_state_reentry_guidance = (
+        "sync-state is current-workspace-only because it can mutate state files. "
+        "It will not inspect or repair a recent project from another folder; open the target project folder "
+        "or pass --cwd to that project before rerunning sync-state."
+    )
 
     base_result = {
+        "workspace_root": requested_cwd.as_posix(),
         "project_root": effective_cwd.as_posix(),
+        "project_root_source": "current_workspace",
+        "project_root_auto_selected": False,
+        "init_root_policy": InitRootPolicy.CURRENT_WORKSPACE_ONLY.value,
+        "project_reentry_mode": "current-workspace",
+        "project_reentry_guidance": sync_state_reentry_guidance,
         "state_md_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
         "state_json_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/state.json"),
         "state_json_backup_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{STATE_JSON_BACKUP_FILENAME}"),
+        "state_recovery_guidance": _backup_only_state_guidance(effective_cwd),
         "platform": _detect_platform(effective_cwd),
     }
 
@@ -5258,6 +5367,7 @@ def init_progress(
         "project_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "roadmap_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "state_exists": _state_exists(effective_cwd),
+        "state_recovery_guidance": _backup_only_state_guidance(effective_cwd),
         # Platform
         "platform": _detect_platform(effective_cwd),
     }

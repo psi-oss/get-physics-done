@@ -24,7 +24,15 @@ export PROJECT_ROOT
 PROJECT_ROOT=$(echo "$SYNC_BOOTSTRAP_INIT" | gpd json get .project_root)
 ```
 
-Use `sync_bootstrap.required_init_fields` from `SYNC_BOOTSTRAP_INIT`. Use `project_root` from the init payload as the only write/read root; do not use the shell launch directory. Do not re-probe `GPD/STATE.md`, `GPD/state.json`, or `GPD/state.json.bak` by hand during routing.
+Use `sync_bootstrap.required_init_fields` from `SYNC_BOOTSTRAP_INIT`. Use `project_root` from the init payload as the only write/read root; do not use the shell launch directory. `init_root_policy` and `project_reentry_guidance` are authoritative: sync-state is current-workspace-only and must not inspect or repair a recent project from another folder. Do not re-probe `GPD/STATE.md`, `GPD/state.json`, or `GPD/state.json.bak` by hand during routing.
+
+**If `state_md_exists` and `state_json_exists` are both false, and `state_json_backup_exists` is true:**
+
+```
+Backup-only state found. Display state_recovery_guidance, then stop.
+```
+
+Exit. Do not promote `GPD/state.json.bak` automatically.
 
 **If `state_md_exists` and `state_json_exists` are both false:**
 

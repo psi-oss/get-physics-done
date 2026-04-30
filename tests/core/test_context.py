@@ -2525,6 +2525,16 @@ class TestInitNewProject:
         assert ctx["has_research_files"] is False
         assert ctx["research_file_samples"] == []
 
+    def test_research_file_scan_reaches_bounded_focused_research_directories(self, tmp_path: Path) -> None:
+        deep_analysis_dir = tmp_path / "analysis" / "runs" / "2026" / "notebooks"
+        deep_analysis_dir.mkdir(parents=True)
+        (deep_analysis_dir / "spectrum.nb").write_text("Notebook[{}]\n", encoding="utf-8")
+
+        ctx = init_new_project(tmp_path)
+
+        assert ctx["has_research_files"] is True
+        assert ctx["research_file_samples"] == ["analysis/runs/2026/notebooks/spectrum.nb"]
+
     @pytest.mark.parametrize("filename", ("draft.pdf", "measurements.csv"))
     def test_detects_documented_research_file_extensions(self, tmp_path: Path, filename: str) -> None:
         (tmp_path / filename).write_text("research artifact\n", encoding="utf-8")
@@ -2534,6 +2544,44 @@ class TestInitNewProject:
         assert ctx["has_research_files"] is True
         assert ctx["research_file_samples"] == [filename]
         assert ctx["needs_research_map"] is True
+
+    @pytest.mark.parametrize(
+        "filename",
+        (
+            "analysis.nb",
+            "references.bib",
+            "observables.dat",
+            "samples.h5",
+            "array.npy",
+            "arrays.npz",
+            "simulation.cpp",
+            "include/model.hpp",
+            "solver.f95",
+            "module.f03",
+            "paper/style.sty",
+            "table.tsv",
+        ),
+    )
+    def test_detects_common_physics_research_artifacts(self, tmp_path: Path, filename: str) -> None:
+        target = tmp_path / filename
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("research artifact\n", encoding="utf-8")
+
+        ctx = init_new_project(tmp_path)
+
+        assert ctx["has_research_files"] is True
+        assert ctx["research_file_samples"] == [filename]
+        assert ctx["needs_research_map"] is True
+
+    def test_research_file_scan_skips_generated_trees(self, tmp_path: Path) -> None:
+        generated = tmp_path / "build" / "simulation"
+        generated.mkdir(parents=True)
+        (generated / "observables.dat").write_text("generated data\n", encoding="utf-8")
+
+        ctx = init_new_project(tmp_path)
+
+        assert ctx["has_research_files"] is False
+        assert ctx["research_file_samples"] == []
 
     def test_ignores_runtime_owned_dirs_when_detecting_research_files(self, tmp_path: Path) -> None:
         for runtime_dir in _runtime_owned_local_install_dirs(tmp_path):
@@ -2913,6 +2961,20 @@ class TestInitNewProject:
         assert "templates/state-json-schema.md" in ctx["staged_loading"]["must_not_eager_load"]
         assert "state_md_content" not in ctx
         assert "state_json_content" not in ctx
+
+    def test_sync_state_surfaces_current_workspace_only_policy(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+
+        ctx = init_sync_state(outside)
+
+        assert ctx["workspace_root"] == outside.resolve().as_posix()
+        assert ctx["project_root"] == outside.resolve().as_posix()
+        assert ctx["project_root_source"] == "current_workspace"
+        assert ctx["project_root_auto_selected"] is False
+        assert ctx["init_root_policy"] == "current_workspace_only"
+        assert ctx["project_reentry_mode"] == "current-workspace"
+        assert "will not inspect or repair a recent project from another folder" in ctx["project_reentry_guidance"]
 
     def test_sync_state_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
         from gpd.core.state import default_state_dict, generate_state_markdown
@@ -3405,6 +3467,27 @@ class TestInitNewProject:
         assert ctx["managed_publication_root"] == "GPD/publication/curvature-flow-bounds"
         assert ctx["selected_publication_root"] == "GPD/publication/curvature-flow-bounds"
         assert ctx["selected_review_root"] == "GPD/publication/curvature-flow-bounds/review"
+
+    def test_arxiv_submission_stage_bootstrap_does_not_create_state_lock(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nSubmission target.\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        manuscript_dir = tmp_path / "paper"
+        manuscript_dir.mkdir()
+        manuscript = manuscript_dir / "main.tex"
+        manuscript.write_text(
+            "\\documentclass{article}\\begin{document}Draft manuscript.\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(_artifact_manifest_payload(manuscript)) + "\n",
+            encoding="utf-8",
+        )
+
+        ctx = init_arxiv_submission(tmp_path, subject="paper/main.tex", stage="bootstrap")
+
+        assert ctx["staged_loading"]["stage_id"] == "bootstrap"
+        assert not _state_lock_path(tmp_path).exists()
 
     def test_arxiv_submission_stage_bootstrap_surfaces_newest_response_freshness(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
