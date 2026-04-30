@@ -2863,6 +2863,32 @@ def test_state_load_keeps_primary_position_authoritative_when_only_position_requ
     assert persisted["project_contract"]["scope"]["question"] == "newer primary contract"
 
 
+def test_state_load_does_not_repair_position_from_backup_that_reset_to_defaults(tmp_path: Path) -> None:
+    primary_state = default_state_dict()
+    primary_state["position"]["current_phase"] = "05"
+    primary_state["position"]["status"] = "Executing"
+    save_state_json(tmp_path, primary_state)
+    save_state_markdown(tmp_path, generate_state_markdown(primary_state))
+    layout = ProjectLayout(tmp_path)
+
+    broken_state = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    broken_state["position"] = []
+    layout.state_json.write_text(json.dumps(broken_state, indent=2) + "\n", encoding="utf-8")
+    layout.state_json_backup.write_text("{}\n", encoding="utf-8")
+
+    loaded = state_load(tmp_path)
+
+    assert any(
+        'schema normalization: dropped "position" because expected object, got list' in issue
+        for issue in loaded.integrity_issues
+    )
+    assert not any(
+        "state.json position was recovered from state.json.bak" in issue for issue in loaded.integrity_issues
+    )
+    persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    assert persisted["position"] == []
+
+
 def test_state_validate_keeps_warning_after_markdown_exists_for_a_non_object_state_root(tmp_path: Path) -> None:
     baseline = default_state_dict()
     save_state_json(tmp_path, baseline)

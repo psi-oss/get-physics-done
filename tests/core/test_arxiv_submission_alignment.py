@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import json
+import tarfile
 from pathlib import Path
 
+from gpd.core.arxiv_package import ARXIV_TARBALL_NAME, validate_arxiv_package
 from gpd.core.workflow_staging import resolve_workflow_stage_manifest_path, validate_workflow_stage_manifest_payload
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
+
+
+def _check_by_name(result: object, name: str) -> object:
+    return next(check for check in result.checks if check.name == name)
 
 
 def test_arxiv_submission_command_declares_manuscript_root_gates_without_first_match_discovery() -> None:
@@ -127,3 +133,99 @@ def test_arxiv_submission_stage_manifest_path_is_resolved_and_loadable() -> None
     )
     assert manifest.stage("package").writes_allowed == ("GPD/publication/{subject_slug}/arxiv",)
     assert manifest.stage("finalize").writes_allowed == ("GPD/publication/{subject_slug}/arxiv",)
+
+
+def test_arxiv_package_validator_detects_citations_in_included_tex_files(tmp_path: Path) -> None:
+    submission_dir = tmp_path / "GPD" / "publication" / "paper" / "arxiv" / "submission"
+    submission_dir.mkdir(parents=True)
+    (submission_dir / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}\\input{section}\\end{document}\n",
+        encoding="utf-8",
+    )
+    (submission_dir / "section.tex").write_text(
+        "The result follows prior work \\cite{known-result}.\n", encoding="utf-8"
+    )
+
+    result = validate_arxiv_package(
+        project_root=tmp_path,
+        subject_slug="paper",
+        manuscript_entrypoint="paper/main.tex",
+    )
+
+    tex_check = _check_by_name(result, "submission_tex_ready")
+    assert tex_check.passed is False
+    assert "citation commands but no inlined thebibliography or packaged .bbl material" in tex_check.detail
+
+
+def test_arxiv_package_validator_accepts_included_tex_bibliography_material(tmp_path: Path) -> None:
+    submission_dir = tmp_path / "GPD" / "publication" / "paper" / "arxiv" / "submission"
+    submission_dir.mkdir(parents=True)
+    (submission_dir / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}\\input{section}\\end{document}\n",
+        encoding="utf-8",
+    )
+    (submission_dir / "section.tex").write_text(
+        (
+            "The result follows prior work \\cite{known-result}.\n"
+            "\\begin{thebibliography}{1}\n"
+            "\\bibitem{known-result} Known Result.\n"
+            "\\end{thebibliography}\n"
+        ),
+        encoding="utf-8",
+    )
+
+    result = validate_arxiv_package(
+        project_root=tmp_path,
+        subject_slug="paper",
+        manuscript_entrypoint="paper/main.tex",
+    )
+
+    assert _check_by_name(result, "submission_tex_ready").passed is True
+
+
+def test_arxiv_package_materialize_refuses_submission_tree_outside_managed_root(tmp_path: Path) -> None:
+    outside_submission_dir = tmp_path / "outside-submission"
+    outside_submission_dir.mkdir()
+    (outside_submission_dir / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}Ready.\\end{document}\n",
+        encoding="utf-8",
+    )
+    tarball = tmp_path / "GPD" / "publication" / "paper" / "arxiv" / ARXIV_TARBALL_NAME
+
+    result = validate_arxiv_package(
+        project_root=tmp_path,
+        subject_slug="paper",
+        manuscript_entrypoint="paper/main.tex",
+        submission_dir=outside_submission_dir,
+        tarball=tarball,
+        materialize=True,
+    )
+
+    assert result.materialized is False
+    assert not tarball.exists()
+    assert _check_by_name(result, "submission_dir_under_managed_arxiv_root").passed is False
+    assert _check_by_name(result, "tarball_materialized").passed is False
+
+
+def test_arxiv_package_validator_rejects_unsafe_publication_subject_slug(tmp_path: Path) -> None:
+    submission_dir = tmp_path / "GPD" / "escape" / "arxiv" / "submission"
+    submission_dir.mkdir(parents=True)
+    (submission_dir / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}Ready.\\end{document}\n",
+        encoding="utf-8",
+    )
+    tarball = tmp_path / "GPD" / "escape" / "arxiv" / ARXIV_TARBALL_NAME
+    with tarfile.open(tarball, "w:gz") as archive:
+        archive.add(submission_dir / "main.tex", arcname="main.tex", recursive=False)
+
+    result = validate_arxiv_package(
+        project_root=tmp_path,
+        subject_slug="../escape",
+        manuscript_entrypoint="paper/main.tex",
+        submission_dir=submission_dir,
+        tarball=tarball,
+    )
+
+    check = _check_by_name(result, "managed_arxiv_root")
+    assert check.passed is False
+    assert "publication subject slug" in check.detail

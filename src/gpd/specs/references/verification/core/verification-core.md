@@ -37,7 +37,9 @@ A calculation existing does not mean the physics is right. Verification must che
 3. **Physically plausible** - Result is the right order of magnitude, has correct sign, obeys known constraints
 4. **Cross-validated** - Agrees with independent methods, known limits, conservation laws, and literature
 
-Levels 1-3 can often be checked programmatically. Level 4 requires deeper analysis and sometimes human judgment.
+Checks 1-3 can often be checked programmatically. Check 4 requires deeper analysis and sometimes human judgment.
+
+This core-check ladder is separate from the verifier agent's artifact levels: executed checks feed artifact Level 3, while goal, contract, convention, and downstream fit are artifact Level 4.
 
 **Level 5: External Oracle** — Result verified by an independent computational system (SymPy, numpy, or other CAS/numerical library) whose output is shown in VERIFICATION.md. This is the strongest form of verification because it breaks the LLM self-consistency loop: the LLM cannot hallucinate a correct CAS output.
 

@@ -262,14 +262,15 @@ Is the artifact a real derivation / computation / result, not a placeholder?
 
 <!-- Stub detection patterns extracted to reduce context. Load on demand from `references/verification/examples/verifier-worked-examples.md`. -->
 
-
 Scan for three categories: **Physics** (placeholders, magic numbers, suppressed warnings), **Derivation** (unjustified approximations, circular reasoning), **Numerical** (division-by-zero risks, missing convergence criteria, float equality).
 
 Categorize: BLOCKER (prevents goal / produces wrong physics) | WARNING (incomplete but not wrong) | INFO (notable, should be documented)
 
 ### Level 3: Content Validation
 
-Execute or re-derive at least one decisive physics check for the artifact: substitute test values, take a limiting case, run a small independent calculation, or compare against a known benchmark. Record the code, actual output, and PASS/FAIL/INCONCLUSIVE verdict in VERIFICATION.md.
+Execute or re-derive at least one decisive physics check for the artifact: substitute test values, take a limiting case, run a small independent calculation, or compare against a known benchmark.
+
+Record the code, actual output, and PASS/FAIL/INCONCLUSIVE verdict in VERIFICATION.md.
 
 ### Level 4: Integration
 

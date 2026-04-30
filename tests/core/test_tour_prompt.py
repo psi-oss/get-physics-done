@@ -43,8 +43,7 @@ def test_tour_workflow_introduces_a_safe_beginner_walkthrough() -> None:
 
     assert (
         "A common first pass is `help -> start -> tour -> new-project / map-research -> resume-work`, "
-        "but the folder state still decides the actual path."
-        in expanded_workflow
+        "but the folder state still decides the actual path." in expanded_workflow
     )
 
     for fragment in (
@@ -61,22 +60,22 @@ def test_tour_workflow_introduces_a_safe_beginner_walkthrough() -> None:
         "gpd:branch-hypothesis",
         "gpd:set-profile",
         "gpd:set-tier-models",
-        "Use `start` when you are still deciding, not `new-project`",
-        "Use `resume-work` only when the project already has GPD state",
-        "Use `help` when you want the command reference, not a setup wizard",
+        "Use `gpd:start` when you are still deciding, not `gpd:new-project`",
+        "Use `gpd:resume-work` only when the project already has GPD state",
+        "Use `gpd:help` when you want the command reference, not a setup wizard",
         "A few terms in plain English",
         "`GPD project` - a folder where GPD already saved its own project files and state",
         "`research map` - GPD's summary of an existing research folder before full project setup",
         "`phase` - one chunk of the project plan that GPD will organize later",
-        "If you are still unsure, run gpd:start.",
-        "`settings` is the guided runtime command for changing autonomy",
-        "`set-tier-models` is the direct runtime command for pinning concrete",
+        '"If you are still unsure, run `gpd:start`."',
+        "`gpd:settings` is the guided runtime command for changing autonomy",
+        "`gpd:set-tier-models` is the direct runtime command for pinning concrete",
         "settings/model commands from the startup table",
     ):
         assert fragment in workflow
 
-    assert workflow.count("gpd:set-tier-models") == 1
-    assert workflow.count("gpd:settings") == 1
+    assert workflow.count("gpd:set-tier-models") == 2
+    assert workflow.count("gpd:settings") == 2
     assert workflow.count("set-tier-models") <= 3
     assert workflow.count("settings") <= 5
     assert workflow.count("tier-1") == 1

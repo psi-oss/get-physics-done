@@ -94,28 +94,28 @@ Explain in plain language:
   commands.
 - `gpd resume` is the normal-terminal recovery step for reopening the right
   workspace.
-- `resume-work` is the in-runtime continue command after you are back in the
+- `gpd:resume-work` is the in-runtime continue command after you are back in the
   right project.
-- `settings` is the guided runtime command for changing autonomy, permission-sync behavior, and other GPD preferences after your first successful start or later.
-- `set-tier-models` is the direct runtime command for pinning concrete
+- `gpd:settings` is the guided runtime command for changing autonomy, permission-sync behavior, and other GPD preferences after your first successful start or later.
+- `gpd:set-tier-models` is the direct runtime command for pinning concrete
   `tier-1`, `tier-2`, and `tier-3` model ids without changing the broader
   settings bundle.
-- `tour` only explains; it does not run `start`, `new-project`, `map-research`,
-  `resume-work`, or configuration commands for you.
+- `gpd:tour` only explains; it does not run `gpd:start`, `gpd:new-project`, `gpd:map-research`,
+  `gpd:resume-work`, or configuration commands for you.
 - `Use \`gpd resume\` first if you need to reopen the project before using \`gpd:resume-work\`.`
 </step>
 
 <step name="highlight_common_mistakes">
 Call out beginner traps in a gentle, plain-English way:
 
-- Use `start` when you are still deciding, not `new-project`
-- Use `new-project` when the folder is genuinely new, not when you only want to
+- Use `gpd:start` when you are still deciding, not `gpd:new-project`
+- Use `gpd:new-project` when the folder is genuinely new, not when you only want to
   inspect it
-- Use `map-research` for an existing folder with papers, notes, or code, not an
+- Use `gpd:map-research` for an existing folder with papers, notes, or code, not an
   empty folder
-- Use `resume-work` only when the project already has GPD state
-- Use `set-profile` when you want to change the abstract research profile
-- Use `help` when you want the command reference, not a setup wizard
+- Use `gpd:resume-work` only when the project already has GPD state
+- Use `gpd:set-profile` when you want to change the abstract research profile
+- Use `gpd:help` when you want the command reference, not a setup wizard
 
 Keep the tone explanatory, not corrective.
 </step>
@@ -139,10 +139,9 @@ Keep each definition to one sentence.
 <step name="close_with_next_steps">
 End with a short wrap-up that says:
 
-- `If you are still unsure, run gpd:start.`
-- `If you want the reference list again later, run gpd:help.`
-- `If you already know your path, use the matching command from the table
-  above.`
+- "If you are still unsure, run `gpd:start`."
+- "If you want the reference list again later, run `gpd:help`."
+- "If you already know your path, use the matching command from the table above."
 
 Do not ask the user to pick a branch and do not continue into another workflow.
 </step>

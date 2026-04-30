@@ -8,6 +8,7 @@ import tarfile
 from pathlib import Path, PurePosixPath
 
 from gpd.core.constants import ProjectLayout
+from gpd.core.utils import normalize_ascii_slug
 
 __all__ = [
     "ArxivPackageCheck",
@@ -155,16 +156,16 @@ def _scan_tex_payload(
         if _BIBLIOGRAPHY_COMMAND_RE.search(text):
             issues.append(f"{name} still contains bibliography commands; inline .bbl content or input a .bbl file")
 
-    root_text = normalized_payloads.get(root_entrypoint, "")
+    combined_text = "\n".join(normalized_payloads.values())
     citation_keys = [
         key.strip()
-        for match in _CITATION_RE.finditer(root_text)
+        for match in _CITATION_RE.finditer(combined_text)
         for key in match.group(1).split(",")
         if key.strip()
     ]
     has_bibliography_material = (
-        "\\begin{thebibliography}" in root_text
-        or bool(_BBL_INPUT_RE.search(root_text))
+        "\\begin{thebibliography}" in combined_text
+        or bool(_BBL_INPUT_RE.search(combined_text))
         or any(name.lower().endswith(".bbl") for name in packaged_names)
     )
     if citation_keys and not has_bibliography_material:
@@ -257,6 +258,7 @@ def validate_arxiv_package(
     """
 
     project_root = project_root.resolve(strict=False)
+    subject_slug = subject_slug.strip()
     layout = ProjectLayout(project_root)
     package_root = layout.publication_arxiv_dir(subject_slug).resolve(strict=False)
     default_submission_dir = package_root / "submission"
@@ -271,17 +273,30 @@ def validate_arxiv_package(
     def add_check(name: str, passed: bool, detail: str) -> None:
         checks.append(ArxivPackageCheck(name=name, passed=passed, blocking=True, detail=detail))
 
-    add_check(
-        "managed_arxiv_root",
-        bool(subject_slug.strip()),
-        f"package root is {_display_path(project_root, package_root)}",
+    managed_root_valid = (
+        bool(subject_slug)
+        and normalize_ascii_slug(subject_slug) == subject_slug
+        and _is_relative_to(package_root, layout.publication_dir)
     )
     add_check(
+        "managed_arxiv_root",
+        managed_root_valid,
+        (
+            f"package root is {_display_path(project_root, package_root)}"
+            if managed_root_valid
+            else (
+                "publication subject slug must be a non-empty lowercase kebab-case slug "
+                "that stays under the managed GPD publication root"
+            )
+        ),
+    )
+    submission_under_root = _is_relative_to(submission_path, package_root)
+    add_check(
         "submission_dir_under_managed_arxiv_root",
-        _is_relative_to(submission_path, package_root),
+        submission_under_root,
         (
             f"{_display_path(project_root, submission_path)} is under {_display_path(project_root, package_root)}"
-            if _is_relative_to(submission_path, package_root)
+            if submission_under_root
             else (
                 f"{_display_path(project_root, submission_path)} escapes managed arXiv root "
                 f"{_display_path(project_root, package_root)}"
@@ -366,7 +381,12 @@ def validate_arxiv_package(
 
     materialized = False
     if materialize:
-        if submission_ready_for_materialize and tarball_under_root and tarball_path.name == ARXIV_TARBALL_NAME:
+        if (
+            submission_ready_for_materialize
+            and submission_under_root
+            and tarball_under_root
+            and tarball_path.name == ARXIV_TARBALL_NAME
+        ):
             try:
                 _materialize_tarball(submission_dir=submission_path, tarball=tarball_path)
             except OSError as exc:
@@ -406,9 +426,7 @@ def validate_arxiv_package(
         add_check(
             "tarball_entries_safe",
             not tarball_issues,
-            "tarball entries are safe relative package files"
-            if not tarball_issues
-            else "; ".join(tarball_issues[:5]),
+            "tarball entries are safe relative package files" if not tarball_issues else "; ".join(tarball_issues[:5]),
         )
         add_check(
             "tarball_entrypoint_at_root",

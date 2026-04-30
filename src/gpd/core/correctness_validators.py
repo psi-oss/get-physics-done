@@ -122,7 +122,7 @@ def validate_verification_oracle_evidence(
                 continue
             if not _output_block_is_actual(output_fence.body, intervening_text):
                 continue
-            verdict_window = content[code_fence.start : min(len(content), output_fence.end + 800)]
+            verdict_window = content[output_fence.end : min(len(content), output_fence.end + 800)]
             if not _VERDICT_RE.search(verdict_window):
                 continue
             evidence_count += 1
@@ -237,7 +237,9 @@ def validate_comparison_contract(
     comparison_kind = meta.get("comparison_kind")
     if comparison_kind is not None:
         if not isinstance(comparison_kind, str) or comparison_kind.strip() not in _COMPARISON_KIND_VALUES:
-            errors.append("comparison_kind: must be one of benchmark, prior_work, experiment, cross_method, baseline, other")
+            errors.append(
+                "comparison_kind: must be one of benchmark, prior_work, experiment, cross_method, baseline, other"
+            )
 
     overall_agreement = meta.get("overall_agreement")
     if overall_agreement is not None:

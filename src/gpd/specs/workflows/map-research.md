@@ -1,5 +1,5 @@
 <purpose>
-Orchestrate parallel research-mapper agents to analyze a physics research project and produce structured documents in GPD/research-map/
+Orchestrate parallel research-mapper agents to analyze a physics research project and produce structured documents under the project-rooted `GPD/research-map/`.
 
 Each agent has fresh context, explores a specific focus area, and **writes documents directly**. The orchestrator receives typed returns plus confirmation and line counts, verifies the expected files on disk, then writes a summary.
 
@@ -476,7 +476,7 @@ End workflow.
 
 <success_criteria>
 
-- GPD/research-map/ directory created
+- Project-rooted `GPD/research-map/` directory created
 - 4 parallel gpd-research-mapper agents spawned with run_in_background=true
 - Agents write documents directly (orchestrator doesn't receive document contents)
 - Read agent output files to collect confirmations

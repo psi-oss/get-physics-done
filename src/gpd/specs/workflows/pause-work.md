@@ -192,9 +192,9 @@ timestamp=$(gpd --raw timestamp full)
 **Update STATE.md with pause context:**
 
 ```bash
-phase_slug="03-dispersion"      # replace with the detected phase directory
-task_index="2"                  # replace with the current task number
-task_total="5"                  # replace with the current total task count
+: "${phase_slug:?set detected phase directory before recording session}"
+: "${task_index:?set current task number before recording session}"
+: "${task_total:?set total task count before recording session}"
 resume_file="GPD/phases/${phase_slug}/.continue-here.md"
 last_result_id=""               # set only when manually overriding or repairing the carried anchor
 
@@ -223,9 +223,9 @@ if [ $? -ne 0 ]; then echo "WARNING: state patch failed — status not marked as
 
 <step name="commit">
 ```bash
-phase_slug="03-dispersion"      # replace with the detected phase directory
-task_index="2"                  # replace with the current task number
-task_total="5"                  # replace with the current total task count
+: "${phase_slug:?set detected phase directory before commit}"
+: "${task_index:?set current task number before commit}"
+: "${task_total:?set total task count before commit}"
 
 PRE_CHECK=$(gpd pre-commit-check --files GPD/phases/*/.continue-here.md GPD/STATE.md GPD/state.json 2>&1) || true
 echo "$PRE_CHECK"

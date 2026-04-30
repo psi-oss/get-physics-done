@@ -2219,12 +2219,12 @@ def _normalize_state_schema_with_backup_project_contract(
     def _state_reset_issue_present(issues: list[str]) -> bool:
         return "schema normalization: irrecoverable validation failure; reset to defaults" in issues
 
-    if (
-        backup_normalized is not None
-        and not _state_reset_issue_present(backup_issues)
-        and (not isinstance(raw, dict) or _state_reset_issue_present(integrity_issues))
-    ):
-        normalized = backup_normalized
+    repairable_backup = (
+        backup_normalized if backup_normalized is not None and not _state_reset_issue_present(backup_issues) else None
+    )
+
+    if repairable_backup is not None and (not isinstance(raw, dict) or _state_reset_issue_present(integrity_issues)):
+        normalized = repairable_backup
         integrity_issues = list(backup_issues)
         recovered_root_from_backup = True
         logger.warning("Recovered state.json from state.json.bak after primary state.json required normalization")
@@ -2245,24 +2245,24 @@ def _normalize_state_schema_with_backup_project_contract(
         ]
         if (
             isinstance(raw, dict)
-            and backup_normalized is not None
+            and repairable_backup is not None
             and not recovered_root_from_backup
             and primary_position_issues
-            and isinstance(backup_normalized.get("position"), dict)
+            and isinstance(repairable_backup.get("position"), dict)
         ):
             normalized = copy.deepcopy(normalized)
-            normalized["position"] = copy.deepcopy(backup_normalized["position"])
+            normalized["position"] = copy.deepcopy(repairable_backup["position"])
             integrity_issues = [issue for issue in integrity_issues if issue not in primary_position_issues]
             recovered_position_from_backup = True
         if (
             isinstance(raw, dict)
-            and backup_normalized is not None
+            and repairable_backup is not None
             and not recovered_root_from_backup
             and primary_continuation_issues
-            and _continuation_payload_has_values(backup_normalized.get("continuation"))
+            and _continuation_payload_has_values(repairable_backup.get("continuation"))
         ):
             normalized = copy.deepcopy(normalized)
-            normalized["continuation"] = copy.deepcopy(backup_normalized["continuation"])
+            normalized["continuation"] = copy.deepcopy(repairable_backup["continuation"])
             integrity_issues = [issue for issue in integrity_issues if issue not in primary_continuation_issues]
             recovered_continuation_from_backup = True
     normalized = _normalize_state_continuation(normalized)

@@ -898,6 +898,28 @@ def test_publication_runtime_accepts_bound_default_project_response_files(tmp_pa
     assert snapshot.latest_response_artifacts.state == "complete"
 
 
+def test_publication_runtime_rejects_response_files_missing_review_artifact_bindings(tmp_path: Path) -> None:
+    _write(tmp_path / "GPD" / "PROJECT.md", "# Project\n")
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+
+    review_dir = tmp_path / "GPD" / "review"
+    _write_review_round(review_dir, manuscript_path="paper/main.tex", round_number=2)
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+    incomplete_metadata = "---\nresponse_to: REFEREE-REPORT-R2.md\nround: 2\nmanuscript_path: paper/main.tex\n---\n\n"
+    _write(tmp_path / "GPD" / "AUTHOR-RESPONSE-R2.md", incomplete_metadata + "# Author Response\n")
+    _write(review_dir / "REFEREE_RESPONSE-R2.md", incomplete_metadata + "# Referee Response\n")
+
+    snapshot = resolve_publication_runtime_snapshot(tmp_path)
+
+    assert snapshot.latest_response_artifacts is not None
+    assert snapshot.latest_response_artifacts.complete is False
+    assert snapshot.latest_response_artifacts.state == "unbound"
+    assert "missing `review_ledger`" in snapshot.latest_response_artifacts.detail
+    assert "missing `referee_decision`" in snapshot.latest_response_artifacts.detail
+
+
 def test_publication_runtime_snapshot_uses_subject_owned_roots_for_explicit_external_subject(
     tmp_path: Path,
 ) -> None:

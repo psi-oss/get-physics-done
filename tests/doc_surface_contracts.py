@@ -99,6 +99,17 @@ def _runtime_command_fragments(action: str) -> tuple[str, ...]:
     return tuple(fragments)
 
 
+def _runtime_command_contract_handoff_fragments(action: str) -> tuple[str, ...]:
+    return tuple(
+        fragment
+        for command in _runtime_command_variants(action)
+        for fragment in (
+            f"Follow the installed `{command}` command contract directly",
+            f"Use `{command}` as the selected runtime command label and follow its installed command contract directly",
+        )
+    )
+
+
 def _quoted_fragments(*values: str) -> tuple[str, ...]:
     fragments: list[str] = []
     seen: set[str] = set()
@@ -774,36 +785,15 @@ def assert_start_workflow_router_contract(content: str) -> None:
         ("start help --all surface", _runtime_command_fragments("help --all")),
         (
             "start minimal-command-contract handoff",
-            tuple(
-                f"Follow the installed `{command}` command contract directly"
-                for command in _runtime_command_variants("new-project --minimal")
-            )
-            + tuple(
-                f"Use `{command}` as the selected runtime command label and follow its installed command contract directly"
-                for command in _runtime_command_variants("new-project --minimal")
-            ),
+            _runtime_command_contract_handoff_fragments("new-project --minimal"),
         ),
         (
             "start new-project-command-contract handoff",
-            tuple(
-                f"Follow the installed `{command}` command contract directly"
-                for command in _runtime_command_variants("new-project")
-            )
-            + tuple(
-                f"Use `{command}` as the selected runtime command label and follow its installed command contract directly"
-                for command in _runtime_command_variants("new-project")
-            ),
+            _runtime_command_contract_handoff_fragments("new-project"),
         ),
         (
             "start help-command-contract handoff",
-            tuple(
-                f"Follow the installed `{command}` command contract directly"
-                for command in _runtime_command_variants("help --all")
-            )
-            + tuple(
-                f"Use `{command}` as the selected runtime command label and follow its installed command contract directly"
-                for command in _runtime_command_variants("help --all")
-            ),
+            _runtime_command_contract_handoff_fragments("help --all"),
         ),
     ):
         _assert_contains_any(content, options, label=label)

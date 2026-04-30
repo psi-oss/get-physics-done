@@ -2158,7 +2158,7 @@ review_summary:
         assert "project_contract_validation" in payload
 
     def test_new_project_init_scope_intake_is_read_only_for_existing_research(self, tmp_path: Path) -> None:
-        workspace = tmp_path / "candidate"
+        workspace = tmp_path.parent / f"{tmp_path.name}-candidate-existing-research"
         workspace.mkdir()
         (workspace / "analysis.py").write_text("print('existing result')\n", encoding="utf-8")
 
@@ -2178,7 +2178,7 @@ review_summary:
         assert not (workspace / "GPD").exists()
 
     def test_new_project_init_scope_approval_declares_state_writer_side_effects(self, tmp_path: Path) -> None:
-        workspace = tmp_path / "candidate"
+        workspace = tmp_path.parent / f"{tmp_path.name}-candidate-scope-approval"
         workspace.mkdir()
 
         result = runner.invoke(

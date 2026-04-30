@@ -14,7 +14,7 @@ from tests.runtime_test_support import runtime_onboarding_doc_filename
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _SHARED_INSTALL = get_shared_install_metadata()
-_RUNTIME_DOCS_WITH_EXPLICIT_STATUSLINE = tuple(
+_RUNTIME_DOCS_WITH_UNATTENDED_READINESS_LOOP = tuple(
     descriptor.runtime_name
     for descriptor in iter_runtime_descriptors()
     if descriptor.capabilities.statusline_surface == "explicit"
@@ -94,8 +94,8 @@ def test_runtime_quickstarts_surface_the_beginner_next_steps(surface) -> None:
     assert "## Return to work" in content
 
 
-@pytest.mark.parametrize("runtime_name", _RUNTIME_DOCS_WITH_EXPLICIT_STATUSLINE)
-def test_claude_and_gemini_quickstarts_keep_unattended_readiness_loop(runtime_name: str) -> None:
+@pytest.mark.parametrize("runtime_name", _RUNTIME_DOCS_WITH_UNATTENDED_READINESS_LOOP)
+def test_runtime_quickstarts_keep_unattended_readiness_loop(runtime_name: str) -> None:
     descriptor = get_runtime_descriptor(runtime_name)
     content = _read(f"docs/{runtime_onboarding_doc_filename(runtime_name)}")
     readiness = _markdown_section(content, "## Readiness before unattended runs")
@@ -219,7 +219,10 @@ def test_docs_onboarding_hub_surfaces_release_source_policy() -> None:
             "latest unreleased GitHub `main` source",
         ),
     )
-    assert "review autonomy, workflow defaults, model-cost posture, runtime permission sync, and preset/tier overrides" in content
+    assert (
+        "review autonomy, workflow defaults, model-cost posture, runtime permission sync, and preset/tier overrides"
+        in content
+    )
     assert "safest model-cost starting point is `review` plus runtime defaults" in content
     assert "Graduate to Balanced" not in content
 
@@ -228,7 +231,10 @@ def test_root_readme_settings_short_wording_matches_model_profile_contract() -> 
     content = _read("README.md")
     quick_start = _markdown_section(content, "## Quick Start")
 
-    assert "review autonomy, workflow defaults, model-cost posture, runtime permission sync, and preset/tier overrides" in quick_start
+    assert (
+        "review autonomy, workflow defaults, model-cost posture, runtime permission sync, and preset/tier overrides"
+        in quick_start
+    )
     assert "Safest model-cost start: `review` plus runtime defaults." in quick_start
     assert "graduate to Balanced (`balanced`)" not in quick_start
 
@@ -262,7 +268,7 @@ def test_root_readme_install_source_policy_and_peer_review_target_are_current() 
     content = _read("README.md")
     quick_start = _markdown_section(content, "## Quick Start")
     install_options_start = quick_start.index("<summary><strong>Install options</strong></summary>")
-    install_options = quick_start[install_options_start:quick_start.index("</details>", install_options_start)]
+    install_options = quick_start[install_options_start : quick_start.index("</details>", install_options_start)]
     command_context = _markdown_section(content, "## Key GPD Paths")
 
     _assert_in_order(
@@ -294,8 +300,13 @@ def test_root_readme_runtime_workflow_examples_are_prefixless_and_uninstall_link
     assert "```text\nwrite-paper\npeer-review\nrespond-to-referees\narxiv-submission\n```" in worked_example
     assert "```text\ngpd:new-project\n" not in worked_example
     assert "`gpd:plan-phase N`" not in worked_example
-    assert "Typical research loop: `new-project -> discuss-phase 1 -> plan-phase 1 -> execute-phase 1 -> verify-work -> repeat -> complete-milestone`" in content
-    assert "Typical publication loop: `write-paper -> peer-review -> respond-to-referees -> arxiv-submission`" in content
+    assert (
+        "Typical research loop: `new-project -> discuss-phase 1 -> plan-phase 1 -> execute-phase 1 -> verify-work -> repeat -> complete-milestone`"
+        in content
+    )
+    assert (
+        "Typical publication loop: `write-paper -> peer-review -> respond-to-referees -> arxiv-submission`" in content
+    )
     assert "gpd:new-project ->" not in content
     assert "gpd:write-paper ->" not in content
     assert "matching uninstall command from [Start Here]" not in uninstall
@@ -378,7 +389,7 @@ def test_progress_workflow_reconcile_mode_uses_supported_state_snapshot_fields()
     content = _read("src/gpd/specs/workflows/progress.md")
 
     assert "gpd --raw state snapshot" in content
-    assert ".current_phase --default \"\"" in content
-    assert ".current_plan --default \"\"" in content
+    assert '.current_phase --default ""' in content
+    assert '.current_plan --default ""' in content
     assert ".current_phase.number" not in content
     assert ".current_execution.plan" not in content

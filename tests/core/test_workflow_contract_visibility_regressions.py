@@ -239,9 +239,7 @@ def test_resume_workflow_routes_recent_project_ambiguity_before_new_projects_and
     assert workflow.index(new_project_line) < workflow.index(reconstruction_line)
 
 
-def test_resume_workflow_prioritizes_blocked_contract_repair_before_resume_targets_and_incomplete_plan_completion() -> (
-    None
-):
+def test_resume_workflow_prioritizes_blocked_contract_repair_before_resume_targets_and_incomplete_plan() -> None:
     workflow = _workflow_text("resume-work.md")
 
     blocked_contract_line = "**If `project_contract_gate.authoritative` is false:**"

@@ -930,10 +930,16 @@ def _response_artifact_metadata_errors(
             errors.append(f"{path.name} manuscript_path does not match the active manuscript")
 
     response_to = _metadata_text(metadata, "response_to", "referee_report")
-    if response_to and Path(response_to).name != f"REFEREE-REPORT{round_suffix}.md":
+    if not response_to:
+        if binding_required:
+            errors.append(f"{path.name} response frontmatter is missing `response_to`")
+    elif Path(response_to).name != f"REFEREE-REPORT{round_suffix}.md":
         errors.append(f"{path.name} response_to does not match round suffix {round_suffix or '(round 1)'}")
 
     review_ledger = _metadata_text(metadata, "review_ledger")
+    if binding_required and review_artifacts is not None and review_artifacts.review_ledger is not None:
+        if not review_ledger:
+            errors.append(f"{path.name} response frontmatter is missing `review_ledger`")
     if (
         review_ledger
         and review_artifacts is not None
@@ -946,6 +952,9 @@ def _response_artifact_metadata_errors(
         errors.append(f"{path.name} review_ledger does not match the active review artifact")
 
     referee_decision = _metadata_text(metadata, "referee_decision")
+    if binding_required and review_artifacts is not None and review_artifacts.referee_decision is not None:
+        if not referee_decision:
+            errors.append(f"{path.name} response frontmatter is missing `referee_decision`")
     if (
         referee_decision
         and review_artifacts is not None

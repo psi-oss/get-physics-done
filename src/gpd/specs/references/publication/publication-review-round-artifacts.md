@@ -21,7 +21,7 @@ Canonical round-suffix and sibling-artifact contract for publication review roun
 
 ## Required Artifact Family
 
-The explicit `GPD/...` paths below are the default project-backed canonical layout. When centralized preflight exposes `selected_publication_root` and `selected_review_root`, use those selected roots instead of hard-coded global paths.
+The selected-root paths below are canonical for review rounds and describe the default project-backed canonical layout after preflight resolves them to the historical `GPD/...` paths; managed or explicit external subjects resolve them to subject-owned roots.
 
 - Stage-review artifacts: `${selected_review_root}/CLAIMS{round_suffix}.json`, `${selected_review_root}/STAGE-reader{round_suffix}.json`, `${selected_review_root}/STAGE-literature{round_suffix}.json`, `${selected_review_root}/STAGE-math{round_suffix}.json`, `${selected_review_root}/STAGE-physics{round_suffix}.json`, and `${selected_review_root}/STAGE-interestingness{round_suffix}.json`.
 - Final adjudication artifacts: `${selected_review_root}/REVIEW-LEDGER{round_suffix}.json`, `${selected_review_root}/REFEREE-DECISION{round_suffix}.json`, `${selected_publication_root}/REFEREE-REPORT{round_suffix}.md`, and `${selected_publication_root}/REFEREE-REPORT{round_suffix}.tex`.

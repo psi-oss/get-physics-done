@@ -15,15 +15,7 @@ runner = CliRunner()
 
 
 def _verification_report(body: str) -> str:
-    return (
-        "---\n"
-        "phase: 01-demo\n"
-        "verified: 2026-04-29T00:00:00Z\n"
-        "status: passed\n"
-        "score: 1/1\n"
-        "---\n\n"
-        f"{body}"
-    )
+    return f"---\nphase: 01-demo\nverified: 2026-04-29T00:00:00Z\nstatus: passed\nscore: 1/1\n---\n\n{body}"
 
 
 def _valid_oracle_body() -> str:
@@ -100,6 +92,32 @@ def test_verification_oracle_validator_accepts_executed_output_block() -> None:
     assert result.valid is True
     assert result.evidence_count == 1
     assert result.errors == []
+
+
+def test_verification_oracle_validator_requires_explicit_verdict_after_output() -> None:
+    result = validate_verification_oracle_evidence(
+        _verification_report(
+            dedent(
+                """\
+                # Verification
+
+                ```python
+                print("PASS")
+                ```
+
+                **Output:**
+
+                ```output
+                PASS
+                ```
+                """
+            )
+        )
+    )
+
+    assert result.valid is False
+    assert result.evidence_count == 0
+    assert "PASS/FAIL/INCONCLUSIVE verdict" in result.errors[0]
 
 
 def test_validate_verification_contract_cli_rejects_missing_oracle(tmp_path: Path) -> None:

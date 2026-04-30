@@ -32,7 +32,7 @@ Apply the shared active-runtime rule from `gpd:settings`: infer from command syn
 
 If the runtime is still ambiguous, ask the user which runtime they want to configure before continuing.
 
-Record the chosen runtime id as `ACTIVE_RUNTIME` for update commands.
+Record the chosen runtime id as `ACTIVE_RUNTIME` for config writes.
 
 If `model_overrides.<runtime>` already exists, surface the current `tier-1` / `tier-2` / `tier-3` values before asking what to change.
 </step>
