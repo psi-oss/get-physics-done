@@ -89,7 +89,7 @@ COMMAND_SPAWN_TOKENS = {
 WORKFLOW_SPAWN_TOKENS = {
     "derive-equation.md": ["gpd-check-proof"],
     "explain.md": ["gpd-explainer", "gpd-bibliographer"],
-    "plan-phase.md": ["gpd-phase-researcher", "gpd-planner", "gpd-plan-checker", "gpd-experiment-designer"],
+    "plan-phase.md": ["gpd-phase-researcher", "gpd-planner", "gpd-plan-checker"],
     "execute-phase.md": [
         "gpd-executor",
         "gpd-check-proof",

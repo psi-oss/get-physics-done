@@ -529,95 +529,16 @@ task(
 
 After the continuation returns, rerun the same `gpd_return.files_written` and on-disk artifact gate above before advancing.
 
-## 5.5. Experiment Design (Numerical/Computational Phases)
+## 5.5. Numerical/Computational Planning Guard
 
-**Skip if:** `--light` flag, `--skip-research` flag, or the phase description does not involve numerical computation.
+Numerical phases need explicit experiment obligations, but plan-phase should not add a second design handoff by default. Keep the planner path bounded:
 
-**Research mode effects on experiment design:**
+- Detect numerical work from the phase title/goal, project contract, context, existing research summary, and small filename/header scans. Do not `cat` large research, data, notebook, CSV, or generated-result files just to decide that a phase is numerical.
+- If an `*-EXPERIMENT-DESIGN.md` already exists, pass its staged `experiment_design_content` to the planner.
+- If no design file exists, the planner must encode the necessary numerical protocol directly in the PLAN: convergence/refinement grid, benchmark or limiting-case anchors, uncertainty propagation, seed/reproducibility policy, generated-artifact paths, and stop/rethink conditions.
+- Do not spawn `gpd-experiment-designer` from plan-phase unless the user, context, or project contract explicitly requires a standalone `EXPERIMENT-DESIGN.md`. If a standalone design is required but missing, checkpoint or route to that specialist instead of doing unbounded extra reading inside plan-phase.
 
-| Mode | Experiment Designer | Rationale |
-|------|-------------------|-----------|
-| **explore** | Always spawn (even if numerical indicators are weak) | Broad exploration benefits from structured experiment design |
-| **balanced** | Spawn if numerical indicators detected (default behavior) | Standard heuristic |
-| **exploit** | Skip unless EXPERIMENT-DESIGN.md is explicitly required by CONTEXT.md | Exploit mode minimizes overhead |
-| **adaptive** | Follow balanced behavior until prior decisive evidence or an explicit approach lock stabilizes the method family; then reuse validated experiment templates for the locked approach | Evidence-driven reuse once the method is stable |
-
-**Detection:** Check the phase goal and research content for numerical indicators:
-
-```bash
-PHASE_GOAL=$(echo "$INIT" | gpd json get .phase_name --default "")
-
-# Re-read RESEARCH.md from disk — `research_content` from INIT (step 1) is **stale**
-# because the researcher in step 5 may have just created/updated it.
-RESEARCH_FILE=$(ls "${PHASE_DIR}"/*-RESEARCH.md 2>/dev/null | head -1)
-if [ -n "$RESEARCH_FILE" ]; then
-  RESEARCH_CONTENT=$(cat "$RESEARCH_FILE")
-fi
-```
-
-Scan `PHASE_GOAL` and `RESEARCH_CONTENT` for indicators of computational work: "Monte Carlo", "simulation", "numerical", "finite-size", "convergence", "parameter sweep", "benchmark", "grid", "discretization", "timestep", "sampling".
-
-**If numerical indicators found AND no existing EXPERIMENT-DESIGN.md:**
-
-Display banner:
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- GPD > DESIGNING NUMERICAL EXPERIMENT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-* Spawning experiment designer...
-```
-
-### Spawn gpd-experiment-designer
-
-```bash
-EXPERIMENT_MODEL=$(gpd resolve-model gpd-experiment-designer)
-```
-
-Experiment design prompt:
-
-```markdown
-<objective>
-Design the numerical experiment protocol for Phase {phase_number}: {phase_name}
-</objective>
-
-<phase_context>
-**Phase description:** {phase_description}
-**Research:** {research_content}
-**Conventions:** $(gpd --raw convention list 2>/dev/null)
-**Context:** {context_content}
-</phase_context>
-
-<output>
-Write to: {phase_dir}/{phase}-EXPERIMENT-DESIGN.md
-</output>
-```
-
-```
-task(
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-experiment-designer.md for your role and instructions.\n\n" + experiment_prompt,
-  subagent_type="gpd-experiment-designer",
-  model="{experiment_model}",
-  readonly=false,
-  description="Design experiment for Phase {phase}"
-)
-```
-
-### Handle Experiment Designer Return
-
-**If the experiment designer agent fails to spawn or returns an error:** Experiment design is optional supplementary context for the planner. Proceed without it — the planner will work with RESEARCH.md and CONTEXT.md. Note that experiment design was skipped.
-
-- **`gpd_return.status: completed`:** Verify EXPERIMENT-DESIGN.md exists, display confirmation, continue to step 6
-- **`gpd_return.status: blocked` or `failed`:** Display blocker, offer: 1) Provide context, 2) Skip experiment design, 3) Abort
-
-**If EXPERIMENT-DESIGN.md created:** The planner stage payload already carries this as `experiment_design_content`. Keep it in the stage-local payload rather than re-reading it from disk.
-
-```markdown
-**Experiment Design:** {experiment_design_content}
-```
-
-**If no numerical indicators OR `--light` mode:** Skip silently.
+Scan for indicators such as "Monte Carlo", "simulation", "numerical", "finite-size", "convergence", "parameter sweep", "benchmark", "grid", "discretization", "timestep", and "sampling". In `--light` mode, keep the numerical protocol compact but still include the decisive convergence, uncertainty, benchmark, and forbidden-proxy obligations in the PLAN contract.
 
 ## 6. Check Existing Plans
 
@@ -1033,7 +954,7 @@ gpd:execute-phase {X}
 
 - [ ] GPD/ directory, roadmap phase, and phase directory validated
 - [ ] CONTEXT.md loaded early (step 4) and passed to ALL agents
-- [ ] Research completed or explicitly skipped; researcher and numerical experiment designer spawned when required
+- [ ] Research completed or explicitly skipped; numerical phases carry convergence, uncertainty, benchmark, and forbidden-proxy obligations directly in PLAN, or explicitly route to a required standalone experiment design
 - [ ] Existing plans checked; planner and checker spawned with required context
 - [ ] Plans created and any CHECKPOINT handled
 - [ ] Verification passed OR user override OR max iterations with user decision
