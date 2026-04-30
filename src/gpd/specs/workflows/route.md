@@ -43,6 +43,17 @@ Extract:
 - `adaptive_approach_locked` — whether the ranking signal is already locked (see `suggest.py:_has_adaptive_lock_signal`)
 </step>
 
+<step name="fail_closed_on_state_conflict">
+Before asking routing questions, check whether the loaded state, roadmap, and conventions agree on the active phase and convention lock.
+
+If they conflict, stop routing and recommend repair only:
+
+- state/roadmap phase mismatch or missing active phase directory -> `gpd:sync-state`
+- convention-lock or `GPD/CONVENTIONS.md` mismatch -> `gpd:validate-conventions`
+
+Do not recommend planning, execution, autonomous work, or generic health checks from a conflicted authority snapshot.
+</step>
+
 <step name="ask_frozen">
 Ask: "Is the ranking / prior conclusion frozen for this milestone?"
 

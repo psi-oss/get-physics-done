@@ -624,6 +624,17 @@ def test_format_command_falls_back_to_local_cli_for_unknown_runtime(
     assert suggest_module._format_command("new-project", cwd=workspace) == "gpd init new-project"
 
 
+def test_suggest_next_does_not_create_state_lock_for_read_only_state_probe(tmp_path: Path) -> None:
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    _create_state(root, {"position": {"current_phase": "01", "status": "Initialized"}})
+
+    result = suggest_next(root)
+
+    assert result.suggestion_count >= 0
+    assert not (root / "GPD" / "state.json.lock").exists()
+
+
 @pytest.mark.parametrize("include_local_conflict", [False, True])
 def test_no_project_uses_global_runtime_command_when_global_install_is_effective(
     tmp_path: Path, include_local_conflict: bool

@@ -1121,14 +1121,14 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
 
 
 def _load_state_json_safe(cwd: Path) -> dict[str, object] | None:
-    """Load state.json without depending on the full state module's recovery logic.
+    """Load visible state without mutating local recovery/lock artifacts.
 
-    Tries ``gpd.core.state.load_state_json`` if available; falls back to direct read.
+    Tries the read-only state loader if available; falls back to direct read.
     """
     try:
-        from gpd.core.state import load_state_json
+        from gpd.core.state import load_state_json_readonly
 
-        return load_state_json(cwd)
+        return load_state_json_readonly(cwd)
     except (FileNotFoundError, OSError, ImportError):
         logger.debug("suggest: state load failed", exc_info=True)
 

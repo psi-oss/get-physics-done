@@ -1,24 +1,23 @@
 <purpose>
 Orchestrate parallel research-mapper agents to analyze a physics research project and produce structured documents under the project-rooted `GPD/research-map/`.
 
-Each agent has fresh context, explores a specific focus area, and **writes documents directly**. The orchestrator receives typed returns plus confirmation and line counts, verifies the expected files on disk, then writes a summary.
+Each agent has fresh context, explores one focus area, and **writes documents directly**. The orchestrator verifies typed returns, disk files, and line counts, then writes a summary.
 
 Output: `GPD/research-map/` under the resolved project root, with 7 structured documents covering theoretical content, computational methods, data artifacts, conventions, and open questions.
 </purpose>
 
 <philosophy>
-**Why dedicated mapper agents:** Fresh context per domain, direct document writes, minimal orchestrator context, and parallel execution.
+**Why dedicated mapper agents:** Fresh context per domain, direct writes, minimal orchestrator context, parallel execution.
 
-**Document quality over length:**
-Include enough detail to be useful as reference. Prioritize practical examples (key equations, code patterns, data formats) over arbitrary brevity.
+**Document quality:** Include enough detail to be useful reference material; prefer practical examples (key equations, code patterns, data formats) over arbitrary brevity.
 
-**Document templates:** Mapper agents load templates from `{GPD_INSTALL_DIR}/references/templates/research-mapper/` (FORMALISM.md, CONVENTIONS.md, CONCERNS.md, etc.). These paths are deterministic across runtimes after install; if they are missing, treat that as a broken install and fall back to the agent's built-in structural guidance rather than searching alternate runtime-specific locations.
+**Document templates:** Mapper agents load `{GPD_INSTALL_DIR}/references/templates/research-mapper/`. Missing templates mean broken install; fall back to the agent's built-in structure, not runtime-specific path searches.
 
 **Always include file paths:**
-Documents are reference material for the AI when planning/executing. Always include actual file paths formatted with backticks: `src/hamiltonian.py`, `notebooks/convergence_test.ipynb`, `latex/topic_stem.tex`.
+Always include actual paths in backticks: `src/hamiltonian.py`, `notebooks/convergence_test.ipynb`, `latex/topic_stem.tex`.
 
 **Map all project artifacts:**
-A physics research project may contain derivations, code, data, notebooks, figures, configs/job scripts, and references.
+A physics project may contain derivations, code, data, notebooks, figures, configs/job scripts, and references.
   </philosophy>
 
 <process>
@@ -75,14 +74,14 @@ RESEARCH_MODE=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_mode --default b
 ```
 
 **Mode-aware behavior:**
-- `research_mode=explore`: Map broadly — include alternative theoretical frameworks, speculative connections, open questions across related domains.
-- `research_mode=exploit`: Map narrowly — focus on primary formalism, established results, direct computational needs.
-- `research_mode=balanced` (default): Use the standard mapping depth for this workflow and preserve the default anchor and contract coverage unless the research question needs broader or narrower mapping.
-- `research_mode=adaptive`: Start with primary framework, expand mapping if connections to other domains appear.
-- Regardless of mode, do not drop contract-critical anchors, prior baselines, or user-mandated references.
+- `explore`: broad alternatives, speculative connections, open questions.
+- `exploit`: primary formalism, established results, direct computational needs.
+- `balanced`: standard depth and default anchor/contract coverage unless the question needs otherwise.
+- `adaptive`: start primary, expand if cross-domain connections appear.
+- Never drop contract-critical anchors, prior baselines, or user-mandated references.
 - `RESEARCH_MODE` is sourced from the init payload. Do not re-query config later in this workflow.
-- Preserve stable anchor identity when you rewrite or merge references: every durable anchor in `REFERENCES.md` should carry a reusable `Anchor ID` and a concrete `Source / Locator`.
-- Keep workflow carry-forward scope separate from canonical contract subject linkage. `Carry Forward To` names workflow stages; if exact claim/deliverable IDs are known, record them in a dedicated `Contract Subject IDs` field instead of overloading the stage field.
+- Preserve stable anchor identity: every durable `REFERENCES.md` anchor needs reusable `Anchor ID` and concrete `Source / Locator`.
+- Keep carry-forward scope separate from contract subject linkage: `Carry Forward To` names workflow stages; exact claim/deliverable IDs go in `Contract Subject IDs`.
 - Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. If the gate is blocked, keep the contract visible as context but do not treat it as approved mapping truth.
 - If `map_focus_provided` is true, keep `map_focus` visible and bias each slice without losing contract-critical coverage. Map focus: {map_focus}
 Each mapper agent is a one-shot file-producing handoff. Route on `gpd_return.status`, then verify `gpd_return.files_written` against the expected artifacts before accepting the run.
@@ -203,10 +202,7 @@ Analyze theoretical content and literature foundations.
 Context: staged={effective_reference_intake}; refs={active_reference_context}; excerpts={reference_artifacts_content}; contract={project_contract}; gate/load/validation={project_contract_gate}/{project_contract_load_info}/{project_contract_validation}. Use IDs only when authoritative.
 
 - FORMALISM.md - equations, symmetries, approximations, boundary conditions, conservation laws
-- REFERENCES.md - anchor registry for papers, benchmarks, prior artifacts, required carry-forward actions, and open questions. Every row needs `Anchor ID` and `Source / Locator`; record exact contract IDs separately when known.
-
-Write to: GPD/research-map/FORMALISM.md
-Write to: GPD/research-map/REFERENCES.md
+- REFERENCES.md - papers, benchmarks, prior artifacts, carry-forward actions, open questions. Every row needs `Anchor ID` and `Source / Locator`; record exact contract IDs separately when known.
 <spawn_contract>
 write_scope:
   mode: scoped_write
@@ -219,9 +215,7 @@ expected_artifacts:
 shared_state_policy: return_only
 </spawn_contract>
 
-Return typed `gpd_return`; `completed` is provisional until both files exist and appear in `files_written`.
-
-Read LaTeX, markdown notes, comments/docstrings, README files, BibTeX, and docs. Write documents directly from templates; return confirmation only.
+Return typed `gpd_return`; `completed` is provisional until both files exist and appear in `files_written`. Read LaTeX, notes, comments/docstrings, README, BibTeX, docs.
 "
 )
 
@@ -242,9 +236,6 @@ Context: staged={effective_reference_intake}; refs={active_reference_context}; e
 
 - ARCHITECTURE.md - computational pipeline, solver choices, libraries, data flow, performance bottlenecks
 - STRUCTURE.md - directory layout, file roles, naming conventions, formats, dependencies, build/job scripts
-
-Write to: GPD/research-map/ARCHITECTURE.md
-Write to: GPD/research-map/STRUCTURE.md
 <spawn_contract>
 write_scope:
   mode: scoped_write
@@ -257,9 +248,7 @@ expected_artifacts:
 shared_state_policy: return_only
 </spawn_contract>
 
-Return typed `gpd_return`; `completed` is provisional until both files exist and appear in `files_written`.
-
-Read Python/Julia/C++/Fortran, notebooks, Makefiles, configs, requirements/pyproject files. Write documents directly from templates; return confirmation only.
+Return typed `gpd_return`; `completed` is provisional until both files exist and appear in `files_written`. Read code, notebooks, Makefiles, configs, requirements/pyproject files.
 "
 )
 
@@ -280,9 +269,6 @@ Context: staged={effective_reference_intake}; refs={active_reference_context}; e
 
 - CONVENTIONS.md - notation, signs, units, indices, coordinates, variable naming, coupling definitions
 - VALIDATION.md - known limits, convergence, consistency checks, comparisons, tests, error analysis
-
-Write to: GPD/research-map/CONVENTIONS.md
-Write to: GPD/research-map/VALIDATION.md
 <spawn_contract>
 write_scope:
   mode: scoped_write
@@ -295,9 +281,7 @@ expected_artifacts:
 shared_state_policy: return_only
 </spawn_contract>
 
-Return typed `gpd_return`; `completed` is provisional until both files exist and appear in `files_written`.
-
-Read LaTeX preambles, code variable naming, tests, validation scripts, comparison notebooks. Write documents directly from templates; return confirmation only.
+Return typed `gpd_return`; `completed` is provisional until both files exist and appear in `files_written`. Read LaTeX preambles, code naming, tests, validation scripts, comparison notebooks.
 "
 )
 
@@ -317,8 +301,6 @@ Analyze open questions, known issues, and concerns.
 Context: staged={effective_reference_intake}; refs={active_reference_context}; excerpts={reference_artifacts_content}; contract={project_contract}; gate/load/validation={project_contract_gate}/{project_contract_load_info}/{project_contract_validation}. Use IDs only when authoritative.
 
 - CONCERNS.md - known issues, theoretical gaps, TODOs, fragile code/calculations, missing validation, bottlenecks, stale branches
-
-Write to: GPD/research-map/CONCERNS.md
 <spawn_contract>
 write_scope:
   mode: scoped_write
@@ -329,9 +311,7 @@ expected_artifacts:
 shared_state_policy: return_only
 </spawn_contract>
 
-Return typed `gpd_return`; `completed` is provisional until the file exists and appears in `files_written`.
-
-Search TODO/FIXME/HACK/XXX, issue trackers, commented-out code, notebooks with errors. Write document directly from template; return confirmation only.
+Return typed `gpd_return`; `completed` is provisional until the file exists and appears in `files_written`. Search TODO/FIXME/HACK/XXX, issue trackers, commented-out code, notebooks with errors.
 "
 )
 
@@ -389,8 +369,7 @@ After complete verification or explicit partial-map acceptance, continue to scan
 Run secret pattern detection:
 
 ```bash
-# Check for common API key patterns in generated docs
-grep -E '(sk-[a-zA-Z0-9]{20,}|sk_live_[a-zA-Z0-9]+|sk_test_[a-zA-Z0-9]+|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9_-]+|AKIA[A-Z0-9]{16}|xox[baprs]-[a-zA-Z0-9-]+|-----BEGIN.*PRIVATE KEY|eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.)' "$RESEARCH_MAP_DIR_ABS"/*.md 2>/dev/null && SECRETS_FOUND=true || SECRETS_FOUND=false
+grep -E '(sk-[[:alnum:]]{20,}|sk_(live|test)_|gh[pousr]_[[:alnum:]]{20,}|glpat-|AKIA[[:alnum:]]{16}|xox[baprs]-|BEGIN .*PRIVATE KEY|eyJ[[:alnum:]_-]+\.eyJ)' "$RESEARCH_MAP_DIR_ABS"/*.md 2>/dev/null && SECRETS_FOUND=true || SECRETS_FOUND=false
 ```
 
 **If SECRETS_FOUND=true:**

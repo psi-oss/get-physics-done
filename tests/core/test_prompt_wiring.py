@@ -5081,6 +5081,10 @@ def test_route_workflow_uses_physics_scope_examples_and_ordered_compound_contrac
     assert "TAM/revenue/impact analysis" not in route_workflow
     assert "parameter sweep on top of a derived model" in route_workflow
     assert "No active milestone override" in route_workflow
+    assert "fail_closed_on_state_conflict" in route_workflow
+    assert "state/roadmap phase mismatch or missing active phase directory -> `gpd:sync-state`" in route_workflow
+    assert "convention-lock or `GPD/CONVENTIONS.md` mismatch -> `gpd:validate-conventions`" in route_workflow
+    assert "generic health checks" in route_workflow
 
     assert 'argument-hint: "[--frozen=yes|no] [--change=extend|revise] [--layer=new|change]"' in route_command
     assert "Follow the included route workflow" in route_command
