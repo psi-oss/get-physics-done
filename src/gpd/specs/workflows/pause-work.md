@@ -22,19 +22,10 @@ If no active phase detected, ask user which phase they're pausing work on.
 <step name="gather">
 **Collect complete research state for the continuation handoff artifact:**
 
-1. **Current position**: Which phase, which plan, which task
-2. **Derivation state**: Where in the calculation or derivation are we? What equations have been established, what remains to be shown?
-3. **Parameter values**: All parameter values, coupling constants, cutoffs, or numerical settings currently in use
-4. **Intermediate results**: Partial results, expressions derived so far, numerical outputs obtained
-5. **Approximations active**: Which approximations or truncations are in effect, with their justifications
-6. **Work completed**: What got done this session (derivations finished, code written, plots generated, checks passed)
-7. **Work remaining**: What's left in current plan/phase
-8. **Decisions made**: Key decisions and rationale (sign conventions chosen, gauge fixed, method selected)
-9. **Open questions**: Physics questions that arose during the session and remain unresolved
-10. **Blockers/issues**: Anything stuck (divergence encountered, numerical instability, missing input data)
-11. **Mental context**: The theoretical approach, next steps, "vibe" of where this is going
-12. **Files modified**: What's changed but not committed (scripts, notebooks, LaTeX, data files)
-13. **Result continuity**: If a canonical derived result was just persisted, capture its `result_id` as the active `last_result_id` rerun anchor. Treat an explicit `--last-result-id` override as a manual repair path when the inherited continuity anchor needs correction.
+- Current phase, plan, task, and what remains.
+- Derivation state: established equations, parameter values, intermediate results, active approximations, and what still must be shown.
+- Session delta: completed work, modified files, decisions made, open questions, blockers, and the next theoretical approach.
+- Result continuity: if a canonical derived result was just persisted, capture its `result_id` as the active `last_result_id` rerun anchor. Treat an explicit `--last-result-id` override as a manual repair path when the inherited continuity anchor needs correction.
 
 Ask user for clarifications if needed via conversational questions.
 </step>
@@ -42,10 +33,7 @@ Ask user for clarifications if needed via conversational questions.
 <step name="extract_persistent_state">
 **Extract and append persistent derivation state to `GPD/DERIVATION-STATE.md`:**
 
-Before writing the canonical continue-here continuation handoff artifact, extract all equations,
-conventions, and results from the current session and append them to the cumulative
-derivation state file. This file is append-only and never deleted -- it is the
-permanent record that prevents lossy compression across context resets.
+Before writing the canonical continue-here handoff, append this session's equations, conventions, and results to the append-only cumulative derivation state file.
 
 1. **Collect from the current session:**
 
@@ -102,13 +90,10 @@ EOF
 
 5. **Prune stale entries after appending (cap enforcement):**
 
-   After appending the new session block, check total size and prune if over limit.
-   This ensures the file stays bounded even without a resume-work read cycle.
+   After appending the new session block, check total size and prune if over limit so the file stays bounded without a resume-work read cycle.
 
    **IMPORTANT: Atomic read-modify-write through .tmp to prevent race conditions.**
-   The pruning operation reads the file, transforms it, writes to a .tmp file, validates
-   the .tmp file, then atomically replaces the original. If ANY step fails, the original
-   is preserved.
+   Read, transform, write a .tmp file, validate it, then atomically replace the original. If any step fails, preserve the original.
 
    ```bash
    # Count session blocks
@@ -213,8 +198,7 @@ task_total="5"                  # replace with the current total task count
 resume_file="GPD/phases/${phase_slug}/.continue-here.md"
 last_result_id=""               # set only when manually overriding or repairing the carried anchor
 
-# Record session continuity so runtime resume-work, local gpd resume,
-# and gpd resume --recent see the same recorded continuation pointer.
+# Record one continuation pointer for runtime resume-work, gpd resume, and gpd resume --recent.
 record_session_args=(
   --stopped-at "Paused at task ${task_index}/${task_total} in phase ${phase_slug}"
   --resume-file "$resume_file"
@@ -230,8 +214,7 @@ if [ $? -ne 0 ]; then echo "WARNING: state record-session failed — resume info
 # supply it. Pass --last-result-id only when manually overriding or repairing
 # the carried anchor.
 
-# Set status to Paused so resume-work detects it. This updates the session
-# handoff surface; the bounded continuation record is managed separately.
+# Mark Paused for resume-work; bounded continuation is managed separately.
 gpd state patch --Status "Paused"
 if [ $? -ne 0 ]; then echo "WARNING: state patch failed — status not marked as Paused"; fi
 ```
@@ -279,7 +262,7 @@ To rediscover the project first: gpd resume --recent
 </process>
 
 <success_criteria>
-- [ ] Persistent derivation state appended to `GPD/DERIVATION-STATE.md` (equations, conventions, results, approximations from this session)
+- [ ] Persistent derivation state appended to `GPD/DERIVATION-STATE.md`
 - [ ] DERIVATION-STATE.md committed separately before writing CONTINUE-HERE
 - [ ] Canonical `.continue-here.md` created in correct phase directory
 - [ ] Canonical section names from the shared template are preserved

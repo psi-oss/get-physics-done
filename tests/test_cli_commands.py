@@ -3067,6 +3067,28 @@ class TestReviewValidationCommands:
         assert checks["reconcile_confirmation"]["blocking"] is True
         assert "ask_user" in checks["reconcile_confirmation"]["detail"]
 
+    @pytest.mark.parametrize("command_args", [["progress", "--watch"], ["progress", "-w"], ["gpd:progress --watch"]])
+    def test_command_context_progress_rejects_runtime_watch_mode(
+        self,
+        gpd_project: Path,
+        command_args: list[str],
+    ) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(gpd_project), "validate", "command-context", *command_args],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:progress"
+        assert payload["passed"] is False
+        assert payload["guidance"].endswith("use `gpd progress json --watch` from a terminal.")
+        assert checks["runtime_arguments"]["passed"] is False
+        assert checks["runtime_arguments"]["blocking"] is True
+        assert "local CLI only" in checks["runtime_arguments"]["detail"]
+
     @pytest.mark.parametrize("command_name", ["research-phase", "list-phase-assumptions"])
     def test_command_context_phase_commands_require_explicit_phase_in_initialized_project(
         self,
@@ -5496,6 +5518,32 @@ class TestReviewValidationCommands:
         assert payload["detailed_help_follow_up"] == (
             "Use `gpd:help --command <name>` when you want detailed notes for one runtime command."
         )
+
+    @pytest.mark.parametrize(
+        "descriptor",
+        _RUNTIME_DESCRIPTORS,
+        ids=[descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS],
+    )
+    def test_raw_help_bridge_top_level_metadata_uses_active_runtime(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        descriptor,
+    ) -> None:
+        monkeypatch.setattr("gpd.cli.detect_runtime_for_gpd_use", lambda cwd=None: descriptor.runtime_name)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "help", "--command", "progress", "--minimal"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["validated_surface"] == descriptor.validated_command_surface
+        assert payload["public_runtime_command_prefix"] == descriptor.public_command_surface_prefix
+        assert payload["command_context"]["validated_surface"] == descriptor.validated_command_surface
+        assert payload["command_context"]["public_runtime_command_prefix"] == descriptor.public_command_surface_prefix
 
     def test_raw_help_bridge_command_specific_payload(self, tmp_path: Path) -> None:
         result = runner.invoke(

@@ -7,11 +7,7 @@ Output: `GPD/research-map/` under the resolved project root, with 7 structured d
 </purpose>
 
 <philosophy>
-**Why dedicated mapper agents:**
-- Fresh context per domain (no token contamination)
-- Agents write documents directly (no context transfer back to orchestrator)
-- Orchestrator only summarizes what was created (minimal context usage)
-- Faster execution (agents run simultaneously)
+**Why dedicated mapper agents:** Fresh context per domain, direct document writes, minimal orchestrator context, and parallel execution.
 
 **Document quality over length:**
 Include enough detail to be useful as reference. Prioritize practical examples (key equations, code patterns, data formats) over arbitrary brevity.
@@ -22,15 +18,7 @@ Include enough detail to be useful as reference. Prioritize practical examples (
 Documents are reference material for the AI when planning/executing. Always include actual file paths formatted with backticks: `src/hamiltonian.py`, `notebooks/convergence_test.ipynb`, `latex/topic_stem.tex`.
 
 **Map all project artifacts:**
-A physics research project typically contains:
-
-- Theoretical derivations (LaTeX, markdown, handwritten-note scans)
-- Computational code (Python, Julia, C++, Fortran scripts and libraries)
-- Data files (HDF5, CSV, NumPy arrays, simulation outputs)
-- Notebooks (Jupyter/Mathematica/Maple for exploratory calculations)
-- Figures and plots (generated or hand-drawn)
-- Configuration files (input decks, parameter files, job scripts)
-- References (BibTeX, downloaded papers, annotated PDFs)
+A physics research project may contain derivations, code, data, notebooks, figures, configs/job scripts, and references.
   </philosophy>
 
 <process>
@@ -185,7 +173,7 @@ Use task tool with `subagent_type="gpd-research-mapper"`, `model="{mapper_model}
 
 **CRITICAL:** Use the dedicated `gpd-research-mapper` agent, NOT `Explore`. The mapper agent writes documents directly.
 
-Each mapper prompt must carry the staged intake fields, active reference context, reference excerpts, contract load/validation status, and the project contract. Contract IDs are preferred only when `project_contract_gate.authoritative` is true; otherwise the contract stays context-only.
+Each mapper prompt must carry the staged intake, active reference context, excerpts, contract load/validation status, and project contract. Prefer contract IDs only when `project_contract_gate.authoritative` is true.
 
 Mapper write paths are project-rooted. Resolve every relative `GPD/research-map/...` path against `{project_root}` and write to the corresponding absolute target under `{research_map_dir_absolute}`. Never write under the runtime shell cwd unless it is the same directory as `{project_root}`.
 
@@ -202,12 +190,7 @@ task(
 Focus: theory. Bias toward {map_focus} when provided without dropping contract-critical anchors.
 Analyze theoretical content and literature foundations.
 
-Staged context: {effective_reference_intake}
-Active references: {active_reference_context}
-Reference excerpts: {reference_artifacts_content}
-Contract load/validation: {project_contract_load_info} / {project_contract_validation}
-Project contract for gated IDs/context: {project_contract}
-Use contract IDs only when the gate is authoritative; otherwise treat the contract as context.
+Context: staged={effective_reference_intake}; refs={active_reference_context}; excerpts={reference_artifacts_content}; contract={project_contract}; gate/load/validation={project_contract_gate}/{project_contract_load_info}/{project_contract_validation}. Use IDs only when authoritative.
 
 - FORMALISM.md - equations, symmetries, approximations, boundary conditions, conservation laws
 - REFERENCES.md - anchor registry for papers, benchmarks, prior artifacts, required carry-forward actions, and open questions. Every row needs `Anchor ID` and `Source / Locator`; record exact contract IDs separately when known.
@@ -245,12 +228,7 @@ task(
 Focus: computation. Bias toward {map_focus} when provided without dropping contract-critical anchors.
 Analyze computational methods, solvers, and project structure.
 
-Staged context: {effective_reference_intake}
-Active references: {active_reference_context}
-Reference excerpts: {reference_artifacts_content}
-Contract load/validation: {project_contract_load_info} / {project_contract_validation}
-Project contract for gated IDs/context: {project_contract}
-Use contract IDs only when the gate is authoritative; otherwise treat the contract as context.
+Context: staged={effective_reference_intake}; refs={active_reference_context}; excerpts={reference_artifacts_content}; contract={project_contract}; gate/load/validation={project_contract_gate}/{project_contract_load_info}/{project_contract_validation}. Use IDs only when authoritative.
 
 - ARCHITECTURE.md - computational pipeline, solver choices, libraries, data flow, performance bottlenecks
 - STRUCTURE.md - directory layout, file roles, naming conventions, formats, dependencies, build/job scripts
@@ -288,12 +266,7 @@ task(
 Focus: methodology. Bias toward {map_focus} when provided without dropping contract-critical anchors.
 Analyze notation conventions, unit systems, and validation practices.
 
-Staged context: {effective_reference_intake}
-Active references: {active_reference_context}
-Reference excerpts: {reference_artifacts_content}
-Contract load/validation: {project_contract_load_info} / {project_contract_validation}
-Project contract for gated IDs/context: {project_contract}
-Use contract IDs only when the gate is authoritative; otherwise treat the contract as context.
+Context: staged={effective_reference_intake}; refs={active_reference_context}; excerpts={reference_artifacts_content}; contract={project_contract}; gate/load/validation={project_contract_gate}/{project_contract_load_info}/{project_contract_validation}. Use IDs only when authoritative.
 
 - CONVENTIONS.md - notation, signs, units, indices, coordinates, variable naming, coupling definitions
 - VALIDATION.md - known limits, convergence, consistency checks, comparisons, tests, error analysis
@@ -331,12 +304,7 @@ task(
 Focus: status. Bias toward {map_focus} when provided without dropping contract-critical anchors.
 Analyze open questions, known issues, and concerns.
 
-Staged context: {effective_reference_intake}
-Active references: {active_reference_context}
-Reference excerpts: {reference_artifacts_content}
-Contract load/validation: {project_contract_load_info} / {project_contract_validation}
-Project contract for gated IDs/context: {project_contract}
-Use contract IDs only when the gate is authoritative; otherwise treat the contract as context.
+Context: staged={effective_reference_intake}; refs={active_reference_context}; excerpts={reference_artifacts_content}; contract={project_contract}; gate/load/validation={project_contract_gate}/{project_contract_load_info}/{project_contract_validation}. Use IDs only when authoritative.
 
 - CONCERNS.md - known issues, theoretical gaps, TODOs, fragile code/calculations, missing validation, bottlenecks, stale branches
 
@@ -357,7 +325,7 @@ Search TODO/FIXME/HACK/XXX, issue trackers, commented-out code, notebooks with e
 "
 )
 
-**If any mapper agent fails to spawn or returns an error:** Continue with remaining agents. After all agents complete, report which focus areas failed. For each failed agent, offer: 1) Retry that focus area, 2) Skip it (the research map will be incomplete but usable for the covered areas). A partial research map is still valuable — do not abort the entire mapping operation for individual agent failures.
+**If any mapper agent fails to spawn or returns an error:** Continue with remaining agents. After all complete, report failed focus areas and offer retry or skip; do not abort the whole mapping operation for individual failures.
 
 Continue to collect_confirmations.
 </step>
@@ -365,7 +333,7 @@ Continue to collect_confirmations.
 <step name="collect_confirmations">
 Wait for all 4 agents to complete.
 
-Read each agent's output file to collect confirmations, then reconcile the typed return envelope with the on-disk artifacts.
+Read each agent's output file for confirmation, then reconcile the typed return with on-disk artifacts.
 
 **Expected confirmation format from each agent:**
 

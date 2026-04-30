@@ -54,14 +54,14 @@ When `active_resume_result` is present, treat it as the hydrated canonical resul
 `state_exists` means the selected project root could recover usable state from `GPD/state.json` or `GPD/STATE.md`, with `GPD/state.json.bak` used only as crash-recovery support for the JSON state path.
 Use `workspace_*` to judge the user-requested workspace before auto-selection; use the selected-project fields after re-entry resolution.
 
-The shared resume resolver distinguishes canonical continuation authority, handoff artifacts, and the derived execution head:
+The shared resume resolver distinguishes:
 
-- **storage authority:** `GPD/state.json`, with `GPD/state.json.bak` as the recovery backup; canonical `continuation` lives here
+- **storage authority:** `GPD/state.json`, with `GPD/state.json.bak` as recovery backup; canonical `continuation` lives here
 - **editable state document:** `GPD/STATE.md`
 - **temporary handoff artifact:** `GPD/phases/.../.continue-here.md`
 - **derived execution head / live execution status:** `GPD/observability/current-execution.json`
 
-The shared resume resolver is canonical-first: `state.json.continuation` wins, the canonical bounded segment and recorded handoff fields define the primary resume target, and the derived execution head supplies live status. Do not treat a single `.continue-here.md` file or live-status snapshot as the sole authority.
+The resolver is canonical-first: `state.json.continuation` wins; bounded segment and recorded handoff fields define the primary target; derived execution head supplies live status. Do not treat one `.continue-here.md` or live snapshot as sole authority.
 
 **If `planning_exists` is false and no recent-project selection is required:** This is a new project - route to gpd:new-project and do not attempt STATE.md reconstruction.
 **If `state_exists` is false but `roadmap_exists` or `project_exists` is true:** Offer to reconstruct STATE.md from the existing project artifacts.
@@ -148,8 +148,7 @@ Use `derivation_restore.required_init_fields` as the derivation-history payload.
 
 **Read cumulative derivation history from `GPD/DERIVATION-STATE.md`:**
 
-This step reconstructs the full derivation history that has accumulated across
-all previous sessions, preventing lossy compression across context resets.
+This reconstructs accumulated derivation history and prevents lossy context resets.
 
 ```bash
 # Check if persistent derivation state exists
@@ -165,7 +164,7 @@ fi
 
 ### Check Session Cap (Last 5 Sessions)
 
-During read-only restoration, count session blocks and warn if the file exceeds the recommended cap. Do not prune, rewrite, replace, or otherwise modify `GPD/DERIVATION-STATE.md` from `gpd:resume-work`.
+During read-only restoration, count session blocks and warn if over cap. Do not prune, rewrite, replace, or otherwise modify `GPD/DERIVATION-STATE.md` from `gpd:resume-work`.
 
 ```bash
 SESSION_COUNT=$(grep -c "^## Session:" GPD/DERIVATION-STATE.md 2>/dev/null || echo 0)
@@ -177,7 +176,7 @@ if [ "$SESSION_COUNT" -gt 5 ]; then
 fi
 ```
 
-This is a report-only check. `gpd:resume-work` restores and summarizes the file as-is; mutating cap enforcement belongs to explicit write/maintenance workflows, not read-only resume restoration.
+This is a report-only check. Mutating cap enforcement belongs to explicit write/maintenance workflows.
 
 1. **Read the full file** to reconstruct the complete equation/convention/result history across all sessions. If the latest handoff or session continuity metadata already carries a canonical `last_result_id`, prefer that value as the rerun anchor before rediscovering the target from prose or older summaries.
 2. **Cross-reference against state.json intermediate_results** to find any gaps:
@@ -259,7 +258,7 @@ Reason-scoped clears still matter on resume: a `first_result` clear does not ret
 
 When resuming from `first_result` or skeptical state, ask one concrete question first: "What decisive evidence is still owed before downstream work is trustworthy?" Do not resume fanout based only on proxy-looking success or "seems on track" prose.
 
-**Context budget note:** Context restoration (loading STATE.md, DERIVATION-STATE.md, PROJECT.md, the active execution snapshot, and roadmap) consumes approximately 15-20% of a fresh context window. Budget the remaining ~80% for actual research work. If the project has extensive derivation history or many prior decisions, restoration may consume up to 25%.
+**Context budget note:** Loading STATE.md, DERIVATION-STATE.md, PROJECT.md, execution snapshot, and roadmap usually consumes 15-20% of a fresh context window, up to 25% for long histories.
 
 **If PLAN without SUMMARY exists:**
 
@@ -565,15 +564,10 @@ If user says "continue" or "go":
 <success_criteria>
 Resume is complete when:
 
-- [ ] STATE.md loaded (or reconstructed)
-- [ ] DERIVATION-STATE.md read and cross-referenced with state.json (if it exists)
-- [ ] DERIVATION-STATE.md session count checked and any cap warning surfaced (if applicable)
-- [ ] Persistent derivation history restored and summarized (equations, conventions, results, approximations)
-- [ ] Any gaps between DERIVATION-STATE.md and state.json flagged to user
-- [ ] Incomplete work detected and flagged
-- [ ] Research context restored (derivation state, parameters, intermediate results, approximations)
-- [ ] Clear status presented to user
-- [ ] Contextual next actions offered
-- [ ] User knows exactly where the research project stands
+- [ ] STATE.md loaded or reconstructed
+- [ ] DERIVATION-STATE.md read, cap-checked, cross-referenced with state.json, and summarized when present
+- [ ] Gaps, incomplete work, and restored research context surfaced
+- [ ] Clear status and contextual next actions presented
+- [ ] User knows where the project stands
 - [ ] Session continuity updated
 </success_criteria>

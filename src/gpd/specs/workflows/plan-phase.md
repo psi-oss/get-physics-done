@@ -1,5 +1,5 @@
 <purpose>
-Create executable phase prompts (PLAN.md files) for a research phase with integrated literature review and verification. Default flow: Research (if needed) -> Plan -> Verify -> Done. Orchestrates gpd-phase-researcher, gpd-planner, and gpd-plan-checker agents with a revision loop (max 3 iterations).
+Create executable PLAN.md files for a phase. Default flow: Research if needed -> Plan -> Verify -> Done, using researcher, planner, and checker agents with a max-3 revision loop.
 </purpose>
 
 <process>
@@ -19,9 +19,9 @@ fi
 Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_enabled`, `plan_checker_enabled`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_plans`, `plan_count`, `planning_exists`, `roadmap_exists`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `platform`.
 
 **Mode-aware behavior:**
-- `autonomy=supervised` (default): Present the written draft plans for user review before treating them as approved or moving on to execution. Do not weaken the contract gate just because the draft is human-reviewed.
-- `autonomy=balanced`: Write the plan and pause only if the plan-checker raises issues or the planning choices need user judgment.
-- `autonomy=yolo`: Write the plan and proceed without pausing.
+- `autonomy=supervised` (default): Present draft plans for user review before approval or execution; do not weaken the contract gate.
+- `autonomy=balanced`: Pause only if the checker raises issues or planning choices need user judgment.
+- `autonomy=yolo`: Write the plan and proceed.
 - `research_mode=explore`: Always run research step even if research exists. Expand research and comparison coverage, but do not auto-create git-backed branches or branch-like plans just because alternatives appear.
 - `research_mode=exploit`: Reuse existing research only when it already covers the exact method family, anchors, and decisive evidence path for this phase. Otherwise run targeted research. suppress optional tangents entirely unless the user explicitly requests them. Do not volunteer `gpd:branch-hypothesis` as the default response in exploit mode.
 - `research_mode=balanced` (default): Use the standard research depth for the phase and keep the default contract-checking and comparison coverage unless the phase needs broader or narrower review.
@@ -164,21 +164,18 @@ Extract from $ARGUMENTS: phase number (integer or decimal like `2.1`), flags (`-
 
 ### `--inline-discuss` Flag (Combined Discuss + Plan)
 
-When `--inline-discuss` is present, combine discuss-phase and plan-phase into a single session. This eliminates the 3-session friction (discuss → plan → execute) for straightforward phases.
+When `--inline-discuss` is present, combine discuss-phase and plan-phase for straightforward phases.
 
 **Before step 5 (Handle Research), insert a quick gray-area probe:**
 
-1. Read the phase goal and description from ROADMAP.md
-2. Present 2-3 critical decision points to the researcher — focus on the gray areas most likely to affect planning:
+1. Read the phase goal/description from ROADMAP.md and ask 2-3 planning-critical gray-area questions:
    - "What formalism/method do you envision for this phase?" (if multiple valid approaches exist)
    - "Are there any constraints or conventions from prior phases that should carry through?" (if phase has dependencies)
    - "What precision level is acceptable?" (for numerical/computational phases)
-3. If those questions reveal multiple viable approaches or optional side questions, use the canonical tangent decision model below instead of assuming extra plans or branches.
-4. Record any explicit tangent decision in the lightweight CONTEXT.md so downstream agents see whether the user chose to stay on the main line, branch, quick-check, or defer.
-5. Record responses as a lightweight CONTEXT.md in the phase directory (same format as discuss-phase output, but with only the critical decisions — skip the full Socratic dialogue)
-6. Proceed to step 5 with the context populated
+2. If those questions reveal viable alternatives or side questions, use the canonical tangent decision model below instead of assuming extra plans or branches.
+3. Record the answers and any explicit tangent decision in lightweight CONTEXT.md, then proceed to step 5.
 
-This is NOT the full discuss-phase flow — just the 2-3 most impactful questions. If the phase is complex enough to need full discussion, the researcher should run `gpd:discuss-phase` separately.
+This is not the full discuss-phase flow; use `gpd:discuss-phase` separately for complex phases.
 
 **If no phase number:** Use the `phase_number` returned by bootstrap; `gpd --raw init plan-phase --stage phase_bootstrap` auto-detects the first roadmap phase whose disk status is `empty`, `no_directory`, `discussed`, or `researched`. If bootstrap cannot infer one, stop and ask for an explicit phase.
 
@@ -234,13 +231,8 @@ fi
 
 **If an active hypothesis exists:**
 
-1. Extract the hypothesis branch slug from the helper output
-2. Read the HYPOTHESIS.md file:
-
-See the shell snippet above.
-
-3. Display: `Active hypothesis detected: hypothesis/${HYPOTHESIS_SLUG}`
-4. The hypothesis description, motivation, expected outcome, and success criteria become a **primary constraint** for all downstream agents (researcher, planner, checker). Inject the hypothesis context into every agent prompt:
+1. Extract the branch slug, read HYPOTHESIS.md using the shell snippet above, and display `Active hypothesis detected: hypothesis/${HYPOTHESIS_SLUG}`.
+2. Treat the hypothesis description, motivation, expected outcome, and success criteria as a **primary constraint** for researcher, planner, checker, and revision prompts:
 
 ```markdown
 <hypothesis_constraint>
@@ -258,7 +250,7 @@ already explores that path.
 </hypothesis_constraint>
 ```
 
-5. Append this `<hypothesis_constraint>` block to the prompts for: gpd-phase-researcher (step 5), gpd-planner (step 8), gpd-plan-checker (step 10), and revision agents (step 12).
+3. Append this `<hypothesis_constraint>` block to the prompts for the researcher, planner, checker, and revision agents.
 
 ## 4.5. Convention Verification
 
@@ -1011,21 +1003,13 @@ gpd:execute-phase {X}
 
 <success_criteria>
 
-- [ ] GPD/ directory validated
-- [ ] Phase validated against roadmap
-- [ ] Phase directory created if needed
+- [ ] GPD/ directory, roadmap phase, and phase directory validated
 - [ ] CONTEXT.md loaded early (step 4) and passed to ALL agents
-- [ ] Research completed (unless --skip-research or --gaps or exists)
-- [ ] gpd-phase-researcher spawned with CONTEXT.md
-- [ ] gpd-experiment-designer spawned for numerical phases (unless --light or no numerical indicators)
-- [ ] Existing plans checked
-- [ ] gpd-planner spawned with CONTEXT.md + RESEARCH.md
-- [ ] Plans created (PLANNING COMPLETE or CHECKPOINT handled)
-- [ ] gpd-plan-checker spawned with CONTEXT.md
+- [ ] Research completed or explicitly skipped; researcher and numerical experiment designer spawned when required
+- [ ] Existing plans checked; planner and checker spawned with required context
+- [ ] Plans created and any CHECKPOINT handled
 - [ ] Verification passed OR user override OR max iterations with user decision
-- [ ] Plans include dimensional consistency checks
-- [ ] Plans include limiting case validation
-- [ ] Plans include approximation validity bounds
+- [ ] Plans include dimensional, limiting-case, and approximation-validity checks
 - [ ] User sees status between agent spawns
 - [ ] User knows next steps
 </success_criteria>

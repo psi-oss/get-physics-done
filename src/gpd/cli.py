@@ -1254,10 +1254,12 @@ def help_bridge(
 
     quick_start_markdown = _help_marker_section("quick-start")
     command_index_markdown = _help_marker_section("command-index")
+    runtime_cwd = _get_cwd()
     payload: dict[str, object] = {
         "command": "gpd:help",
         "surface": "local_cli_raw_help_bridge",
-        "validated_surface": "public_runtime_dollar_command",
+        "validated_surface": _validated_runtime_surface(cwd=runtime_cwd),
+        "public_runtime_command_prefix": _active_runtime_command_prefix(cwd=runtime_cwd) or "",
         "local_cli_equivalence_guaranteed": False,
         "dispatch_note": (
             "Runtime commands are installed into configured agent surfaces; "
@@ -7879,6 +7881,23 @@ def _progress_reconcile_confirmation_check(command: object) -> tuple[bool, str]:
     )
 
 
+def _runtime_command_argument_check(command: object, arguments: str | None) -> tuple[bool, str] | None:
+    """Return a blocking runtime-argument check when an invocation uses a local-only option."""
+    if str(getattr(command, "name", "") or "") != "gpd:progress":
+        return None
+
+    local_watch_flags = {"--watch", "-w"}
+    supplied_flags = [token for token in _split_command_arguments(arguments) if token in local_watch_flags]
+    if not supplied_flags:
+        return None
+
+    supplied = ", ".join(supplied_flags)
+    return (
+        False,
+        f"{supplied} is local CLI only for runtime progress; use `gpd progress json --watch` from a terminal.",
+    )
+
+
 def _write_paper_external_authoring_intake_argument(arguments: str | None) -> str | None:
     """Return the explicit ``--intake`` manifest path supplied to ``gpd:write-paper``."""
 
@@ -9644,6 +9663,28 @@ def _build_command_context_preflight(
         checks.append(CommandContextCheck(name=name, passed=passed, detail=detail, blocking=blocking))
 
     add_check("context_mode", True, f"context_mode={effective_context_mode}", blocking=False)
+    runtime_argument_check = _runtime_command_argument_check(command, arguments)
+    if runtime_argument_check is not None:
+        runtime_arguments_passed, runtime_arguments_detail = runtime_argument_check
+        add_check(
+            "runtime_arguments",
+            runtime_arguments_passed,
+            runtime_arguments_detail,
+            blocking=True,
+        )
+        if not runtime_arguments_passed:
+            return CommandContextPreflightResult(
+                command=public_command_name,
+                context_mode=effective_context_mode,
+                passed=False,
+                project_exists=project_exists,
+                explicit_inputs=[],
+                guidance=runtime_arguments_detail,
+                checks=checks,
+                validated_surface=_validated_runtime_surface(cwd=cwd),
+                public_runtime_command_prefix=_active_runtime_command_prefix(cwd=cwd) or "",
+                dispatch_note=dispatch_note,
+            )
 
     if effective_context_mode == "global":
         add_check("project_context", True, "command runs without project context", blocking=False)

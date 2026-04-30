@@ -94,7 +94,7 @@ Prepare a completed paper for arXiv submission.
 
 Keep the wrapper thin and let the workflow own validation, packaging, and submission-gate details.
 
-**Why a dedicated command:** arXiv has specific requirements (no subdirectories in uploads, .bbl instead of .bib, specific figure formats, 00README.XXX for multi-file submissions). Getting these wrong means rejected submissions and wasted time. This command keeps the wrapper focused on the handoff instead of process duplication.
+arXiv-specific upload rules stay in the workflow, not this wrapper.
 
 Output: A submission-ready tarball and checklist of manual steps remaining.
 </objective>
