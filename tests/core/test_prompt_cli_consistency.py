@@ -71,6 +71,14 @@ RUNTIME_LABEL_IN_SHELL_RE = re.compile(
     r"(?:gpd:[A-Za-z0-9][A-Za-z0-9-]*|\$gpd-[A-Za-z0-9][A-Za-z0-9-]*|/gpd[:\-][A-Za-z0-9][A-Za-z0-9-]*)"
     r"(?![A-Za-z0-9_.-])"
 )
+COMMAND_LOOKING_FENCE_LINE_RE = re.compile(
+    r"^\s*(?:"
+    r"gpd:[A-Za-z0-9][A-Za-z0-9-]*"
+    r"|\$gpd-[A-Za-z0-9][A-Za-z0-9-]*"
+    r"|/gpd[:\-][A-Za-z0-9][A-Za-z0-9-]*"
+    r"|gpd\s+[A-Za-z0-9][A-Za-z0-9-]*"
+    r")(?:\b|\s|$)"
+)
 BRACKETED_SHELL_PLACEHOLDER_ARG_RE = re.compile(
     r"(?:^|\s)--[A-Za-z0-9][A-Za-z0-9-]*(?:=|\s+)"
     r"(?:"
@@ -81,6 +89,10 @@ BRACKETED_SHELL_PLACEHOLDER_ARG_RE = re.compile(
     r")"
 )
 OPTIONAL_BRACKETED_SHELL_ARG_RE = re.compile(r"^\s*\[--[A-Za-z0-9][A-Za-z0-9-]*(?:\s+[^\]]+)?\]\s*\\?\s*$")
+GPD_PATH_WRITE_REDIRECT_RE = re.compile(
+    r"(?:^|[\s{])(?:cat\s+)?(?:>>?|[0-9]>>?)\s+[\"']?(?:\$\{?[A-Za-z_][A-Za-z0-9_]*\}?/)?GPD/"
+)
+BRACKETED_GPD_WRITE_PLACEHOLDER_RE = re.compile(r"\[(?:Fill(?::| from)?|[A-Za-z][A-Za-z0-9 _./:;`|-]{0,160})[^\]\n]*\]")
 START_ROUTE_RUNTIME_RUN_PROSE_RE = re.compile(
     r"\bas if the researcher had run\b"
     r"|\b(?:run|runs|ran|rerun|re-run|execute|executes|executed)\s+\\?`"
@@ -261,6 +273,24 @@ def test_prompt_shell_fences_do_not_add_runtime_command_labels() -> None:
     assert offenders == []
 
 
+def test_command_looking_fences_are_explicitly_labeled() -> None:
+    offenders: list[str] = []
+
+    for path in _iter_prompt_sources():
+        content = path.read_text(encoding="utf-8")
+        relpath = path.relative_to(REPO_ROOT).as_posix()
+
+        for fence in iter_markdown_fences(content):
+            if fence.info.strip():
+                continue
+            for offset, line in enumerate(fence.body.splitlines(), start=1):
+                stripped = line.strip()
+                if COMMAND_LOOKING_FENCE_LINE_RE.search(line):
+                    offenders.append(f"{relpath}:{fence.start_line + offset} -> {stripped}")
+
+    assert offenders == []
+
+
 def test_prompt_shell_arguments_do_not_add_bracketed_placeholders() -> None:
     offenders: list[str] = []
 
@@ -278,6 +308,26 @@ def test_prompt_shell_arguments_do_not_add_bracketed_placeholders() -> None:
                 if (relpath, stripped) in APPROVED_BRACKETED_SHELL_ARG_LINES:
                     continue
                 offenders.append(f"{relpath}:{fence.start_line + offset} -> {stripped}")
+
+    assert offenders == []
+
+
+def test_prompt_shell_fences_do_not_write_gpd_placeholder_heredocs() -> None:
+    offenders: list[str] = []
+
+    for path in _iter_prompt_sources():
+        content = path.read_text(encoding="utf-8")
+        relpath = path.relative_to(REPO_ROOT).as_posix()
+
+        for fence in iter_markdown_fences(content):
+            if _shell_fence_language(fence.info) not in SHELL_FENCE_LANGUAGES:
+                continue
+            if not GPD_PATH_WRITE_REDIRECT_RE.search(fence.body):
+                continue
+            for offset, line in enumerate(fence.body.splitlines(), start=1):
+                stripped = line.strip()
+                if BRACKETED_GPD_WRITE_PLACEHOLDER_RE.search(line):
+                    offenders.append(f"{relpath}:{fence.start_line + offset} -> {stripped}")
 
     assert offenders == []
 

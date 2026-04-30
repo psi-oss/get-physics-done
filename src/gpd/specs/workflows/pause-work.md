@@ -42,7 +42,7 @@ Before writing the canonical continue-here handoff, append this session's equati
    - Every intermediate result added to state.json (with result IDs), plus the canonical `last_result_id` rerun anchor when this session produced a persisted derivation result
    - Every approximation invoked (name, validity regime, how checked)
 
-2. **Append to `GPD/DERIVATION-STATE.md`** (create if it doesn't exist):
+2. **Ensure `GPD/DERIVATION-STATE.md` exists**, then draft the session block separately.
 
 ```bash
 # Get timestamp and phase context
@@ -60,10 +60,11 @@ lossy compression across context resets.
 
 HEADER
 fi
+```
 
-# Append this session's persistent state
-cat >> GPD/DERIVATION-STATE.md << EOF
+Draft this session block as text first. Replace every placeholder with actual session content before appending it to `GPD/DERIVATION-STATE.md`; do not run or persist this template as-is:
 
+```text
 ---
 
 ## Session: ${timestamp} | Phase: ${phase_dir}
@@ -79,11 +80,9 @@ cat >> GPD/DERIVATION-STATE.md << EOF
 
 ### Approximations Used
 [Fill: approximations invoked, validity conditions, how checked]
-
-EOF
 ```
 
-3. **Fill in the appended section** with actual content from the current session before proceeding.
+3. **Append only the filled section** with actual content from the current session before proceeding.
    Do NOT leave the placeholders -- replace `[Fill: ...]` with real content.
 
 4. **Tag each entry** with the current phase and plan context so the history is traceable.

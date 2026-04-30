@@ -27,6 +27,8 @@ def test_map_research_stage_manifest_defers_heavy_context_and_delegation_until_a
 
     assert bootstrap.loaded_authorities == ("workflows/map-research.md",)
     assert "project_root" in bootstrap.required_init_fields
+    assert "project_root_source" in bootstrap.required_init_fields
+    assert "project_root_auto_selected" in bootstrap.required_init_fields
     assert "workspace_root" in bootstrap.required_init_fields
     assert "research_map_dir_absolute" in bootstrap.required_init_fields
     assert "reference_artifacts_content" not in bootstrap.required_init_fields
@@ -59,6 +61,11 @@ def test_map_research_workflow_uses_project_rooted_map_targets_for_side_effects(
     assert "option_id: refresh_archive" in text
     assert "option_id: update_selected" in text
     assert "option_id: skip_existing" in text
+    assert "route by exact `option_id`, not option number or label" in text
+    assert "Record the selected list as `UPDATE_SELECTED_DOCS`" in text
+    assert "Spawn only mapper slices that own at least one selected document" in text
+    assert "Keep unselected map documents byte-for-byte unchanged" in text
+    assert "If any unselected file changes, fail closed" in text
     assert "Delete GPD/research-map" not in text
     assert "mkdir -p GPD/research-map" not in text
     assert "rm -rf GPD/research-map" not in text

@@ -4,8 +4,10 @@ from pathlib import Path
 
 import pytest
 
+from gpd.adapters import get_adapter
 from gpd.adapters.install_utils import project_markdown_for_runtime
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+from gpd.command_labels import validated_public_command_prefix
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
@@ -14,11 +16,6 @@ SOURCE_ROOT = REPO_ROOT / "src/gpd"
 
 RUNTIME_LABEL_RULE = "Runtime label: Show `gpd:` as native labels;"
 OWNED_WORKFLOWS = ("help", "start", "tour", "new-project", "map-research", "resume-work")
-_RUNTIME_WITH_LAUNCH_WRAPPER_PERMISSIONS = next(
-    descriptor
-    for descriptor in iter_runtime_descriptors()
-    if descriptor.capabilities.permissions_surface == "launch-wrapper"
-)
 _RUNTIME_WITH_NATIVE_INCLUDE_SUPPORT = next(
     descriptor for descriptor in iter_runtime_descriptors() if descriptor.native_include_support
 )
@@ -51,6 +48,16 @@ def _project_command(command_name: str, runtime: str) -> str:
     )
 
 
+def _project_owned_workflow(workflow_name: str, descriptor) -> str:
+    if descriptor.native_include_support:
+        return get_adapter(descriptor.runtime_name).translate_shared_markdown(_workflow(workflow_name), "/runtime/")
+    return _project_command(workflow_name, descriptor.runtime_name)
+
+
+def _runtime_label_rule(prefix: str) -> str:
+    return f"Runtime label: Show `{prefix}` as native labels;"
+
+
 def test_owned_workflows_tell_agents_to_render_native_runtime_command_labels() -> None:
     for workflow_name in OWNED_WORKFLOWS:
         content = _workflow(workflow_name)
@@ -59,11 +66,19 @@ def test_owned_workflows_tell_agents_to_render_native_runtime_command_labels() -
         assert "keep local CLI `gpd ...` unchanged." in content
 
 
+@pytest.mark.parametrize(
+    "descriptor", tuple(iter_runtime_descriptors()), ids=lambda descriptor: descriptor.runtime_name
+)
 @pytest.mark.parametrize("command_name", OWNED_WORKFLOWS)
-def test_gemini_projected_owned_commands_keep_runtime_label_rule_visible(command_name: str) -> None:
-    projected = _project_command(command_name, _RUNTIME_WITH_LAUNCH_WRAPPER_PERMISSIONS.runtime_name)
+def test_projected_owned_commands_use_descriptor_public_runtime_label_prefix(command_name: str, descriptor) -> None:
+    projected = _project_owned_workflow(command_name, descriptor)
+    public_prefix = validated_public_command_prefix(descriptor)
 
-    assert RUNTIME_LABEL_RULE in projected
+    assert _runtime_label_rule(public_prefix) in projected
+    if descriptor.runtime_name == "codex":
+        assert "Runtime label: Show `gpd:` as native labels;" not in projected
+    if descriptor.runtime_name == "opencode":
+        assert "Runtime label: Show `gpd-` as native labels;" not in projected
 
 
 def test_claude_new_project_wrapper_keeps_post_init_next_step_runtime_native() -> None:
@@ -93,7 +108,7 @@ def test_new_project_headless_and_policy_blocks_do_not_auto_approve_or_fabricate
     workflow = _workflow("new-project")
 
     assert "Headless or non-interactive mode is not scope approval" in workflow
-    assert 'never auto-select approval' in workflow
+    assert "never auto-select approval" in workflow
     assert "inventing anchors, references, baselines, DOI/arXiv/file locators, or prior outputs" in workflow
     assert "do not substitute unvalidated file writes" in workflow
 

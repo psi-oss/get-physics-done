@@ -269,7 +269,7 @@ For each phase, create one or more requirements using the standard format:
 
 #### M4. Create ROADMAP.md
 
-Route `GPD/ROADMAP.md` through the staged post-scope roadmapping handoff instead of creating a local ad hoc roadmap.
+For minimal bootstrap only, write a lightweight local `GPD/ROADMAP.md` directly from the approved contract and the template below. Do not claim or invoke the staged post-scope roadmapping handoff in the minimal path; the full initialization path owns the `post_scope` roadmapper handoff.
 
 Use the coarsest decomposition the approved contract actually supports. If the input only supports one grounded stage so far, keep the roadmap coarse and carry later decomposition as an open question instead of inventing filler phases.
 
@@ -368,7 +368,7 @@ gpd commit "docs: initialize research project (minimal)" --files GPD/PROJECT.md 
 
 #### M7. Done — Offer Next Step
 
-```
+```text
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GPD >>> RESEARCH PROJECT INITIALIZED (MINIMAL)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -461,34 +461,17 @@ Setup is read-only. Do not initialize git, create `GPD/`, write state, or write/
 
 **Check for previous initialization attempt before generic project/recovery hard-stops:**
 
-```bash
-if [ -f GPD/init-progress.json ]; then
-  # Guard against corrupted JSON (e.g., from interrupted write)
-  PREV_STEP=""
-  PREV_DESC=""
-  INIT_PROGRESS_RAW=$(cat GPD/init-progress.json 2>/dev/null || echo "")
-  if [ -n "$INIT_PROGRESS_RAW" ]; then
-    PREV_STEP=$(echo "$INIT_PROGRESS_RAW" | gpd json get .step --default "" 2>/dev/null)
-    PREV_DESC=$(echo "$INIT_PROGRESS_RAW" | gpd json get .description --default "" 2>/dev/null)
-  fi
+Use the structured setup fields from `SCOPE_INIT`; do not manually parse `GPD/init-progress.json` in the prompt.
 
-  # If JSON was corrupted (empty step), stop for explicit recovery handling.
-  if [ -z "$PREV_STEP" ]; then
-    echo "ERROR: GPD/init-progress.json exists but is corrupted or empty."
-    echo "Do not delete it automatically; ask the user to inspect, move, or delete it before restarting."
-    # STOP -- display the conflict and do not proceed with new-project writes.
-  fi
-fi
-```
-
-If `GPD/init-progress.json` exists and is valid, offer to resume even when `project_exists` or `recoverable_project_exists` is also true; this file means an interrupted initialization checkpoint owns the next routing decision:
+- If `init_progress_status="corrupt_init_progress"` or `init_progress_corrupt=true`, stop for explicit recovery handling. Say `GPD/init-progress.json exists but is corrupted or empty.` Do not delete it automatically; ask the user to inspect, move, or delete it before restarting.
+- If `init_progress_status="interrupted_init_progress"` and `init_progress_valid=true`, offer to resume even when `project_exists` or `recoverable_project_exists` is also true; this file means an interrupted initialization checkpoint owns the next routing decision.
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GPD > PREVIOUS INITIALIZATION DETECTED
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Completed through step {PREV_STEP}: {PREV_DESC}
+Completed through step {init_progress_step}: {init_progress_description}
 
 ──────────────────────────────────────────────────────
 Options:
@@ -497,7 +480,7 @@ Options:
 ──────────────────────────────────────────────────────
 ```
 
-If resume: continue from the next unfinished checkpoint after `PREV_STEP` (check which artifacts already exist on disk to confirm).
+If resume: continue from the next unfinished checkpoint after `init_progress_step` (check which artifacts already exist on disk to confirm).
 If start fresh: delete `init-progress.json` only after the user explicitly chooses that option, then proceed normally.
 
 If no valid `GPD/init-progress.json` is present, apply the generic project/recovery guards:

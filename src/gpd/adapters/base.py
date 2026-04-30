@@ -458,7 +458,7 @@ class RuntimeAdapter(abc.ABC):
 
     def translate_shared_command_references(self, content: str) -> str:
         """Rewrite shared command references for this runtime."""
-        return content
+        return content.replace("`gpd:`", f"`{self.public_command_surface_prefix}`")
 
     def translate_shared_markdown(
         self,
@@ -489,7 +489,7 @@ class RuntimeAdapter(abc.ABC):
         del path_prefix, command_name, bridge_command
         if surface_kind not in {"agent", "command"}:
             raise ValueError("surface_kind must be 'agent' or 'command'")
-        return content
+        return self.translate_shared_command_references(content)
 
     def commit_attribution_config_path(self, *, explicit_config_dir: str | None = None) -> Path | None:
         """Return the runtime-owned config file that stores commit attribution.

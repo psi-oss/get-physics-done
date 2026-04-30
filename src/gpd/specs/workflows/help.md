@@ -218,7 +218,7 @@ Use `gpd:help --command <name>` when you want the detailed notes for one runtime
 
 ### Core Workflow
 
-```
+```text
 gpd:new-project -> gpd:discuss-phase -> gpd:plan-phase -> gpd:execute-phase -> gpd:verify-work -> repeat
 ```
 
@@ -1279,7 +1279,7 @@ Example config:
 
 **Starting a new research project:**
 
-```
+```text
 gpd:new-project        # Unified flow: questioning -> survey -> discuss -> objectives -> roadmap
 # Start a fresh context window, then run:
 gpd:discuss-phase 1    # Gather context and clarify approach
@@ -1291,14 +1291,14 @@ gpd:execute-phase 1    # Execute all plans in phase
 
 **Fast project bootstrap (skip deep questioning):**
 
-```
+```text
 gpd:new-project --minimal              # One structured intake plus scope approval
 gpd:new-project --minimal @plan.md     # Parse a plan file, then repair/approve scope
 ```
 
 **Leaving and returning after a break:**
 
-```
+```text
 gpd:pause-work        # Before leaving mid-phase, capture a continuation handoff artifact
 # Start a fresh context window, then run gpd resume in your normal terminal for the current workspace
 gpd resume             # Current-workspace read-only recovery snapshot from your normal terminal
@@ -1310,13 +1310,13 @@ gpd:progress --brief  # Short orientation snapshot if you need more context
 
 **Normal terminal, read-only recovery snapshot:**
 
-```
+```text
 gpd resume
 ```
 
 **Normal terminal, read-only machine-local usage / cost summary:**
 
-```
+```text
 gpd cost
 ```
 
@@ -1324,7 +1324,7 @@ Read-only machine-local usage / cost summary from recorded local telemetry, opti
 
 **Adding urgent mid-milestone work:**
 
-```
+```text
 gpd:insert-phase 5 "Fix sign error in renormalization group equation"
 gpd:plan-phase 5.1
 gpd:execute-phase 5.1
@@ -1332,7 +1332,7 @@ gpd:execute-phase 5.1
 
 **Completing a milestone:**
 
-```
+```text
 gpd:complete-milestone v2.0
 # Start a fresh context window, then run:
 gpd:new-milestone  # Start next milestone (questioning -> survey -> objectives -> roadmap)
@@ -1340,7 +1340,7 @@ gpd:new-milestone  # Start next milestone (questioning -> survey -> objectives -
 
 **Capturing ideas during work:**
 
-```
+```text
 gpd:add-todo                                      # Capture from conversation context
 gpd:add-todo Check finite-size scaling exponent    # Capture with explicit description
 gpd:check-todos                                    # Review and work on todos

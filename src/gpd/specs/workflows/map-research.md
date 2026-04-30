@@ -126,7 +126,15 @@ mkdir -p "$RESEARCH_MAP_DIR_ABS"
 echo "Archived previous research map at: $RESEARCH_MAP_ARCHIVE_DIR"
 ```
 
-If `update_selected`: Ask which documents to update, continue to spawn_agents (filtered)
+If `update_selected`: ask for explicit document IDs from this fixed set only: `FORMALISM.md`, `REFERENCES.md`, `ARCHITECTURE.md`, `STRUCTURE.md`, `CONVENTIONS.md`, `VALIDATION.md`, `CONCERNS.md`. Continue only after the user selects at least one valid document ID. Record the selected list as `UPDATE_SELECTED_DOCS`.
+
+For `update_selected`, run selected-document mode:
+
+- Spawn only mapper slices that own at least one selected document.
+- Intersect every selected mapper's `allowed_paths`, `expected_artifacts`, and accepted `gpd_return.files_written` with `UPDATE_SELECTED_DOCS`.
+- Keep unselected map documents byte-for-byte unchanged; do not rewrite, reformat, or verify them as outputs for this run.
+- Completion verifies only the selected documents plus the unchanged status of unselected documents. If any unselected file changes, fail closed and report the unexpected write.
+
 If `skip_existing`: Exit workflow
 
 **If doesn't exist:**

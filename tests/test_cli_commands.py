@@ -1910,6 +1910,8 @@ class TestInitCommands:
         payload = json.loads(result.output)
         assert payload["workspace_root"] == nested.resolve().as_posix()
         assert payload["project_root"] == gpd_project.resolve().as_posix()
+        assert payload["project_root_source"] == "workspace"
+        assert payload["project_root_auto_selected"] is False
         assert payload["research_map_dir"] == "GPD/research-map"
         assert payload["research_map_dir_absolute"] == map_dir.resolve().as_posix()
         assert payload["planning_exists"] is True
@@ -1938,6 +1940,8 @@ class TestInitCommands:
         payload = json.loads(result.output)
         assert payload["workspace_root"] == nested.resolve().as_posix()
         assert payload["project_root"] == gpd_project.resolve().as_posix()
+        assert payload["project_root_source"] == "workspace"
+        assert payload["project_root_auto_selected"] is False
         assert payload["research_map_dir"] == "GPD/research-map"
         assert payload["research_map_dir_absolute"] == root_map_dir.resolve(strict=False).as_posix()
         assert (
@@ -2176,6 +2180,60 @@ review_summary:
         assert payload["staged_loading"]["writes_allowed"] == []
         assert not (workspace / ".git").exists()
         assert not (workspace / "GPD").exists()
+
+    def test_new_project_init_scope_intake_exposes_interrupted_init_progress(self, tmp_path: Path) -> None:
+        workspace = tmp_path.parent / f"{tmp_path.name}-interrupted-init"
+        progress_dir = workspace / "GPD"
+        progress_dir.mkdir(parents=True)
+        (progress_dir / "init-progress.json").write_text(
+            json.dumps({"step": "M3", "description": "Requirements drafted"}) + "\n",
+            encoding="utf-8",
+        )
+        (progress_dir / "PROJECT.md").write_text("# Partial Project\n", encoding="utf-8")
+        (progress_dir / "ROADMAP.md").write_text("# Partial Roadmap\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "init", "new-project", "--stage", "scope_intake"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["init_progress_exists"] is True
+        assert payload["init_progress_status"] == "interrupted_init_progress"
+        assert payload["init_progress_valid"] is True
+        assert payload["init_progress_corrupt"] is False
+        assert payload["init_progress_step"] == "M3"
+        assert payload["init_progress_description"] == "Requirements drafted"
+        assert payload["init_progress_path"] == "GPD/init-progress.json"
+        assert payload["project_exists"] is True
+        assert payload["recoverable_project_exists"] is True
+        assert payload["staged_loading"]["writes_allowed"] == []
+        assert not (progress_dir / "state.json.lock").exists()
+
+    def test_new_project_init_scope_intake_exposes_corrupt_init_progress(self, tmp_path: Path) -> None:
+        workspace = tmp_path.parent / f"{tmp_path.name}-corrupt-init"
+        progress_dir = workspace / "GPD"
+        progress_dir.mkdir(parents=True)
+        (progress_dir / "init-progress.json").write_text("{bad json\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "init", "new-project", "--stage", "scope_intake"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["init_progress_exists"] is True
+        assert payload["init_progress_status"] == "corrupt_init_progress"
+        assert payload["init_progress_valid"] is False
+        assert payload["init_progress_corrupt"] is True
+        assert payload["init_progress_step"] is None
+        assert payload["init_progress_description"] is None
+        assert payload["staged_loading"]["writes_allowed"] == []
+        assert not (progress_dir / "state.json.lock").exists()
 
     def test_new_project_init_scope_approval_declares_state_writer_side_effects(self, tmp_path: Path) -> None:
         workspace = tmp_path.parent / f"{tmp_path.name}-candidate-scope-approval"

@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 
 from gpd.cli import app
 from gpd.core.context import init_new_project, init_sync_state
+from gpd.core.recent_projects import record_recent_project
 from gpd.core.state import default_state_dict, save_state_json, state_repair_sync
 
 runner = CliRunner()
@@ -38,6 +39,13 @@ def _write_lone_backup(root: Path, state: dict) -> None:
     (planning / "state.json.bak").write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
 
 
+def _assert_no_stale_state_repair_artifacts(root: Path) -> None:
+    planning = root / "GPD"
+    assert not (planning / ".state-write-intent").exists()
+    assert list(planning.glob("state.json.tmp.*")) == []
+    assert list(planning.glob("STATE.md.tmp.*")) == []
+
+
 def test_sync_state_repair_uses_valid_backup_when_primary_json_is_corrupt_and_markdown_missing(
     tmp_path: Path,
 ) -> None:
@@ -60,6 +68,7 @@ def test_sync_state_repair_uses_valid_backup_when_primary_json_is_corrupt_and_ma
     assert result.validation_valid is True
     assert _stored_state(tmp_path)["position"]["current_phase"] == "07"
     assert "**Current Phase:** 07" in (planning / "STATE.md").read_text(encoding="utf-8")
+    _assert_no_stale_state_repair_artifacts(tmp_path)
 
 
 def test_sync_state_repair_prefers_valid_backup_over_malformed_markdown_when_json_is_missing(
@@ -158,3 +167,56 @@ def test_state_repair_sync_cli_repairs_root_selected_by_cwd_option(tmp_path: Pat
     assert payload["source_used"] == "state.json.bak"
     assert payload["validation_valid"] is True
     assert _stored_state(tmp_path)["position"]["current_phase"] == "05"
+    _assert_no_stale_state_repair_artifacts(tmp_path)
+
+
+def test_sync_state_cli_repair_does_not_reenter_recent_project_from_wrong_folder(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    current = tmp_path / "wrong-folder"
+    recent = tmp_path / "recent-project"
+    data_root = tmp_path / "gpd-data"
+    current.mkdir()
+    recent_state = _state_with_phase("09", status="Paused")
+    save_state_json(recent, recent_state)
+    _ensure_phase_dir(recent, "09")
+    recent_state_before = (recent / "GPD" / "state.json").read_text(encoding="utf-8")
+    recent_markdown_before = (recent / "GPD" / "STATE.md").read_text(encoding="utf-8")
+    monkeypatch.setenv("GPD_DATA_DIR", str(data_root))
+    record_recent_project(
+        recent,
+        session_data={
+            "last_date": "2026-04-30T12:00:00+00:00",
+            "stopped_at": "Phase 09",
+            "resume_file": "GPD/phases/09/.continue-here.md",
+        },
+        store_root=data_root,
+    )
+
+    bootstrap = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(current), "init", "sync-state", "--stage", "sync_bootstrap"],
+        catch_exceptions=False,
+    )
+    repair = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(current), "state", "repair-sync"],
+        catch_exceptions=False,
+    )
+
+    assert bootstrap.exit_code == 0, bootstrap.output
+    bootstrap_payload = json.loads(bootstrap.output)
+    assert bootstrap_payload["project_root"] == current.resolve().as_posix()
+    assert bootstrap_payload["project_root_source"] == "current_workspace"
+    assert bootstrap_payload["project_root_auto_selected"] is False
+    assert "will not inspect or repair a recent project" in bootstrap_payload["project_reentry_guidance"]
+
+    assert repair.exit_code == 1, repair.output
+    repair_payload = json.loads(repair.output)
+    assert repair_payload["project_root"] == current.resolve().as_posix()
+    assert repair_payload["repaired"] is False
+    assert repair_payload["reason"] == "missing_or_unrecoverable_state"
+    assert not (current / "GPD" / "state.json").exists()
+    assert (recent / "GPD" / "state.json").read_text(encoding="utf-8") == recent_state_before
+    assert (recent / "GPD" / "STATE.md").read_text(encoding="utf-8") == recent_markdown_before

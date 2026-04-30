@@ -55,6 +55,7 @@ from gpd.adapters.install_utils import (
 )
 from gpd.adapters.runtime_catalog import get_manifest_metadata_list_policy_key, get_runtime_descriptor
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
+from gpd.command_labels import validated_public_command_prefix
 from gpd.core.observability import gpd_span
 from gpd.mcp import managed_integrations as _managed_integrations
 from gpd.registry import AgentDef, list_commands, load_agents_from_dir
@@ -613,6 +614,7 @@ def _convert_codex_tool_name(tool_name: str) -> str | None:
 def _rewrite_codex_command_references(content: str) -> str:
     """Rewrite runnable GPD command references without touching URLs or paths."""
     command_slugs = set(list_commands(name_format="slug"))
+    public_prefix = validated_public_command_prefix(get_runtime_descriptor("codex"))
 
     def _replace(match: re.Match[str]) -> str:
         slug = match.group(1)
@@ -620,7 +622,8 @@ def _rewrite_codex_command_references(content: str) -> str:
             return match.group(0)
         return f"$gpd-{slug}"
 
-    converted = _CODEX_SLASH_COMMAND_REFERENCE_RE.sub(_replace, content)
+    converted = content.replace("`gpd:`", f"`{public_prefix}`")
+    converted = _CODEX_SLASH_COMMAND_REFERENCE_RE.sub(_replace, converted)
     return _CODEX_BARE_COMMAND_REFERENCE_RE.sub(_replace, converted)
 
 

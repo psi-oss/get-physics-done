@@ -229,7 +229,7 @@ Extract: `**02-03: Perturbative Corrections** -- Compute one-loop self-energy wi
 
 ### Don't: Command-only (no context)
 
-```
+```text
 ## To Continue
 
 Start a fresh context window, then run the concrete next command:
@@ -240,7 +240,7 @@ User has no idea what 02-03 is about.
 
 ### Don't: Missing fresh-context explanation
 
-```
+```text
 `gpd:plan-phase 3`
 
 Start a fresh context window, then run the command.

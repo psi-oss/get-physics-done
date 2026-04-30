@@ -63,6 +63,13 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
         "recoverable_project_exists",
         "partial_project_exists",
         "project_recovery_status",
+        "init_progress_exists",
+        "init_progress_status",
+        "init_progress_valid",
+        "init_progress_corrupt",
+        "init_progress_step",
+        "init_progress_description",
+        "init_progress_path",
         "has_research_map",
         "planning_exists",
         "has_research_files",
@@ -78,6 +85,7 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
     )
     assert "project_contract_gate" in contract.stages[0].required_init_fields
     assert "needs_research_map" in contract.stages[0].required_init_fields
+    assert "init_progress_status" in contract.stages[0].required_init_fields
     assert contract.stages[0].conditional_authorities[0].when == "full_questioning_path"
     assert contract.stages[0].conditional_authorities[0].authorities == ("references/research/questioning.md",)
     assert "references/research/questioning.md" in contract.stages[0].must_not_eager_load
@@ -215,8 +223,26 @@ def test_new_project_recovery_gate_precedes_generic_project_hard_stops() -> None
 
     assert progress_gate < project_stop
     assert progress_gate < recoverable_stop
+    assert (
+        "Use the structured setup fields from `SCOPE_INIT`; do not manually parse `GPD/init-progress.json`"
+        in workflow_text
+    )
+    assert 'init_progress_status="interrupted_init_progress"' in workflow_text
+    assert "{init_progress_step}: {init_progress_description}" in workflow_text
     assert "Do not delete it automatically" in workflow_text
     assert "If start fresh: delete `init-progress.json` only after the user explicitly chooses" in workflow_text
+    assert "cat GPD/init-progress.json" not in workflow_text
+
+
+def test_new_project_minimal_roadmap_contract_is_direct_not_staged_handoff() -> None:
+    workflow_text = _read_new_project_workflow()
+    minimal_m4 = workflow_text[
+        workflow_text.index("#### M4. Create ROADMAP.md") : workflow_text.index("#### M5. Create STATE.md")
+    ]
+
+    assert "For minimal bootstrap only, write a lightweight local `GPD/ROADMAP.md` directly" in minimal_m4
+    assert "Do not claim or invoke the staged post-scope roadmapping handoff in the minimal path" in minimal_m4
+    assert "Route `GPD/ROADMAP.md` through the staged post-scope roadmapping handoff" not in minimal_m4
 
 
 def test_new_project_defers_git_until_first_mutation_gate() -> None:

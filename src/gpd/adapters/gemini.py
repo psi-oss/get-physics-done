@@ -1138,6 +1138,7 @@ class GeminiAdapter(RuntimeAdapter):
             )
         if bridge_command is None:
             raise ValueError("bridge_command is required for projected Gemini command surfaces")
+        content = self.translate_shared_command_references(content)
         rendered = _render_gemini_command_prompt(content, bridge_command=bridge_command)
         prompt = tomllib.loads(_convert_to_gemini_toml(rendered)).get("prompt")
         if not isinstance(prompt, str):

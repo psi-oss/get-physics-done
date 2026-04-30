@@ -880,6 +880,56 @@ def _backup_only_state_guidance(cwd: Path) -> str | None:
     return None
 
 
+def _new_project_init_progress_context(cwd: Path) -> dict[str, object]:
+    """Return structured interrupted-initialization routing context."""
+
+    relative_path = f"{PLANNING_DIR_NAME}/init-progress.json"
+    progress_path = cwd / relative_path
+    result: dict[str, object] = {
+        "init_progress_exists": progress_path.exists(),
+        "init_progress_status": "absent",
+        "init_progress_valid": False,
+        "init_progress_corrupt": False,
+        "init_progress_step": None,
+        "init_progress_description": None,
+        "init_progress_path": relative_path,
+    }
+    if not progress_path.exists():
+        return result
+
+    try:
+        raw = progress_path.read_text(encoding="utf-8")
+        payload = json.loads(raw)
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        result["init_progress_status"] = "corrupt_init_progress"
+        result["init_progress_corrupt"] = True
+        return result
+
+    if not isinstance(payload, Mapping):
+        result["init_progress_status"] = "corrupt_init_progress"
+        result["init_progress_corrupt"] = True
+        return result
+
+    step = payload.get("step")
+    description = payload.get("description")
+    normalized_step = step.strip() if isinstance(step, str) else ""
+    normalized_description = description.strip() if isinstance(description, str) else ""
+    if not normalized_step:
+        result["init_progress_status"] = "corrupt_init_progress"
+        result["init_progress_corrupt"] = True
+        return result
+
+    result.update(
+        {
+            "init_progress_status": "interrupted_init_progress",
+            "init_progress_valid": True,
+            "init_progress_step": normalized_step,
+            "init_progress_description": normalized_description,
+        }
+    )
+    return result
+
+
 def _resolve_project_scoped_cwd(cwd: Path) -> Path:
     """Return the nearest verified current-workspace project root, else the normalized cwd."""
 
@@ -4011,6 +4061,7 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
         "recoverable_project_exists": recoverable_project_exists,
         "partial_project_exists": partial_project_exists,
         "project_recovery_status": project_recovery_status,
+        **_new_project_init_progress_context(project_cwd),
         "has_research_map": _path_exists(project_cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
         "planning_exists": _path_exists(project_cwd, PLANNING_DIR_NAME),
         # Existing project detection
@@ -5234,6 +5285,8 @@ def init_map_research(cwd: Path, focus: str | None = None, stage: str | None = N
         "init_root_policy": InitRootPolicy.PROJECT_SCOPED.value,
         "workspace_root": requested_cwd.as_posix(),
         "project_root": effective_cwd.as_posix(),
+        "project_root_source": "workspace",
+        "project_root_auto_selected": False,
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],

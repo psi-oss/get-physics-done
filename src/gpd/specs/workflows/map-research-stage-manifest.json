@@ -6,6 +6,8 @@
       "mapper_model",
       "workspace_root",
       "project_root",
+      "project_root_source",
+      "project_root_auto_selected",
       "commit_docs",
       "autonomy",
       "research_mode",
