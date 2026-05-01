@@ -309,6 +309,7 @@ Proof freshness summary: {phase_proof_review_status}
 </verification_context>
 
 Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. Use `protocol_bundle_verifier_extensions` as the primary bundle-extension surface. Keep decisive comparison gaps legible at the claim / acceptance-test / reference level. If user input is required, return `gpd_return.status: checkpoint` and stop; do not wait inside the same run.
+Schema finalization is bounded: validator pass returns; after two schema-only repair failures, return `gpd_return.status: blocked` with latest errors.
 
 <spawn_contract>
 write_scope:
@@ -340,6 +341,7 @@ Read the verifier-produced verification file or report path.
 - `gpd_return.status: blocked` or `failed` means keep the session fail-closed, present the issues, and end with `## > Next Up`: primary `gpd:verify-work ${phase_number}`, plus `gpd:resume-work` and `gpd:suggest-next`. Do not treat any preexisting verification file as a new verifier result on this path.
 - If the verifier agent fails to spawn or returns an error, keep the session fail-closed. End with the same `gpd:verify-work ${phase_number}` Next Up route. Do not let a stale existing verification file satisfy the success path.
 - If the canonical verification artifact is missing, unreadable, absent from `gpd_return.files_written`, or fails contract validation, treat the handoff as incomplete and request a fresh verifier continuation. Never trust the return text alone.
+- Do not patch canonical verification frontmatter in this wrapper. Surface bounded-loop validator errors fail-closed with `## > Next Up`: `gpd:verify-work ${phase_number}`, `gpd:resume-work`, `gpd:suggest-next`.
 - If a canonical verification file already exists, preserve its authoritative frontmatter and append only the session-local overlay here.
 - Do not recompute canonical verification status in this workflow.
 

@@ -47,10 +47,19 @@ def test_verifier_prompt_points_to_canonical_verification_schema_sources() -> No
     assert "templates/verification-report.md" in verifier
     assert "templates/contract-results-schema.md" in verifier
     assert "references/shared/canonical-schema-discipline.md" in verifier
-    assert "Immediately before writing or validating `VERIFICATION.md`, load the canonical schema references on demand:" in verifier
+    assert (
+        "Immediately before writing or validating `VERIFICATION.md`, load the canonical schema references on demand:"
+        in verifier
+    )
     assert "## Canonical LLM Error References" in verifier
-    assert "include a machine-readable `ASSERT_CONVENTION` comment immediately after the YAML frontmatter in `VERIFICATION.md`." in verifier
-    assert "Changed phase verification artifacts now fail `gpd pre-commit-check` if the required header is missing or mismatched." in verifier
+    assert (
+        "include a machine-readable `ASSERT_CONVENTION` comment immediately after the YAML frontmatter in `VERIFICATION.md`."
+        in verifier
+    )
+    assert (
+        "Changed phase verification artifacts now fail `gpd pre-commit-check` if the required header is missing or mismatched."
+        in verifier
+    )
     assert "Prefer copy-pasteable GPD commands" not in verifier
     assert "## Data Boundary" not in verifier
     for legacy_alias in ("must_haves", "verification_inputs", "contract_evidence", "independently_confirmed"):
@@ -70,8 +79,19 @@ def test_verifier_prompt_surfaces_validator_enforced_contract_ledger_rules() -> 
         "Treat those files as the source of truth for `plan_contract_ref`, `contract_results`, "
         "`comparison_verdicts`, `suggested_contract_checks`, proof-audit fields"
     ) in verifier
-    assert "If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is required." not in verifier
+    assert (
+        "If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is required." not in verifier
+    )
+    assert "Schema guard:" in verifier
+    assert "project-only IDs go in body/unbound suggestions" in verifier
+    assert "No `gpd_return`, `computational_oracle`, or runtime fields in frontmatter" in verifier
+    assert "Oracle in body; return after report." in verifier
+    assert "Unclear `evidence[]`: use parent `summary` / `notes`." in verifier
     assert "plan_contract_ref: GPD/phases/XX-name/XX-YY-PLAN.md#/contract" in contract_results_schema
+    assert (
+        "`contract_results` is keyed to `plan_contract_ref`; project-only IDs belong in body" in contract_results_schema
+    )
+    assert "never `kind`, `path`, `source`, `summary`, `actual_output`, or `command`" in contract_results_schema
     assert (
         "Every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the referenced "
         "PLAN contract must appear in the matching section."
@@ -85,9 +105,18 @@ def test_verifier_prompt_surfaces_validator_enforced_contract_ledger_rules() -> 
         "When a reference-backed decisive comparison is required, use `comparison_kind: benchmark`, `prior_work`, "
         "`experiment`, `baseline`, or `cross_method`. `comparison_kind: other` does not satisfy that requirement."
     ) in contract_results_schema
-    assert "Each `suggested_contract_checks` entry may only use these keys: `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path`." in contract_results_schema
-    assert "Copy the `check_key` returned by `suggest_contract_checks(contract)` into the frontmatter `check` field" in contract_results_schema
-    assert "If you bind a `suggested_contract_checks` entry to a known contract target, `suggested_subject_kind` and `suggested_subject_id` must appear together; otherwise omit both." in contract_results_schema
+    assert (
+        "Each `suggested_contract_checks` entry may only use these keys: `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path`."
+        in contract_results_schema
+    )
+    assert (
+        "Copy the `check_key` returned by `suggest_contract_checks(contract)` into the frontmatter `check` field"
+        in contract_results_schema
+    )
+    assert (
+        "If you bind a `suggested_contract_checks` entry to a known contract target, `suggested_subject_kind` and `suggested_subject_id` must appear together; otherwise omit both."
+        in contract_results_schema
+    )
     assert "For each suggested check, start from `request_template`" in verifier
     assert "`schema_required_request_fields`" in verifier
     assert "`schema_required_request_anyof_fields`" in verifier
@@ -103,7 +132,10 @@ def test_verifier_prompt_keeps_reference_actions_within_the_canonical_enum() -> 
     verifier = _read_verifier_prompt()
 
     assert "Verify the required action (`read`, `compare`, `cite`, etc.) was actually completed" in verifier
-    assert "Verify the required action (`read`, `compare`, `cite`, `reproduce`, etc.) was actually completed" not in verifier
+    assert (
+        "Verify the required action (`read`, `compare`, `cite`, `reproduce`, etc.) was actually completed"
+        not in verifier
+    )
 
 
 def test_verifier_prompt_loads_conventions_from_state_json_with_degraded_state_md_fallback() -> None:
@@ -143,11 +175,20 @@ def test_verifier_prompt_frontmatter_example_includes_contract_ledgers() -> None
     assert "comparison_verdicts" in verifier
     assert "suggested_contract_checks" in verifier
     assert "\nindependently_confirmed:" not in verifier
-    assert "<!-- ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly-minus, fourier_convention=physics -->" in verifier
+    assert (
+        "<!-- ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly-minus, fourier_convention=physics -->"
+        in verifier
+    )
     assert "filler placeholders" not in verifier
     assert "Use the loaded canonical report template and result-ledger schema" in verifier
+    assert "### Validation Stop Rule" in verifier
+    assert "max two targeted repairs" in verifier
+    assert "`gpd_return.status: blocked` with latest errors" in verifier
+    assert "No aliases or empty evidence to pass." in verifier
     assert "### Frontmatter Schema (YAML)" not in verifier
     assert "Verification reports are the decisive readout of the same contract-backed ledger" in verification_template
+    assert "Frontmatter is not the return channel: no `gpd_return`, `computational_oracle`" in verification_template
+    assert "oracle in body, return after." in verification_template
 
 
 def test_shipped_verification_examples_roundtrip_through_the_verification_validator() -> None:
@@ -160,7 +201,10 @@ def test_shipped_verification_examples_roundtrip_through_the_verification_valida
 def test_verifier_prompt_uses_canonical_include_for_worked_examples() -> None:
     verifier = _read_verifier_prompt()
 
-    assert "<!-- Stub detection patterns extracted to reduce context. Load on demand from `references/verification/examples/verifier-worked-examples.md`. -->" in verifier
+    assert (
+        "<!-- Stub detection patterns extracted to reduce context. Load on demand from `references/verification/examples/verifier-worked-examples.md`. -->"
+        in verifier
+    )
     assert "## Physics Stub Detection Patterns" not in verifier
     assert "Load on demand from `references/verification/examples/verifier-worked-examples.md`." in verifier
     assert "all artifacts pass levels 1-4" in verifier
@@ -173,20 +217,39 @@ def test_verifier_prompt_surfaces_missing_parameter_proof_audit_and_stale_review
     verification_template = _read_verification_template()
 
     assert "## Physics Stub Detection Patterns" not in verifier
-    assert "<!-- Stub detection patterns extracted to reduce context. Load on demand from `references/verification/examples/verifier-worked-examples.md`. -->" in verifier
+    assert (
+        "<!-- Stub detection patterns extracted to reduce context. Load on demand from `references/verification/examples/verifier-worked-examples.md`. -->"
+        in verifier
+    )
     assert "proof-audit fields, status vocabularies, ID linkage, and stale-audit handling" in verifier
-    assert "Every named theorem parameter or hypothesis is used or explicitly discharged; no theorem symbol may disappear without explanation" not in verifier
-    assert "For `contract_results`, use the referenced `ProjectContract` (`project_contract.claims[]` / `ContractClaim`) semantics" in contract_results_schema
+    assert (
+        "Every named theorem parameter or hypothesis is used or explicitly discharged; no theorem symbol may disappear without explanation"
+        not in verifier
+    )
+    assert (
+        "For `contract_results`, use the referenced `ProjectContract` (`project_contract.claims[]` / `ContractClaim`) semantics"
+        in contract_results_schema
+    )
     assert "Do not substitute the staged peer-review Paper `ClaimRecord` rule here" in contract_results_schema
-    assert "A quantified proof-bearing claim must keep `proof_audit.quantifier_status` explicit" in contract_results_schema
+    assert (
+        "A quantified proof-bearing claim must keep `proof_audit.quantifier_status` explicit" in contract_results_schema
+    )
     assert "unquantified proof-bearing claims do not need a non-empty quantifier list" in contract_results_schema
-    assert "`proof_artifact_path`, `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, `claim_statement_sha256`" in contract_results_schema
-    assert "`proof_audit.proof_artifact_path` must match a declared `proof_deliverables` path" in contract_results_schema
+    assert (
+        "`proof_artifact_path`, `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, `claim_statement_sha256`"
+        in contract_results_schema
+    )
+    assert (
+        "`proof_audit.proof_artifact_path` must match a declared `proof_deliverables` path" in contract_results_schema
+    )
     assert "`proof_audit.audit_artifact_path` must point to a proof-redteam artifact" in contract_results_schema
-    assert "every declared proof-specific acceptance test in `claims[].acceptance_tests[]` passing" in contract_results_schema
+    assert (
+        "every declared proof-specific acceptance test in `claims[].acceptance_tests[]` passing"
+        in contract_results_schema
+    )
     assert "Verification reports are the decisive readout of the same contract-backed ledger" in verification_template
     assert "## Canonical Report Surface" in verification_template
-    assert "machine-readable surface limited to the schema-owned ledgers" in verification_template
+    assert "machine-readable surface limited to schema-owned ledgers" in verification_template
     assert "status: passed` is strict" in verification_template
     assert "every required decisive comparison is decisive" in verification_template
     assert "record structured `suggested_contract_checks` instead of padding prose" in verification_template
@@ -195,7 +258,10 @@ def test_verifier_prompt_surfaces_missing_parameter_proof_audit_and_stale_review
     assert "missing_actions: [read]" not in verification_template
     assert "phase: 01-benchmark" in research_verification
     assert 'summary: "[what the adversarial proof review concluded]"' in research_verification
-    assert 'recommended_action: "collect one more benchmark point before marking the claim as passed"' in research_verification
+    assert (
+        'recommended_action: "collect one more benchmark point before marking the claim as passed"'
+        in research_verification
+    )
     assert "all artifacts pass levels 1-4" in verifier
     assert "all artifacts pass levels 1-3" not in verifier
 
@@ -210,13 +276,16 @@ def test_research_verification_template_uses_concrete_example_values() -> None:
     assert 'expected: "The benchmark comparison should land within the 1% tolerance."' in research_verification
     assert "The benchmark evidence is close but not yet decisive." in research_verification
     assert "The contract still needs a named benchmark check for the main claim." in research_verification
-    assert 'source:' in research_verification
+    assert "source:" in research_verification
 
 
 def test_verify_work_template_keeps_session_overlay_after_verifier_output() -> None:
     verify_work = _read_verify_work_template()
 
-    assert "Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true." in verify_work
+    assert (
+        "Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true."
+        in verify_work
+    )
     assert (
         "Stable knowledge docs that appear there are reviewed background synthesis: use them to clarify definitions, "
         "assumptions, and caveats only when they agree with stronger sources, and never as decisive evidence on their own."
@@ -224,6 +293,9 @@ def test_verify_work_template_keeps_session_overlay_after_verifier_output() -> N
     )
     assert "Human-readable headings in the verifier output are presentation only;" in verify_work
     assert "route on the canonical verification frontmatter and `gpd_return.status`" in verify_work
+    assert "Schema finalization is bounded" in verify_work
+    assert "after two schema-only repair failures" in verify_work
+    assert "Do not patch canonical verification frontmatter in this wrapper." in verify_work
     assert "The verification overlay is written only after authoritative verifier output is available" in verify_work
     assert "canonical verifier report content remains owned by `gpd-verifier`" in verify_work
     assert "Every spawned agent is a one-shot delegation" in verify_work

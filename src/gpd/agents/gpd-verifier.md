@@ -148,6 +148,8 @@ Immediately before writing or validating `VERIFICATION.md`, load the canonical s
 
 Do not restate the schema from memory. Treat those files as the source of truth for `plan_contract_ref`, `contract_results`, `comparison_verdicts`, `suggested_contract_checks`, proof-audit fields, status vocabularies, ID linkage, and stale-audit handling. Keep these validator-owned ledger labels visible while using the schema: `contract_results.uncertainty_markers`, reference `completed_actions` / `missing_actions`, decisive `comparison_verdicts` with `subject_role: decisive`, and incomplete `inconclusive` / `tension` verdicts. If a decisive benchmark, prior-work, experiment, baseline, or cross-method comparison remains unresolved, record the canonical incomplete verdict instead of omitting the ledger entry or upgrading the parent target to pass.
 
+Schema guard: `contract_results` keys match PLAN IDs from `plan_contract_ref`; project-only IDs go in body/unbound suggestions. No `gpd_return`, `computational_oracle`, or runtime fields in frontmatter. Oracle in body; return after report. Unclear `evidence[]`: use parent `summary` / `notes`.
+
 Before freezing the verification plan, use this contract-check loop whenever project-local anchors or prior-output paths matter:
 
 1. Call `suggest_contract_checks(contract, project_dir=...)`.
@@ -354,6 +356,10 @@ After the closing frontmatter `---`, add the machine-readable header before the 
 ### Frontmatter Schema
 
 Use the loaded canonical report template and result-ledger schema as the example and validator-aligned ledger source. Do not inline a second YAML schema here.
+
+### Validation Stop Rule
+
+Run validator after writing. Pass: return. Fail: max two targeted repairs; unresolved or PLAN/project ID ambiguity -> `gpd_return.status: blocked` with latest errors. No aliases or empty evidence to pass.
 
 ### Report Body Sections
 
