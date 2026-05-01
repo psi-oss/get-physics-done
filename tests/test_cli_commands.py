@@ -7828,6 +7828,50 @@ class TestReviewValidationCommands:
             == "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>[/manuscript/]` inside the current project"
         )
 
+    def test_command_context_arxiv_submission_rejects_standalone_publication_artifact(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = tmp_path.parent / f"{tmp_path.name}-standalone-arxiv"
+        workspace.mkdir()
+        manuscript = _write_managed_publication_manuscript(workspace, subject_slug="standalone", stem="standalone")
+        monkeypatch.chdir(workspace)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(workspace),
+                "validate",
+                "command-context",
+                "arxiv-submission",
+                manuscript.relative_to(workspace).as_posix(),
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is False
+        assert (
+            payload["guidance"]
+            == "explicit manuscript target must resolve inside an initialized GPD project for this command"
+        ), result.output
+        assert checks["project_exists"]["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is False
+        assert checks["explicit_inputs"]["blocking"] is True
+        assert checks["explicit_inputs"]["detail"] == payload["guidance"]
+        assert payload["resolved_subject"]["status"] == "resolved"
+        assert payload["resolved_subject"]["ownership_mode"] == "external_artifact"
+        assert payload["resolved_subject"]["explicit_input"] is True
+        assert payload["resolved_subject"]["target_path"].endswith(
+            "GPD/publication/standalone/manuscript/standalone.tex"
+        )
+
     def test_command_context_arxiv_submission_resolves_managed_publication_lane_without_arguments(
         self,
         gpd_project: Path,

@@ -10182,12 +10182,27 @@ def _build_command_context_preflight(
     mode_reason = ""
     explicit_inputs_detail = "explicit standalone inputs detected"
     peer_review_has_explicit_target = command.name == "gpd:peer-review" and _has_simple_positional_inputs(arguments)
+    external_publication_subject_disallowed = (
+        _command_requires_manuscript_context(command)
+        and not _command_allows_external_manuscript_targets(command)
+        and resolved_subject is not None
+        and resolved_subject.explicit_input
+        and resolved_subject.ownership_mode == "external_artifact"
+        and resolved_subject.status in {"resolved", "bootstrap"}
+    )
     invalid_explicit_publication_subject = (
         _command_requires_manuscript_context(command)
         and not _command_allows_external_manuscript_targets(command)
         and resolved_subject is not None
         and resolved_subject.explicit_input
-        and resolved_subject.status not in {"resolved", "bootstrap"}
+        and (external_publication_subject_disallowed or resolved_subject.status not in {"resolved", "bootstrap"})
+    )
+    invalid_explicit_publication_subject_detail = (
+        "explicit manuscript target must resolve inside an initialized GPD project for this command"
+        if external_publication_subject_disallowed
+        else resolved_subject.detail
+        if invalid_explicit_publication_subject and resolved_subject is not None
+        else ""
     )
     if resolved_subject is not None and not _command_requires_manuscript_context(command):
         explicit_inputs_ok = resolved_subject.status == "resolved"
@@ -10248,7 +10263,7 @@ def _build_command_context_preflight(
             )
             else "explicit standalone inputs detected"
             if explicit_inputs_ok
-            else resolved_subject.detail
+            else invalid_explicit_publication_subject_detail
             if (
                 invalid_explicit_publication_subject
                 or str(getattr(command, "name", "") or "") == "gpd:write-paper"
@@ -10292,8 +10307,8 @@ def _build_command_context_preflight(
         ""
         if passed
         else (
-            resolved_subject.detail
-            if invalid_explicit_publication_subject and resolved_subject is not None
+            invalid_explicit_publication_subject_detail
+            if invalid_explicit_publication_subject
             else _build_project_aware_guidance(explicit_inputs, init_command=init_command)
         )
     )
