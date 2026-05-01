@@ -4719,7 +4719,6 @@ class TestReviewValidationCommands:
             ("discover", [], ["phase number or standalone topic"]),
             ("discover", ["-d", "deep"], ["phase number or standalone topic"]),
             ("explain", [], ["concept, result, method, notation, or paper"]),
-            ("literature-review", [], ["topic or research question"]),
         ],
     )
     def test_command_context_phase3_helpers_allow_interactive_standalone_intake_without_project(
@@ -4754,6 +4753,53 @@ class TestReviewValidationCommands:
         assert checks["explicit_inputs"]["blocking"] is False
         assert "interactive" in checks["explicit_inputs"]["detail"]
         assert "missing explicit standalone inputs" not in checks["explicit_inputs"]["detail"]
+
+    def test_command_context_literature_review_fails_closed_without_project_topic(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        outside_dir = tmp_path.parent / f"{tmp_path.name}-literature-review-empty-standalone"
+        outside_dir.mkdir()
+        monkeypatch.chdir(outside_dir)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(outside_dir), "validate", "command-context", "literature-review"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:literature-review"
+        assert payload["passed"] is False
+        assert payload["project_exists"] is False
+        assert payload["guidance"].startswith("Either provide topic or research question explicitly")
+        assert checks["explicit_inputs"]["passed"] is False
+        assert checks["explicit_inputs"]["blocking"] is True
+        assert checks["explicit_inputs"]["detail"] == "missing explicit standalone inputs (topic or research question)"
+        assert payload["resolved_subject"]["status"] == "missing"
+
+    def test_command_context_literature_review_project_backed_empty_allows_topic_clarification(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(gpd_project), "validate", "command-context", "literature-review"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is True
+        assert payload["project_exists"] is True
+        assert checks["explicit_inputs"]["passed"] is True
+        assert checks["explicit_inputs"]["blocking"] is False
+        assert payload["resolved_subject"]["status"] == "interactive"
+        assert "interactive intake can prompt for topic or research question" in checks["explicit_inputs"]["detail"]
 
     def test_command_context_digest_knowledge_requires_explicit_inputs_without_project(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -7761,12 +7807,18 @@ class TestReviewValidationCommands:
             catch_exceptions=False,
         )
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
         assert payload["context_mode"] == "project-aware"
-        assert payload["passed"] is True
-        assert checks["explicit_inputs"]["passed"] is True
+        assert payload["passed"] is False
+        assert payload["guidance"] == (
+            "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, or "
+            "`GPD/publication/<subject_slug>[/manuscript/]` inside the current project"
+        )
+        assert checks["explicit_inputs"]["passed"] is False
+        assert checks["explicit_inputs"]["blocking"] is True
+        assert checks["explicit_inputs"]["detail"] == payload["guidance"]
         assert payload["resolved_subject"]["status"] == "invalid"
         assert payload["resolved_subject"]["ownership_mode"] == "external_artifact"
         assert payload["resolved_subject"]["explicit_input"] is True

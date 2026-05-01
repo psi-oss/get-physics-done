@@ -8543,6 +8543,16 @@ def _command_allows_interactive_subject_intake(command: object) -> bool:
     return bool(_command_policy_bool(subject_policy, "allow_interactive_without_subject"))
 
 
+_PROJECT_BACKED_ONLY_INTERACTIVE_SUBJECT_COMMANDS = frozenset({"gpd:literature-review"})
+
+
+def _command_allows_standalone_interactive_subject_intake(command: object) -> bool:
+    """Return whether empty standalone command-context may defer subject selection to interaction."""
+    if not _command_allows_interactive_subject_intake(command):
+        return False
+    return str(getattr(command, "name", "") or "") not in _PROJECT_BACKED_ONLY_INTERACTIVE_SUBJECT_COMMANDS
+
+
 def _command_interactive_subject_detail(command: object, explicit_inputs: list[str]) -> str:
     """Return the standardized detail string for interactive subject intake."""
     if _command_requires_manuscript_context(command):
@@ -8994,7 +9004,11 @@ def _build_nonpublication_resolved_command_subject(
     explicit_inputs = _command_explicit_input_labels_from_policy(command)
     subject_kind = _command_subject_kind(command) or "subject"
 
-    if not (isinstance(subject, str) and subject.strip()) and _command_allows_interactive_subject_intake(command):
+    allow_interactive_without_subject = _command_allows_interactive_subject_intake(command) and (
+        resolved_project_root is not None or _command_allows_standalone_interactive_subject_intake(command)
+    )
+
+    if not (isinstance(subject, str) and subject.strip()) and allow_interactive_without_subject:
         return ResolvedCommandSubject(
             command=str(getattr(command, "name", "") or ""),
             workspace_root=workspace_root,
@@ -9020,7 +9034,7 @@ def _build_nonpublication_resolved_command_subject(
     else:
         tokens = _positional_tokens(subject)
     if not tokens:
-        if _command_allows_interactive_subject_intake(command):
+        if allow_interactive_without_subject:
             return ResolvedCommandSubject(
                 command=str(getattr(command, "name", "") or ""),
                 workspace_root=workspace_root,
@@ -10168,11 +10182,20 @@ def _build_command_context_preflight(
     mode_reason = ""
     explicit_inputs_detail = "explicit standalone inputs detected"
     peer_review_has_explicit_target = command.name == "gpd:peer-review" and _has_simple_positional_inputs(arguments)
+    invalid_explicit_publication_subject = (
+        _command_requires_manuscript_context(command)
+        and not _command_allows_external_manuscript_targets(command)
+        and resolved_subject is not None
+        and resolved_subject.explicit_input
+        and resolved_subject.status not in {"resolved", "bootstrap"}
+    )
     if resolved_subject is not None and not _command_requires_manuscript_context(command):
         explicit_inputs_ok = resolved_subject.status == "resolved"
         interactive_intake_allowed = resolved_subject.status == "interactive"
     else:
         explicit_inputs_ok = predicate(arguments)
+        if invalid_explicit_publication_subject:
+            explicit_inputs_ok = False
         if str(getattr(command, "name", "") or "") == "gpd:write-paper" and _has_write_paper_external_authoring_intake(
             arguments
         ):
@@ -10200,7 +10223,8 @@ def _build_command_context_preflight(
     subject_required = _command_has_typed_subject_policy(command)
     subject_context_ready = resolved_subject is not None and resolved_subject.status in {"resolved", "bootstrap"}
     project_context_satisfies = project_exists and (
-        not subject_required or explicit_inputs_ok or interactive_intake_allowed or subject_context_ready
+        not invalid_explicit_publication_subject
+        and (not subject_required or explicit_inputs_ok or interactive_intake_allowed or subject_context_ready)
     )
     add_check(
         "project_exists",
@@ -10226,7 +10250,8 @@ def _build_command_context_preflight(
             if explicit_inputs_ok
             else resolved_subject.detail
             if (
-                str(getattr(command, "name", "") or "") == "gpd:write-paper"
+                invalid_explicit_publication_subject
+                or str(getattr(command, "name", "") or "") == "gpd:write-paper"
                 and _has_write_paper_external_authoring_intake(arguments)
                 and resolved_subject is not None
                 and resolved_subject.ownership_mode == "external_authoring_intake"
@@ -10242,7 +10267,7 @@ def _build_command_context_preflight(
         blocking=(
             peer_review_has_explicit_target
             if command.name == "gpd:peer-review"
-            else not project_exists and not interactive_intake_allowed
+            else invalid_explicit_publication_subject or (not project_exists and not interactive_intake_allowed)
         ),
     )
     managed_output_context_root = _command_managed_output_context_root(
@@ -10263,7 +10288,15 @@ def _build_command_context_preflight(
             blocking=False,
         )
     passed = project_context_satisfies or explicit_inputs_ok or interactive_intake_allowed
-    guidance = "" if passed else _build_project_aware_guidance(explicit_inputs, init_command=init_command)
+    guidance = (
+        ""
+        if passed
+        else (
+            resolved_subject.detail
+            if invalid_explicit_publication_subject and resolved_subject is not None
+            else _build_project_aware_guidance(explicit_inputs, init_command=init_command)
+        )
+    )
     if command.name == "gpd:peer-review" and peer_review_has_explicit_target and not explicit_inputs_ok:
         guidance = explicit_inputs_detail
     return CommandContextPreflightResult(
