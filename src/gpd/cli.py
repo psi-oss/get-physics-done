@@ -7333,7 +7333,7 @@ def _evaluate_review_required_state(
 ) -> tuple[bool, str] | None:
     """Evaluate review_contract.required_state in a way that matches phase-scoped workflows."""
     from gpd.core.phases import find_phase
-    from gpd.core.state import load_state_json
+    from gpd.core.state import load_state_json_readonly
     from gpd.core.utils import phase_normalize
 
     required_state = str(getattr(contract, "required_state", "") or "").strip()
@@ -7342,7 +7342,7 @@ def _evaluate_review_required_state(
     if required_state != "phase_executed":
         return False, f'unhandled required_state="{required_state}"'
 
-    state_obj = load_state_json(cwd)
+    state_obj = load_state_json_readonly(cwd)
     if not isinstance(state_obj, dict):
         return False, "required_state=phase_executed could not load state.json"
 
@@ -7398,10 +7398,10 @@ def _evaluate_review_required_state(
 
 def _current_review_phase_subject(cwd: Path) -> str | None:
     """Return the current phase number from state.json for phase-scoped review preflights."""
-    from gpd.core.state import load_state_json
+    from gpd.core.state import load_state_json_readonly
     from gpd.core.utils import phase_normalize
 
-    state_obj = load_state_json(cwd)
+    state_obj = load_state_json_readonly(cwd)
     if not isinstance(state_obj, dict):
         return None
     position = state_obj.get("position")

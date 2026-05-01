@@ -5999,6 +5999,23 @@ class TestReviewValidationCommands:
         assert checks["required_state"]["blocking"] is True
         assert 'found "Planning"' in checks["required_state"]["detail"]
 
+    def test_review_preflight_verify_work_strict_is_read_only_when_blocked(self, gpd_project: Path) -> None:
+        lock_path = gpd_project / "GPD" / "state.json.lock"
+        assert not lock_path.exists()
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "verify-work", "1", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["passed"] is False
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["required_state"]["passed"] is False
+        assert not lock_path.exists()
+
     def test_review_preflight_verify_work_without_subject_uses_current_phase_artifacts(self, gpd_project: Path) -> None:
         planning = gpd_project / "GPD"
         state = json.loads((planning / "state.json").read_text(encoding="utf-8"))
