@@ -374,11 +374,11 @@ if [ -z "$CONTRACT_HASH" ] || [ -z "$CONTEXT_HASH" ]; then
 fi
 ```
 
-**Gating:** This step fires when `autonomy=supervised` OR `review_cadence=dense` OR any selected plan is proof-bearing per `detect_proof_obligation_work`. It is skipped under `autonomy=yolo AND review_cadence in {adaptive, sparse} AND no proof-bearing plans`. When skipping for this reason, log the decision explicitly — for example `claim_deliverable_alignment_check: skipped (autonomy=yolo, cadence=adaptive, no proof-bearing plans)` — and continue to `discover_and_group_plans` without prompting.
+**Gating:** Fires when `autonomy=supervised` OR `review_cadence=dense` OR any selected plan is proof-bearing per `detect_proof_obligation_work`. Skip only under `autonomy=yolo AND review_cadence in {adaptive, sparse} AND no proof-bearing plans`; log `claim_deliverable_alignment_check: skipped (autonomy=yolo, cadence=adaptive, no proof-bearing plans)` and continue to `discover_and_group_plans` without prompting.
 
-**Suppression:** If the persisted `confirmed_at` is set AND the current `contract_fingerprint == confirmed_contract_hash` AND the current `context_guidance_fingerprint == confirmed_context_hash`, skip re-prompting and log `claim_deliverable_alignment_check: skipped (already confirmed this session)`. Read the persisted status via `gpd contract alignment-status`; the hash-equality check uses `CONTRACT_HASH`/`CONTEXT_HASH` computed above.
+**Suppression:** If `confirmed_at` is set AND the current `contract_fingerprint == confirmed_contract_hash` AND `context_guidance_fingerprint == confirmed_context_hash`, skip and log `claim_deliverable_alignment_check: skipped (already confirmed this session)`. Use `gpd contract alignment-status` plus `CONTRACT_HASH`/`CONTEXT_HASH`.
 
-**Render:** When the step fires and is not suppressed, render a one-screen side-by-side table titled `Claim ↔ Deliverable Alignment` with the following layout. The left column is sourced from user intent (CONTEXT.md + structured `ContractContextIntake` fields); the right column is sourced from the machine contract. Cap each column at 5 bullets, truncating with an ellipsis (`…`) when more entries exist. Use `gpd contract alignment-summary` to obtain the right-column rows.
+**Render:** When fired and not suppressed, render a one-screen `Claim ↔ Deliverable Alignment` table. Left column: CONTEXT.md + `ContractContextIntake`; right column: `gpd contract alignment-summary`. Cap each cell at 5 bullets.
 
 ```
 | User intent (CONTEXT)               | Machine contract                    |
@@ -389,9 +389,7 @@ fi
 | Stop-or-rethink conditions: ...     |                                     |
 ```
 
-Left-column rows MUST be: `Observables`, `Deliverables`, `Must-have references`, `Stop-or-rethink conditions`. Right-column rows MUST be: `Claims`, `Deliverables`, `Acceptance tests`. Each cell lists ≤5 bullets; when truncated, append `…` as the final bullet.
-
-**ask_user:** Present exactly one question with 4 options. Enter selects `Y`. Match the batched shape used elsewhere in the specs.
+**ask_user:** Present exactly one question with 4 options. Enter selects `Y`.
 
 ```
 ask_user([
@@ -400,24 +398,24 @@ ask_user([
     header: "Claim ↔ Deliverable Alignment",
     multiSelect: false,
     options: [
-      { label: "Y: proceed (Recommended, Enter = Y)", description: "Claims, deliverables, and acceptance tests match user intent. Record the confirmation and continue to discover_and_group_plans." },
-      { label: "e: edit CONTEXT", description: "User intent is off. Hand off to gpd:discuss-phase {N} to revise CONTEXT.md, then re-enter this step once." },
-      { label: "p: edit PLAN contract", description: "The machine contract is off. Hand off to gpd:plan-phase {N} with instructions to revise the plan contract, then re-enter this step once." },
-      { label: "n: abort", description: "Stop execution cleanly without spawning any executor. Next Up is gpd:execute-phase {N} once alignment is resolved." }
+      { label: "Y: proceed (Recommended, Enter = Y)", description: "Record confirmed alignment and continue." },
+      { label: "e: edit CONTEXT", description: "Revise intent with gpd:discuss-phase {N}, then re-enter once." },
+      { label: "p: edit PLAN contract", description: "Revise the machine contract with gpd:plan-phase {N}, then re-enter once." },
+      { label: "n: abort", description: "Stop cleanly. Next Up is gpd:execute-phase {N} after alignment is resolved." }
     ]
   }
 ])
 ```
 
-**On "Y: proceed" (or Enter):** Record the confirmation so the same session does not re-prompt while the contract and CONTEXT are unchanged, then continue to `discover_and_group_plans`:
-
+**Interactive answer requirement:** Only an explicit `ask_user` answer of `Y: proceed` authorizes record-alignment. The command invocation, missing `ask_user` support, timeout, empty answer, or any noninteractive run is not an alignment answer. Otherwise STOP before `gpd contract record-alignment`, branch/checkpoint writes, scripts/numerical computations, dispatches/subagents, and artifacts. End: `Blocked: claim-deliverable alignment needs an explicit user answer. Next Up: rerun gpd:execute-phase {N} interactively.`
+**On "Y: proceed" (or Enter from that `ask_user` prompt):** Record alignment and continue:
 ```bash
 gpd contract record-alignment --contract-hash "$CONTRACT_HASH" --context-hash "$CONTEXT_HASH"
 ```
 
 **On "n: abort":** Exit cleanly. Do NOT spawn any executor and do NOT proceed to `discover_and_group_plans`. Emit a final line `"Next Up: gpd:execute-phase {N}"` so the operator can resume after resolving alignment.
 
-**On "e" (edit CONTEXT) / "p" (edit PLAN contract):** Hand off to the corresponding workflow — `gpd:discuss-phase {N}` for `e`, `gpd:plan-phase {N}` with instructions to revise the plan contract for `p`. After it returns, re-enter this step exactly once to re-render the side-by-side against the revised inputs. If the same key is chosen a second time in one invocation, defer to that workflow and stop looping — do not re-enter a third time.
+**On "e" / "p":** Hand off to `gpd:discuss-phase {N}` or `gpd:plan-phase {N}`, then re-enter once. If the same key is chosen again, defer to that workflow and stop looping.
 </step>
 
 <step name="discover_and_group_plans">
@@ -610,13 +608,13 @@ Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `curr
 
    **Pre-flight convention check for parallel waves:** Before spawning wave executors in parallel, verify all plans in the wave reference the same `convention_lock` values. For each plan in the wave, extract any convention references (metric signature, Fourier convention, unit system) and cross-compare. If any plan's conventions differ from the locked values, resolve the discrepancy before spawning. This prevents the most insidious class of parallel execution bugs: two agents computing with different sign conventions whose results are later combined.
 
-2. **Create wave-level checkpoint** before any plan in the wave starts:
-
+2. **Create wave-level checkpoint** before any plan starts. This is the rollback authority gate for the wave. Finish it before scripts, numerical computation, dispatch, subagents, artifacts, or claims. Do not run computation and then checkpoint afterward.
    ```bash
+   PROJECT_ROOT=$(pwd -P); while [ "$PROJECT_ROOT" != "/" ] && [ ! -d "$PROJECT_ROOT/GPD" ]; do PROJECT_ROOT=$(dirname "$PROJECT_ROOT"); done
+   GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+   [ -d "$PROJECT_ROOT/GPD" ] && [ -n "$GIT_ROOT" ] && [ "$(cd "$GIT_ROOT" && pwd -P)" = "$PROJECT_ROOT" ] || { echo "ERROR: rollback checkpoint needs project-local git root; refusing ambient rollback checkpoint. Next Up: run from project root or initialize fixture-local git/checkpoint support."; exit 1; }
    WAVE_CHECKPOINT="gpd-checkpoint-phase-${phase_number}-wave-${WAVE_NUM}-$(date +%s)-$$"
-   if git rev-parse --verify "refs/tags/${WAVE_CHECKPOINT}" >/dev/null 2>&1; then
-     WAVE_CHECKPOINT="${WAVE_CHECKPOINT}-retry"
-   fi
+   if git rev-parse --verify "refs/tags/${WAVE_CHECKPOINT}" >/dev/null 2>&1; then WAVE_CHECKPOINT="${WAVE_CHECKPOINT}-retry"; fi
    if ! git tag "${WAVE_CHECKPOINT}"; then
      echo "ERROR: failed to create wave checkpoint tag ${WAVE_CHECKPOINT}" >&2
      exit 1
@@ -640,8 +638,7 @@ Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `curr
    ---
    ```
 
-   - Bad: "Executing Hamiltonian diagonalization plan"
-   - Good: "Diagonalizing the spin-chain Hamiltonian using Bethe ansatz -- extracts exact energy spectrum and correlation functions in the thermodynamic limit. Required before computing transport coefficients in Wave 3."
+   Example: describe what the plan computes or derives and why it matters; avoid generic "executing plan" narration.
 
    **If this wave is marked risky fanout:** run `probe_then_fanout` instead of blind full-wave scaleout.
 

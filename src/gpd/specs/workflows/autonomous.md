@@ -263,6 +263,8 @@ Invoke the runtime-installed `gpd:execute-phase` command with `${PHASE_NUM}`.
 
 `gpd:execute-phase` owns its normal phase transition / closeout path. Autonomous mode invokes it with only the phase number and must not run a duplicate transition for the same successful phase.
 
+**Bounded checkpoint stop override:** If the invoking prompt, resume state, or `gpd:execute-phase` result says this autonomous invocation is bounded to one authorized segment/checkpoint, stop immediately when that checkpoint is reached. For an execution segment, the checkpoint is reached once execute-phase reports a checkpoint/bounded stop or writes the expected execution summary/result while verification is absent or pending. Do not run redundant read-only probing after that evidence is known, and do not invoke `gpd:verify-work`, convention checks, lifecycle, or another phase. Emit a stopped summary with the checkpoint name, the already-known artifacts, and the exact next command, usually `gpd:verify-work ${PHASE_NUM}` or `gpd:resume-work`, then return from autonomous mode.
+
 **3e. Post-Execution Verification Routing**
 
 After execute-phase returns, refetch the phase state and assign `PHASE_DIR` before reading any verification artifact:

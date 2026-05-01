@@ -910,6 +910,8 @@ Offer: 1) Force proceed, 2) Provide guidance and retry, 3) Abandon
 
 Route to `<offer_next>`.
 
+**Structured final status convention:** For clean bounded non-autonomous planning that creates or updates the expected `*-PLAN.md` artifact, has `checkpoint: none`, and has no stale verification, proof-audit, dirty-git, contract, convention, or checker gate, report `status: green`. Execution remaining as the next command is not by itself a yellow condition.
+
 </process>
 
 <offer_next>

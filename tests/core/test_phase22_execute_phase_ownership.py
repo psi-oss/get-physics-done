@@ -45,19 +45,10 @@ def test_execute_workflow_fallback_defaults_match_project_config_defaults() -> N
     execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
     defaults = GPDProjectConfig()
 
-    assert (
-        f".max_unattended_minutes_per_plan --default {defaults.max_unattended_minutes_per_plan})"
-        in execute_plan
-    )
+    assert f".max_unattended_minutes_per_plan --default {defaults.max_unattended_minutes_per_plan})" in execute_plan
     assert f".checkpoint_after_n_tasks --default {defaults.checkpoint_after_n_tasks})" in execute_plan
-    assert (
-        f".max_unattended_minutes_per_plan --default {defaults.max_unattended_minutes_per_plan})"
-        in execute_phase
-    )
-    assert (
-        f".max_unattended_minutes_per_wave --default {defaults.max_unattended_minutes_per_wave})"
-        in execute_phase
-    )
+    assert f".max_unattended_minutes_per_plan --default {defaults.max_unattended_minutes_per_plan})" in execute_phase
+    assert f".max_unattended_minutes_per_wave --default {defaults.max_unattended_minutes_per_wave})" in execute_phase
     assert f".checkpoint_after_n_tasks --default {defaults.checkpoint_after_n_tasks})" in execute_phase
 
 
@@ -74,8 +65,19 @@ def test_autonomous_assigns_phase_dir_before_first_verification_status_read() ->
     autonomous = (WORKFLOWS_DIR / "autonomous.md").read_text(encoding="utf-8")
 
     assignment_index = autonomous.index('PHASE_DIR=$(echo "$PHASE_STATE" | gpd json get .phase_dir --default "")')
-    first_status_read_index = autonomous.index(
-        'VERIFY_STATUS=$(grep "^status:" "${PHASE_DIR}"/*-VERIFICATION.md'
-    )
+    first_status_read_index = autonomous.index('VERIFY_STATUS=$(grep "^status:" "${PHASE_DIR}"/*-VERIFICATION.md')
 
     assert assignment_index < first_status_read_index
+
+
+def test_autonomous_stops_at_bounded_checkpoint_before_verification_routing() -> None:
+    autonomous = (WORKFLOWS_DIR / "autonomous.md").read_text(encoding="utf-8")
+
+    bounded_idx = autonomous.index("**Bounded checkpoint stop override:**")
+    verification_idx = autonomous.index("**3e. Post-Execution Verification Routing**")
+
+    assert bounded_idx < verification_idx
+    assert "bounded to one authorized segment/checkpoint" in autonomous
+    assert "Do not run redundant read-only probing" in autonomous
+    assert "do not invoke `gpd:verify-work`" in autonomous
+    assert "then return from autonomous mode" in autonomous

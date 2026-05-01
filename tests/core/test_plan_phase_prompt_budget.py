@@ -65,3 +65,13 @@ def test_plan_phase_workflow_defers_stage_authorities_until_the_manifest_stages_
     assert "reference_artifacts_content" in checker_revision.required_init_fields
     assert "experiment_design_content" in planner_authoring.required_init_fields
     assert "experiment_design_content" in checker_revision.required_init_fields
+
+
+def test_plan_phase_clean_non_autonomous_planning_reports_green_with_no_checkpoint() -> None:
+    workflow_text = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
+
+    assert "Structured final status convention" in workflow_text
+    assert "clean bounded non-autonomous planning" in workflow_text
+    assert "has `checkpoint: none`" in workflow_text
+    assert "report `status: green`" in workflow_text
+    assert "Execution remaining as the next command is not by itself a yellow condition." in workflow_text
