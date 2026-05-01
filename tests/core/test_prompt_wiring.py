@@ -2633,6 +2633,33 @@ def test_execute_phase_workflow_surfaces_project_contract_validation_gate() -> N
     assert "claim_deliverable_alignment_check: skipped (already confirmed this session)" in alignment_step
 
 
+def test_execute_and_autonomous_gate_execution_before_plan_work() -> None:
+    execute_phase = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
+    autonomous = (WORKFLOWS_DIR / "autonomous.md").read_text(encoding="utf-8")
+
+    execute_gate = _extract_between(
+        execute_phase,
+        '<step name="validate_selected_plans_before_execution" priority="first">',
+        "</step>",
+    )
+    assert "workspace scripts, numerical computations, task dispatches, subagents, artifact writes" in execute_gate
+    assert 'gpd validate plan-contract "$plan"' in execute_gate
+    assert 'if ! gpd verify plan "$plan"; then' in execute_gate
+    assert 'PLAN_PREFLIGHT=$(gpd --raw validate plan-preflight "$plan")' in execute_gate
+    assert 'gpd verify references "$plan"' in execute_gate
+    assert 'gpd phase validate-waves "$phase_number"' in execute_gate
+    assert "gpd:plan-phase {N}` is the supported public plan repair route" in execute_gate
+
+    assert "Before invoking execute-phase, run gate" in autonomous
+    assert 'gpd --raw validate lifecycle-contract-gate execute-phase "${PHASE_NUM}"' in autonomous
+    assert "gpd validate plan-contract" in autonomous
+    assert "gpd --raw validate plan-preflight" in autonomous
+    assert "stop before workspace scripts, numerical computations, task dispatches, subagents, artifact writes" in autonomous
+    assert "gpd:discuss-phase ${PHASE_NUM}` then `gpd:plan-phase ${PHASE_NUM}" in autonomous
+    assert "--revise" not in execute_phase
+    assert "--revise" not in autonomous
+
+
 def test_execute_phase_and_execute_plan_use_staged_execution_bootstrap_instead_of_monolithic_init() -> None:
     execute_workflow = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
     execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")

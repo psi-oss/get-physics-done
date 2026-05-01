@@ -98,7 +98,7 @@ fi
 ```
 
 Later staged refreshes surface `effective_reference_intake`, `active_reference_context`, and `reference_artifacts_content` for anchor-aware routing and wave planning. Stable knowledge docs may appear only through those shared reference surfaces as reviewed background; they do not become a separate authority tier. Do not assume bootstrap already loaded that broader reference context.
-Before launching any plan, require that the selected `PLAN.md` passes `gpd validate plan-preflight <PLAN.md>` when specialized tool requirements are declared.
+Before branch handling, scripts, computations, dispatches, subagents, writes, or claims, require that the selected `PLAN.md` passes `gpd validate plan-preflight <PLAN.md>` as part of `validate_selected_plans_before_execution`.
 
 When `parallelization` is false, plans within a wave execute sequentially.
 
@@ -115,6 +115,44 @@ When `parallelization` is false, plans within a wave execute sequentially.
 - `workflow.verifier=false`, sparse cadence, yolo autonomy, or any manual "skip verification" request do NOT disable mandatory proof red-teaming for proof-bearing or `proof_obligation` work.
 </step>
 
+<step name="validate_selected_plans_before_execution" priority="first">
+Validate the selected plans before any execution-side work. If this gate fails, do not run workspace scripts, numerical computations, task dispatches, subagents, artifact writes, branch creation, or result claims.
+```bash
+SELECTED_PLAN_FILES=()
+for plan in "$phase_dir"/*-PLAN.md; do
+  [ -e "$plan" ] || continue
+  if [ "$GAPS_ONLY" = true ]; then
+    GAP_CLOSURE=$(gpd frontmatter get "$plan" --field gap_closure 2>/dev/null || echo false)
+    [ "$GAP_CLOSURE" = "true" ] || continue
+  fi
+  SELECTED_PLAN_FILES+=("$plan")
+done
+if [ ${#SELECTED_PLAN_FILES[@]} -eq 0 ]; then
+  echo "ERROR: no executable PLAN.md files found for phase ${PHASE_ARG}. Next: gpd:plan-phase ${PHASE_ARG} (revise or recreate the missing/invalid plan), then rerun gpd:execute-phase ${PHASE_ARG}."
+  exit 1
+fi
+PLAN_GATE_FAILED=false
+for plan in "${SELECTED_PLAN_FILES[@]}"; do
+  gpd validate plan-contract "$plan" || PLAN_GATE_FAILED=true
+  if ! gpd verify plan "$plan"; then
+    PLAN_GATE_FAILED=true
+  fi
+  PLAN_PREFLIGHT=$(gpd --raw validate plan-preflight "$plan") || {
+    echo "ERROR: plan preflight failed for $(basename "$plan")"
+    echo "$PLAN_PREFLIGHT"
+    PLAN_GATE_FAILED=true
+  }
+  gpd verify references "$plan" || PLAN_GATE_FAILED=true
+done
+gpd phase validate-waves "$phase_number" || PLAN_GATE_FAILED=true
+if [ "$PLAN_GATE_FAILED" = true ]; then
+  echo "Plan validation/preflight failed before execution; no workspace scripts, numerical computations, task dispatches, subagents, artifact writes, or result claims were authorized."
+  echo "Next: gpd:plan-phase ${PHASE_ARG} (revise or recreate the invalid PLAN.md), then rerun gpd:execute-phase ${PHASE_ARG}."
+  exit 1
+fi
+```
+`gpd:plan-phase {N}` is the supported public plan repair route. Invoke it with explicit instructions to revise or recreate the invalid `PLAN.md`, then rerun `gpd:execute-phase {N}`.
+</step>
 <step name="handle_branching">
 Check `branching_strategy` from init:
 
@@ -312,42 +350,6 @@ fi
 Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `reference_artifacts_content`, `intermediate_results`, `intermediate_result_count`, `approximations`, `approximation_count`, `propagated_uncertainties`, `propagated_uncertainty_count`, `derived_convention_lock`, `derived_convention_lock_count`, `derived_intermediate_results`, `derived_intermediate_result_count`, `derived_approximations`, `derived_approximation_count`.
 </step>
 
-<step name="structural_validation">
-Run structural validation on all plans before execution begins:
-
-```bash
-VALIDATION_FAILED=false
-
-# Validate each plan's frontmatter and structure
-for plan in "$phase_dir"/*-PLAN.md; do
-  if ! gpd verify plan "$plan"; then
-    echo "ERROR: plan-structure validation failed for $(basename "$plan")"
-    VALIDATION_FAILED=true
-  fi
-done
-
-# Validate wave dependencies
-if ! gpd phase validate-waves "$phase_number"; then
-  echo "ERROR: wave dependency validation failed"
-  VALIDATION_FAILED=true
-fi
-
-# Check cross-references in plans
-for plan in "$phase_dir"/*-PLAN.md; do
-  if ! gpd verify references "$plan"; then
-    echo "ERROR: reference validation failed for $(basename "$plan")"
-    VALIDATION_FAILED=true
-  fi
-done
-
-if [ "$VALIDATION_FAILED" = true ]; then
-  echo "Structural validation failed. Fix the issues above before proceeding."
-fi
-```
-
-**If `VALIDATION_FAILED` is true:** Present all collected errors to the user. Do not proceed with execution until structural issues are resolved.
-</step>
-
 <step name="claim_deliverable_alignment_check">
 Gate execution on explicit confirmation that the machine-readable claim matches user intent for Phase {N}.
 
@@ -367,7 +369,7 @@ CONFIRMED_CONTEXT_HASH=$(echo "$ALIGNMENT_STATUS" | gpd json get .confirmed_cont
 ```bash
 if [ -z "$CONTRACT_HASH" ] || [ -z "$CONTEXT_HASH" ]; then
   echo "ERROR: claim_deliverable_alignment_check could not resolve contract/context fingerprints."
-  echo "Next Up: gpd:execute-phase {N}"
+  echo "Next Up: gpd:discuss-phase {N}; then gpd:plan-phase {N}; then gpd:execute-phase {N}"
   exit 1
 fi
 ```
@@ -400,7 +402,7 @@ ask_user([
     options: [
       { label: "Y: proceed (Recommended, Enter = Y)", description: "Claims, deliverables, and acceptance tests match user intent. Record the confirmation and continue to discover_and_group_plans." },
       { label: "e: edit CONTEXT", description: "User intent is off. Hand off to gpd:discuss-phase {N} to revise CONTEXT.md, then re-enter this step once." },
-      { label: "p: edit PLAN contract", description: "The machine contract is off. Hand off to gpd:plan-phase {N} --revise to revise the contract, then re-enter this step once." },
+      { label: "p: edit PLAN contract", description: "The machine contract is off. Hand off to gpd:plan-phase {N} with instructions to revise the plan contract, then re-enter this step once." },
       { label: "n: abort", description: "Stop execution cleanly without spawning any executor. Next Up is gpd:execute-phase {N} once alignment is resolved." }
     ]
   }
@@ -415,7 +417,7 @@ gpd contract record-alignment --contract-hash "$CONTRACT_HASH" --context-hash "$
 
 **On "n: abort":** Exit cleanly. Do NOT spawn any executor and do NOT proceed to `discover_and_group_plans`. Emit a final line `"Next Up: gpd:execute-phase {N}"` so the operator can resume after resolving alignment.
 
-**On "e" (edit CONTEXT) / "p" (edit PLAN contract):** Hand off to the corresponding workflow — `gpd:discuss-phase {N}` for `e`, `gpd:plan-phase {N} --revise` for `p`. After it returns, re-enter this step exactly once to re-render the side-by-side against the revised inputs. If the same key is chosen a second time in one invocation, defer to that workflow and stop looping — do not re-enter a third time.
+**On "e" (edit CONTEXT) / "p" (edit PLAN contract):** Hand off to the corresponding workflow — `gpd:discuss-phase {N}` for `e`, `gpd:plan-phase {N}` with instructions to revise the plan contract for `p`. After it returns, re-enter this step exactly once to re-render the side-by-side against the revised inputs. If the same key is chosen a second time in one invocation, defer to that workflow and stop looping — do not re-enter a third time.
 </step>
 
 <step name="discover_and_group_plans">

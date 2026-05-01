@@ -254,7 +254,9 @@ Invoke the runtime-installed `gpd:plan-phase` command with `${PHASE_NUM}`.
 Verify plan produced output — re-run `init phase-op` and check `has_plans`. If false → go to handle_blocker: "Plan phase ${PHASE_NUM} did not produce any plans."
 
 **3d. Execute**
+Before invoking execute-phase, run gate: `gpd --raw validate lifecycle-contract-gate execute-phase "${PHASE_NUM}"`, selected plans from `init phase-op`, `gpd validate plan-contract`, `gpd verify plan`, `gpd --raw validate plan-preflight`, `gpd verify references`, `gpd phase validate-waves "${PHASE_NUM}"`, and `gpd contract context-fingerprint`.
 
+On failure, stop before workspace scripts, numerical computations, task dispatches, subagents, artifact writes, or result claims. Route to the matching repair surface: `gpd:sync-state` / `gpd:new-project`, `gpd:discuss-phase ${PHASE_NUM}` then `gpd:plan-phase ${PHASE_NUM}`, or `gpd:plan-phase ${PHASE_NUM}`.
 ```
 Invoke the runtime-installed `gpd:execute-phase` command with `${PHASE_NUM}`.
 ```
@@ -337,7 +339,7 @@ Invoke the runtime-installed `gpd:plan-phase` command with `${PHASE_NUM} --gaps`
 
 Verify gap plans were created — re-run `init phase-op ${PHASE_NUM}` and check `has_plans`. If no new gap plans → go to handle_blocker: "Gap closure planning for phase ${PHASE_NUM} did not produce plans."
 
-Re-execute with `--gaps-only` to run ONLY the gap-closure plans (not re-run original plans):
+Re-execute with `--gaps-only` to run ONLY gap-closure plans.
 ```
 Invoke the runtime-installed `gpd:execute-phase` command with `${PHASE_NUM} --gaps-only`.
 ```
