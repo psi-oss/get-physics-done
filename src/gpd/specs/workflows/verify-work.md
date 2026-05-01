@@ -213,6 +213,14 @@ Return through the typed proof-redteam handoff contract.",
 
 After the proof critic returns, re-open `${PHASE_DIR_ABS}/${phase_number}-PROOF-REDTEAM.md` from disk and confirm the artifact exists and is `passed` before finalizing the gap ledger. Never trust the return text alone; if the file is missing, stale, malformed, or not passed, keep the verification session fail-closed and start a fresh proof continuation.
 If `gpd-check-proof` still cannot produce a passed audit, keep the verification status fail-closed.
+Do not stop with only the proof-redteam artifact as the user-facing result: the
+canonical verification report must still record the proof gap ledger. Continue
+to verifier handoff, passing the reopened proof-redteam content and freshness
+status, so `${PHASE_DIR_ABS}/${phase_number}-VERIFICATION.md` is written or
+updated with `gpd_return.status: gaps_found` / `blocked` and the exact missing
+proof obligations. If verifier handoff cannot produce that canonical report,
+report the verification as incomplete and route to `gpd:verify-work ${phase_number}`
+rather than treating the proof-redteam file alone as a complete verification artifact.
 </step>
 
 <step name="load_anchor_context">
