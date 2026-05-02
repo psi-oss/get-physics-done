@@ -49,8 +49,6 @@ WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
-PHASE5_PROMPTS_DIR = REPO_ROOT / "tmp/live-audit-v2/prompts/phase5"
-PHASE5_SCENARIO_MATRIX = REPO_ROOT / "tmp/live-audit-v2/phase5_scenario_matrix.py"
 FIXTURES_STAGE0 = REPO_ROOT / "tests" / "fixtures" / "stage0"
 FIXTURES_STAGE4 = REPO_ROOT / "tests" / "fixtures" / "stage4"
 PUBLICATION_SHARED_PREFLIGHT_INCLUDE = "@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md"
@@ -1017,40 +1015,38 @@ def test_slides_workflow_references_templates_and_existing_output_policy() -> No
 
 
 def test_phase5_slides_prompt_covers_cleanup_non_git_and_thin_source_boundaries() -> None:
-    prompt = (PHASE5_PROMPTS_DIR / "slides-bounded.txt").read_text(encoding="utf-8")
+    workflow = (WORKFLOWS_DIR / "slides.md").read_text(encoding="utf-8")
 
-    _assert_slides_public_label_local_preflight_guidance(prompt)
-    assert "Some live fixtures intentionally are not git checkouts" in prompt
-    assert "before/after manifest" in prompt
-    assert "write-classification evidence" in prompt
-    assert "avoid noisy shell `rm`" in prompt
-    assert "main.nav" in prompt
-    assert "main.snm" in prompt
-    assert "source-bound skeleton" in prompt
+    _assert_slides_public_label_local_preflight_guidance(workflow, shared_source=True)
+    assert "If the workspace is not a git checkout" in workflow
+    assert "runtime-native deletion for exact known aux files under `slides/`" in workflow
+    assert "main.nav" in workflow
+    assert "main.snm" in workflow
+    assert "source-bound skeleton" in workflow
 
 
-def test_phase5_session_stop_prompt_and_matrix_require_blocked_stop_contract() -> None:
-    prompt = (PHASE5_PROMPTS_DIR / "session-response.txt").read_text(encoding="utf-8")
-    matrix = PHASE5_SCENARIO_MATRIX.read_text(encoding="utf-8")
+def test_publication_workflows_surface_no_write_stop_contracts_from_committed_sources() -> None:
+    peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    arxiv = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
+    slides = (WORKFLOWS_DIR / "slides.md").read_text(encoding="utf-8")
 
     _assert_contains_fragments(
-        prompt,
-        "`stop_signal: true`",
-        "`status: blocked`",
-        "`command_execution_state: stopped_at_checkpoint`",
-        "`checkpoint: stop_requested`",
-        "`writes: none`",
+        peer_review,
+        "STOP at `manuscript_required`",
         "`next_step: none`",
     )
     _assert_contains_fragments(
-        matrix,
-        '"stop_signal": True',
-        '"expected_final_fields": {',
-        '"status": "blocked"',
-        '"command_execution_state": "stopped_at_checkpoint"',
-        '"checkpoint": "stop_requested"',
-        '"writes": "none"',
-        '"next_step": "none"',
+        arxiv,
+        "`command_execution_state: blocked_before_write`",
+        "`response_gate`",
+        "`review_state: stale`",
+        "`response_state: requires_fresh_review`",
+    )
+    _assert_contains_fragments(
+        slides,
+        "`checkpoint: none`",
+        "`next_step: none`",
+        "`review_state: not_required`",
     )
 
 
@@ -1437,7 +1433,6 @@ def test_write_paper_source_distinguishes_overclaim_pressure_from_bounded_resume
 def test_arxiv_submission_documents_conservative_response_freshness_policy() -> None:
     command = (COMMANDS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
     workflow = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
-    phase5_prompt = (PHASE5_PROMPTS_DIR / "arxiv-submission-bounded.txt").read_text(encoding="utf-8")
 
     assert "latest response-round freshness status" in command
     assert "same-round or newer response artifacts without newer staged peer-review clearance" in command
@@ -1445,17 +1440,16 @@ def test_arxiv_submission_documents_conservative_response_freshness_policy() -> 
     assert "any same-round or newer `gpd:respond-to-referees` author/referee response artifact" in workflow
     assert "all-response freshness policy" in workflow
     assert "durable manuscript-change scope metadata" in workflow
-    for text in {"workflow": workflow, "phase5_prompt": phase5_prompt}.values():
-        _assert_contains_fragments(
-            text,
-            "response_freshness",
-            "latest_response_requires_fresh_review=true",
-            "response_gate",
-            "review_state: stale",
-            "response_state: requires_fresh_review",
-            "claim_state: not_applicable",
-            "not `human_needed`",
-        )
+    _assert_contains_fragments(
+        workflow,
+        "response_freshness",
+        "latest_response_requires_fresh_review=true",
+        "response_gate",
+        "review_state: stale",
+        "response_state: requires_fresh_review",
+        "claim_state: not_applicable",
+        "not `human_needed`",
+    )
 
 
 def test_remove_phase_workflow_stages_checkpoint_shelf_updates() -> None:
@@ -4805,7 +4799,6 @@ def test_publication_workflows_keep_manuscript_local_reference_status_rooted_at_
 
 def test_respond_to_referees_arxiv_handoff_uses_public_positional_arxiv_target() -> None:
     respond = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
-    phase5_prompt = (PHASE5_PROMPTS_DIR / "respond-to-referees-bounded.txt").read_text(encoding="utf-8")
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
     arxiv_command = (COMMANDS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
     arxiv_workflow = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
@@ -4826,9 +4819,6 @@ def test_respond_to_referees_arxiv_handoff_uses_public_positional_arxiv_target()
     assert "`$gpd-arxiv-submission paper/curvature_flow_bounds.tex`" not in respond
     assert "`gpd:arxiv-submission --manuscript" not in respond
     assert "`$gpd-arxiv-submission --manuscript" not in respond
-    assert "`next_step: $gpd-arxiv-submission <resolved-manuscript>`" in phase5_prompt
-    assert "`next_step: $gpd-arxiv-submission paper/curvature_flow_bounds.tex`" in phase5_prompt
-    assert "`next_step: $gpd-arxiv-submission --manuscript" not in phase5_prompt
 
 
 def test_stage9_adaptive_mode_and_review_cadence_docs_stay_aligned() -> None:

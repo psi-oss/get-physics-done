@@ -1,9 +1,9 @@
 <purpose>
-Execute all plans in a research phase using wave-based parallel execution. Orchestrator stays lean -- delegates plan execution to subagents. Each plan may involve derivations, calculations, simulations, or analysis with proper checkpointing and validation at each step.
+Execute phase plans through wave-based delegation with checkpointing and validation.
 </purpose>
 
 <core_principle>
-Orchestrator coordinates, not executes. Each subagent loads the full execute-plan context. Orchestrator: discover plans -> analyze deps -> group waves -> spawn agents -> handle checkpoints -> collect results -> validate physics.
+Coordinate, do not perform plan work. The orchestrator discovers plans, groups waves, dispatches executors, handles checkpoints, collects returns, and validates physics.
 </core_principle>
 
 <required_reading>
@@ -284,11 +284,11 @@ if [ "$CONV_STATUS" != "locked" ] && [ "$CONV_STATUS" != "complete" ]; then
 fi
 ```
 
-**This is a hard gate.** When `CONVENTION_LOCK_REQUIRED=true` and conventions are not locked, execution MUST NOT proceed. Do not skip this gate in any autonomy mode (including yolo). Convention errors are irreversible — they invalidate all downstream results.
+**Hard gate:** when `CONVENTION_LOCK_REQUIRED=true` and conventions are not locked, execution MUST NOT proceed in any autonomy mode. Convention errors invalidate downstream results.
 
 **Pre-execution specialist routing:**
 
-The dedicated `pre_execution_specialists` stage consumes `PRE_EXECUTION_SPECIALISTS` and loads the delegation guidance for any real one-shot handoff. This workflow only decides which specialist types are needed; it does not inline placeholder `task(...)` calls or wait for interactive continuation inside the same run.
+The `pre_execution_specialists` stage consumes `PRE_EXECUTION_SPECIALISTS` and loads delegation guidance for real one-shot handoffs. This workflow chooses specialist types; it does not inline placeholder `task(...)` calls or wait for child confirmation in the same run.
 
 **Force-sequential override:**
 
@@ -296,10 +296,7 @@ If `FORCE_SEQUENTIAL=true`, override `PARALLELIZATION` to false for this phase r
 
 **YOLO mode restrictions:**
 
-If `autonomy=yolo` and `YOLO_RESTRICTIONS` is non-empty, restrict yolo behavior:
-
-- `no_skip_verification`: Do not skip the verification step even in yolo mode. Derivation and validation phases produce irreversible errors that cost more to debug than to verify.
-- `no_skip_inter_wave`: Do not skip inter-wave gates even in yolo mode. Convention drift between waves in these phase types creates compound errors.
+If `autonomy=yolo` and `YOLO_RESTRICTIONS` is non-empty, restrict yolo behavior: `no_skip_verification` keeps verification mandatory; `no_skip_inter_wave` keeps inter-wave gates mandatory.
 
 Log any restrictions: `"YOLO mode restricted for phase class (${PHASE_CLASSES[*]}): ${YOLO_RESTRICTIONS[*]}"`
 
@@ -311,12 +308,7 @@ Include `EXECUTOR_CONTEXT_HINT` in the executor spawn prompt so subagents can se
 <context_hint>{EXECUTOR_CONTEXT_HINT}</context_hint>
 ```
 
-Hint meanings:
-- `standard`: Default allocation — balanced between derivation, code, and prose.
-- `derivation-heavy`: Reserve 70% of context for step-by-step mathematical work. Minimize prose. Use `\therefore` not paragraphs.
-- `code-heavy`: Reserve space for code blocks, numerical output tables, and convergence plots. Summarize analytical steps briefly.
-- `reading-heavy`: Reserve space for literature citations and comparisons. Budget for reading 5-10 paper summaries.
-- `prose-heavy`: Balance equations with exposition. Every equation needs 2-3 sentences of context.
+Hint meanings: `standard` balances derivation/code/prose; `derivation-heavy`, `code-heavy`, `reading-heavy`, and `prose-heavy` reserve context for their named work type without changing required gates.
 </step>
 
 <step name="validate_phase">
