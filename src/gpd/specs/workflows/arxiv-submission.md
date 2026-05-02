@@ -72,11 +72,16 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse `REVIEW_PREFLIGHT` for `publication_subject_slug`, `publication_lane_kind`, `managed_publication_root`, `selected_publication_root`, `selected_review_root`, `manuscript_root`, and `manuscript_entrypoint`. Use the shared publication bootstrap reference as the source of truth for manuscript-root resolution, latest-review discovery, latest-response discovery, and paired response gating. Do not duplicate those contracts here.
-If review preflight exits nonzero because of missing project state, missing manuscript, missing compiled manuscript, unresolved publication blockers, degraded review integrity, missing conventions, missing staged review artifacts, a newer response round without fresh staged review clearance, or stale theorem-proof review state, STOP and fix those blockers before packaging.
-If `derived_manuscript_proof_review_status` is present, use it as the first-pass theorem-proof freshness for the resolved manuscript, but keep the manuscript-root proof review artifacts authoritative for strict packaging decisions.
-Strict preflight reads `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and `reproducibility-manifest.json` from the resolved manuscript directory itself. The same resolved manuscript root is also the strict preflight source of truth for packaging.
+Parse `REVIEW_PREFLIGHT` for `publication_subject_slug`, `publication_lane_kind`, `managed_publication_root`, `selected_publication_root`, `selected_review_root`, `manuscript_root`, and `manuscript_entrypoint`. Use the shared publication bootstrap reference as the source of truth for manuscript-root resolution, latest-review/latest-response discovery, and paired response gating.
+Strict preflight reads `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and `reproducibility-manifest.json` from the resolved manuscript directory itself. The same resolved manuscript root is also the strict preflight source of truth for packaging. It is also the proof-review source; use `derived_manuscript_proof_review_status` as first-pass theorem-proof freshness for the resolved manuscript and must not persist `PROOF-REVIEW-MANIFEST.json` beside the manuscript root while validating.
 Current executable policy is conservative: any same-round or newer `gpd:respond-to-referees` author/referee response artifact for the active manuscript requires newer staged `gpd:peer-review` before packaging. Without durable manuscript-change scope metadata, response-only rounds are not arXiv clearance.
+
+Response-freshness mapping:
+failed `response_freshness` check or `latest_response_requires_fresh_review=true` checkpoint as `response_gate`, not `review_gate`;
+existing target-bound staged review pair is older than response artifacts -> `review_state: stale`, `response_state: requires_fresh_review`; no typed target-bound staged review pair -> `review_state: missing`;
+response gate before package/materialization -> `command_execution_state: blocked_before_write`, not `stopped_at_checkpoint`; `claim_state: not_applicable`, not `human_needed`; same-round/newer responses require fresh staged `gpd:peer-review` before packaging.
+
+For nested-cwd launches, use `project_root`, `manuscript_root`, `selected_publication_root`, and `selected_review_root` from init/preflight as authority; never infer package roots from launch cwd.
 
 Resolve the manuscript target from raw preflight plus `$ARGUMENTS`:
 
@@ -155,7 +160,7 @@ Load the shared latest-round publication contract from `{GPD_INSTALL_DIR}/refere
 
 Require the latest staged `REVIEW-LEDGER*.json` and `REFEREE-DECISION*.json` pair for the active manuscript. Packaging may continue only when the latest recommendation is `accept` or `minor_revision` and there are no unresolved blocking issues.
 Strict preflight also requires the latest round-specific staged `REVIEW-LEDGER*.json` / `REFEREE-DECISION*.json` pair as authoritative submission-gate input.
-If newest round artifacts are `AUTHOR-RESPONSE*.md` / `REFEREE_RESPONSE*.md` but no newer staged `REVIEW-LEDGER*.json` / `REFEREE-DECISION*.json` pair exists, STOP and route back to `gpd:peer-review`. This all-response freshness policy treats response artifacts as revision records, not staged review clearance, until durable change-scope metadata exists.
+If newest round artifacts are `AUTHOR-RESPONSE*.md` / `REFEREE_RESPONSE*.md` but no newer staged `REVIEW-LEDGER*.json` / `REFEREE-DECISION*.json` pair exists, STOP and route back to `gpd:peer-review`. This all-response freshness policy treats response artifacts as revision records, not staged review clearance, until durable manuscript-change scope metadata exists.
 
 If the manuscript is theorem-bearing, `manuscript_proof_review` must also already be cleared. Require a current `PROOF-REDTEAM*.md` artifact. A stale or missing proof review is a hard stop.
 
@@ -248,31 +253,7 @@ Do not treat prose-only success as complete. The tarball must be under `GPD/publ
 </step>
 
 <community_contribution>
-
-After the arXiv package is finalized, display:
-
-```
-────────────────────────────────────────────────────────
-📄 Share your work with the GPD community
-
-When the paper is posted to arXiv or otherwise public,
-consider opening a pull request to add it to the
-README.md "Papers Using GPD" list:
-
-  https://github.com/psi-oss/get-physics-done#papers-using-gpd
-
-What to include:
-  • A short summary of the problem and approach
-  • The GPD commands/workflow you used
-  • Key results or figures (optional)
-
-This helps other researchers discover real GPD papers and
-learn from concrete workflows.
-────────────────────────────────────────────────────────
-```
-
-This prompt is informational only. Do not block the submission workflow on it.
-
+After the arXiv package is finalized, mention that public papers can be added to the README.md "Papers Using GPD" list at https://github.com/psi-oss/get-physics-done#papers-using-gpd with a short problem/approach summary, workflow used, and optional key result or figure. This prompt is informational only; do not block the submission workflow on it.
 </community_contribution>
 
 </process>

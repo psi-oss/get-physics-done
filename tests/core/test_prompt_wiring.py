@@ -49,6 +49,8 @@ WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
+PHASE5_PROMPTS_DIR = REPO_ROOT / "tmp/live-audit-v2/prompts/phase5"
+PHASE5_SCENARIO_MATRIX = REPO_ROOT / "tmp/live-audit-v2/phase5_scenario_matrix.py"
 FIXTURES_STAGE0 = REPO_ROOT / "tests" / "fixtures" / "stage0"
 FIXTURES_STAGE4 = REPO_ROOT / "tests" / "fixtures" / "stage4"
 PUBLICATION_SHARED_PREFLIGHT_INCLUDE = "@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md"
@@ -65,6 +67,35 @@ PUBLICATION_REVIEW_RELIABILITY_INLINE = "{GPD_INSTALL_DIR}/references/publicatio
 def _assert_contains_fragments(text: str, *fragments: str) -> None:
     missing = [fragment for fragment in fragments if fragment not in text]
     assert not missing, "Missing expected prompt fragments:\n" + "\n".join(missing)
+
+
+def _assert_slides_public_label_local_preflight_guidance(text: str, *, shared_source: bool = False) -> None:
+    _assert_contains_fragments(
+        text,
+        "validate command-context",
+        "`slides`",
+    )
+    if shared_source:
+        _assert_contains_fragments(
+            text,
+            "this shared workflow is `gpd:slides`",
+            "active runtime's native command label",
+            "bare registry slug `slides`",
+        )
+        assert "$gpd-slides" not in text
+    else:
+        assert "this shared workflow is `gpd:slides`" in text or (
+            "public runtime label" in text and "$gpd-slides" in text
+        )
+    assert "bare" in text.lower()
+    assert any(
+        fragment in text
+        for fragment in (
+            "local command-context bridge argument",
+            "shell/local bridge",
+            "bare registry slug",
+        )
+    )
 
 
 def _assert_workflow_calls_staged_init_for_manifest_stages(workflow_id: str, workflow_text: str) -> None:
@@ -967,6 +998,7 @@ def test_readme_and_help_workflow_surface_publication_lane_boundary_without_clai
 def test_slides_workflow_references_templates_and_existing_output_policy() -> None:
     workflow = (WORKFLOWS_DIR / "slides.md").read_text(encoding="utf-8")
 
+    _assert_slides_public_label_local_preflight_guidance(workflow, shared_source=True)
     assert "{GPD_INSTALL_DIR}/templates/slides/presentation-brief.md" in workflow
     assert "{GPD_INSTALL_DIR}/templates/slides/outline.md" in workflow
     assert "{GPD_INSTALL_DIR}/templates/slides/slides.md" in workflow
@@ -977,6 +1009,49 @@ def test_slides_workflow_references_templates_and_existing_output_policy() -> No
     assert "3. Skip" in workflow
     assert "`slides/` is the only durable write root for this workflow" in workflow
     assert "must not satisfy publication, peer-review, response, arXiv-package, or export gates" in workflow
+    assert "If the workspace is not a git checkout" in workflow
+    assert "runtime-native deletion for exact known aux files under `slides/`" in workflow
+    assert "main.nav" in workflow
+    assert "main.snm" in workflow
+    assert "source-bound skeleton" in workflow
+
+
+def test_phase5_slides_prompt_covers_cleanup_non_git_and_thin_source_boundaries() -> None:
+    prompt = (PHASE5_PROMPTS_DIR / "slides-bounded.txt").read_text(encoding="utf-8")
+
+    _assert_slides_public_label_local_preflight_guidance(prompt)
+    assert "Some live fixtures intentionally are not git checkouts" in prompt
+    assert "before/after manifest" in prompt
+    assert "write-classification evidence" in prompt
+    assert "avoid noisy shell `rm`" in prompt
+    assert "main.nav" in prompt
+    assert "main.snm" in prompt
+    assert "source-bound skeleton" in prompt
+
+
+def test_phase5_session_stop_prompt_and_matrix_require_blocked_stop_contract() -> None:
+    prompt = (PHASE5_PROMPTS_DIR / "session-response.txt").read_text(encoding="utf-8")
+    matrix = PHASE5_SCENARIO_MATRIX.read_text(encoding="utf-8")
+
+    _assert_contains_fragments(
+        prompt,
+        "`stop_signal: true`",
+        "`status: blocked`",
+        "`command_execution_state: stopped_at_checkpoint`",
+        "`checkpoint: stop_requested`",
+        "`writes: none`",
+        "`next_step: none`",
+    )
+    _assert_contains_fragments(
+        matrix,
+        '"stop_signal": True',
+        '"expected_final_fields": {',
+        '"status": "blocked"',
+        '"command_execution_state": "stopped_at_checkpoint"',
+        '"checkpoint": "stop_requested"',
+        '"writes": "none"',
+        '"next_step": "none"',
+    )
 
 
 def test_export_workflow_keeps_outputs_under_exports_without_satisfying_publication_gates() -> None:
@@ -1327,19 +1402,42 @@ def test_write_paper_and_arxiv_submission_keep_the_build_boundary_explicit() -> 
         "This emits `${PAPER_DIR}/{topic_specific_stem}.tex`, writes the manuscript-root artifact manifest"
         in write_paper
     )
-    assert (
-        "The workflow continues without local compilation smoke checks — .tex file generation does not require "
-        "pdflatex, and `gpd paper-build` remains the canonical manuscript scaffold contract."
-    ) in write_paper
+    assert "local compilation smoke checks are skipped" in write_paper
+    assert "`.tex` generation still proceeds" in write_paper
+    assert "`gpd paper-build` remains the canonical manuscript scaffold contract" in write_paper
     assert 'gpd paper-build "${PAPER_DIR}/PAPER-CONFIG.json" --output-dir "${PAPER_DIR}"' in arxiv
     assert "If `pdflatex` is available, run a local smoke check after the refreshed manuscript is in place." in arxiv
     assert "`pdflatex` is not available, report that the smoke check was skipped" in arxiv
     assert "Do not package stale audit artifacts." in arxiv
 
 
+def test_write_paper_source_distinguishes_overclaim_pressure_from_bounded_resume_narrowing() -> None:
+    write_paper = (WORKFLOWS_DIR / "write-paper.md").read_text(encoding="utf-8")
+
+    _assert_contains_fragments(
+        write_paper,
+        "Unsupported-strengthening pressure:",
+        "strengthen unsupported theorem, general-proof, or submission-readiness claims",
+        "cite whatever is needed",
+        "adversarial overclaim pressure",
+        "unless it explicitly asks to narrow, qualify, or repair the claim against evidence",
+        "Reject before manuscript writes",
+        "status: blocked",
+        "claim_state: overclaim_blocked",
+        "command_execution_state: blocked_before_write",
+        "checkpoint: claim_evidence_gate",
+        "files_written: none",
+        "Do not convert this into a safe-narrowing rewrite",
+        "Ordinary bounded resume narrowing is allowed when the user asks to resume, update, or repair the manuscript",
+        "the evidence requires a narrower claim",
+        "use the no-write `overclaim_blocked` rule above unless the user explicitly asks for safe narrowing or repair",
+    )
+
+
 def test_arxiv_submission_documents_conservative_response_freshness_policy() -> None:
     command = (COMMANDS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
     workflow = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
+    phase5_prompt = (PHASE5_PROMPTS_DIR / "arxiv-submission-bounded.txt").read_text(encoding="utf-8")
 
     assert "latest response-round freshness status" in command
     assert "same-round or newer response artifacts without newer staged peer-review clearance" in command
@@ -1347,6 +1445,17 @@ def test_arxiv_submission_documents_conservative_response_freshness_policy() -> 
     assert "any same-round or newer `gpd:respond-to-referees` author/referee response artifact" in workflow
     assert "all-response freshness policy" in workflow
     assert "durable manuscript-change scope metadata" in workflow
+    for text in {"workflow": workflow, "phase5_prompt": phase5_prompt}.values():
+        _assert_contains_fragments(
+            text,
+            "response_freshness",
+            "latest_response_requires_fresh_review=true",
+            "response_gate",
+            "review_state: stale",
+            "response_state: requires_fresh_review",
+            "claim_state: not_applicable",
+            "not `human_needed`",
+        )
 
 
 def test_remove_phase_workflow_stages_checkpoint_shelf_updates() -> None:
@@ -2460,7 +2569,7 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
         assert removed_alias not in summary_template
     assert "`suggested_contract_checks` is verification-only and does not belong in summaries." in summary_template
     assert "contract_results" in verification_template
-    assert "machine-readable surface limited to the schema-owned ledgers" in verification_template
+    assert "machine-readable surface limited to schema-owned ledgers" in verification_template
     assert "verification-side `suggested_contract_checks`" in verification_template
     assert (
         "Use `{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract."
@@ -2654,7 +2763,10 @@ def test_execute_and_autonomous_gate_execution_before_plan_work() -> None:
     assert 'gpd --raw validate lifecycle-contract-gate execute-phase "${PHASE_NUM}"' in autonomous
     assert "gpd validate plan-contract" in autonomous
     assert "gpd --raw validate plan-preflight" in autonomous
-    assert "stop before workspace scripts, numerical computations, task dispatches, subagents, artifact writes" in autonomous
+    assert (
+        "stop before workspace scripts, numerical computations, task dispatches, subagents, artifact writes"
+        in autonomous
+    )
     assert "gpd:discuss-phase ${PHASE_NUM}` then `gpd:plan-phase ${PHASE_NUM}" in autonomous
     assert "--revise" not in execute_phase
     assert "--revise" not in autonomous
@@ -4689,6 +4801,34 @@ def test_publication_workflows_keep_manuscript_local_reference_status_rooted_at_
         "The same resolved manuscript root is also the strict preflight source of truth for packaging."
         in arxiv_submission
     )
+
+
+def test_respond_to_referees_arxiv_handoff_uses_public_positional_arxiv_target() -> None:
+    respond = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
+    phase5_prompt = (PHASE5_PROMPTS_DIR / "respond-to-referees-bounded.txt").read_text(encoding="utf-8")
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+    arxiv_command = (COMMANDS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
+    arxiv_workflow = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
+    arxiv_help_block = help_workflow.split(
+        "**`gpd:arxiv-submission [manuscript root or .tex entrypoint]`**",
+        1,
+    )[1].split("**`gpd:explain", 1)[0]
+
+    assert 'argument-hint: "[manuscript root or .tex entrypoint]"' in arxiv_command
+    assert "Paper target: $ARGUMENTS (optional manuscript root or `.tex` entrypoint" in arxiv_command
+    assert "Resolve the manuscript target from raw preflight plus `$ARGUMENTS`" in arxiv_workflow
+    assert "Usage: `gpd:arxiv-submission paper/`" in arxiv_help_block
+    assert "--manuscript" not in arxiv_help_block
+
+    assert "`gpd:arxiv-submission <resolved-manuscript>`" in respond
+    assert "`gpd:arxiv-submission paper/curvature_flow_bounds.tex`" in respond
+    assert "`$gpd-arxiv-submission <resolved-manuscript>`" not in respond
+    assert "`$gpd-arxiv-submission paper/curvature_flow_bounds.tex`" not in respond
+    assert "`gpd:arxiv-submission --manuscript" not in respond
+    assert "`$gpd-arxiv-submission --manuscript" not in respond
+    assert "`next_step: $gpd-arxiv-submission <resolved-manuscript>`" in phase5_prompt
+    assert "`next_step: $gpd-arxiv-submission paper/curvature_flow_bounds.tex`" in phase5_prompt
+    assert "`next_step: $gpd-arxiv-submission --manuscript" not in phase5_prompt
 
 
 def test_stage9_adaptive_mode_and_review_cadence_docs_stay_aligned() -> None:

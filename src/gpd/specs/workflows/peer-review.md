@@ -49,7 +49,8 @@ Treat `project_contract_gate` as authoritative. Use `project_contract` and `cont
 If `derived_manuscript_reference_status` is present, use it as a first-pass manuscript-local summary of reference coverage, citation readiness, and audit freshness. Keep the manuscript-root publication artifacts authoritative for strict decisions: `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and the reproducibility manifest still decide pass/fail.
 If `derived_manuscript_proof_review_status` is present, use it as the first-pass manuscript-local summary of theorem/proof freshness and keep the selected-review-root proof-redteam artifacts authoritative for strict decisions.
 The shared manuscript-root bootstrap contract is applied in preflight. The local steps below add only peer-review-specific routing, proof-review, and adjudication rules.
-This workflow is project-aware: it may resolve the active manuscript from the current GPD project or review one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or manuscript-directory target supplied in the current workspace. Write review artifacts under the target-aware `selected_review_root`. Fall back to `GPD/review` only when the target-aware payload does not expose a selected root for the default project-backed subject; if `selected_review_root` points to `GPD/publication/{subject_slug}/review`, do not duplicate or redirect those artifacts into global `GPD/review`.
+This workflow may review the current project manuscript or one explicit accepted manuscript artifact. Write under target-aware `selected_review_root`; fall back to `GPD/review` only for default project-backed subjects without a selected root. Do not write a managed-subject review bundle to global `GPD/review`; if `selected_review_root` is `GPD/publication/{subject_slug}/review`, do not duplicate or redirect it globally.
+For nested-cwd launches, trust init/command-context roots; do not guess roots from launch cwd. If a project root is exposed, `cd` there or use absolute selected-root paths.
 
 If `REVIEW_TARGET` is empty and `project_exists` is true, ask the user which mode they want:
 
@@ -65,7 +66,7 @@ Use ask_user:
 
 If the user chooses `Pick artifact path`, ask for one explicit path and store it in `REVIEW_TARGET`.
 
-If `REVIEW_TARGET` is empty and `project_exists` is false, ask the user for one explicit manuscript path or directory. Accept `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or a manuscript directory path. If the answer is still empty, STOP and ask again for a concrete artifact path.
+If `REVIEW_TARGET` is empty and `project_exists` is false, ask once for one explicit artifact path. Accept `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, `.xlsm`, or a manuscript directory path. If no answer is available, STOP at `manuscript_required`. Do not infer nearby files, repeat the question, or put a placeholder command-style value in machine-readable `next_step` when the contract expects `next_step: none`.
 
 After the user has chosen a mode or supplied an explicit path, rerun the subject-aware peer-review init surface for the resolved target. Treat this second payload as authoritative for manuscript routing and review-round state; do not keep using current-project manuscript status from the bootstrap call after an explicit artifact target has been chosen.
 
@@ -153,7 +154,7 @@ fi
 Use `protocol_bundle_context` from init JSON as additive review guidance.
 
 - If `selected_protocol_bundle_ids` is non-empty, use the bundle summary as a compact map of decisive artifacts, benchmark anchors, estimator caveats, or specialized comparisons the manuscript should surface.
-- Bundle guidance is additive only: it can sharpen missing-evidence checks, but it cannot invent claims, waive missing comparisons, or overrule the manuscript, `project_contract`, `GPD/comparisons/*-COMPARISON.md`, `${MANUSCRIPT_ROOT}/FIGURE_TRACKER.md`, or phase summary / verification evidence (`GPD/phases/*/*SUMMARY.md`, `GPD/phases/*/*-VERIFICATION.md`).
+- Bundle guidance is additive only: it sharpens missing-evidence checks but cannot invent claims, waive comparisons, or overrule the manuscript, `project_contract`, comparison/figure artifacts, or phase summary/verification evidence.
 - Reader-visible claims and surfaced evidence remain first-class; review-support artifacts are scaffolding, not substitutes for authoritative evidence required by the resolved review target or project contract.
 - Read `{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md` for the canonical failure-recovery and round-suffix conventions that keep this workflow fail-closed.
 - If no bundle is selected, run the same review pipeline against the resolved review target plus any authoritative project-backed artifacts without any specialized overlay.
@@ -183,7 +184,7 @@ If preflight exits nonzero because of a missing resolved review target, degraded
 Missing project state, roadmap, conventions, research artifacts, verification reports, or manuscript-root publication artifacts are blocking only in `project-backed manuscript review`.
 If preflight reports blocked contract/state integrity, surface `project_contract_gate`, `project_contract_load_info`, and `project_contract_validation` details in the stop message and repair the blocked contract before retrying.
 
-In strict project-backed peer-review mode, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and a reproducibility manifest are required inputs. `gpd paper-build` is the step that regenerates `BIBLIOGRAPHY-AUDIT.json` for the current bibliography; rerun it before proceeding whenever the manuscript bibliography or citation set has changed. Strict preflight also enforces the semantic gates `bibliography_audit_clean` and `reproducibility_ready`; those artifacts must be review-ready, not merely present. If `derived_manuscript_reference_status` is available from init, use it as a quick read on what is likely stale or complete, but do not let it override the manuscript-root publication artifacts.
+In strict project-backed peer-review mode, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and a reproducibility manifest are required inputs. Rerun `gpd paper-build` whenever bibliography/citations changed; strict preflight enforces `bibliography_audit_clean` and `reproducibility_ready`, so those artifacts must be review-ready, not merely present. `derived_manuscript_reference_status` is only a quick stale/complete read, not an override.
 In `standalone explicit-artifact review`, manuscript-root publication artifacts, `GPD/STATE.md`, `GPD/ROADMAP.md`, phase summaries, and verification reports become additive supporting context when present and must not block intake by themselves unless the user explicitly makes them authoritative.
 Passing preflight still does not establish scientific support. Complete manifests and audits cannot rescue missing decisive comparisons, overclaimed conclusions, or absent evidence required by the resolved review target or an authoritative project contract.
 </step>
@@ -219,9 +220,9 @@ Load the following files:
 
 Infer the target journal from `${PAPER_CONFIG_PATH}` when available; otherwise use `unspecified`.
 Do not rediscover the manuscript by `find` or first-match globbing at this stage; the resolved manuscript root from init/preflight remains authoritative.
-In `project-backed manuscript review`, `GPD/STATE.md`, `GPD/ROADMAP.md`, phase summaries, verification reports, comparison artifacts, and strict manuscript-root publication artifacts are authoritative evidence surfaces. In `standalone explicit-artifact review`, treat those project files as additive diagnostics only when they are already present; do not fail the workflow merely because they are absent.
+In `project-backed manuscript review`, project state, roadmap, phase summaries, verification reports, comparison artifacts, and strict manuscript-root publication artifacts are authoritative. In `standalone explicit-artifact review`, project files are additive diagnostics only when present.
 
-If bundle context is present, compare its decisive-artifact and reference expectations against the actual comparison artifacts and figure tracker. Missing bundle-suggested coverage is a warning unless the manuscript has narrowed the claim honestly; missing decisive evidence required by an authoritative project contract remains a blocker in `project-backed manuscript review`.
+If bundle context is present, compare its decisive-artifact/reference expectations against actual comparison and figure artifacts. Missing bundle-suggested coverage is a warning unless the manuscript narrowed honestly; missing evidence required by an authoritative project contract remains blocking.
 
 Create the review artifact directory if needed:
 
@@ -862,12 +863,13 @@ Recommendation guardrails:
 6. Stage-review validation alone is not proof-redteam clearance: aligned `proof_audits[]` entries in `${REVIEW_ROOT}/STAGE-math{round_suffix}.json` are necessary review evidence, but they do not by themselves clear a favorable final decision without the same-round proof-redteam artifact and strict final-decision validation.
 7. Write `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json` and `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`.
 8. Keep `manuscript_path` non-empty and identical across `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`, `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`, and the staged-review artifacts for this round.
-9. Run `gpd validate review-ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`.
-10. Run `gpd validate referee-decision ${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json --strict --ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json` before trusting any final recommendation.
-11. If either validator fails, STOP and classify whether the failure is in Stage 6-owned artifacts or in upstream staged-review inputs before retrying anything.
-12. Your writable scope is limited to Stage 6-owned adjudication artifacts for this round: `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md`, `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex`, `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`, `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`, and `${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md` when applicable.
-13. Do not modify `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`, any `${REVIEW_ROOT}/STAGE-*.json`, or `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md`. If any of those upstream artifacts are missing, malformed, stale, or inconsistent, return `gpd_return.status: blocked` and hand the failure back to the earliest failing upstream stage instead of repairing it inside Stage 6.
-14. Treat any `gpd_return.files_written` entry outside the Stage 6 allowlist as a failed handoff, not as a successful adjudication.
+9. In `REFEREE-DECISION{round_suffix}.json`, set every strict policy field explicitly. Its `stage_artifacts` list may contain only the five canonical `STAGE-reader`, `STAGE-literature`, `STAGE-math`, `STAGE-physics`, and `STAGE-interestingness` JSON files for this round. `CLAIMS{round_suffix}.json` is the separately validated claim index, not a `stage_artifacts` entry.
+10. Run `gpd validate review-ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`.
+11. Run `gpd validate referee-decision ${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json --strict --ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json` before trusting any final recommendation.
+12. If either validator fails, STOP and classify whether the failure is in Stage 6-owned artifacts or in upstream staged-review inputs before retrying anything.
+13. Your writable scope is limited to Stage 6-owned adjudication artifacts for this round: `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md`, `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex`, `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`, `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`, and `${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md` when applicable.
+14. Do not modify `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`, any `${REVIEW_ROOT}/STAGE-*.json`, or `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md`. If any of those upstream artifacts are missing, malformed, stale, or inconsistent, return `gpd_return.status: blocked` and hand the failure back to the earliest failing upstream stage instead of repairing it inside Stage 6.
+15. Treat any `gpd_return.files_written` entry outside the Stage 6 allowlist as a failed handoff, not as a successful adjudication.
 
 Write `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` and the matching `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex`.
 Treat the referee report files as required final-stage artifacts. If either report file is missing after adjudication, the stage is incomplete even if the JSON validators passed.
@@ -878,8 +880,7 @@ Use the child return contract with `peer_review_stage: referee`; `files_written`
 )
 ```
 
-If the referee agent fails to spawn or returns an error, STOP and report the failure. Do not silently skip final adjudication.
-Do not trust the referee's success text until the ledger, decision, and report files all exist on disk and validate. A returned recommendation without the files is incomplete.
+If the referee agent fails to spawn or returns an error, STOP; do not skip final adjudication.
 Do not trust the referee's success text until that typed return, the on-disk files, and the validators all agree.
 Treat the Stage 6 return as incomplete if the fresh `gpd_return.files_written` set omits a Stage 6 artifact written in this run or lists any upstream staged-review artifact path.
 </step>
@@ -887,11 +888,11 @@ Treat the Stage 6 return as incomplete if the fresh `gpd_return.files_written` s
 <step name="stage_recovery_6">
 **Stage 6 recovery -- Validate the adjudication outputs before proceeding.**
 
-Capture the Stage 6 typed return first, then treat the finished adjudication handoff as closed and retired before classifying the outcome as recovery-eligible, upstream-blocked, or complete. Recovery routing, validation, and final summarization must use the persisted Stage 6 artifacts plus the captured typed return; do not keep the adjudication run live while deciding what to do next.
+Capture the Stage 6 typed return first, then treat the finished adjudication handoff as closed and retired before classifying the outcome as recovery-eligible, upstream-blocked, or complete. Recovery routing, validation, and final summaries use persisted Stage 6 artifacts plus the typed return only; do not keep the adjudication run live while deciding what to do next.
 
 Check that both `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json` and `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json` exist and parse as valid JSON.
 Also confirm `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` and `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex` exist before treating the final recommendation as complete.
-Require the fresh `gpd_return.files_written` set to stay within the Stage 6-owned allowlist: `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md`, `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex`, `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`, `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`, and `${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md` when applicable. Treat any upstream staged-review path in `gpd_return.files_written` as a failed handoff.
+Require the fresh `gpd_return.files_written` set to stay within the Stage 6-owned allowlist: report `.md`/`.tex`, ledger, decision, and optional consistency report. Any upstream staged-review path is a failed handoff.
 
 Then run the built-in validators. These are the authoritative fail-closed schema and consistency checks for every final recommendation:
 
@@ -905,8 +906,8 @@ For proof-bearing reviews, this strict final-decision validator is the favorable
 If validation fails:
 
 1. **Classify the failure first.** Distinguish Stage 6-owned artifact failures from upstream staged-review artifact failures.
-2. **Only retry Stage 6 for Stage 6-owned artifacts.** If the failure is limited to `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md`, `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex`, `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`, `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`, or `${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md`, re-run the Stage 6 referee subagent once with an explicit reminder to satisfy `review-ledger-schema.md` and `referee-decision-schema.md` by passing the built-in validators above.
-3. **Do not retry Stage 6 as an upstream repair step.** If validation or consistency errors point at `CLAIMS{round_suffix}.json`, any `STAGE-*.json`, or `PROOF-REDTEAM{round_suffix}.md`, STOP fail-closed and rerun the earliest failing upstream stage instead of letting Stage 6 repair those inputs.
+2. **Only retry Stage 6 for Stage 6-owned artifacts.** If failure is limited to report `.md`/`.tex`, ledger, decision, or consistency report, re-run Stage 6 once with `review-ledger-schema.md` / `referee-decision-schema.md` validator reminders.
+3. **Do not retry Stage 6 as an upstream repair step.** If errors point at `CLAIMS{round_suffix}.json`, `STAGE-*.json`, or `PROOF-REDTEAM{round_suffix}.md`, STOP fail-closed and rerun the earliest failing upstream stage.
 4. **If the eligible Stage 6 retry also fails,** STOP the pipeline and report the failure: stage name, validation errors, and any partial output. Do not proceed to report summarization.
 
 Use this upstream fail-back routing:
@@ -925,17 +926,8 @@ Max retries per stage: **1**.
 </step>
 
 <step name="optional_pdf_compile">
-**Optional PDF compile of the LaTeX referee report:**
-
-If TeX is installed and the runtime allows it, compile the latest referee-report `.tex` file to a matching `.pdf`.
-
-If TeX is missing, do not block the review:
-
-```
-Referee review artifacts were written, but a TeX toolchain is not available.
-Continue now with `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` + `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex` only.
-If you want the polished PDF artifact as well, Authorize the agent to install TeX now or compile the `.tex` later in an environment that already has TeX.
-```
+**Optional PDF compile:** if TeX is installed and allowed, compile the latest referee-report `.tex` to `.pdf`.
+If TeX is missing, do not block review: Continue now with `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` + `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex` only. If a polished PDF is required, ask the user to choose: "Authorize the agent to install TeX now" or compile the `.tex` later in an environment that already has TeX.
 </step>
 
 <step name="summarize_report">
@@ -962,6 +954,12 @@ INIT="$FINALIZE_INIT"
    - major issue count
    - minor issue count
    - top actionable items
+3. Keep summary state faithful:
+   - A completed staged review of a rejected manuscript is still a completed review run.
+   - Report a present `BIBLIOGRAPHY-AUDIT.json` with no failed or unverified sources as verified, even with zero entries; literature absence belongs in findings.
+   - When central claims, novelty, significance, or venue fit outrun support, classify the manuscript claim state as overclaim-blocked rather than evidence-bound.
+   - Project-backed/managed rejecting reviews keep `review_state: completed_this_run`, `checkpoint: review_gate`, and the exact target-qualified rewrite command, e.g. `gpd:write-paper ${RESOLVED_MANUSCRIPT}`.
+   - For standalone explicit-artifact review, do not turn a terminal `reject` recommendation into an automatic project-authoring command; keep command-style next action empty unless rewriting was requested and put repair advice in prose.
 
 Present:
 
@@ -985,7 +983,7 @@ Present:
 - `accept`: recommend `gpd:arxiv-submission`
 - `minor_revision`: recommend targeted manuscript edits or `gpd:respond-to-referees`
 - `major_revision`: recommend `gpd:respond-to-referees` and highlight the blocking findings
-- `reject`: present the highest-severity issues and recommend returning to research or restructuring the manuscript before another review
+- `reject`: present highest-severity issues and recommend research/manuscript restructuring before another review. Project-backed/managed command-style continuations must name the resolved manuscript; standalone explicit-artifact continuations stay empty unless rewriting was requested.
 
 If this was a revision round, state the round number and whether the referee considers previous issues resolved, partially resolved, or unresolved.
 </step>

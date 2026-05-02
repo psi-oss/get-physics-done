@@ -326,6 +326,18 @@ def _status_command_cwd(cwd: Path | None = None) -> Path:
     return workspace_cwd
 
 
+def _progress_command_cwd(cwd: Path | None = None) -> Path:
+    """Resolve the effective cwd for progress/recovery commands."""
+
+    workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    if resolve_project_root(workspace_cwd, require_layout=True) is None:
+        resolution = _status_command_reentry(workspace_cwd)
+        if resolution.resolved_project_root is not None:
+            return resolution.resolved_project_root
+        return workspace_cwd
+    return _status_command_cwd(workspace_cwd)
+
+
 def _state_command_cwd(cwd: Path | None = None) -> Path:
     """Resolve the effective cwd for state and project-contract commands."""
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
@@ -3402,7 +3414,7 @@ def progress(
     """Render progress in the specified format."""
     from gpd.core.phases import progress_render
 
-    cwd = _status_command_cwd()
+    cwd = _progress_command_cwd()
     if not watch:
         _output(progress_render(cwd, fmt))
         return
@@ -6787,6 +6799,30 @@ def _supported_root_resolution_for_target(
     )
 
 
+def _manuscript_root_needs_supported_metadata(
+    project_root: Path,
+    manuscript_root: Path,
+    *,
+    restrict_to_supported_roots: bool,
+) -> bool:
+    """Return whether an explicit target must obey managed manuscript-root metadata."""
+
+    if restrict_to_supported_roots:
+        return True
+
+    from gpd.core.constants import ProjectLayout
+
+    if ProjectLayout(project_root).project_md.exists():
+        return True
+
+    publication_dir = (project_root / PLANNING_DIR_NAME / PUBLICATION_DIR_NAME).resolve(strict=False)
+    try:
+        relative_root = manuscript_root.resolve(strict=False).relative_to(publication_dir)
+    except ValueError:
+        return False
+    return len(relative_root.parts) >= 2 and relative_root.parts[1] == PUBLICATION_MANUSCRIPT_DIR_NAME
+
+
 def _resolve_review_preflight_manuscript_target(
     cwd: Path,
     subject: str | None,
@@ -6837,7 +6873,15 @@ def _resolve_review_preflight_manuscript_target(
                         requested_target,
                         allow_markdown=allow_markdown,
                     )
-                    if manuscript_root is not None and root_resolution is not None:
+                    if (
+                        manuscript_root is not None
+                        and root_resolution is not None
+                        and _manuscript_root_needs_supported_metadata(
+                            project_root,
+                            manuscript_root,
+                            restrict_to_supported_roots=restrict_to_supported_roots,
+                        )
+                    ):
                         if root_resolution.status != "resolved" or root_resolution.manuscript_entrypoint is None:
                             return ResolvedManuscriptTarget(
                                 status=root_resolution.status,
@@ -10985,6 +11029,13 @@ def _build_review_preflight(
                             latest_response_round.round_number if latest_response_round is not None else None
                         ),
                     )
+                    if response_freshness.requires_fresh_review:
+                        add_check(
+                            "response_freshness",
+                            False,
+                            f"{response_freshness.detail}; checkpoint=response_gate",
+                            blocking=True,
+                        )
                     if (
                         response_freshness.requires_fresh_review
                         and response_freshness.required_review_round is not None
@@ -11239,7 +11290,7 @@ def _build_review_preflight(
                         manuscript_proof_review = resolve_manuscript_proof_review_status(
                             project_cwd,
                             manuscript,
-                            persist_manifest=True,
+                            persist_manifest=command.name != "gpd:arxiv-submission",
                         )
                         theorem_bearing_review_required = _requires_theorem_bearing_manuscript_review(
                             project_cwd, manuscript
@@ -12049,7 +12100,10 @@ def validate_review_stage_report_cmd(
         artifact_path = Path(input_path)
         if not artifact_path.is_absolute():
             artifact_path = _get_cwd() / artifact_path
-        semantic_errors = validate_stage_review_artifact_file(artifact_path)
+        semantic_errors = validate_stage_review_artifact_file(
+            artifact_path,
+            claim_index_fallback_root=_get_cwd() / "GPD" / "review",
+        )
     if semantic_errors:
         message = "; ".join(semantic_errors[:5])
         if len(semantic_errors) > 5:

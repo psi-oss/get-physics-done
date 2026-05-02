@@ -3940,8 +3940,13 @@ class TestReviewValidationCommands:
         assert "standalone explicit-artifact intake applies" in payload["review_target_mode_reason"]
         assert payload["resolved_review_target"] == str(external_txt)
         assert payload["resolved_review_root"] == str(gpd_project)
-        assert payload["selected_publication_root"] == "GPD"
-        assert payload["selected_review_root"] == "GPD/review"
+        assert payload["publication_lane_kind"] == "external_artifact"
+        assert payload["publication_lane_owner"] == "external_artifact"
+        assert payload["publication_subject_slug"]
+        managed_root = f"GPD/publication/{payload['publication_subject_slug']}"
+        assert payload["managed_publication_root"] == managed_root
+        assert payload["selected_publication_root"] == managed_root
+        assert payload["selected_review_root"] == f"{managed_root}/review"
         assert payload["manuscript_resolution_status"] == "resolved"
         assert payload["manuscript_entrypoint"] == external_txt.name
         assert payload["project_contract"] is None
@@ -3977,8 +3982,13 @@ class TestReviewValidationCommands:
         assert payload["review_target_mode"] == "standalone explicit-artifact review"
         assert payload["resolved_review_target"] == str(external_txt)
         assert payload["resolved_review_root"] == str(gpd_project)
-        assert payload["selected_publication_root"] == "GPD"
-        assert payload["selected_review_root"] == "GPD/review"
+        assert payload["publication_lane_kind"] == "external_artifact"
+        assert payload["publication_lane_owner"] == "external_artifact"
+        assert payload["publication_subject_slug"]
+        managed_root = f"GPD/publication/{payload['publication_subject_slug']}"
+        assert payload["managed_publication_root"] == managed_root
+        assert payload["selected_publication_root"] == managed_root
+        assert payload["selected_review_root"] == f"{managed_root}/review"
         assert payload["staged_loading"]["stage_id"] == "bootstrap"
 
     @pytest.mark.parametrize(
@@ -5197,6 +5207,24 @@ class TestReviewValidationCommands:
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["manuscript_proof_review"]["passed"] is True
         assert (gpd_project / "paper" / "PROOF-REVIEW-MANIFEST.json").exists()
+
+    def test_review_preflight_arxiv_submission_strict_does_not_bootstrap_manuscript_proof_review_manifest(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        _write_review_stage_artifacts(gpd_project, artifact_names=("STAGE-math.json",))
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(gpd_project), "validate", "review-preflight", "arxiv-submission", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["manuscript_proof_review"]["passed"] is True
+        assert not (gpd_project / "paper" / "PROOF-REVIEW-MANIFEST.json").exists()
 
     def test_review_preflight_write_paper_reports_theorem_bearing_proof_review_without_blocking(
         self,
@@ -7405,6 +7433,9 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["response_freshness"]["passed"] is False
+        assert checks["response_freshness"]["blocking"] is True
+        assert "checkpoint=response_gate" in checks["response_freshness"]["detail"]
         assert checks["review_ledger"]["passed"] is False
         assert "REVIEW-LEDGER-R2.json" in checks["review_ledger"]["detail"]
         assert "latest response artifacts already reached round 1" in checks["review_ledger"]["detail"]
@@ -7786,6 +7817,8 @@ class TestReviewValidationCommands:
         assert payload["preflight_passed"] is False
         assert payload["checks"][0]["name"] == "strict_review_preflight"
         review_checks = {check["name"]: check for check in payload["review_preflight"]["checks"]}
+        assert review_checks["response_freshness"]["passed"] is False
+        assert "checkpoint=response_gate" in review_checks["response_freshness"]["detail"]
         assert review_checks["review_ledger"]["passed"] is False
         assert "latest response artifacts already reached round 2" in review_checks["review_ledger"]["detail"]
         assert "requires newer staged review clearance" in review_checks["review_ledger"]["detail"]
@@ -8486,6 +8519,63 @@ class TestReviewValidationCommands:
         assert staged_init["selected_review_root"] == review_preflight["selected_review_root"]
         assert staged_init["publication_intake_root"] == f"{managed_root}/intake"
         assert staged_init["publication_bootstrap_root"] == f"{managed_root}/manuscript"
+
+    def test_init_peer_review_stage_projectless_manuscript_matches_strict_preflight_roots(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "standalone-review-root-parity"
+        manuscript_dir = workspace / "manuscript"
+        manuscript_dir.mkdir(parents=True)
+        (manuscript_dir / "standalone.tex").write_text(
+            "\\documentclass{article}\n\\begin{document}\nStandalone draft.\n\\end{document}\n",
+            encoding="utf-8",
+        )
+        target = "manuscript/standalone.tex"
+
+        command_context_result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "command-context", "peer-review", target],
+            catch_exceptions=False,
+        )
+        review_preflight_result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "review-preflight", "peer-review", target, "--strict"],
+            catch_exceptions=False,
+        )
+        staged_bootstrap_result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "init", "peer-review", target, "--stage", "bootstrap"],
+            catch_exceptions=False,
+        )
+        staged_preflight_result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "init", "peer-review", target, "--stage", "preflight"],
+            catch_exceptions=False,
+        )
+
+        assert command_context_result.exit_code == 0, command_context_result.output
+        assert review_preflight_result.exit_code == 0, review_preflight_result.output
+        assert staged_bootstrap_result.exit_code == 0, staged_bootstrap_result.output
+        assert staged_preflight_result.exit_code == 0, staged_preflight_result.output
+        command_context = json.loads(command_context_result.output)
+        review_preflight = json.loads(review_preflight_result.output)
+        staged_bootstrap = json.loads(staged_bootstrap_result.output)
+        staged_preflight = json.loads(staged_preflight_result.output)
+        managed_root = review_preflight["managed_publication_root"]
+
+        assert review_preflight["publication_lane_kind"] == "external_artifact"
+        assert managed_root == f"GPD/publication/{review_preflight['publication_subject_slug']}"
+        assert review_preflight["selected_publication_root"] == managed_root
+        assert review_preflight["selected_review_root"] == f"{managed_root}/review"
+        assert command_context["selected_publication_root"] == review_preflight["selected_publication_root"]
+        assert command_context["selected_review_root"] == review_preflight["selected_review_root"]
+        for staged_init in (staged_bootstrap, staged_preflight):
+            assert staged_init["review_target_mode"] == "standalone explicit-artifact review"
+            assert staged_init["publication_lane_kind"] == review_preflight["publication_lane_kind"]
+            assert staged_init["managed_publication_root"] == managed_root
+            assert staged_init["selected_publication_root"] == review_preflight["selected_publication_root"]
+            assert staged_init["selected_review_root"] == review_preflight["selected_review_root"]
 
     @pytest.mark.parametrize(
         ("artifact_name", "content"),

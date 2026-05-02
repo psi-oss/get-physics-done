@@ -58,6 +58,13 @@ def _runtime_label_rule(prefix: str) -> str:
     return f"Runtime label: Show `{prefix}` as native labels;"
 
 
+def _runtime_label_rules() -> set[str]:
+    return {
+        _runtime_label_rule(validated_public_command_prefix(runtime_descriptor))
+        for runtime_descriptor in iter_runtime_descriptors()
+    }
+
+
 def test_owned_workflows_tell_agents_to_render_native_runtime_command_labels() -> None:
     for workflow_name in OWNED_WORKFLOWS:
         content = _workflow(workflow_name)
@@ -73,12 +80,11 @@ def test_owned_workflows_tell_agents_to_render_native_runtime_command_labels() -
 def test_projected_owned_commands_use_descriptor_public_runtime_label_prefix(command_name: str, descriptor) -> None:
     projected = _project_owned_workflow(command_name, descriptor)
     public_prefix = validated_public_command_prefix(descriptor)
+    expected_rule = _runtime_label_rule(public_prefix)
 
-    assert _runtime_label_rule(public_prefix) in projected
-    if descriptor.runtime_name == "codex":
-        assert "Runtime label: Show `gpd:` as native labels;" not in projected
-    if descriptor.runtime_name == "opencode":
-        assert "Runtime label: Show `gpd-` as native labels;" not in projected
+    assert expected_rule in projected
+    for stale_rule in _runtime_label_rules() - {expected_rule}:
+        assert stale_rule not in projected
 
 
 def test_claude_new_project_wrapper_keeps_post_init_next_step_runtime_native() -> None:

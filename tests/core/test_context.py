@@ -3418,9 +3418,49 @@ class TestInitNewProject:
             assert ctx.get("publication_bootstrap_mode") is None
             assert ctx.get("publication_bootstrap_root") is None
             assert ctx.get("publication_bootstrap_detail") is None
-            assert ctx.get("publication_intake_root") is None
-            assert ctx["selected_publication_root"] == "GPD"
-            assert ctx["selected_review_root"] == "GPD/review"
+            assert ctx["publication_lane_kind"] == "external_artifact"
+            assert ctx["publication_lane_owner"] == "external_artifact"
+            assert ctx["publication_subject_slug"]
+            managed_root = f"GPD/publication/{ctx['publication_subject_slug']}"
+            assert ctx["managed_publication_root"] == managed_root
+            if "publication_intake_root" in ctx:
+                assert ctx["publication_intake_root"] == f"{managed_root}/intake"
+            assert ctx["selected_publication_root"] == managed_root
+            assert ctx["selected_review_root"] == f"{managed_root}/review"
+
+    def test_peer_review_stage_projectless_manuscript_artifact_uses_subject_owned_review_roots(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "standalone-review"
+        manuscript_dir = workspace / "manuscript"
+        manuscript_dir.mkdir(parents=True)
+        manuscript = manuscript_dir / "standalone.tex"
+        manuscript.write_text(
+            "\\documentclass{article}\\begin{document}Standalone draft.\\end{document}\n",
+            encoding="utf-8",
+        )
+
+        contexts = [
+            init_peer_review(workspace, subject="manuscript/standalone.tex"),
+            init_peer_review(workspace, subject="manuscript/standalone.tex", stage="bootstrap"),
+            init_peer_review(workspace, subject="manuscript/standalone.tex", stage="preflight"),
+        ]
+
+        for ctx in contexts:
+            assert ctx["project_exists"] is False
+            assert ctx["review_target_mode"] == "standalone explicit-artifact review"
+            assert ctx["resolved_review_target"] == str(manuscript)
+            assert ctx["resolved_review_root"] == str(manuscript_dir)
+            assert ctx["publication_lane_kind"] == "external_artifact"
+            assert ctx["publication_lane_owner"] == "external_artifact"
+            assert ctx["publication_subject_slug"]
+            managed_root = f"GPD/publication/{ctx['publication_subject_slug']}"
+            assert ctx["managed_publication_root"] == managed_root
+            if "managed_manuscript_root" in ctx:
+                assert ctx["managed_manuscript_root"] is None
+            assert ctx["selected_publication_root"] == managed_root
+            assert ctx["selected_review_root"] == f"{managed_root}/review"
 
     def test_arxiv_submission_stage_bootstrap_surfaces_subject_owned_publication_roots(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

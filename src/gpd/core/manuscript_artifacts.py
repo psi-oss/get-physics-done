@@ -734,6 +734,7 @@ def _publication_lane_kind(
     manuscript_entrypoint: Path | None,
     target_path: Path | None,
     root_resolutions: tuple[ManuscriptRootResolution, ...],
+    canonical_project_manuscript_allowed: bool = True,
 ) -> PublicationLaneKind | None:
     anchor = _publication_lane_anchor(
         artifact_base=artifact_base,
@@ -747,7 +748,7 @@ def _publication_lane_kind(
         return None
     if _managed_publication_manuscript_root_for_target(project_root, anchor) is not None:
         return "managed_publication_manuscript"
-    if _canonical_manuscript_root_for_target(project_root, anchor) is not None:
+    if canonical_project_manuscript_allowed and _canonical_manuscript_root_for_target(project_root, anchor) is not None:
         return "canonical_project_manuscript"
     return "external_artifact"
 
@@ -923,6 +924,7 @@ def _publication_subject_from_resolution(
     *,
     source: PublicationSubjectSource,
     target_path: Path | None = None,
+    canonical_project_manuscript_allowed: bool = True,
 ) -> PublicationSubjectResolution:
     publication_subject_slug = _publication_subject_slug(
         project_root,
@@ -939,6 +941,7 @@ def _publication_subject_from_resolution(
         manuscript_entrypoint=resolution.manuscript_entrypoint,
         target_path=target_path,
         root_resolutions=resolution.root_resolutions,
+        canonical_project_manuscript_allowed=canonical_project_manuscript_allowed,
     )
     publication_lane_owner: PublicationLaneOwner | None = None
     if publication_lane_kind is not None:
@@ -988,6 +991,7 @@ def _publication_subject_from_resolution(
         manuscript_entrypoint=resolution.manuscript_entrypoint,
         target_path=target_path,
         root_resolutions=resolution.root_resolutions,
+        canonical_project_manuscript_allowed=canonical_project_manuscript_allowed,
     )
     publication_lane_owner = "project_managed" if publication_lane_kind != "external_artifact" else "external_artifact"
     managed_publication_root, managed_intake_root, managed_manuscript_root = _managed_publication_paths(
@@ -1046,6 +1050,7 @@ def resolve_explicit_publication_subject(
     *,
     allow_markdown: bool = True,
     subject_base: Path | None = None,
+    canonical_project_manuscript_allowed: bool = True,
 ) -> PublicationSubjectResolution:
     """Resolve one explicit publication subject path into a typed subject envelope."""
 
@@ -1114,6 +1119,7 @@ def resolve_explicit_publication_subject(
                 ),
                 source="explicit_target",
                 target_path=explicit_target,
+                canonical_project_manuscript_allowed=canonical_project_manuscript_allowed,
             )
 
         return _publication_subject_from_resolution(
@@ -1126,6 +1132,7 @@ def resolve_explicit_publication_subject(
             ),
             source="explicit_target",
             target_path=explicit_target,
+            canonical_project_manuscript_allowed=canonical_project_manuscript_allowed,
         )
 
     supported_root = _supported_manuscript_root_for_target(resolved_project_root, explicit_target)
@@ -1174,6 +1181,7 @@ def resolve_explicit_publication_subject(
         ),
         source="explicit_target",
         target_path=explicit_target,
+        canonical_project_manuscript_allowed=canonical_project_manuscript_allowed,
     )
 
 

@@ -157,6 +157,7 @@ After each stage writes its artifact, confirm:
   - `gpd validate review-ledger ${selected_review_root}/REVIEW-LEDGER{round_suffix}.json`
   - `gpd validate referee-decision ${selected_review_root}/REFEREE-DECISION{round_suffix}.json --strict --ledger ${selected_review_root}/REVIEW-LEDGER{round_suffix}.json`
 - Do not reimplement the schema checks manually in the workflow prose. The validators are the source of truth for required keys and cross-artifact consistency.
+- The claim index is validated by `review-claim-index`; it is not a referee-decision `stage_artifacts` entry.
 - A blank `manuscript_path` in the review ledger or referee decision is a contract failure, not a recoverable omission.
 - For theorem-bearing claims, Stage 1 should preserve explicit theorem hypotheses and parameters in `CLAIMS{round_suffix}.json`, and Stage 3 should preserve the corresponding theorem-to-proof audit in `proof_audits[]`. The runtime determines theorem-bearing coverage from the claim record itself, not from a single proxy field. If that chain breaks, treat it as a stage failure rather than proceeding with a stale or inferred review.
 - For Stage 6, validate the fresh `gpd_return.files_written` set against the artifact boundary above. If it names an upstream staged-review artifact, treat the adjudication handoff as failed even if the ledger and decision JSON happen to validate.

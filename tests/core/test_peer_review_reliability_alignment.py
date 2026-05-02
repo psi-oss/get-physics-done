@@ -51,10 +51,7 @@ def test_peer_review_reliability_reference_uses_selected_review_roots() -> None:
     assert "read-only upstream artifacts during Stage 6" in reliability
     assert "Stage 6 repaired upstream artifacts" in reliability
     assert "gpd validate review-claim-index ${selected_review_root}/CLAIMS{round_suffix}.json" in reliability
-    assert (
-        "gpd validate review-stage-report ${selected_review_root}/STAGE-<stage_id>{round_suffix}.json"
-        in reliability
-    )
+    assert "gpd validate review-stage-report ${selected_review_root}/STAGE-<stage_id>{round_suffix}.json" in reliability
     assert "gpd validate review-ledger ${selected_review_root}/REVIEW-LEDGER{round_suffix}.json" in reliability
     assert (
         "gpd validate referee-decision ${selected_review_root}/REFEREE-DECISION{round_suffix}.json --strict "
@@ -72,6 +69,7 @@ def test_peer_review_reliability_reference_uses_selected_review_roots() -> None:
     assert "`REFEREE-DECISION.json`" not in reliability
     assert "`REVIEW-LEDGER.json`" not in reliability
     assert ".gpd/" not in reliability
+
 
 def test_peer_review_surfaces_describe_dual_mode_project_and_external_artifact_review() -> None:
     command = (COMMANDS_DIR / "peer-review.md").read_text(encoding="utf-8")
@@ -91,13 +89,20 @@ def test_peer_review_surfaces_describe_dual_mode_project_and_external_artifact_r
     assert "explicit external artifact review" in reliability
 
 
+def test_peer_review_finalize_separates_review_completion_from_manuscript_quality() -> None:
+    workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+
+    assert "A completed staged review of a rejected manuscript is still a completed review run." in workflow
+    assert "present `BIBLIOGRAPHY-AUDIT.json` with no failed or unverified sources as verified" in workflow
+    assert "classify the manuscript claim state as overclaim-blocked rather than evidence-bound" in workflow
+    assert "do not turn a terminal `reject` recommendation into an automatic project-authoring command" in workflow
+
+
 def test_publication_reference_docs_keep_gpd_aux_outputs_separate_from_manuscript_root_contract() -> None:
-    preflight = (
-        REPO_ROOT / "src/gpd/specs/templates/paper/publication-manuscript-root-preflight.md"
-    ).read_text(encoding="utf-8")
-    bootstrap = (REFERENCES_DIR / "publication" / "publication-bootstrap-preflight.md").read_text(
+    preflight = (REPO_ROOT / "src/gpd/specs/templates/paper/publication-manuscript-root-preflight.md").read_text(
         encoding="utf-8"
     )
+    bootstrap = (REFERENCES_DIR / "publication" / "publication-bootstrap-preflight.md").read_text(encoding="utf-8")
     round_artifacts = (REFERENCES_DIR / "publication" / "publication-review-round-artifacts.md").read_text(
         encoding="utf-8"
     )
@@ -105,9 +110,9 @@ def test_publication_reference_docs_keep_gpd_aux_outputs_separate_from_manuscrip
         encoding="utf-8"
     )
     reliability = (REFERENCES_DIR / "publication" / "peer-review-reliability.md").read_text(encoding="utf-8")
-    wrapper_guidance = (
-        REFERENCES_DIR / "publication" / "publication-review-wrapper-guidance.md"
-    ).read_text(encoding="utf-8")
+    wrapper_guidance = (REFERENCES_DIR / "publication" / "publication-review-wrapper-guidance.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "does not by itself authorize standalone external-subject support for every publication command" in preflight
     assert "Keep GPD-authored auxiliary review, response, and packaging outputs under `GPD/`" in preflight
@@ -117,13 +122,24 @@ def test_publication_reference_docs_keep_gpd_aux_outputs_separate_from_manuscrip
     assert "centralized preflight resolves `selected_publication_root=GPD`" in round_artifacts
     assert "subject-owned publication root `GPD/publication/{subject_slug}`" in round_artifacts
     assert "does not by itself promise a full relocation" in round_artifacts
-    assert "Do not copy manuscript-local artifacts into `GPD/` to satisfy strict review or submission gates." in round_artifacts
-    assert "optional manuscript-local response-letter companion such as `response-letter.tex` is additive only" in response_artifacts
-    assert "same paired response artifacts may instead bind under the subject-owned publication root" in response_artifacts
+    assert (
+        "Do not copy manuscript-local artifacts into `GPD/` to satisfy strict review or submission gates."
+        in round_artifacts
+    )
+    assert (
+        "optional manuscript-local response-letter companion such as `response-letter.tex` is additive only"
+        in response_artifacts
+    )
+    assert (
+        "same paired response artifacts may instead bind under the subject-owned publication root" in response_artifacts
+    )
     assert "does not imply a full relocation" in response_artifacts
     assert "That output policy does not relocate the manuscript draft or manuscript-root manifests" in reliability
     assert "copied stand-ins under `GPD/` do not satisfy strict gates" in reliability
-    assert "Do not imply full external-subject support or manuscript-root migration unless the workflow/runtime actually provides it." in wrapper_guidance
+    assert (
+        "Do not imply full external-subject support or manuscript-root migration unless the workflow/runtime actually provides it."
+        in wrapper_guidance
+    )
 
 
 def test_peer_review_stage_six_boundary_aligns_reliability_workflow_panel_and_referee() -> None:
@@ -197,7 +213,10 @@ def test_peer_review_reliability_reference_documents_runtime_neutral_stage_clean
     assert "the child is closed/retired for the active review round" in reliability
     assert "validate or classify the persisted artifact boundary in the orchestrator" in reliability
     assert "close/retire the finished child before spawning any retry, continuation, or downstream stage" in reliability
-    assert "start retries and checkpoint continuations from persisted artifacts and declared carry-forward inputs only" in reliability
+    assert (
+        "start retries and checkpoint continuations from persisted artifacts and declared carry-forward inputs only"
+        in reliability
+    )
     assert (
         "do not reuse live child memory, pending tool state, or any other transient execution state "
         "across stage boundaries"
@@ -218,8 +237,14 @@ def test_peer_review_references_keep_generic_claim_kind_out_of_default_theorem_b
     assert "The runtime determines theorem-bearing coverage from the claim record itself" in reliability
     assert "claim_kind:" not in reliability
 
-    assert "Treat theorem-bearing status from the full Stage 1 Paper `ClaimRecord`, not from the `ProjectContract` `ContractClaim` vocabulary" in panel
-    assert "The theorem-style `claim_kind` values are limited to `theorem`, `lemma`, `corollary`, and `proposition`." in panel
+    assert (
+        "Treat theorem-bearing status from the full Stage 1 Paper `ClaimRecord`, not from the `ProjectContract` `ContractClaim` vocabulary"
+        in panel
+    )
+    assert (
+        "The theorem-style `claim_kind` values are limited to `theorem`, `lemma`, `corollary`, and `proposition`."
+        in panel
+    )
     assert "Do not treat `claim_kind: claim` as theorem-bearing by default." in panel
     assert "This Paper `ClaimRecord` rule is intentionally different from `ProjectContract.claims[]`" in panel
     assert "non-theorem-style kinds such as `claim`, `result`, or `other` become theorem-bearing only" in referee

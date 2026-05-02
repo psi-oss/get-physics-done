@@ -32,7 +32,7 @@ for flag in "${EXECUTE_FLAGS[@]}"; do
 done
 
 if [ -z "$PHASE_ARG" ]; then
-  echo "ERROR: missing phase. Usage: gpd:execute-phase <phase-number> [--gaps-only]"
+  echo "ERROR: missing phase. Usage: execute-phase <phase-number> [--gaps-only]"
   exit 1
 fi
 ```
@@ -128,7 +128,7 @@ for plan in "$phase_dir"/*-PLAN.md; do
   SELECTED_PLAN_FILES+=("$plan")
 done
 if [ ${#SELECTED_PLAN_FILES[@]} -eq 0 ]; then
-  echo "ERROR: no executable PLAN.md files found for phase ${PHASE_ARG}. Next: gpd:plan-phase ${PHASE_ARG} (revise or recreate the missing/invalid plan), then rerun gpd:execute-phase ${PHASE_ARG}."
+  echo "ERROR: no executable PLAN.md files found for phase ${PHASE_ARG}. Revise or recreate the missing/invalid plan, then rerun execute-phase for ${PHASE_ARG}."
   exit 1
 fi
 PLAN_GATE_FAILED=false
@@ -147,7 +147,7 @@ done
 gpd phase validate-waves "$phase_number" || PLAN_GATE_FAILED=true
 if [ "$PLAN_GATE_FAILED" = true ]; then
   echo "Plan validation/preflight failed before execution; no workspace scripts, numerical computations, task dispatches, subagents, artifact writes, or result claims were authorized."
-  echo "Next: gpd:plan-phase ${PHASE_ARG} (revise or recreate the invalid PLAN.md), then rerun gpd:execute-phase ${PHASE_ARG}."
+  echo "Next: revise or recreate the invalid PLAN.md, then rerun execute-phase for ${PHASE_ARG}."
   exit 1
 fi
 ```
@@ -277,7 +277,7 @@ if [ "$CONV_STATUS" != "locked" ] && [ "$CONV_STATUS" != "complete" ]; then
   echo ""
   echo "Fix with one of:"
   echo "  gpd convention set"
-  echo "  gpd:validate-conventions"
+  echo "  validate conventions through the runtime workflow"
   echo ""
   echo "HALTING — convention errors in derivation/formalism phases compound across every step."
   exit 1
@@ -369,7 +369,7 @@ CONFIRMED_CONTEXT_HASH=$(echo "$ALIGNMENT_STATUS" | gpd json get .confirmed_cont
 ```bash
 if [ -z "$CONTRACT_HASH" ] || [ -z "$CONTEXT_HASH" ]; then
   echo "ERROR: claim_deliverable_alignment_check could not resolve contract/context fingerprints."
-  echo "Next Up: gpd:discuss-phase {N}; then gpd:plan-phase {N}; then gpd:execute-phase {N}"
+  echo "Next Up: discuss, plan, then execute phase {N}"
   exit 1
 fi
 ```

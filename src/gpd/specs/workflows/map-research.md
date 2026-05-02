@@ -76,7 +76,7 @@ RESEARCH_MODE=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_mode --default b
 **Mode-aware behavior:**
 - `explore`: broad alternatives, speculative connections, open questions.
 - `exploit`: primary formalism, established results, direct computational needs.
-- `balanced`: standard depth and default anchor/contract coverage unless the question needs otherwise.
+- `research_mode=balanced` (default): standard depth and default anchor/contract coverage unless the question needs otherwise.
 - `adaptive`: start primary, expand if cross-domain connections appear.
 - Never drop contract-critical anchors, prior baselines, or user-mandated references.
 - `RESEARCH_MODE` is sourced from the init payload. Do not re-query config later in this workflow.
@@ -203,6 +203,8 @@ Context: staged={effective_reference_intake}; refs={active_reference_context}; e
 
 - FORMALISM.md - equations, symmetries, approximations, boundary conditions, conservation laws
 - REFERENCES.md - papers, benchmarks, prior artifacts, carry-forward actions, open questions. Every row needs `Anchor ID` and `Source / Locator`; record exact contract IDs separately when known.
+Write to: GPD/research-map/FORMALISM.md
+Write to: GPD/research-map/REFERENCES.md
 <spawn_contract>
 write_scope:
   mode: scoped_write
@@ -236,6 +238,8 @@ Context: staged={effective_reference_intake}; refs={active_reference_context}; e
 
 - ARCHITECTURE.md - computational pipeline, solver choices, libraries, data flow, performance bottlenecks
 - STRUCTURE.md - directory layout, file roles, naming conventions, formats, dependencies, build/job scripts
+Write to: GPD/research-map/ARCHITECTURE.md
+Write to: GPD/research-map/STRUCTURE.md
 <spawn_contract>
 write_scope:
   mode: scoped_write
@@ -269,6 +273,8 @@ Context: staged={effective_reference_intake}; refs={active_reference_context}; e
 
 - CONVENTIONS.md - notation, signs, units, indices, coordinates, variable naming, coupling definitions
 - VALIDATION.md - known limits, convergence, consistency checks, comparisons, tests, error analysis
+Write to: GPD/research-map/CONVENTIONS.md
+Write to: GPD/research-map/VALIDATION.md
 <spawn_contract>
 write_scope:
   mode: scoped_write
@@ -301,6 +307,7 @@ Analyze open questions, known issues, and concerns.
 Context: staged={effective_reference_intake}; refs={active_reference_context}; excerpts={reference_artifacts_content}; contract={project_contract}; gate/load/validation={project_contract_gate}/{project_contract_load_info}/{project_contract_validation}. Use IDs only when authoritative.
 
 - CONCERNS.md - known issues, theoretical gaps, TODOs, fragile code/calculations, missing validation, bottlenecks, stale branches
+Write to: GPD/research-map/CONCERNS.md
 <spawn_contract>
 write_scope:
   mode: scoped_write

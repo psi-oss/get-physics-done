@@ -102,11 +102,13 @@ for COMPLETE_PHASE in "${COMPLETED_PHASES[@]}"; do
     passed|verified|complete|completed) ;;
     *)
       echo "Phase ${COMPLETE_PHASE}: verify before closeout."
-      echo "Next: gpd:verify-work ${COMPLETE_PHASE}"
+      echo "Next: verify work for phase ${COMPLETE_PHASE}"
       exit 1 ;;
   esac
 done
 ```
+
+When this verification guard blocks closeout, make the user-facing continuation explicit outside shell output: `Next: gpd:verify-work ${COMPLETE_PHASE}`.
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -242,7 +244,7 @@ Before plan/execute, keep the lifecycle authority blocker from `gpd:plan-phase`/
 PHASE_CONTRACT_GATE=$(gpd --raw validate lifecycle-contract-gate plan-phase "${PHASE_NUM}")
 if [ $? -ne 0 ]; then
   echo "$PHASE_CONTRACT_GATE"
-  echo "Next: gpd:sync-state or gpd:new-project; then gpd:plan-phase ${PHASE_NUM}"
+  echo "Next: repair project state or initialization; then plan phase ${PHASE_NUM}"
   # STOP -- route to handle_blocker. Do not relabel this as missing plan authority.
 fi
 ```

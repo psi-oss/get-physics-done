@@ -76,7 +76,7 @@ COMMAND_BASELINES = {
     "regression-check": (180, 6_665, 1),
     "remove-phase": (231, 6_061, 1),
     "research-phase": (375, 15_527, 1),
-    "respond-to-referees": (890, 50_699, 2),
+    "respond-to-referees": (804, 50_699, 2),
     "resume-work": (613, 30_606, 1),
     "review-knowledge": (332, 12_854, 1),
     "revise-phase": (475, 14_516, 1),
@@ -86,7 +86,7 @@ COMMAND_BASELINES = {
     "set-tier-models": (215, 8_483, 1),
     "settings": (521, 32_153, 1),
     "show-phase": (345, 9_503, 1),
-    "slides": (286, 11_462, 1),
+    "slides": (259, 11_462, 1),
     "start": (321, 16_874, 2),
     "suggest-next": (91, 3_059, 0),
     "sync-state": (251, 9_015, 1),
@@ -96,7 +96,7 @@ COMMAND_BASELINES = {
     "update": (268, 7_672, 1),
     "validate-conventions": (266, 10_102, 1),
     "verify-work": (726, 36_091, 1),
-    "write-paper": (1_484, 86_007, 1),
+    "write-paper": (1_417, 86_007, 1),
 }
 WORST_COMMAND_HARD_CAPS = {
     "write-paper": (1_600, 91_000),
@@ -174,7 +174,7 @@ WORKFLOW_BASELINES = {
     "regression-check": (123, 4515, 0),
     "remove-phase": (184, 4612, 0),
     "research-phase": (329, 14238, 2),
-    "respond-to-referees": (774, 45122, 2),
+    "respond-to-referees": (688, 45122, 2),
     "resume-work": (583, 30040, 2),
     "review-knowledge": (223, 8376, 0),
     "revise-phase": (424, 12774, 0),
@@ -184,7 +184,7 @@ WORKFLOW_BASELINES = {
     "set-tier-models": (167, 6937, 0),
     "settings": (487, 30977, 1),
     "show-phase": (249, 6801, 0),
-    "slides": (200, 8586, 0),
+    "slides": (173, 8586, 0),
     "start": (264, 14606, 2),
     "sync-state": (209, 8078, 0),
     "tangent": (149, 5858, 0),
@@ -195,7 +195,7 @@ WORKFLOW_BASELINES = {
     "validate-conventions": (225, 8911, 1),
     "verify-phase": (681, 41_946, 0),
     "verify-work": (653, 34201, 2),
-    "write-paper": (1336, 80049, 2),
+    "write-paper": (1269, 80049, 2),
 }
 WORST_WORKFLOW_HARD_CAPS = {
     "verify-phase": (720, 44_000),

@@ -144,7 +144,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   if [ -n "$DIRTY_STATUS" ]; then
     echo "ERROR: dirty project worktree detected before planning:"
     echo "$DIRTY_STATUS"
-    echo "Choose: git status --short, gpd:commit, or explicitly approve a project-local cleanup path."
+    echo "Choose: git status --short, gpd commit, or explicitly approve a project-local cleanup path."
     echo "HALTING -- plan-phase never stashes, resets, cleans, overwrites, or hides user work."
     exit 1
   fi
@@ -286,7 +286,7 @@ CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
 if [ $? -ne 0 ]; then
   echo "ERROR: Convention verification failed -- resolve before planning"
   echo "$CONV_CHECK"
-  echo "Next: gpd:validate-conventions"
+  echo "Next: validate conventions before planning"
   echo "HALTING -- convention mismatches compound into every planned task."
   exit 1
 fi
@@ -478,6 +478,9 @@ if [ ! -r "$EXPECTED_RESEARCH_FILE" ]; then
   echo "ERROR: researcher returned completed but ${EXPECTED_RESEARCH_FILE} is missing or unreadable"
   exit 1
 fi
+
+# Re-read RESEARCH.md from disk; `research_content` from INIT (step 1) is **stale** after the researcher writes the artifact.
+RESEARCH_CONTENT=$(cat "$EXPECTED_RESEARCH_FILE")
 ```
 
 ## 5.1 Handle Researcher Checkpoint

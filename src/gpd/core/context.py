@@ -42,6 +42,7 @@ from gpd.core.constants import (
     PLAN_SUFFIX,
     PLANNING_DIR_NAME,
     PROJECT_FILENAME,
+    PUBLICATION_DIR_NAME,
     REQUIREMENTS_FILENAME,
     RESEARCH_MAP_DIR_NAME,
     RESEARCH_SUFFIX,
@@ -70,6 +71,9 @@ from gpd.core.errors import ValidationError
 from gpd.core.extras import approximation_list
 from gpd.core.knowledge_runtime import discover_knowledge_docs
 from gpd.core.manuscript_artifacts import (
+    _derive_hashed_publication_subject_slug as derive_hashed_publication_subject_slug,
+)
+from gpd.core.manuscript_artifacts import (
     _resolve_manuscript_entrypoint_from_root_resolution as resolve_manuscript_entrypoint_from_root_resolution,
 )
 from gpd.core.manuscript_artifacts import (
@@ -78,6 +82,7 @@ from gpd.core.manuscript_artifacts import (
 from gpd.core.manuscript_artifacts import (
     resolve_current_manuscript_entrypoint,
     resolve_current_publication_subject,
+    resolve_explicit_publication_subject,
     resolve_publication_bootstrap_resolution,
 )
 from gpd.core.peer_review_mode import (
@@ -2388,6 +2393,135 @@ def _respond_to_referees_subject_from_launch_arguments(argument_payload: str | N
     return None
 
 
+_ARXIV_SUPPORTED_MANUSCRIPT_ROOTS_DETAIL = (
+    "`paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>[/manuscript/]`"
+)
+_ARXIV_INVALID_EXTERNAL_SUBJECT_DETAIL = (
+    f"explicit manuscript target must stay under {_ARXIV_SUPPORTED_MANUSCRIPT_ROOTS_DETAIL} inside the current project"
+)
+
+
+def _arxiv_invalid_external_subject_context(
+    cwd: Path,
+    subject_input: str,
+    *,
+    launch_cwd: Path,
+) -> dict[str, object] | None:
+    """Return a fail-closed arXiv context overlay for unsupported explicit targets."""
+
+    if not subject_input.strip():
+        return None
+
+    requested_target = Path(subject_input.strip()).expanduser()
+    if not requested_target.is_absolute():
+        requested_target = launch_cwd / requested_target
+    requested_target = requested_target.resolve(strict=False)
+
+    if resolve_supported_manuscript_root_for_target(cwd, requested_target) is not None:
+        return None
+
+    target_label = _relative_or_absolute_posix(cwd, requested_target)
+    freshness = {
+        "policy": "conservative_all_response_artifacts",
+        "latest_review_round": None,
+        "latest_review_round_suffix": None,
+        "latest_response_round": None,
+        "latest_response_round_suffix": None,
+        "requires_fresh_review": False,
+        "required_review_round": None,
+        "required_review_round_suffix": None,
+        "detail": "no response artifacts considered because the explicit arxiv-submission target is invalid",
+    }
+    proof_review_status = {
+        "scope": "manuscript",
+        "state": "not_reviewed",
+        "can_rely_on_prior_review": False,
+        "detail": "no proof-review freshness is available for an invalid explicit arxiv-submission target",
+        "manifest_path": None,
+        "anchor_artifact": None,
+        "watched_files": [],
+        "watched_file_count": 0,
+        "changed_files": [],
+        "changed_file_count": 0,
+        "manifest_bootstrapped": False,
+    }
+    return {
+        "publication_subject": {
+            "status": "invalid",
+            "source": "explicit_target",
+            "detail": _ARXIV_INVALID_EXTERNAL_SUBJECT_DETAIL,
+            "target_path": target_label,
+            "artifact_base": None,
+            "publication_root": None,
+            "review_dir": None,
+            "manuscript_root": None,
+            "manuscript_entrypoint": None,
+            "artifact_manifest": None,
+            "bibliography_audit": None,
+            "reproducibility_manifest": None,
+            "publication_subject_slug": None,
+            "publication_lane_kind": None,
+            "publication_lane_owner": None,
+            "managed_publication_root": None,
+            "managed_intake_root": None,
+            "managed_manuscript_root": None,
+            "path_semantics": None,
+        },
+        "publication_subject_status": "invalid",
+        "publication_subject_source": "explicit_target",
+        "publication_subject_detail": _ARXIV_INVALID_EXTERNAL_SUBJECT_DETAIL,
+        "publication_subject_slug": None,
+        "publication_lane_kind": None,
+        "publication_lane_owner": None,
+        "publication_artifact_base": None,
+        "publication_root": None,
+        "review_dir": None,
+        "managed_publication_root": None,
+        "selected_publication_root": None,
+        "selected_review_root": None,
+        "publication_target_mode": "invalid_explicit_target",
+        "publication_target_detail": _ARXIV_INVALID_EXTERNAL_SUBJECT_DETAIL,
+        "publication_target_project_context_role": "carry_forward_only",
+        "publication_target_path": target_label,
+        "publication_target_root": None,
+        "manuscript_resolution_status": "invalid",
+        "manuscript_resolution_detail": _ARXIV_INVALID_EXTERNAL_SUBJECT_DETAIL,
+        "manuscript_root": None,
+        "manuscript_entrypoint": None,
+        "artifact_manifest_path": None,
+        "bibliography_audit_path": None,
+        "reproducibility_manifest_path": None,
+        "manuscript_reference_status_warnings": [],
+        "derived_manuscript_reference_status": {},
+        "derived_manuscript_reference_status_count": 0,
+        "derived_manuscript_reference_status_warnings": [],
+        "manuscript_reference_subject_status": "invalid",
+        "manuscript_reference_subject_detail": _ARXIV_INVALID_EXTERNAL_SUBJECT_DETAIL,
+        "derived_manuscript_proof_review_status": proof_review_status,
+        "publication_blockers": [],
+        "publication_blocker_count": 0,
+        "latest_review_round": None,
+        "latest_review_round_suffix": None,
+        "latest_review_ledger": None,
+        "latest_referee_decision": None,
+        "latest_referee_report_md": None,
+        "latest_referee_report_tex": None,
+        "latest_proof_redteam": None,
+        "latest_review_artifacts": None,
+        "latest_response_round": None,
+        "latest_response_round_suffix": None,
+        "latest_author_response": None,
+        "latest_referee_response": None,
+        "latest_response_artifacts": None,
+        "latest_response_freshness_policy": freshness["policy"],
+        "latest_response_requires_fresh_review": freshness["requires_fresh_review"],
+        "latest_response_required_review_round": freshness["required_review_round"],
+        "latest_response_required_review_round_suffix": freshness["required_review_round_suffix"],
+        "latest_response_freshness_detail": freshness["detail"],
+        "latest_response_freshness": freshness,
+    }
+
+
 def _selected_publication_stage_roots(
     *,
     publication_subject_slug: str | None,
@@ -2414,6 +2548,95 @@ def _selected_publication_stage_roots(
 
     return {
         "selected_publication_root": selected_publication_root,
+        "selected_review_root": selected_review_root,
+    }
+
+
+def _standalone_peer_review_publication_overrides(
+    cwd: Path,
+    *,
+    result: Mapping[str, object],
+    resolved_target: Path | None,
+    resolved_root: Path | None,
+) -> dict[str, object]:
+    """Return subject-owned publication roots for standalone peer-review targets."""
+
+    anchor = resolved_target or resolved_root
+    subject_context: dict[str, object] = {}
+    if resolved_target is not None and resolved_target.suffix.lower() in {".tex", ".md"}:
+        subject = resolve_explicit_publication_subject(
+            cwd,
+            resolved_target,
+            canonical_project_manuscript_allowed=False,
+        )
+        if subject.publication_subject_slug:
+            subject_context = subject.to_context_dict()
+
+    publication_subject_slug = (
+        subject_context.get("publication_subject_slug")
+        if isinstance(subject_context.get("publication_subject_slug"), str)
+        else result.get("publication_subject_slug")
+        if isinstance(result.get("publication_subject_slug"), str)
+        else None
+    )
+    if publication_subject_slug is None and anchor is not None:
+        publication_subject_slug = derive_hashed_publication_subject_slug(cwd, anchor)
+
+    managed_publication_root = (
+        subject_context.get("managed_publication_root")
+        if isinstance(subject_context.get("managed_publication_root"), str)
+        else result.get("managed_publication_root")
+        if isinstance(result.get("managed_publication_root"), str)
+        else None
+    )
+    if managed_publication_root is None and publication_subject_slug:
+        managed_publication_root = f"{PLANNING_DIR_NAME}/{PUBLICATION_DIR_NAME}/{publication_subject_slug}"
+
+    selected_review_root = f"{managed_publication_root}/review" if managed_publication_root else None
+    managed_intake_root = f"{managed_publication_root}/intake" if managed_publication_root else None
+    target_path = _relative_or_absolute_posix(cwd, resolved_target)
+    artifact_base = _relative_or_absolute_posix(cwd, resolved_root)
+
+    publication_subject_payload: dict[str, object] = (
+        dict(subject_context)
+        if subject_context
+        else dict(result.get("publication_subject"))
+        if isinstance(result.get("publication_subject"), Mapping)
+        else {}
+    )
+    publication_subject_payload.update(
+        {
+            "status": "resolved",
+            "source": "explicit_target",
+            "target_path": target_path,
+            "artifact_base": artifact_base,
+            "publication_root": managed_publication_root,
+            "review_dir": selected_review_root,
+            "manuscript_root": artifact_base,
+            "manuscript_entrypoint": target_path,
+            "publication_subject_slug": publication_subject_slug,
+            "publication_lane_kind": "external_artifact",
+            "publication_lane_owner": "external_artifact",
+            "managed_publication_root": managed_publication_root,
+            "managed_intake_root": managed_intake_root,
+            "managed_manuscript_root": None,
+        }
+    )
+
+    return {
+        "publication_subject": publication_subject_payload,
+        "publication_subject_status": "resolved",
+        "publication_subject_source": "explicit_target",
+        "publication_subject_slug": publication_subject_slug,
+        "publication_lane_kind": "external_artifact",
+        "publication_lane_owner": "external_artifact",
+        "publication_root": managed_publication_root,
+        "review_dir": selected_review_root,
+        "managed_publication_root": managed_publication_root,
+        "managed_intake_root": managed_intake_root,
+        "managed_manuscript_root": None,
+        "publication_intake_root": managed_intake_root,
+        "selected_publication_root": managed_publication_root,
         "selected_review_root": selected_review_root,
     }
 
@@ -2561,9 +2784,12 @@ def _build_peer_review_runtime_context(
                 "publication_bootstrap_mode": None,
                 "publication_bootstrap_root": None,
                 "publication_bootstrap_detail": None,
-                "publication_intake_root": None,
-                "selected_publication_root": PLANNING_DIR_NAME,
-                "selected_review_root": f"{PLANNING_DIR_NAME}/review",
+                **_standalone_peer_review_publication_overrides(
+                    cwd,
+                    result=result,
+                    resolved_target=resolved_target,
+                    resolved_root=resolved_root,
+                ),
             }
         gate = {
             "status": "standalone_explicit_artifact",
@@ -4888,6 +5114,15 @@ def init_arxiv_submission(cwd: Path, subject: str | None = None, stage: str | No
     subject_input = subject.strip() if isinstance(subject, str) else ""
     resolved_subject = _explicit_subject_from_launch_cwd(subject_input, launch_cwd) if subject_input else None
     config = load_config(effective_cwd)
+    invalid_external_subject_context = (
+        _arxiv_invalid_external_subject_context(
+            effective_cwd,
+            subject_input,
+            launch_cwd=launch_cwd,
+        )
+        if subject_input
+        else None
+    )
     base_result: dict[str, object] = {
         "commit_docs": config["commit_docs"],
         "arxiv_submission_argument_input": subject_input,
@@ -4901,13 +5136,16 @@ def init_arxiv_submission(cwd: Path, subject: str | None = None, stage: str | No
     if stage is None:
         result = dict(base_result)
         result.update(_build_publication_bootstrap_runtime_context(effective_cwd))
-        result.update(
-            _build_publication_runtime_snapshot_context(
-                effective_cwd,
-                subject=resolved_subject,
-                pin_response_to_review_round=False,
+        if invalid_external_subject_context is not None:
+            result.update(invalid_external_subject_context)
+        else:
+            result.update(
+                _build_publication_runtime_snapshot_context(
+                    effective_cwd,
+                    subject=resolved_subject,
+                    pin_response_to_review_round=False,
+                )
             )
-        )
         return result
 
     manifest = load_arxiv_submission_stage_contract()
@@ -4924,13 +5162,16 @@ def init_arxiv_submission(cwd: Path, subject: str | None = None, stage: str | No
     if required_fields & ARXIV_SUBMISSION_BOOTSTRAP_FIELDS:
         staged_source.update(_build_publication_bootstrap_runtime_context(effective_cwd))
     if required_fields & ARXIV_SUBMISSION_SNAPSHOT_FIELDS:
-        staged_source.update(
-            _build_publication_runtime_snapshot_context(
-                effective_cwd,
-                subject=resolved_subject,
-                pin_response_to_review_round=False,
+        if invalid_external_subject_context is not None:
+            staged_source.update(invalid_external_subject_context)
+        else:
+            staged_source.update(
+                _build_publication_runtime_snapshot_context(
+                    effective_cwd,
+                    subject=resolved_subject,
+                    pin_response_to_review_round=False,
+                )
             )
-        )
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:

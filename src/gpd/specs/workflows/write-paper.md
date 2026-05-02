@@ -96,6 +96,21 @@ The bounded external-authoring lane has one entrypoint only:
 - do not treat `${PAPER_DIR}/PAPER-CONFIG.json` as the intake contract
 - fail closed unless the intake manifest supplies at least `schema_version`, `title`, `authors`, `target_journal`, optional explicit `subject_slug`, `central_claim`, `claims[]` with explicit evidence bindings, `source_notes[]`, optional `results[]`, optional `figures[]`, bibliography / citation-source input, and optional conventions / notation note
 
+If a launch supplies a bare positional title/path that looks like external authoring input but omits `--intake`, stop before writes and do not apply default project roots. Report the supplied path as the target, `target_kind: external_intake`, `manuscript_root` as the supplied parent directory, `publication_root: unknown`, `review_root: not_applicable`, `manuscript_state: wrong_root_rejected`, `review_state: not_required`, `citation_state: not_required`, `claim_state: human_needed`, `checkpoint: manuscript_root_gate`, `files_written: none`, and `next_step` exactly `gpd:write-paper --intake path/to/write-paper-authoring-input.json` unless the user supplied an explicit valid intake manifest path. Do not derive or synthesize an intake manifest path under the rejected positional file or folder.
+
+Final-state vocabulary for `write-paper`:
+
+| Case | Required state |
+|---|---|
+| non-arXiv authoring | `package_state: not_applicable`; reserve `not_run` for in-scope arXiv package work skipped/blocked |
+| post-write bibliography/citation state | `citation_state: fresh_audit_written` only after current `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`; otherwise `audit_blocked`/`partial` and `checkpoint: bibliography_gate` |
+| claim narrowed to match evidence | `claim_state: narrowed`; use `evidence_bound` only when intended active claims already matched evidence |
+| Unsupported-strengthening pressure: strengthen unsupported theorem, general-proof, or submission-readiness claims, "cite whatever is needed", or adversarial overclaim pressure unless it explicitly asks to narrow, qualify, or repair the claim against evidence | Reject before manuscript writes; `status: blocked`, `claim_state: overclaim_blocked`, `command_execution_state: blocked_before_write`, `checkpoint: claim_evidence_gate`, `files_written: none`; Do not convert this into a safe-narrowing rewrite |
+| allowed manuscript/support writes landed, downstream review/submission remains | `command_execution_state: wrote_artifacts`; reserve `stopped_at_checkpoint` for no-write stops |
+| project-backed overclaim/review gaps | keep target-bound review state (`missing` vs `incomplete`) and next step such as `gpd:peer-review ${MANUSCRIPT_ENTRYPOINT}` |
+
+Once material writes, bibliography/artifact state, and the next blocking checkpoint are known, finalize before optional polish; skip wording cleanup, throwaway schema probes, second-pass hashes, and non-decisive validation. Emit `BEGIN_PHASE5_FINAL` immediately when a live audit harness requires it.
+
 If the normalized write-paper argument payload begins with `--`, pass it to the validators after an end-of-options marker so the validator CLI does not reinterpret intake flags as validator options.
 
 Run centralized context preflight before continuing:
@@ -131,6 +146,8 @@ Use `publication_subject*`, `manuscript_*`, and `publication_bootstrap*` from in
 - If `publication_bootstrap_mode` is `fresh_project_bootstrap`, bind `PAPER_DIR` to `publication_bootstrap_root` and bootstrap a fresh manuscript scaffold there. The fresh bootstrap root may be the top-level `paper/` scaffold or the managed project lane `GPD/publication/{subject_slug}/manuscript`, depending on the resolved publication subject and bootstrap plan. Keep that resolved root authoritative for manuscript-local artifacts; do **not** hardcode `paper/` and do not widen this into arbitrary external-manuscript support.
 - If `publication_bootstrap_mode` is `blocked`, STOP and repair the ambiguous or inconsistent manuscript state before writing.
 
+Ordinary bounded resume narrowing is allowed when the user asks to resume, update, or repair the manuscript and the evidence requires a narrower claim: preserve structure, make the smallest evidence-backed edits, allow honest narrowing, and refresh only stale/missing required manuscript-root artifacts. Do not answer adversarial strengthening/citation pressure with writes; use the no-write `overclaim_blocked` rule above unless the user explicitly asks for safe narrowing or repair. Avoid full outline rebuilds, full section rewrites, or multi-wave drafting unless the entrypoint is missing, a rewrite was requested, or required artifacts need scaffold regeneration. Do not create optional `${PAPER_DIR}/PAPER-CONFIG.json` when `review_gate` is already decisive; create/repair it only for fresh bootstrap, explicit builder regeneration, or a required build path. If accepted manuscript/PDF/audit refresh is complete and target-bound review is the blocker, stop with `command_execution_state: wrote_artifacts`.
+
 For `external_authoring_intake`, use the strict command preflight's managed subject handoff: persist intake/provenance/bootstrap state under `GPD/publication/{subject_slug}/intake/` and bind `PAPER_DIR` to the only manuscript/build root at `GPD/publication/{subject_slug}/manuscript`. Do **not** write manuscript files into `paper/`, `manuscript/`, or `draft/` for this lane. `${PAPER_DIR}/PAPER-CONFIG.json` is a manuscript-root builder artifact, not the external intake contract.
 
 Keep the resolved manuscript-root binding visible when writing shell snippets so the shell-oriented workflow contract stays consistent:
@@ -148,46 +165,9 @@ Current publication-lane split:
 - GPD-authored staged review artifacts stay under `GPD/` / `GPD/review/`
 - do not mine generic folders or widen into arbitrary external-manuscript discovery; the only non-project lane is explicit `--intake`, fail-closed, with all durable outputs under `GPD/publication/{subject_slug}/...`
 
-**Check optional local LaTeX compiler availability for smoke tests (cross-platform):**
+For nested-cwd launches, use `project_root`, `publication_bootstrap_root`, and selected publication/review roots from init/preflight as authority. `cd` to the selected project root before relative writes, or use absolute paths rooted there; never infer roots from launch cwd alone.
 
-```bash
-# Check standard PATH first, then platform-specific locations
-if command -v pdflatex >/dev/null 2>&1; then
-  PDFLATEX_AVAILABLE=true
-elif [ "$(uname -s 2>/dev/null)" = "MINGW"* ] || [ -n "$WINDIR" ]; then
-  # Windows: check common MiKTeX and TeX Live install paths
-  for DIR in \
-    "$LOCALAPPDATA/Programs/MiKTeX/miktex/bin/x64" \
-    "$PROGRAMFILES/MiKTeX/miktex/bin/x64" \
-    "$PROGRAMFILES/texlive"/*/bin/windows \
-    "$PROGRAMFILES/texlive"/*/bin/win64 \
-    "C:/texlive"/*/bin/windows \
-    "C:/texlive"/*/bin/win64; do
-    if [ -f "$DIR/pdflatex.exe" ]; then
-      export PATH="$DIR:$PATH"
-      PDFLATEX_AVAILABLE=true
-      break
-    fi
-  done
-  [ -z "$PDFLATEX_AVAILABLE" ] && PDFLATEX_AVAILABLE=false
-else
-  PDFLATEX_AVAILABLE=false
-fi
-```
-
-If `PDFLATEX_AVAILABLE` is false, display a warning:
-
-```
-⚠ pdflatex not found. Local compilation smoke checks will be skipped.
-  The paper .tex files will still be generated correctly.
-
-  To enable local smoke checks, install a LaTeX distribution:
-    - Windows:     MiKTeX (https://miktex.org/download) or TeX Live
-    - macOS:       brew install --cask mactex
-    - Linux:       sudo apt install texlive-latex-base  (Debian/Ubuntu)
-```
-
-The workflow continues without local compilation smoke checks — .tex file generation does not require pdflatex, and `gpd paper-build` remains the canonical manuscript scaffold contract.
+**Check optional local LaTeX compiler availability for smoke tests:** detect `pdflatex` on PATH. If unavailable, warn that local compilation smoke checks are skipped; `.tex` generation still proceeds and `gpd paper-build` remains the canonical manuscript scaffold contract. Do not install TeX automatically.
 
 **Convention verification** — papers must use consistent conventions throughout:
 
@@ -495,13 +475,7 @@ Check that the manuscript can surface the decisive evidence, not just supporting
 
 ### Check 7: Proof-obligation coverage
 
-Check whether any contributing phase or manuscript section makes theorem-style claims.
-
-Treat a manuscript claim as proof-bearing when:
-
-1. the supporting phase contract includes `proof_obligation`
-2. the manuscript uses theorem-style language (`theorem`, `lemma`, `corollary`, `proposition`, `claim`, `proof`, `we prove`, `show that`)
-3. the draft strengthens a formal result beyond the audited scope of a source derivation
+Check whether any contributing phase or manuscript section makes theorem-style claims. A claim is proof-bearing when the phase contract has `proof_obligation`, the manuscript positively presents theorem-style support (`theorem`, `lemma`, `claim`, `proof`, `we prove`, `show that`), or the draft strengthens a formal result beyond audited scope. Do not lexical-zero proof words: truthful negative disclaimers and narrowing/gate statements may remain. Block only positive unsupported assertions.
 
 For each such claim:
 
@@ -631,7 +605,9 @@ mkdir -p "${PAPER_DIR}"
 gpd paper-build "${PAPER_DIR}/PAPER-CONFIG.json" --output-dir "${PAPER_DIR}"
 ```
 
-This emits `${PAPER_DIR}/{topic_specific_stem}.tex`, writes the manuscript-root artifact manifest, and keeps the manuscript scaffold aligned with the tested `gpd.mcp.paper` package. `gpd paper-build` defines the build truth for the manuscript; local compiler runs are only smoke checks. If no JSON spec exists yet, create `${PAPER_DIR}/PAPER-CONFIG.json` first using `{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md` as the schema source of truth, set `output_filename` to a short topic-specific 2-3 word underscore stem, and then run `gpd paper-build` before proceeding. The compilation checks in `draft_sections` require the emitted manuscript `.tex` file to exist.
+This emits `${PAPER_DIR}/{topic_specific_stem}.tex`, writes the manuscript-root artifact manifest, and defines manuscript build truth; local compiler runs are smoke checks. For `fresh_project_bootstrap` or explicit builder-regeneration, create `${PAPER_DIR}/PAPER-CONFIG.json` from `{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md` if absent, set a short underscore `output_filename`, and run `gpd paper-build` before drafting.
+
+For `resume_existing_manuscript`, do not probe the builder with throwaway `/tmp` configs or create optional `${PAPER_DIR}/PAPER-CONFIG.json` when an accepted entrypoint exists. Read the schema only for real builder repair; if unclear or audits cannot refresh, stop at `checkpoint: command_failed` or `checkpoint: bibliography_gate`.
 
 Keep this split explicit while bootstrapping:
 
@@ -790,7 +766,7 @@ Route on the writer's typed return envelope. A writer response that does not rep
 - `protocol_bundle_context` and `selected_protocol_bundle_ids` as additive specialized guidance only; they help decide which decisive anchors, estimator caveats, and benchmark comparisons must stay visible, but they do not replace the contract-backed evidence ledger
 - Writing principles (see command file)
 
-Writer agents must not strengthen, generalize, or rhetorically smooth theorem-style claims beyond what the proof-redteam artifacts actually passed. If the section brief implies a stronger theorem than the available audit supports, STOP and route the claim back for proof review instead of writing around the gap.
+Writer agents must not strengthen, generalize, or rhetorically smooth theorem-style claims beyond passed proof-redteam scope. If a brief implies a stronger theorem, STOP and route to proof review. Do not launch late lexical cleanup merely to remove `claim`, `proof`, or `theorem`; narrow/block unsupported positive assertions, keep truthful negative disclaimers, refresh required artifacts, and finalize.
 
 **What makes good physics writing:**
 
@@ -863,6 +839,7 @@ INIT="$CONSISTENCY_INIT"
 ```
 
 Canonical schema for `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`: `{GPD_INSTALL_DIR}/templates/paper/bibliography-audit-schema.md`
+After manuscript, bibliography, citation-command, or citation-source writes, treat the old bibliography audit as stale until `gpd paper-build` refreshes/proves `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` current. Do not enter strict review or report `citation_state: verified` on a pre-edit audit.
 
 **Notation audit:**
 
@@ -1114,37 +1091,17 @@ If any required manuscript-root artifact is missing, stop and fix it now. Otherw
 </step>
 
 <step name="final_review">
-Before declaring the draft complete:
+Before declaring the draft complete, run only decisive checks unless the user explicitly requested polish: artifact manifest, bibliography audit, reproducibility manifest, target-bound review state, abstract/story, intro/conclusion contribution, equations, figures, page count, and reference formatting. If `review_gate` or `bibliography_gate` is already decisive for `resume_existing_manuscript`, do not spend budget on broad wording cleanup.
 
-1. **Read the Abstract alone.** Does it tell the full story in miniature?
-2. **Read Introduction + Conclusions only.** Is the paper's contribution clear?
-3. **Check every equation** has been proofread for typos (missing exponents, swapped indices, etc.)
-4. **Check every figure** is referenced and discussed in the text.
-5. **Check word count / page count** against journal requirements.
-6. **Check reference formatting** matches journal style.
-
-**7. Run paper quality scoring** (see `{GPD_INSTALL_DIR}/references/publication/paper-quality-scoring.md`):
-
-Score the paper across 7 dimensions (equations, figures, citations, conventions, verification, completeness, results presentation) for a total out of 100. Apply journal-specific multipliers for the resolved journal profile, noting that the artifact-driven path only honors supported builder journals surfaced by `${PAPER_DIR}/ARTIFACT-MANIFEST.json` or `${PAPER_DIR}/PAPER-CONFIG.json`.
-
-For the project-backed lane, the artifact-driven command is:
+Paper quality scoring is advisory and artifact-driven (see `{GPD_INSTALL_DIR}/references/publication/paper-quality-scoring.md`). For the project-backed lane:
 
 ```bash
 QUALITY=$(gpd --raw validate paper-quality --from-project . 2>/dev/null)
 ```
 
-For `external_authoring_intake`, stay manuscript-root-local: use the same artifact set below, but do not claim project-backed `--from-project` scoring parity if that runtime path is unavailable. Present a bounded manuscript-readiness summary instead and route to `gpd:peer-review`.
+Run quality scoring at most once after required artifact refresh; skip it if `review_gate` is decisive or finalization budget is at risk. Skipping does not weaken bibliography freshness or peer-review requirements. For `external_authoring_intake`, stay manuscript-root-local, avoid `--from-project` parity claims when unavailable, present bounded readiness, and route to `gpd:peer-review`.
 
-The score should be artifact-driven, not manually estimated. Use:
-- `${PAPER_DIR}/ARTIFACT-MANIFEST.json`
-- `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`
-- `${PAPER_DIR}/FIGURE_TRACKER.md` frontmatter `figure_registry`
-- `GPD/comparisons/*-COMPARISON.md`
-- phase summary-artifact / `VERIFICATION.md` `contract_results` and `comparison_verdicts`
-
-Treat paper-support artifacts as scaffolding, not as proof that a claim is established. Missing decisive comparison evidence still blocks a strong submission recommendation even if manifests and audits are complete.
-
-Present the quality score report. If score < journal minimum, list specific items to fix before submission. If score >= minimum but no submission-clearing staged review exists yet, recommend `gpd:peer-review`. Recommend `gpd:arxiv-submission` only when the current lane is project-backed and the latest staged review already clears submission packaging. For the bounded external-authoring lane, stop at `gpd:peer-review` rather than claiming arXiv readiness from this workflow.
+Use `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, `${PAPER_DIR}/FIGURE_TRACKER.md`, `GPD/comparisons/*-COMPARISON.md`, and phase summary/verification `contract_results` and `comparison_verdicts`. Treat paper-support artifacts as scaffolding, not as proof that a claim is established. Missing decisive comparisons still block strong submission recommendations. Recommend `gpd:arxiv-submission` only when project-backed staged review already clears packaging.
 
 Present summary to user with build instructions, quality score, and next steps.
 </step>
@@ -1261,29 +1218,5 @@ Options:
 </success_criteria>
 
 <community_contribution>
-
-After a paper draft is finalized and passes peer review, display:
-
-```
-────────────────────────────────────────────────────────
-📄 Share your work with the GPD community
-
-When the paper is posted to arXiv or otherwise public,
-consider opening a pull request to add it to the
-README.md "Papers Using GPD" list:
-
-  https://github.com/psi-oss/get-physics-done#papers-using-gpd
-
-What to include:
-  • A short summary of the problem and approach
-  • The GPD commands/workflow you used
-  • Key results or figures (optional)
-
-This helps other researchers discover real GPD papers and
-learn from concrete workflows.
-────────────────────────────────────────────────────────
-```
-
-This prompt is informational only. Do not block the paper workflow on it.
-
+After a finalized draft passes peer review, mention that public papers can be added to the README.md "Papers Using GPD" list at https://github.com/psi-oss/get-physics-done#papers-using-gpd with a short problem/approach summary, workflow used, and optional key result or figure. This prompt is informational only; do not block the paper workflow on it.
 </community_contribution>

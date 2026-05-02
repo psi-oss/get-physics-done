@@ -6,12 +6,16 @@ import json
 import tarfile
 from pathlib import Path
 
+from typer.testing import CliRunner
+
+from gpd.cli import app
 from gpd.core.arxiv_package import ARXIV_TARBALL_NAME, validate_arxiv_package
 from gpd.core.workflow_staging import resolve_workflow_stage_manifest_path, validate_workflow_stage_manifest_payload
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
+runner = CliRunner()
 
 
 def _check_by_name(result: object, name: str) -> object:
@@ -95,6 +99,9 @@ def test_arxiv_submission_workflow_resolves_manifest_based_manuscript_root_witho
         "Do not write proof-review manifests, package staging trees, or tarballs beside the manuscript root itself."
         in workflow
     )
+    assert "must not persist `PROOF-REVIEW-MANIFEST.json` beside the manuscript root" in workflow
+    assert "failed `response_freshness` check" in workflow
+    assert "checkpoint as `response_gate`" in workflow
     assert "Even for an explicit external manuscript subject" not in workflow
     assert 'ls "${DIR}"/*.tex' not in workflow
 
@@ -133,6 +140,45 @@ def test_arxiv_submission_stage_manifest_path_is_resolved_and_loadable() -> None
     )
     assert manifest.stage("package").writes_allowed == ("GPD/publication/{subject_slug}/arxiv",)
     assert manifest.stage("finalize").writes_allowed == ("GPD/publication/{subject_slug}/arxiv",)
+
+
+def test_arxiv_submission_staged_init_marks_external_target_invalid(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "GPD").mkdir()
+    (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nSubmission target.\n", encoding="utf-8")
+    external_dir = tmp_path / "external-paper"
+    external_dir.mkdir()
+    (external_dir / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}External draft.\\end{document}\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "--raw",
+            "init",
+            "arxiv-submission",
+            "--stage",
+            "bootstrap",
+            "--",
+            "external-paper/main.tex",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["manuscript_resolution_status"] == "invalid"
+    assert "explicit manuscript target must stay under" in payload["manuscript_resolution_detail"]
+    assert payload["manuscript_root"] is None
+    assert payload["manuscript_entrypoint"] is None
+    assert payload["publication_subject_slug"] is None
+    assert payload["selected_publication_root"] is None
+    assert payload["selected_review_root"] is None
 
 
 def test_arxiv_package_validator_detects_citations_in_included_tex_files(tmp_path: Path) -> None:
