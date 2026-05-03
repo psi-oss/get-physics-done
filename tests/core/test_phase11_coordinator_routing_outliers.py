@@ -45,8 +45,9 @@ def test_new_project_and_new_milestone_route_roadmaps_on_typed_status() -> None:
     assert "Do not create a second main-context roadmap implementation path" in new_project
     assert "Do not route on the `## ROADMAP CREATED` heading alone." in new_project
     assert "Do not route on the `## ROADMAP BLOCKED` heading alone." in new_project
-    assert "If the roadmapper reports `gpd_return.status: completed`, verify that `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/REQUIREMENTS.md` are readable and named in `gpd_return.files_written`." in new_milestone
+    assert "If the roadmapper reports `gpd_return.status: completed`, verify that `GPD/ROADMAP.md` and `GPD/REQUIREMENTS.md` are readable and named in `gpd_return.files_written`." in new_milestone
     assert "shared_state_policy: return_only" in new_milestone
+    assert "Do not accept a direct roadmapper edit to `GPD/STATE.md` as success proof." in new_milestone
     assert "Project contract gate: {project_contract_gate}" in new_milestone
     assert "Project contract load info: {project_contract_load_info}" in new_milestone
     assert "Project contract validation: {project_contract_validation}" in new_milestone

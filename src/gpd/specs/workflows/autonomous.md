@@ -92,6 +92,24 @@ Parse the JSON `phases` array.
 
 **If no incomplete phases remain:**
 
+Before completion, stale/missing/non-passing verification blocks audit/paper.
+
+```bash
+for COMPLETE_PHASE in "${COMPLETED_PHASES[@]}"; do
+  D=$(gpd --raw init phase-op "${COMPLETE_PHASE}" | gpd json get .phase_dir --default "")
+  VS=$(grep -iE "^status:" "$D"/*-VERIFICATION.md 2>/dev/null | head -1 | cut -d: -f2 | tr -d ' ' | tr '[:upper:]' '[:lower:]')
+  case "$VS" in
+    passed|verified|complete|completed) ;;
+    *)
+      echo "Phase ${COMPLETE_PHASE}: verify before closeout."
+      echo "Next: verify work for phase ${COMPLETE_PHASE}"
+      exit 1 ;;
+  esac
+done
+```
+
+When this verification guard blocks closeout, make the user-facing continuation explicit outside shell output: `Next: gpd:verify-work ${COMPLETE_PHASE}`.
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GPD ► AUTONOMOUS ▸ COMPLETE
@@ -206,111 +224,9 @@ Phase ${PHASE_NUM}: Context exists — skipping discuss.
 
 Proceed to 3c.
 
-**If has_context is false:** Check if discuss is disabled via settings:
+**If has_context is false:** Execute the smart_discuss step for this phase.
 
-```bash
-SKIP_DISCUSS=$(gpd config get workflow.skip_discuss 2>/dev/null || echo "false")
-```
-
-**If SKIP_DISCUSS is `true`:** Skip discuss entirely — the ROADMAP phase description is the spec. Display:
-
-```
-Phase ${PHASE_NUM}: Discuss skipped (workflow.skip_discuss=true) — using ROADMAP phase goal as spec.
-```
-
-Write a minimal CONTEXT.md so downstream plan-phase has valid input. Get phase details:
-
-```bash
-DETAIL=$(gpd --raw roadmap get-phase ${PHASE_NUM})
-```
-
-Extract `goal` and `requirements` from JSON. Write `${phase_dir}/${padded_phase}-CONTEXT.md` with:
-
-```markdown
-# Phase {PHASE_NUM}: {Phase Name} - Context
-
-**Gathered:** {date}
-**Status:** Ready for planning
-**Mode:** Auto-generated (discuss skipped via workflow.skip_discuss)
-
-<domain>
-## Phase Boundary
-
-{goal from ROADMAP phase description}
-
-</domain>
-
-<contract_coverage>
-## Contract Coverage
-
-- Deliverable: {success_criteria from ROADMAP phase details}
-- Acceptance signal: Verification via gpd:verify-work
-- False progress to reject: Incomplete derivations or unchecked limits
-
-</contract_coverage>
-
-<user_guidance>
-## User Guidance To Preserve
-
-No explicit user guidance — discuss phase was skipped. Refer to PROJECT.md and prior phase decisions.
-
-</user_guidance>
-
-<decisions>
-## Methodological Decisions
-
-### Agent's Discretion
-All methodological choices are at the agent's discretion — discuss phase was skipped per user setting. Use ROADMAP phase goal, success criteria, and project conventions to guide decisions.
-
-</decisions>
-
-<assumptions>
-## Physical Assumptions
-
-To be determined during planning and execution. Refer to ROADMAP phase description and prior phase results.
-
-</assumptions>
-
-<limiting_cases>
-## Expected Limiting Behaviors
-
-To be identified during planning. Check prior phases for established limits.
-
-</limiting_cases>
-
-<anchor_registry>
-## Active Anchor Registry
-
-No anchors specified — discuss phase skipped. Prior phase outputs carry forward by default.
-
-</anchor_registry>
-
-<skeptical_review>
-## Skeptical Review
-
-- **Weakest anchor:** Not yet assessed — discuss skipped
-- **Unvalidated assumptions:** All assumptions are implicit from ROADMAP description
-- **Disconfirming check:** To be determined during verification
-
-</skeptical_review>
-
-<deferred>
-## Deferred Ideas
-
-None — discuss phase skipped.
-
-</deferred>
-```
-
-Commit the minimal context:
-
-```bash
-gpd commit "docs(${padded_phase}): auto-generated context (discuss skipped)" --files "${phase_dir}/${padded_phase}-CONTEXT.md"
-```
-
-Proceed to 3c.
-
-**If SKIP_DISCUSS is `false` (or unset):** Execute the smart_discuss step for this phase.
+There is no supported config key for skipping discuss. Do not read one, do not invent one, and do not auto-generate a minimal CONTEXT.md as a substitute for smart discuss. If a future real skip-discuss setting is added, it must be represented in `GPDProjectConfig`, surfaced in settings, and tested before this workflow may branch on it.
 
 After smart_discuss completes, verify context was written:
 
@@ -322,6 +238,17 @@ Check `has_context`. If false → go to handle_blocker: "Smart discuss for phase
 
 **3c. Plan**
 
+Before plan/execute, keep the lifecycle authority blocker from `gpd:plan-phase`/`gpd:execute-phase`:
+
+```bash
+PHASE_CONTRACT_GATE=$(gpd --raw validate lifecycle-contract-gate plan-phase "${PHASE_NUM}")
+if [ $? -ne 0 ]; then
+  echo "$PHASE_CONTRACT_GATE"
+  echo "Next: repair project state or initialization; then plan phase ${PHASE_NUM}"
+  # STOP -- route to handle_blocker. Do not relabel this as missing plan authority.
+fi
+```
+
 ```
 Invoke the runtime-installed `gpd:plan-phase` command with `${PHASE_NUM}`.
 ```
@@ -329,24 +256,29 @@ Invoke the runtime-installed `gpd:plan-phase` command with `${PHASE_NUM}`.
 Verify plan produced output — re-run `init phase-op` and check `has_plans`. If false → go to handle_blocker: "Plan phase ${PHASE_NUM} did not produce any plans."
 
 **3d. Execute**
+Before invoking execute-phase, run gate: `gpd --raw validate lifecycle-contract-gate execute-phase "${PHASE_NUM}"`, selected plans from `init phase-op`, `gpd validate plan-contract`, `gpd verify plan`, `gpd --raw validate plan-preflight`, `gpd verify references`, `gpd phase validate-waves "${PHASE_NUM}"`, and `gpd contract context-fingerprint`.
 
+On failure, stop before workspace scripts, numerical computations, task dispatches, subagents, artifact writes, or result claims. Route to the matching repair surface: `gpd:sync-state` / `gpd:new-project`, `gpd:discuss-phase ${PHASE_NUM}` then `gpd:plan-phase ${PHASE_NUM}`, or `gpd:plan-phase ${PHASE_NUM}`.
 ```
 Invoke the runtime-installed `gpd:execute-phase` command with `${PHASE_NUM}`.
 ```
 
+`gpd:execute-phase` owns its normal phase transition / closeout path. Autonomous mode invokes it with only the phase number and must not run a duplicate transition for the same successful phase.
+
+**Bounded checkpoint stop override:** If the invoking prompt, resume state, or `gpd:execute-phase` result says this autonomous invocation is bounded to one authorized segment/checkpoint, stop immediately when that checkpoint is reached. For an execution segment, the checkpoint is reached once execute-phase reports a checkpoint/bounded stop or writes the expected execution summary/result while verification is absent or pending. Do not run redundant read-only probing after that evidence is known, and do not invoke `gpd:verify-work`, convention checks, lifecycle, or another phase. Emit a stopped summary with the checkpoint name, the already-known artifacts, and the exact next command, usually `gpd:verify-work ${PHASE_NUM}` or `gpd:resume-work`, then return from autonomous mode.
+
 **3e. Post-Execution Verification Routing**
 
-After execute-phase returns, read the verification result:
-
-```bash
-VERIFY_STATUS=$(grep "^status:" "${PHASE_DIR}"/*-VERIFICATION.md 2>/dev/null | head -1 | cut -d: -f2 | tr -d ' ')
-```
-
-Where `PHASE_DIR` comes from the `init phase-op` call already made in step 3b. If the variable is not in scope, re-fetch:
+After execute-phase returns, refetch the phase state and assign `PHASE_DIR` before reading any verification artifact:
 
 ```bash
 PHASE_STATE=$(gpd --raw init phase-op ${PHASE_NUM})
 PHASE_DIR=$(echo "$PHASE_STATE" | gpd json get .phase_dir --default "")
+if [ -z "$PHASE_DIR" ]; then
+  echo "ERROR: could not resolve phase directory for phase ${PHASE_NUM}"
+  # STOP — route to handle_blocker.
+fi
+VERIFY_STATUS=$(grep "^status:" "${PHASE_DIR}"/*-VERIFICATION.md 2>/dev/null | head -1 | cut -d: -f2 | tr -d ' ')
 ```
 
 **If VERIFY_STATUS is empty** (no VERIFICATION.md or no status field):
@@ -411,7 +343,7 @@ Invoke the runtime-installed `gpd:plan-phase` command with `${PHASE_NUM} --gaps`
 
 Verify gap plans were created — re-run `init phase-op ${PHASE_NUM}` and check `has_plans`. If no new gap plans → go to handle_blocker: "Gap closure planning for phase ${PHASE_NUM} did not produce plans."
 
-Re-execute with `--gaps-only` to run ONLY the gap-closure plans (not re-run original plans):
+Re-execute with `--gaps-only` to run ONLY gap-closure plans.
 ```
 Invoke the runtime-installed `gpd:execute-phase` command with `${PHASE_NUM} --gaps-only`.
 ```
@@ -994,7 +926,7 @@ When any phase operation fails or a blocker is detected, present 3 options via a
 - [ ] Smart discuss gray areas are physics-domain-aware (formalism for derivation phases, algorithm for numerical phases)
 - [ ] Model profile (deep-theory/numerical/exploratory/review/paper-writing) adjusts smart discuss depth and focus
 - [ ] Progress banners displayed between phases
-- [ ] Execute-phase invoked with --no-transition (autonomous manages transitions)
+- [ ] Execute-phase invoked with only the phase number; execute-phase owns normal phase transition / closeout
 - [ ] Post-execution verification reads VERIFICATION.md and routes on status
 - [ ] Missing VERIFICATION.md triggers explicit gpd:verify-work invocation
 - [ ] Passed verification → automatic continue to convention check then next phase

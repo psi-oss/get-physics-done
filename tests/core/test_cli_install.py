@@ -21,6 +21,7 @@ import pytest
 from typer.testing import CliRunner
 
 from gpd.adapters import get_adapter
+from gpd.adapters.install_utils import MANIFEST_NAME
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.cli import _format_install_header_lines, _render_install_option_line, app
 from gpd.core.health import CheckStatus, DoctorReport, HealthCheck, HealthSummary
@@ -937,6 +938,95 @@ def test_install_raw_finalize_failure_not_reported_as_installed(tmp_path: Path):
     payload = json.loads(result.output)
     assert payload["installed"] == []
     assert payload["failed"] == [{"runtime": _PRIMARY_INSTALL_DESCRIPTOR.runtime_name, "error": "finalize boom"}]
+
+
+def test_install_raw_finalize_failure_rolls_back_new_cli_target(gpd_root: Path, tmp_path: Path) -> None:
+    """CLI install finalization failure must not leave a fresh target looking installed."""
+    descriptor = _PRIMARY_INSTALL_DESCRIPTOR
+    target = tmp_path / descriptor.config_dir_name
+    real_adapter = get_adapter(descriptor.runtime_name)
+
+    class FinalizeFailingAdapter:
+        def __getattr__(self, name):
+            return getattr(real_adapter, name)
+
+        def install(self, *args, **kwargs):
+            return real_adapter.install(*args, **kwargs)
+
+        def finalize_install(self, install_result, *, force_statusline=False):
+            raise RuntimeError("finalize boom")
+
+    with (
+        patch("gpd.adapters.get_adapter", return_value=FinalizeFailingAdapter()),
+        patch("gpd.version.resolve_install_gpd_root", return_value=gpd_root),
+        patch("gpd.cli._get_cwd", return_value=tmp_path),
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "install",
+                descriptor.runtime_name,
+                "--target-dir",
+                str(target),
+                "--skip-readiness-check",
+            ],
+        )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["installed"] == []
+    failure = payload["failed"][0]
+    assert failure["runtime"] == descriptor.runtime_name
+    assert "finalize boom" in failure["error"]
+    assert "Rolled back partial install" in failure["error"]
+    assert not target.exists()
+
+
+def test_install_raw_finalize_failure_restores_existing_cli_target(gpd_root: Path, tmp_path: Path) -> None:
+    """CLI finalization failure should restore an existing complete install."""
+    descriptor = _PRIMARY_INSTALL_DESCRIPTOR
+    target = tmp_path / descriptor.config_dir_name
+    real_adapter = get_adapter(descriptor.runtime_name)
+    seed_result = real_adapter.install(gpd_root, target, is_global=False, explicit_target=True)
+    real_adapter.finalize_install(seed_result)
+    manifest_before = (target / MANIFEST_NAME).read_text(encoding="utf-8")
+    settings_before = (target / "settings.json").read_text(encoding="utf-8")
+
+    class FinalizeFailingAdapter:
+        def __getattr__(self, name):
+            return getattr(real_adapter, name)
+
+        def install(self, *args, **kwargs):
+            return real_adapter.install(*args, **kwargs)
+
+        def finalize_install(self, install_result, *, force_statusline=False):
+            raise RuntimeError("finalize boom")
+
+    with (
+        patch("gpd.adapters.get_adapter", return_value=FinalizeFailingAdapter()),
+        patch("gpd.version.resolve_install_gpd_root", return_value=gpd_root),
+        patch("gpd.cli._get_cwd", return_value=tmp_path),
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "install",
+                descriptor.runtime_name,
+                "--target-dir",
+                str(target),
+                "--skip-readiness-check",
+            ],
+        )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["installed"] == []
+    assert "Rolled back partial install" in payload["failed"][0]["error"]
+    assert (target / MANIFEST_NAME).read_text(encoding="utf-8") == manifest_before
+    assert (target / "settings.json").read_text(encoding="utf-8") == settings_before
+    assert not (target / "gpd-install-incomplete.json").exists()
 
 
 def test_install_raw_finalizes_same_adapter_instance_used_for_install(tmp_path: Path) -> None:

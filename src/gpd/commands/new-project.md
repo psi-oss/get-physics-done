@@ -36,7 +36,7 @@ If no project config exists yet, start with physics questioning, surface a prese
 
 **Minimal mode creates only the core startup set:** `GPD/PROJECT.md`, `GPD/config.json`, `GPD/REQUIREMENTS.md`, `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/state.json` with the approved `project_contract`. It does not promise `GPD/literature/` or `GPD/CONVENTIONS.md`.
 
-**After this command:** Run `gpd:discuss-phase 1` to clarify the first phase before planning.
+**After this command:** Run `gpd:discuss-phase 1`; show native runtime label.
 </objective>
 
 <execution_context>
@@ -66,9 +66,22 @@ Check `$ARGUMENTS` for flags:
 - **`--minimal`** → Fast staged-init with scope approval
 - **`--minimal @file.md`** → Minimal mode with input file
 
-**If `--minimal` detected:** After Setup, route to the **minimal staged initialization path**. It keeps intake to one response, still requires a scoping contract with decisive outputs and anchors, and creates the lean core artifact set without promising literature or convention files.
+**If both `--auto` and `--minimal` are detected:** stop before any writes with:
+
+```text
+Error: --auto and --minimal cannot be combined.
+
+Choose either `gpd:new-project --auto @proposal.md` for full auto intake or
+`gpd:new-project --minimal [@file.md]` for the lean core-artifact path.
+```
+
+This conflict stop happens before git initialization, `GPD/` creation, or state/progress writes.
+
+**If `--minimal` detected:** After Setup and existing-work routing, route to the **minimal staged initialization path**. It keeps intake to one response, still requires a scoping contract with decisive outputs and anchors, and creates the lean core artifact set without promising literature or convention files.
 
 **If `--auto` detected:** After Setup, synthesize context from the provided document, repair blocking gaps only, present the scoping contract for approval, then run research → requirements → roadmap with smart defaults.
+
+Do not initialize git in Setup. The workflow initializes git only at its first mutation gate after invalid arguments, existing-work routing, recovery routing, and explicit scope approval have all passed.
 </process>
 
 <output>

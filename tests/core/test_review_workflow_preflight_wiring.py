@@ -5,6 +5,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
+PUBLICATION_REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references/publication"
 PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE = (
     "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
 )
@@ -24,6 +25,10 @@ def _workflow_text(name: str) -> str:
 
 def _command_text(name: str) -> str:
     return (COMMANDS_DIR / name).read_text(encoding="utf-8")
+
+
+def _publication_reference_text(name: str) -> str:
+    return (PUBLICATION_REFERENCES_DIR / name).read_text(encoding="utf-8")
 
 
 def test_write_paper_workflow_runs_centralized_review_preflight() -> None:
@@ -146,6 +151,11 @@ def test_arxiv_submission_workflow_runs_centralized_review_preflight() -> None:
     assert 'PACKAGE_ROOT="${PUBLICATION_ROOT}/arxiv"' in workflow
     assert 'SUBMISSION_DIR="${PACKAGE_ROOT}/submission"' in workflow
     assert 'PACKAGE_TARBALL="${PACKAGE_ROOT}/arxiv-submission.tar.gz"' in workflow
+    assert (
+        'gpd --raw validate arxiv-package --materialize --submission-dir "$SUBMISSION_DIR" --tarball "$PACKAGE_TARBALL"'
+        in workflow
+    )
+    assert "Use `PACKAGE_VALIDATION` from `gpd --raw validate arxiv-package --materialize`" in workflow
     assert "Do not write proof-review manifests, package staging trees, or tarballs beside the manuscript root itself." in workflow
 
 
@@ -157,6 +167,26 @@ def test_peer_review_workflow_runs_centralized_review_preflight_with_explicit_ar
     assert "If any spawned reviewer or proof auditor needs user input, it must return `status: checkpoint` and stop." in workflow
     assert "Do not keep the same spawned run alive waiting for confirmation." in workflow
     assert "Do not trust the referee's success text until that typed return, the on-disk files, and the validators all agree." in workflow
+
+
+def test_peer_review_prompts_do_not_route_managed_subjects_to_global_review_root() -> None:
+    command = _command_text("peer-review.md")
+    workflow = _workflow_text("peer-review.md")
+    round_reference = _publication_reference_text("publication-review-round-artifacts.md")
+    reliability_reference = _publication_reference_text("peer-review-reliability.md")
+
+    assert "selected GPD-owned publication/review roots exposed by centralized preflight" in command
+    assert "Never write managed-subject review artifacts to the global `GPD/review` fallback." in command
+    assert "not under the default global `GPD/review` path" in command
+    assert "while still writing review artifacts under `GPD/` in the invoking workspace" not in reliability_reference
+    assert "Write review artifacts under the target-aware `selected_review_root`, falling back to `GPD/review`." not in workflow
+
+    for text in (workflow, round_reference, reliability_reference):
+        assert "selected_publication_root" in text
+        assert "selected_review_root" in text
+        assert "Do not write a managed-subject review bundle to global `GPD/review`" in text or (
+            "do not duplicate or redirect those artifacts into global `GPD/review`" in text
+        )
 
 
 def test_publication_review_workflows_reference_shared_manuscript_root_contract() -> None:

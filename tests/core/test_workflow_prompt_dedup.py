@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from gpd.adapters.install_utils import expand_at_includes
+from gpd.core.workflow_staging import load_workflow_stage_manifest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
@@ -150,6 +151,23 @@ def test_planner_workflows_do_not_embed_the_removed_long_policy_blocks() -> None
     )
     assert "The shared planner template owns the canonical planning policy and contract gate." not in verify_work
     assert "The shared planner template owns the canonical planning and revision policy." not in verify_work
+
+
+def test_lifecycle_workflow_prompts_reference_every_real_stage_id() -> None:
+    for workflow_id, workflow_name in (
+        ("plan-phase", "plan-phase.md"),
+        ("execute-phase", "execute-phase.md"),
+    ):
+        workflow = _read(workflow_name)
+        manifest = load_workflow_stage_manifest(workflow_id)
+
+        missing = [
+            stage_id
+            for stage_id in manifest.stage_ids()
+            if f"--stage {stage_id}" not in workflow and f"load_execute_phase_stage {stage_id}" not in workflow
+        ]
+
+        assert missing == []
 
 
 def test_planner_agent_does_not_duplicate_canonical_plan_template_blocks() -> None:

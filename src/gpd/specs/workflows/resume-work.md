@@ -21,6 +21,8 @@ Bootstrap loads only immediate resume vocabulary. Later staged payloads name
 
 <process>
 
+Runtime label: Show `gpd:` as native labels; keep local CLI `gpd ...` unchanged.
+
 <step name="initialize">
 Load the shared resume bootstrap stage. `gpd:resume-work` is the guided runtime path, `gpd resume` is the public local read-only summary, `gpd resume --recent` is the cross-project discovery surface, and `gpd --raw resume` is the raw local view:
 
@@ -44,22 +46,26 @@ Parse JSON semantically:
 
 The recent-project list is advisory and machine-local; once you choose a workspace, `gpd:resume-work` reloads that project's canonical state.
 
+**If `project_reentry_requires_selection` is true or `project_reentry_mode="ambiguous-recent-projects"`:** Stop before new-project routing or reconstruction. Show the recent-project count; tell the user to run `gpd resume --recent`, open the chosen workspace, and rerun `gpd:resume-work`.
+
+**If `project_root_auto_selected` is true or `project_root_source="recent_project"`:** Runtime started outside the selected project. Do not quick-resume or act from the unrelated workspace. On bare "continue" or "go", stop. Show `project_root`; require explicit confirmation or a reopened project folder.
+
 When `active_resume_result` is present, treat it as the hydrated canonical result context for the current resume target. Use its `id` as the continuity anchor, but prefer its structured fields for the user-facing resume summary instead of restating only the raw identifier.
 
 `workspace_state_exists` means the requested workspace could recover usable state from `GPD/state.json` or `GPD/STATE.md`. `GPD/state.json.bak` is backup support for a real state file, not a backup-only project anchor. A stray unreadable file path by itself does not count as recoverable state.
 `state_exists` means the selected project root could recover usable state from `GPD/state.json` or `GPD/STATE.md`, with `GPD/state.json.bak` used only as crash-recovery support for the JSON state path.
 Use `workspace_*` to judge the user-requested workspace before auto-selection; use the selected-project fields after re-entry resolution.
 
-The shared resume resolver distinguishes canonical continuation authority, handoff artifacts, and the derived execution head:
+The shared resume resolver distinguishes:
 
-- **storage authority:** `GPD/state.json`, with `GPD/state.json.bak` as the recovery backup; canonical `continuation` lives here
+- **storage authority:** `GPD/state.json`, with `GPD/state.json.bak` as recovery backup; canonical `continuation` lives here
 - **editable state document:** `GPD/STATE.md`
 - **temporary handoff artifact:** `GPD/phases/.../.continue-here.md`
 - **derived execution head / live execution status:** `GPD/observability/current-execution.json`
 
-The shared resume resolver is canonical-first: `state.json.continuation` wins, the canonical bounded segment and recorded handoff fields define the primary resume target, and the derived execution head supplies live status. Do not treat a single `.continue-here.md` file or live-status snapshot as the sole authority.
+The resolver is canonical-first: `state.json.continuation` wins; bounded segment and recorded handoff fields define the primary target; derived execution head supplies live status. Do not treat one `.continue-here.md` or live snapshot as sole authority.
 
-**If `planning_exists` is false:** This is a new project - route to gpd:new-project and do not attempt STATE.md reconstruction.
+**If `planning_exists` is false and no recent-project selection is required:** This is a new project - route to gpd:new-project and do not attempt STATE.md reconstruction.
 **If `state_exists` is false but `roadmap_exists` or `project_exists` is true:** Offer to reconstruct STATE.md from the existing project artifacts.
 
 If `active_resume_kind="bounded_segment"` and `active_bounded_segment` exists, treat that as the primary bounded resume target. The derived execution head may still project the bounded segment when canonical continuation is missing or incomplete, but it does not define a second resume system.
@@ -144,8 +150,7 @@ Use `derivation_restore.required_init_fields` as the derivation-history payload.
 
 **Read cumulative derivation history from `GPD/DERIVATION-STATE.md`:**
 
-This step reconstructs the full derivation history that has accumulated across
-all previous sessions, preventing lossy compression across context resets.
+This reconstructs accumulated derivation history and prevents lossy context resets.
 
 ```bash
 # Check if persistent derivation state exists
@@ -161,7 +166,7 @@ fi
 
 ### Check Session Cap (Last 5 Sessions)
 
-During read-only restoration, count session blocks and warn if the file exceeds the recommended cap. Do not prune, rewrite, replace, or otherwise modify `GPD/DERIVATION-STATE.md` from `gpd:resume-work`.
+During read-only restoration, count session blocks and warn if over cap. Do not prune, rewrite, replace, or otherwise modify `GPD/DERIVATION-STATE.md` from `gpd:resume-work`.
 
 ```bash
 SESSION_COUNT=$(grep -c "^## Session:" GPD/DERIVATION-STATE.md 2>/dev/null || echo 0)
@@ -169,11 +174,11 @@ SESSION_COUNT=$(grep -c "^## Session:" GPD/DERIVATION-STATE.md 2>/dev/null || ec
 if [ "$SESSION_COUNT" -gt 5 ]; then
   echo "WARNING: DERIVATION-STATE.md has ${SESSION_COUNT} session blocks (recommended cap: 5)."
   echo "Read and summarize the file as-is; do not prune, rewrite, or replace it during resume restoration."
-  echo "After restoration, suggest gpd:pause-work or an explicit maintenance pass if the researcher wants capping."
+  echo "After restoration, suggest the pause-work runtime command or an explicit maintenance pass if the researcher wants capping."
 fi
 ```
 
-This is a report-only check. `gpd:resume-work` restores and summarizes the file as-is; mutating cap enforcement belongs to explicit write/maintenance workflows, not read-only resume restoration.
+This is a report-only check. Mutating cap enforcement belongs to explicit write/maintenance workflows.
 
 1. **Read the full file** to reconstruct the complete equation/convention/result history across all sessions. If the latest handoff or session continuity metadata already carries a canonical `last_result_id`, prefer that value as the rerun anchor before rediscovering the target from prose or older summaries.
 2. **Cross-reference against state.json intermediate_results** to find any gaps:
@@ -255,7 +260,7 @@ Reason-scoped clears still matter on resume: a `first_result` clear does not ret
 
 When resuming from `first_result` or skeptical state, ask one concrete question first: "What decisive evidence is still owed before downstream work is trustworthy?" Do not resume fanout based only on proxy-looking success or "seems on track" prose.
 
-**Context budget note:** Context restoration (loading STATE.md, DERIVATION-STATE.md, PROJECT.md, the active execution snapshot, and roadmap) consumes approximately 15-20% of a fresh context window. Budget the remaining ~80% for actual research work. If the project has extensive derivation history or many prior decisions, restoration may consume up to 25%.
+**Context budget note:** Loading STATE.md, DERIVATION-STATE.md, PROJECT.md, execution snapshot, and roadmap usually consumes 15-20% of a fresh context window, up to 25% for long histories.
 
 **If PLAN without SUMMARY exists:**
 
@@ -502,16 +507,22 @@ Based on user selection, route to appropriate workflow:
   </step>
 
 <step name="update_continuation">
-Before proceeding to routed workflow, refresh canonical continuation via CLI
-(which then updates the STATE.md Session Continuity block):
+Refresh canonical continuation only after the selected route, phase, and handoff file are known. Do not write a generic resume marker just because this workflow was opened.
 
-```bash
+Template only - do not run as-is:
+
+```text
 gpd state record-session \
-  --stopped-at "Session resumed, proceeding to [action]" \
-  --resume-file "[updated if applicable; omit to keep the current pointer, or pass `—` to clear it]"
+  --stopped-at "<actual selected route and phase>" \
+  --resume-file "<actual project-relative handoff path>"
+
+gpd state record-session \
+  --stopped-at "<actual selected route; pointer intentionally cleared>" \
+  --resume-file none
 ```
 
-This ensures the canonical continuation payload reflects the resumed handoff state if the session ends unexpectedly. STATE.md should render that authoritative update after persistence.
+Use the second form only when the selected route intentionally clears the pointer. Never copy placeholder phase numbers, prose, or file paths into state.
+STATE.md should render the authoritative continuation update.
 </step>
 
 </process>
@@ -541,6 +552,7 @@ This handles cases where:
 <quick_resume>
 If user says "continue" or "go":
 
+- If `project_root_auto_selected` is true or `project_root_source="recent_project"`, quick resume is disabled; show the project path, require explicit confirmation or reopened folder, and do not continue automatically.
 - Load state silently
 - Determine primary action
 - Execute immediately without presenting options
@@ -551,15 +563,10 @@ If user says "continue" or "go":
 <success_criteria>
 Resume is complete when:
 
-- [ ] STATE.md loaded (or reconstructed)
-- [ ] DERIVATION-STATE.md read and cross-referenced with state.json (if it exists)
-- [ ] DERIVATION-STATE.md session count checked and any cap warning surfaced (if applicable)
-- [ ] Persistent derivation history restored and summarized (equations, conventions, results, approximations)
-- [ ] Any gaps between DERIVATION-STATE.md and state.json flagged to user
-- [ ] Incomplete work detected and flagged
-- [ ] Research context restored (derivation state, parameters, intermediate results, approximations)
-- [ ] Clear status presented to user
-- [ ] Contextual next actions offered
-- [ ] User knows exactly where the research project stands
+- [ ] STATE.md loaded or reconstructed
+- [ ] DERIVATION-STATE.md read, cap-checked, cross-referenced with state.json, and summarized when present
+- [ ] Gaps, incomplete work, and restored research context surfaced
+- [ ] Clear status and contextual next actions presented
+- [ ] User knows where the project stands
 - [ ] Session continuity updated
 </success_criteria>

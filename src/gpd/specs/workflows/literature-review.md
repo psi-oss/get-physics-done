@@ -1,8 +1,7 @@
 <purpose>
 Conduct a systematic literature review for a physics research topic. Map the intellectual landscape: foundational works, methodological approaches, key results, controversies, and open questions. Produce LITERATURE-REVIEW.md consumed by planning and paper-writing workflows.
 
-Also emit a machine-readable `GPD/literature/{slug}-CITATION-SOURCES.json` sidecar containing strict `CitationSource` objects keyed by stable `reference_id` values so paper-writing can reuse the discovered references without manual transcription.
-include `bibtex_key` only when it is already known and verified. Extra keys are rejected by the downstream parser.
+Also emit a machine-readable `GPD/literature/{slug}-CITATION-SOURCES.json` sidecar containing strict `CitationSource` objects keyed by stable `reference_id` values so paper-writing can reuse discovered references without manual transcription. For portability, include `bibtex_key` only when it is already known and verified; audit-only fields such as `verification_status`, `canonical_identifiers`, and `verification_sources` belong in the matching `GPD/literature/{slug}-CITATION-AUDIT.md`, not in the sidecar.
 
 Called from gpd:literature-review command.
 
@@ -18,30 +17,11 @@ A physics literature review is not a bibliography. It is a structured map of who
 <source_hierarchy>
 **MANDATORY: Authoritative sources BEFORE general search**
 
-1. **Textbooks and monographs** -- For established results, standard methods, and field context
-
-   - Use specific textbooks by subfield (Peskin & Schroeder for QFT, Sakurai for QM, Jackson for E&M, Landau & Lifshitz series, etc.)
-   - These define conventions and standard results
-
-2. **Review articles** -- For field overviews and method surveys
-
-   - Rev. Mod. Phys., Physics Reports, Annual Reviews of Physics
-   - Recent reviews (last 5 years) for current state-of-the-art
-
-3. **Seminal papers** -- Original derivations of key results
-
-   - Identify the papers everyone in the field cites
-   - Read the actual papers, not just the citations
-
-4. **Recent arXiv preprints** -- For cutting-edge developments
-
-   - arXiv categories: hep-th, hep-ph, hep-lat, cond-mat._, quant-ph, gr-qc, astro-ph._, nucl-th, etc.
-   - Sort by relevance and citation count
-
-5. **Conference proceedings** -- For very recent results and community direction
-
-   - Lattice, ICHEP, APS meetings, etc.
-
+1. **Textbooks and monographs** -- established results, standard methods, conventions, and field context.
+2. **Review articles** -- field overviews/method surveys, especially recent reviews.
+3. **Seminal papers** -- original derivations; read the papers, not just citations.
+4. **Recent arXiv preprints** -- cutting-edge developments in relevant physics categories, sorted by relevance/citation count.
+5. **Conference proceedings** -- very recent results and community direction.
 6. **web_search** -- Last resort for community discussions, code repos, numerical benchmarks
 
 </source_hierarchy>
@@ -356,6 +336,10 @@ Scoped reference artifacts: {reference_artifacts_content}
 <output>
 Write `GPD/literature/{slug}-REVIEW.md` and `GPD/literature/{slug}-CITATION-SOURCES.json`.
 </output>
+
+<citation_sidecar_contract>
+`GPD/literature/{slug}-CITATION-SOURCES.json` is a JSON array of strict `CitationSource` objects with stable `reference_id`; `year` is a string; Extra keys are rejected by the downstream parser; audit-only fields stay in `GPD/literature/{slug}-CITATION-AUDIT.md`. Compact shape: `[{"source_type":"paper","reference_id":"ref-main","bibtex_key":"Ref2026","title":"Fixture Reference","authors":["Ada Example"],"year": "2026","journal":"Journal of Fixture Physics"}]`.
+</citation_sidecar_contract>
 
 <spawn_contract>
 write_scope:

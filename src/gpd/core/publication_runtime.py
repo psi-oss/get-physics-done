@@ -48,18 +48,21 @@ from gpd.core.publication_rounds import (
 from gpd.core.referee_policy import evaluate_referee_decision, validate_referee_decision_ledger_consistency
 from gpd.core.reference_ingestion import ManuscriptReferenceStatusIngestion, ingest_manuscript_reference_status
 from gpd.core.reproducibility import compute_sha256
-from gpd.core.state import load_state_json
+from gpd.core.state import load_state_json_readonly
 from gpd.mcp.paper.models import ReviewIssueStatus
 from gpd.mcp.paper.review_artifacts import read_referee_decision, read_review_ledger
 
 __all__ = [
+    "PublicationResponseFreshnessStatus",
     "PublicationResponseArtifacts",
     "PublicationReviewArtifacts",
     "PublicationRuntimeSnapshot",
     "publication_blockers_for_project",
+    "publication_response_freshness_status",
     "publication_runtime_snapshot_context",
     "resolve_latest_publication_response_artifacts",
     "resolve_latest_publication_review_artifacts",
+    "resolve_publication_response_freshness",
     "resolve_publication_runtime_snapshot",
 ]
 
@@ -69,6 +72,7 @@ _PUBLICATION_BLOCKER_PATTERNS = (
     re.compile(r"\b(peer review|peer-review|review round|referee)\b"),
     re.compile(r"\b(journal|venue)\b"),
 )
+_RESPONSE_FRESHNESS_POLICY = "conservative_all_response_artifacts"
 
 
 def _relative_path(project_root: Path, path: Path | None) -> str | None:
@@ -88,7 +92,7 @@ def _looks_like_publication_blocker(text: str) -> bool:
 def publication_blockers_for_project(cwd: Path) -> tuple[str, ...]:
     """Return unresolved publication blockers from state.json."""
 
-    state_obj = load_state_json(cwd)
+    state_obj = load_state_json_readonly(cwd)
     if not isinstance(state_obj, dict):
         return ()
 
@@ -202,6 +206,60 @@ class PublicationResponseArtifacts:
 
 
 @dataclass(frozen=True, slots=True)
+class PublicationResponseFreshnessStatus:
+    """Submission freshness status for response rounds under the conservative policy."""
+
+    policy: str
+    latest_review_round: int | None
+    latest_review_round_suffix: str | None
+    latest_response_round: int | None
+    latest_response_round_suffix: str | None
+    requires_fresh_review: bool
+    required_review_round: int | None
+    required_review_round_suffix: str | None
+    detail: str
+
+    @property
+    def response_round_label(self) -> str | None:
+        if self.latest_response_round is None:
+            return None
+        return f"round {self.latest_response_round}" if self.latest_response_round > 1 else "round 1"
+
+    @property
+    def required_review_round_label(self) -> str | None:
+        if self.required_review_round is None:
+            return None
+        return f"round {self.required_review_round}" if self.required_review_round > 1 else "round 1"
+
+    @property
+    def review_preflight_detail(self) -> str:
+        """Return CLI detail text appended to missing-review diagnostics."""
+
+        response_label = self.response_round_label
+        required_label = self.required_review_round_label
+        if not self.requires_fresh_review or response_label is None or required_label is None:
+            return ""
+        return (
+            f"; latest response artifacts already reached {response_label}; "
+            f"requires newer staged review clearance in {required_label} "
+            f"under conservative all-response policy"
+        )
+
+    def to_context_dict(self) -> dict[str, object]:
+        return {
+            "policy": self.policy,
+            "latest_review_round": self.latest_review_round,
+            "latest_review_round_suffix": self.latest_review_round_suffix,
+            "latest_response_round": self.latest_response_round,
+            "latest_response_round_suffix": self.latest_response_round_suffix,
+            "requires_fresh_review": self.requires_fresh_review,
+            "required_review_round": self.required_review_round,
+            "required_review_round_suffix": self.required_review_round_suffix,
+            "detail": self.detail,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class PublicationRuntimeSnapshot:
     """Shared publication state for manuscript-root, review-round, and response gating."""
 
@@ -223,6 +281,10 @@ class PublicationRuntimeSnapshot:
         proof_status = self.manuscript_proof_review_status
         review_artifacts = self.latest_review_artifacts
         response_artifacts = self.latest_response_artifacts
+        response_freshness = publication_response_freshness_status(
+            latest_review_round=review_artifacts.round_number if review_artifacts is not None else None,
+            latest_response_round=response_artifacts.round_number if response_artifacts is not None else None,
+        )
         publication_lineage_root = None
         publication_lineage_review_dir = None
         publication_lineage_mode_value = None
@@ -318,7 +380,79 @@ class PublicationRuntimeSnapshot:
                     "latest_response_artifacts": None,
                 }
             )
+        payload.update(
+            {
+                "latest_response_freshness_policy": response_freshness.policy,
+                "latest_response_requires_fresh_review": response_freshness.requires_fresh_review,
+                "latest_response_required_review_round": response_freshness.required_review_round,
+                "latest_response_required_review_round_suffix": response_freshness.required_review_round_suffix,
+                "latest_response_freshness_detail": response_freshness.detail,
+                "latest_response_freshness": response_freshness.to_context_dict(),
+            }
+        )
         return payload
+
+
+def publication_response_freshness_status(
+    *,
+    latest_review_round: int | None,
+    latest_response_round: int | None,
+) -> PublicationResponseFreshnessStatus:
+    """Return the conservative arXiv submission freshness status for response artifacts.
+
+    The current runtime intentionally treats every same-or-newer response round as
+    requiring a newer staged peer-review round. Response files do not yet carry a
+    durable machine-readable "manuscript changed" flag, so this fails closed for
+    response-only rounds too.
+    """
+
+    latest_review_suffix = review_round_suffix(latest_review_round) if latest_review_round is not None else None
+    latest_response_suffix = review_round_suffix(latest_response_round) if latest_response_round is not None else None
+    if latest_response_round is None:
+        return PublicationResponseFreshnessStatus(
+            policy=_RESPONSE_FRESHNESS_POLICY,
+            latest_review_round=latest_review_round,
+            latest_review_round_suffix=latest_review_suffix,
+            latest_response_round=None,
+            latest_response_round_suffix=None,
+            requires_fresh_review=False,
+            required_review_round=latest_review_round,
+            required_review_round_suffix=latest_review_suffix,
+            detail="no response artifacts require fresh staged review clearance",
+        )
+
+    if latest_review_round is not None and latest_response_round < latest_review_round:
+        return PublicationResponseFreshnessStatus(
+            policy=_RESPONSE_FRESHNESS_POLICY,
+            latest_review_round=latest_review_round,
+            latest_review_round_suffix=latest_review_suffix,
+            latest_response_round=latest_response_round,
+            latest_response_round_suffix=latest_response_suffix,
+            requires_fresh_review=False,
+            required_review_round=latest_review_round,
+            required_review_round_suffix=latest_review_suffix,
+            detail=(
+                f"latest staged review round {latest_review_round} is newer than latest response "
+                f"round {latest_response_round}"
+            ),
+        )
+
+    required_review_round = latest_response_round + 1
+    required_review_suffix = review_round_suffix(required_review_round)
+    return PublicationResponseFreshnessStatus(
+        policy=_RESPONSE_FRESHNESS_POLICY,
+        latest_review_round=latest_review_round,
+        latest_review_round_suffix=latest_review_suffix,
+        latest_response_round=latest_response_round,
+        latest_response_round_suffix=latest_response_suffix,
+        requires_fresh_review=True,
+        required_review_round=required_review_round,
+        required_review_round_suffix=required_review_suffix,
+        detail=(
+            "conservative all-response policy requires staged peer-review clearance newer than "
+            f"latest response round {latest_response_round}"
+        ),
+    )
 
 
 def _project_backed_target_mode(target: PublicationRuntimeTarget) -> bool:
@@ -796,10 +930,16 @@ def _response_artifact_metadata_errors(
             errors.append(f"{path.name} manuscript_path does not match the active manuscript")
 
     response_to = _metadata_text(metadata, "response_to", "referee_report")
-    if response_to and Path(response_to).name != f"REFEREE-REPORT{round_suffix}.md":
+    if not response_to:
+        if binding_required:
+            errors.append(f"{path.name} response frontmatter is missing `response_to`")
+    elif Path(response_to).name != f"REFEREE-REPORT{round_suffix}.md":
         errors.append(f"{path.name} response_to does not match round suffix {round_suffix or '(round 1)'}")
 
     review_ledger = _metadata_text(metadata, "review_ledger")
+    if binding_required and review_artifacts is not None and review_artifacts.review_ledger is not None:
+        if not review_ledger:
+            errors.append(f"{path.name} response frontmatter is missing `review_ledger`")
     if (
         review_ledger
         and review_artifacts is not None
@@ -812,6 +952,9 @@ def _response_artifact_metadata_errors(
         errors.append(f"{path.name} review_ledger does not match the active review artifact")
 
     referee_decision = _metadata_text(metadata, "referee_decision")
+    if binding_required and review_artifacts is not None and review_artifacts.referee_decision is not None:
+        if not referee_decision:
+            errors.append(f"{path.name} response frontmatter is missing `referee_decision`")
     if (
         referee_decision
         and review_artifacts is not None
@@ -939,6 +1082,7 @@ def resolve_latest_publication_response_artifacts(
     *,
     publication_subject: PublicationSubjectResolution | None = None,
     review_artifacts: PublicationReviewArtifacts | None = None,
+    pin_to_review_round: bool = True,
 ) -> PublicationResponseArtifacts | None:
     """Resolve the latest paired response artifacts for the current manuscript."""
 
@@ -963,14 +1107,14 @@ def resolve_latest_publication_response_artifacts(
         manuscript=resolved_manuscript,
         include_review_roots_for_author_response=True,
     )
-    round_number = (
-        review_artifacts.round_number
-        if review_artifacts is not None
-        else latest_publication_round_number(
+    round_number = None
+    if review_artifacts is not None and pin_to_review_round:
+        round_number = review_artifacts.round_number
+    else:
+        round_number = latest_publication_round_number(
             author_by_round,
             referee_by_round,
         )
-    )
     if round_number is None:
         return None
     round_suffix = review_round_suffix(round_number)
@@ -1013,12 +1157,47 @@ def resolve_latest_publication_response_artifacts(
     )
 
 
+def resolve_publication_response_freshness(
+    project_root: Path,
+    manuscript_entrypoint: Path | None = None,
+    *,
+    publication_subject: PublicationSubjectResolution | None = None,
+    review_artifacts: PublicationReviewArtifacts | None = None,
+) -> PublicationResponseFreshnessStatus:
+    """Resolve newest response-round freshness for submission-gate decisions."""
+
+    subject = _coerce_publication_subject(
+        project_root,
+        manuscript_entrypoint=manuscript_entrypoint,
+        publication_subject=publication_subject,
+    )
+    resolved_manuscript = subject.manuscript_entrypoint if subject.resolved else manuscript_entrypoint
+    latest_review_artifacts = review_artifacts or resolve_latest_publication_review_artifacts(
+        project_root,
+        manuscript_entrypoint=resolved_manuscript,
+        publication_subject=subject,
+    )
+    latest_response_artifacts = resolve_latest_publication_response_artifacts(
+        project_root,
+        manuscript_entrypoint=resolved_manuscript,
+        publication_subject=subject,
+        pin_to_review_round=False,
+    )
+    return publication_response_freshness_status(
+        latest_review_round=(latest_review_artifacts.round_number if latest_review_artifacts is not None else None),
+        latest_response_round=(
+            latest_response_artifacts.round_number if latest_response_artifacts is not None else None
+        ),
+    )
+
+
 def resolve_publication_runtime_snapshot(
     project_root: Path,
     *,
     publication_subject: PublicationSubjectResolution | None = None,
     subject: str | None = None,
     persist_manuscript_proof_review_manifest: bool = False,
+    pin_response_to_review_round: bool = True,
 ) -> PublicationRuntimeSnapshot:
     """Resolve the publication runtime state needed for bootstrap and review gates."""
 
@@ -1113,6 +1292,7 @@ def resolve_publication_runtime_snapshot(
             manuscript_artifacts.manuscript_entrypoint,
             publication_subject=resolved_subject,
             review_artifacts=latest_review_artifacts,
+            pin_to_review_round=pin_response_to_review_round,
         )
         if manuscript_artifacts.manuscript_entrypoint is not None or allow_project_fallback
         else None
@@ -1137,6 +1317,7 @@ def publication_runtime_snapshot_context(
     publication_subject: PublicationSubjectResolution | None = None,
     subject: str | None = None,
     persist_manuscript_proof_review_manifest: bool = False,
+    pin_response_to_review_round: bool = True,
 ) -> dict[str, object]:
     """Return the canonical publication runtime snapshot as a context payload."""
 
@@ -1145,4 +1326,5 @@ def publication_runtime_snapshot_context(
         publication_subject=publication_subject,
         subject=subject,
         persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest,
+        pin_response_to_review_round=pin_response_to_review_round,
     ).to_context_dict(project_root)

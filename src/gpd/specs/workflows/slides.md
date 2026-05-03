@@ -7,29 +7,16 @@ Create presentation slides from either a GPD project or the current workspace. T
 <step name="inventory_context">
 Inspect the workspace before asking questions.
 
+Command identity: this shared workflow is `gpd:slides`. Runtime-visible final blocks may render the active runtime's native command label. Shell/local bridge calls use the bare registry slug `slides`, e.g. `gpd --raw validate command-context slides -- "$ARGUMENTS"`.
+
 1. Detect whether this is an initialized GPD project:
    - `GPD/PROJECT.md`
    - `GPD/ROADMAP.md`
    - `GPD/STATE.md`
 
-2. Scan for likely presentation inputs:
-   - papers or drafts (`paper/`, `manuscript/`, `draft/`, `*.tex`, `*.pdf`)
-   - notes and summaries (`README.md`, `*.md`, phase summaries)
-   - figures (`*.png`, `*.pdf`, `*.svg`)
-   - code and notebooks (`*.py`, `*.jl`, `*.ipynb`)
-   - data tables (`*.csv`, `*.json`, `*.dat`, `*.h5`)
-   - existing slide assets (`slides/`, `presentation/`, `deck/`, `*.pptx`, `*.odp`, `*.key`)
-
-3. Build a shortlist of the most relevant source artifacts and read the highest-value ones before questioning:
-   - project overview files (`PROJECT.md`, `README.md`, paper abstract/introduction)
-   - the most informative figures/tables
-   - any existing deck or template files
-   - the main result or summary documents if present
-
-4. Determine whether existing slide outputs already exist:
-   - generated artifacts under `slides/`
-   - an existing deck the user may want to extend
-   - a template or branding package that should constrain the output
+2. Scan likely inputs: manuscripts/PDFs, notes, figures, code/notebooks, data tables, and existing decks/templates (`slides/`, `presentation/`, `deck/`, `*.pptx`, `*.odp`, `*.key`).
+3. Read the highest-value shortlist before questioning: project overview, paper abstract/introduction, key figures/tables, existing deck/template, and main result/summary docs.
+4. Determine whether generated slide outputs, an extendable deck, or a constraining template already exists.
 
 If neither a project context nor meaningful source material is present, stop and ask the user what the presentation should be based on before drafting anything.
 </step>
@@ -37,28 +24,7 @@ If neither a project context nor meaningful source material is present, stop and
 <step name="establish_brief">
 Use `$ARGUMENTS` plus the workspace inventory to infer what is already known, then ask only the missing high-value questions in one compact batch.
 
-Critical questions to resolve:
-
-1. What is the talk for?
-   - conference talk, seminar, group meeting, collaborator update, defense, class, pitch, paper presentation, project walkthrough
-2. Who is the audience?
-   - specialists, broader physicists, students, interdisciplinary collaborators, non-technical stakeholders
-3. How long is the talk?
-   - exact duration or target slide count
-4. What level of technical depth is expected?
-   - conceptual, medium technical, derivation-heavy, code/data-heavy
-5. What output format should be produced?
-   - Beamer / LaTeX
-   - editable deck / native slide format
-   - markdown-based slides (Marp, reveal-style, or plain markdown)
-6. Is there a required template, branding package, or existing deck to extend?
-7. If existing slide artifacts were found, should they be refreshed, updated in place, or left untouched?
-8. What should be emphasized?
-   - paper narrative, derivation, results, figures, reproducibility, live demo, project status
-9. Should speaker notes, backup slides, or a references appendix be included?
-10. Does the user want a terse deck or a more verbose, self-explanatory one?
-
-Do not ask questions the user already answered. If a format choice is still open, recommend one based on the source material and audience.
+Resolve only missing high-value fields: talk purpose, audience, duration/slide count, technical depth, output format, template/existing deck handling, emphasis, speaker notes/backup/references, and terse vs self-explanatory style. Do not ask questions the user already answered; if format is open, recommend from source material and audience.
 
 > **Platform note:** If `ask_user` is not available, ask the same missing questions inline in one compact batch and wait for the user's freeform response.
 </step>
@@ -66,18 +32,7 @@ Do not ask questions the user already answered. If a format choice is still open
 <step name="choose_format">
 Choose the deck format/toolchain intentionally.
 
-Default recommendations:
-
-- **Beamer** for equation-heavy physics talks, paper presentations, or when existing LaTeX figures/macros should be reused.
-- **Editable native deck** when the audience is broader, the user wants a collaborator-friendly `.pptx`, or a template already exists in slide form.
-- **Markdown-based slides** when the user wants a lightweight, git-friendly deck and does not need a heavy template.
-
-Rules:
-
-- If the user supplied a template, follow it unless it is unusable.
-- If an editable native deck is requested, only choose it when the current runtime can actually author that deck format reliably. Otherwise, say so plainly and propose Beamer or markdown as the nearest high-fidelity alternative before proceeding.
-- For equation-heavy physics talks, default toward Beamer unless the user explicitly prefers another format.
-- Do not install TeX, presentation tooling, or new dependencies without explicit user approval.
+Default format choice: Beamer for equation-heavy/paper talks or reusable LaTeX assets; editable native deck only when the runtime can author it reliably or a slide template requires it; markdown when lightweight/git-friendly output fits. Follow usable user templates, default equation-heavy talks to Beamer, and do not install TeX or deck tooling without approval.
 </step>
 
 <step name="existing_outputs">
@@ -107,6 +62,9 @@ If "Refresh": treat the old artifacts as reference material, but rewrite the tar
 Create the output structure and lock the persistence policy.
 
 Create `slides/` explicitly before writing files.
+
+Output boundary: `slides/` is the only durable write root for this workflow; never write deck artifacts under `exports/`, `GPD/publication/`, `GPD/review/`, manuscript roots, or temp dirs. Slides do not update project state and must not satisfy publication, peer-review, response, arXiv-package, or export gates.
+Use context/init-selected project/workspace roots for nested launches; otherwise ask for a source/root. If the workspace is not a git checkout, report explicit outputs and `files_written` evidence instead of git status.
 
 Do not modify `GPD/STATE.md`, `GPD/ROADMAP.md`, `GPD/PROJECT.md`, or any project state files as part of this workflow.
 
@@ -143,6 +101,8 @@ Use the shortest structure that still serves the goal. Typical flows:
 - **Technical walkthrough:** motivation -> architecture/model -> key derivation or algorithm -> results -> implementation details -> takeaways
 
 Keep slides sparse. Prefer figures, equations, and claims over paragraphs.
+
+If the readable source is too thin for a polished seminar deck--for example, no derivation, figures, theorem/proof structure, or scientific narrative details are present--do not invent missing content. Either ask one compact clarification/source question before drafting, or label the output as a source-bound skeleton in `slides/PRESENTATION-BRIEF.md`, `slides/OUTLINE.md`, the deck title/subtitle or first slide, and final handoff evidence.
 </step>
 
 <step name="materialize_deck">
@@ -166,6 +126,18 @@ If backup slides or references are requested, include them explicitly in the out
 Never claim to have produced an editable native deck unless the corresponding deck file was actually written.
 </step>
 
+<step name="publication_framing">
+Publication and response gates are target-bound for slides:
+
+| Deck frame | Gate behavior |
+|---|---|
+| ordinary seminar/paper-talk/group/class/project deck | no publication gate; report `publication_root: not_applicable`, `review_root: not_applicable`, `review_state: not_required`, `response_state: not_required`, `checkpoint: none`, `next_step: none` |
+| final/revised/submission/arXiv/referee-response deck | inspect selected review/response roots for the target manuscript |
+| incomplete/stale response round | write draft-labeled slides only; report `checkpoint: response_gate`, `publication_root: not_applicable`, and `next_step: gpd:respond-to-referees --manuscript <resolved manuscript> --report <selected_publication_root>/REFEREE-REPORT{round_suffix}.md` |
+
+Use the canonical referee report under `selected_publication_root` for `--report`; default project manuscripts use `GPD/REFEREE-REPORT{round_suffix}.md` or `GPD/REFEREE-REPORT.md`.
+</step>
+
 <step name="verify_output">
 Perform a lightweight QA pass before handoff.
 
@@ -183,6 +155,7 @@ If the format supports compilation or rendering and the needed tool is already i
 - Markdown slides: any already-installed renderer (for example Marp, Quarto, Pandoc, or reveal tooling)
 
 If the tool is missing, do not install it silently; report the limitation instead.
+After Beamer compilation, keep only durable deck outputs: prefer a disposable build dir or runtime-native deletion for exact known aux files under `slides/` (`main.nav`, `main.snm`, `main.toc`, `main.out`, `main.aux`, `main.log`, `main.fls`, `main.fdb_latexmk`). Re-list `slides/` and include only durable artifacts in `files_written`.
 </step>
 
 <step name="report">

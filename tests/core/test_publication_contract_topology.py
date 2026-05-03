@@ -18,11 +18,11 @@ def test_publication_contract_files_use_canonical_names_without_compatibility_sh
     manuscript_preflight = (TEMPLATES_DIR / "publication-manuscript-root-preflight.md").read_text(encoding="utf-8")
 
     assert "Canonical round-suffix and sibling-artifact contract for publication review rounds." in round_contract
-    assert "GPD/REFEREE-REPORT{round_suffix}.md" in round_contract
-    assert "GPD/REFEREE-REPORT{round_suffix}.tex" in round_contract
-    assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in round_contract
-    assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in round_contract
-    assert "GPD/review/PROOF-REDTEAM{round_suffix}.md" in round_contract
+    assert "${selected_publication_root}/REFEREE-REPORT{round_suffix}.md" in round_contract
+    assert "${selected_publication_root}/REFEREE-REPORT{round_suffix}.tex" in round_contract
+    assert "${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md" in round_contract
+    assert "${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md" in round_contract
+    assert "${selected_review_root}/PROOF-REDTEAM{round_suffix}.md" in round_contract
     assert "review-round-artifact-contract.md" not in round_contract
 
     assert (

@@ -81,6 +81,18 @@ fi
 
 Limiting case checks depend on conventions — e.g., the sign of k^2 = m^2 vs k^2 = -m^2 in the non-relativistic limit depends on metric signature.
 
+For phase targets, honor contract-critical anchors before writing a limiting-cases report.
+If the loaded state, phase plan, or reference intake names a required benchmark,
+comparison target, prior artifact, or must-read reference for the selected limit,
+inspect that artifact explicitly before claiming or writing limit verification. If
+the required benchmark/comparison evidence is missing, malformed, stale, or fails
+the decisive comparison, stop before writing `${OUTPUT_PATH}`. Report the blocker,
+keep `status` blocked/gaps-found, and route to `gpd:plan-phase ${phase_number} --gaps`.
+Use `gpd:debug ${phase_number}` only after this command has produced
+concrete symbolic or numerical limit evidence that localizes a faulty derivation
+or implementation; do not fall back to `gpd:suggest-next` when the missing or
+failed contract evidence and phase number are already known.
+
 ## 1. Identify the Result(s) to Check
 
 Work from the resolved target variables, not from raw `$ARGUMENTS`.

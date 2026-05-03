@@ -48,6 +48,15 @@ def _write_backup_only_project(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def _write_lone_backup_project(tmp_path: Path) -> Path:
+    planning = tmp_path / "GPD"
+    planning.mkdir()
+    state = default_state_dict()
+    state["position"]["current_phase"] = "03"
+    (planning / STATE_JSON_BACKUP_FILENAME).write_text(json.dumps(state, indent=2), encoding="utf-8")
+    return tmp_path
+
+
 def _assert_no_recovery_write(project_root: Path) -> None:
     planning = project_root / "GPD"
     assert not (planning / "state.json").exists()
@@ -68,6 +77,24 @@ def test_state_load_cli_is_read_only_for_fallback_recovery(
     payload = json.loads(_strip_ansi(result.output))
     assert payload["state_source"] == "state.json.bak"
     assert payload["state"]["position"]["current_phase"] == "02"
+    _assert_no_recovery_write(project_root)
+
+
+def test_state_load_cli_surfaces_backup_only_guidance_without_recovery_write(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = _write_lone_backup_project(tmp_path)
+    monkeypatch.chdir(project_root)
+
+    result = runner.invoke(app, ["--raw", "state", "load"], catch_exceptions=False)
+
+    assert result.exit_code == 0, _strip_ansi(result.output)
+    payload = json.loads(_strip_ansi(result.output))
+    assert payload["state_exists"] is False
+    assert payload["state_source"] is None
+    assert "state.json.bak exists without primary state.json or STATE.md" in " ".join(payload["integrity_issues"])
+    assert "will not promote the backup automatically" in payload["recovery_guidance"]
     _assert_no_recovery_write(project_root)
 
 

@@ -512,9 +512,9 @@ All {N} phases finished!
 
 **Complete Milestone** — archive results and prepare for next
 
-`gpd:complete-milestone`
+`gpd:complete-milestone {milestone_version}`
 
-<sub>Start a fresh context window, then run `gpd:complete-milestone`</sub>
+<sub>Start a fresh context window, then run `gpd:complete-milestone {milestone_version}`</sub>
 
 ---
 

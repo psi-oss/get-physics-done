@@ -315,6 +315,14 @@ Set `COMPARISON_OUTPUT_PATH="GPD/comparisons/[slug]-COMPARISON.md"` and `COMPARI
 mkdir -p GPD/comparisons "${COMPARISON_SUPPORT_DIR}"
 ```
 
+After writing `${COMPARISON_OUTPUT_PATH}`, run:
+
+```bash
+gpd validate comparison-contract "${COMPARISON_OUTPUT_PATH}"
+```
+
+If validation fails, treat the comparison artifact as incomplete: fix the frontmatter ledger before routing, committing, or presenting it as decisive evidence.
+
 ## 6. Generate Comparison Figures
 
 Create scripts for standard comparison plots:

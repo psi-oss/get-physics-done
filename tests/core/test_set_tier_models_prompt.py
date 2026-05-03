@@ -44,3 +44,13 @@ def test_set_tier_models_workflow_keeps_scope_and_tradeoffs_explicit() -> None:
         "`gpd resolve-model gpd-planner --runtime <runtime>`",
     ):
         assert fragment in workflow
+
+
+def test_set_tier_models_workflow_delegates_to_deterministic_helper() -> None:
+    workflow = (WORKFLOWS_DIR / "set-tier-models.md").read_text(encoding="utf-8")
+
+    assert "gpd --raw config set-tier-models --help" in workflow
+    assert 'gpd --raw config set-tier-models --runtime "$ACTIVE_RUNTIME" --clear' in workflow
+    assert 'gpd --raw config set-tier-models --runtime "$ACTIVE_RUNTIME" \\' in workflow
+    assert "Do not hand-merge `model_overrides` JSON in this workflow." in workflow
+    assert "do not fall back to prompt-authored JSON merging" in workflow

@@ -822,7 +822,8 @@ class TestConventionsServer:
         with pytest.raises(ValueError, match="not recoverable"):
             _update_lock_in_project(str(tmp_path), lambda lk: lk.metric_signature)
 
-    def test_load_lock_recovers_backup_only_convention_state(self, tmp_path):
+    def test_load_lock_fails_closed_on_backup_only_convention_state(self, tmp_path):
+        from gpd.core.errors import ConventionError
         from gpd.core.state import default_state_dict
         from gpd.mcp.servers.conventions_server import _load_lock_from_project
 
@@ -832,9 +833,8 @@ class TestConventionsServer:
         state["convention_lock"] = {"metric_signature": "(+,-,-,-)"}
         (planning / "state.json.bak").write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
 
-        lock = _load_lock_from_project(str(tmp_path))
-
-        assert lock.metric_signature == "(+,-,-,-)"
+        with pytest.raises(ConventionError, match="not recoverable"):
+            _load_lock_from_project(str(tmp_path))
 
     def test_load_lock_does_not_recover_intent_during_read_only_status_lookup(self, tmp_path):
         from gpd.core.constants import ProjectLayout
@@ -862,7 +862,7 @@ class TestConventionsServer:
         assert layout.state_intent.exists()
         assert layout.state_json.read_text(encoding="utf-8") == before_state
 
-    def test_convention_set_preserves_backup_only_state_when_mutating_lock(self, tmp_path):
+    def test_convention_set_fails_closed_on_backup_only_state_when_mutating_lock(self, tmp_path):
         from gpd.core.state import default_state_dict
         from gpd.mcp.servers.conventions_server import convention_set
 
@@ -875,11 +875,13 @@ class TestConventionsServer:
 
         result = convention_set(str(tmp_path), "fourier_convention", "physics")
 
-        assert result["status"] == "set"
-        persisted = json.loads((planning / "state.json").read_text(encoding="utf-8"))
-        assert persisted["position"]["current_phase"] == "09"
-        assert persisted["convention_lock"]["metric_signature"] == "(+,-,-,-)"
-        assert persisted["convention_lock"]["fourier_convention"] == "physics"
+        assert "error" in result
+        assert "not recoverable" in result["error"]
+        assert not (planning / "state.json").exists()
+        backup = json.loads((planning / "state.json.bak").read_text(encoding="utf-8"))
+        assert backup["position"]["current_phase"] == "09"
+        assert backup["convention_lock"]["metric_signature"] == "(+,-,-,-)"
+        assert "fourier_convention" not in backup["convention_lock"]
 
     def test_convention_set_returns_error_on_malformed_state_json(self, tmp_path):
         """convention_set returns an error dict (not raises) when state.json is malformed."""

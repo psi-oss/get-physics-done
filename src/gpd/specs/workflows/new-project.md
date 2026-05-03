@@ -1,5 +1,5 @@
 <purpose>
-Initialize a new physics research project through unified flow: questioning, literature survey (optional), mathematical framework, computational setup, target venue identification. This is the most leveraged moment in any research project — deep questioning here means better formulations, better methods, better results. One workflow takes you from research idea to ready-for-investigation.
+Initialize a physics research project through one flow: intake, optional survey, framework, computational setup, venue target, and ready-for-investigation roadmap.
 </purpose>
 
 <required_reading>
@@ -11,15 +11,24 @@ Read all files referenced by the invoking prompt's execution_context before star
 ## Auto Mode Detection
 
 Check if `--auto` flag is present in $ARGUMENTS.
+Check if `--minimal` flag is also present in $ARGUMENTS.
+
+**If both `--auto` and `--minimal` are present, stop before any durable write:**
+
+```
+Error: --auto and --minimal cannot be combined.
+
+Choose either `gpd:new-project --auto @proposal.md` for full auto intake or
+`gpd:new-project --minimal [@file.md]` for the lean core-artifact path.
+```
+
+Do not initialize git, create `GPD/`, write state, or write progress for this conflict exit.
 
 **If auto mode:**
 
-- Auto mode compresses intake; it does not override autonomy review gates after the scoping contract is approved
-- Do not assume scope is already correct just because a document exists
-- Existing-work routing may be compressed to one lightweight question, but cannot be skipped when prior artifacts are detected
-- Skip full deep questioning, but still synthesize a scoping contract from the supplied document
-- Ask at most one repair prompt if blocking scoping fields are missing
-- Config questions still required (Step 5)
+- Compress intake, but do not skip existing-work routing, scoping skepticism, or later autonomy gates
+- Synthesize the scoping contract from the supplied document; ask at most one repair prompt for missing blocking fields
+- Config questions still run in Step 5
 - Require one explicit scoping approval gate before requirements and roadmap generation
 - After config and scope approval: run Steps 6-9 automatically with smart defaults:
   - Literature survey: Always yes
@@ -38,6 +47,8 @@ Usage: gpd:new-project --auto @your-proposal.md
 The document should describe the physics problem you want to investigate.
 ```
 
+Stop before git initialization, `GPD/` creation, state writes, or progress writes.
+
 </auto_mode>
 
 <minimal_mode>
@@ -46,9 +57,9 @@ The document should describe the physics problem you want to investigate.
 
 Check if `--minimal` flag is present in $ARGUMENTS.
 
-**If minimal mode:** After Step 1 (Setup), skip the entire standard flow (Steps 2-9) and execute the **Minimal Initialization Path** below instead.
+**If minimal mode:** After Step 1 read-only setup and Step 2 existing-work routing complete, skip the rest of the standard flow (Steps 3-9) and execute the **Minimal Initialization Path** below instead.
 
-Minimal mode creates the core startup artifacts only: `GPD/PROJECT.md`, `GPD/config.json`, `GPD/REQUIREMENTS.md`, `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/state.json` with the approved `project_contract`. It does not promise optional literature-survey files or `GPD/CONVENTIONS.md`. It still must produce a scoping contract with decisive outputs, anchors, and explicit approval so downstream workflows (`gpd:plan-phase`, `gpd:execute-phase`, etc.) have authoritative scope.
+Minimal mode creates only `GPD/PROJECT.md`, `GPD/config.json`, `GPD/REQUIREMENTS.md`, `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/state.json` with the approved `project_contract`. It does not promise literature-survey files or `GPD/CONVENTIONS.md`, but still needs decisive outputs, anchors, and explicit scope approval for downstream workflows.
 
 **Two variants:**
 
@@ -59,7 +70,7 @@ Minimal mode creates the core startup artifacts only: `GPD/PROJECT.md`, `GPD/con
 
 ### Minimal Initialization Path
 
-**After Step 1 completes (init checks, git, project/recovery guard):**
+**After Step 1 read-only setup and Step 2 existing-work routing complete:**
 
 #### M1. Gather Research Context
 
@@ -67,13 +78,10 @@ Minimal mode creates the core startup artifacts only: `GPD/PROJECT.md`, `GPD/con
 
 Parse the input markdown for:
 
-- **Research question** — Look for headings like "Research Question", "Objective", "Goal", or the first substantive paragraph
-- **Decisive observables and deliverables** — Look for explicit plots, figures, datasets, calculations, derivations, or benchmark outputs the user says matter
-- **Existing decomposition, if any** — Look for numbered lists, headings like "Phases", "Plan", "Steps", "Milestones", or any clear sequence of investigation chunks. Treat these as optional grounding, not as a setup prerequisite.
-- **Key parameters** — Look for mentions of physical parameters, coupling constants, energy scales, system sizes
-- **Theoretical framework** — Infer from terminology (QFT, condensed matter, GR, statistical mechanics, etc.)
-- **Computational tools** — Any mentioned software, libraries, or numerical methods
-- **Must-keep context** — Look for must-read references, benchmark values, prior outputs, figures, notebooks, and any stop/rethink conditions
+- Research question or objective
+- Decisive observables, deliverables, plots, figures, datasets, calculations, derivations, or benchmark outputs
+- Existing decomposition, if any; treat it as optional grounding, not a setup prerequisite
+- Key parameters, theoretical framework, computational tools, must-read references, benchmarks, prior outputs, figures, notebooks, and stop/rethink conditions
 
 If the file cannot be parsed (no discernible research question or objective), error:
 
@@ -83,7 +91,7 @@ Error: Could not extract research context from the provided file.
 The file should contain at minimum:
 - A research question or objective
 
-It should ideally also name at least one decisive output, anchor, prior output, or explicit "anchor unknown / need grounding / target not yet chosen" note so any repair prompt can stay narrow. Such notes keep uncertainty visible but are not approval-ready grounding.
+It should ideally also name one decisive output, anchor, prior output, or explicit "need grounding / target not yet chosen" note so repair stays narrow.
 
 Example structure:
   # Research Question
@@ -94,9 +102,6 @@ Example structure:
 
   # Anchors
   Compare against the known 3D Ising result from the literature.
-
-  # Optional First Investigation Chunk
-  Set up the Monte Carlo simulation and finite-size scaling workflow.
 ```
 
 Stop after this error with `## > Next Up`: tell the user to edit the file and rerun `gpd:new-project --minimal @your-file.md`.
@@ -181,6 +186,8 @@ Then present a concise scoping summary and require explicit approval:
   - "Review raw contract" -- show the structured contract
   - "Stop here" -- do not create downstream artifacts
 
+Headless or non-interactive mode is not scope approval. If you cannot get an explicit "Approve scope", stop with `## > Next Up`; never auto-select approval.
+
 If the user selects "Stop here", end with `## > Next Up`: primary `gpd:new-project` (or `gpd:new-project --minimal @file.md` for file-backed minimal intake) and `gpd:suggest-next` if any project state was written.
 
 **CRITICAL:** Minimal mode is still allowed to be lean, but it is not allowed to be contract-free.
@@ -192,12 +199,24 @@ printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract - -
 ```
 
 If validation fails, show the errors, revise the scoping contract, and do NOT continue to downstream artifact generation.
+If repair would require inventing anchors, references, baselines, DOI/arXiv/file locators, or prior outputs, stop and ask instead.
+If a validation or persistence shell call is denied by runtime policy, stop and report the policy block; do not substitute unvalidated file writes.
+
+Before persistence, cross the **First Mutation Gate**: invalid-argument exits, existing-work routing, recovery routing, scoping repair, explicit approval, and approved-mode validation have all passed.
+
+If `has_git` from the Step 1 init payload is false, initialize git now and only now:
+
+```bash
+git init
+```
 
 After validation passes, persist the approved contract into `GPD/state.json` from the same stdin payload:
 
 ```bash
 printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -
 ```
+
+This state-writer call writes `state.json`, regenerates `STATE.md`, refreshes `state.json.bak`, and may leave `state.json.lock`.
 
 Do not write `/tmp` intermediates for the approved contract. Prefer piping the exact approved JSON directly to `gpd ... -`. Only write a file if the user explicitly wants a durable saved copy, and if so place it under the project, not an OS temp directory.
 
@@ -250,7 +269,7 @@ For each phase, create one or more requirements using the standard format:
 
 #### M4. Create ROADMAP.md
 
-Route `GPD/ROADMAP.md` through the staged post-scope roadmapping handoff instead of creating a local ad hoc roadmap.
+For minimal bootstrap only, write a lightweight local `GPD/ROADMAP.md` directly from the approved contract and the template below. Do not claim or invoke the staged post-scope roadmapping handoff in the minimal path; the full initialization path owns the `post_scope` roadmapper handoff.
 
 Use the coarsest decomposition the approved contract actually supports. If the input only supports one grounded stage so far, keep the roadmap coarse and carry later decomposition as an open question instead of inventing filler phases.
 
@@ -349,7 +368,7 @@ gpd commit "docs: initialize research project (minimal)" --files GPD/PROJECT.md 
 
 #### M7. Done — Offer Next Step
 
-```
+```text
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GPD >>> RESEARCH PROJECT INITIALIZED (MINIMAL)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -410,6 +429,8 @@ Use ask_user:
 
 <process>
 
+Runtime label: Show `gpd:` as native labels; keep local CLI `gpd ...` unchanged.
+
 ## 1. Setup
 
 **MANDATORY FIRST STEP — Execute these checks before ANY user interaction:**
@@ -436,45 +457,21 @@ Parse JSON for: `researcher_model`, `synthesizer_model`, `commit_docs`, `autonom
 - Before `GPD/config.json` exists, the `autonomy` and `research_mode` values from `gpd --raw init new-project --stage scope_intake` are temporary defaults, not a durable user choice. Let those defaults govern the initial questioning and scoping pass, then run Step 5 immediately after scope approval and before the first project-artifact commit so the durable config takes over before research and roadmap execution.
 - Treat `project_contract` as approved scope only when `project_contract_gate.authoritative` is true. If the gate is false, keep the contract visible for scoping diagnostics and repair, not as authoritative downstream scope.
 
-**If `project_exists` is true:** Error — project already initialized. Use `gpd:progress`.
+Setup is read-only. Do not initialize git, create `GPD/`, write state, or write/delete `GPD/init-progress.json` here. Treat `has_git` as input to the First Mutation Gate.
 
-**If `recoverable_project_exists` is true but `project_exists` is false:** Error — this folder contains partial/recoverable GPD state, not a fresh project. Do not overwrite it. Use `gpd:resume-work` or `gpd:sync-state` to inspect/recover it; if the user really wants a clean restart, ask them to explicitly move or delete the existing `GPD/` artifacts first. A `GPD/` folder with `state.json`/`STATE.md` plus `ROADMAP.md` but no `PROJECT.md` belongs in this branch.
+**Check for previous initialization attempt before generic project/recovery hard-stops:**
 
-**If `has_git` is false:** Initialize git:
+Use the structured setup fields from `SCOPE_INIT`; do not manually parse `GPD/init-progress.json` in the prompt.
 
-```bash
-git init
-```
-
-**Check for previous initialization attempt:**
-
-```bash
-if [ -f GPD/init-progress.json ]; then
-  # Guard against corrupted JSON (e.g., from interrupted write)
-  PREV_STEP=""
-  PREV_DESC=""
-  INIT_PROGRESS_RAW=$(cat GPD/init-progress.json 2>/dev/null || echo "")
-  if [ -n "$INIT_PROGRESS_RAW" ]; then
-    PREV_STEP=$(echo "$INIT_PROGRESS_RAW" | gpd json get .step --default "" 2>/dev/null)
-    PREV_DESC=$(echo "$INIT_PROGRESS_RAW" | gpd json get .description --default "" 2>/dev/null)
-  fi
-
-  # If JSON was corrupted (empty step), treat as fresh start
-  if [ -z "$PREV_STEP" ]; then
-    echo "WARNING: init-progress.json exists but is corrupted or empty. Starting fresh."
-    rm -f GPD/init-progress.json
-  fi
-fi
-```
-
-If `init-progress.json` exists and is valid, offer to resume:
+- If `init_progress_status="corrupt_init_progress"` or `init_progress_corrupt=true`, stop for explicit recovery handling. Say `GPD/init-progress.json exists but is corrupted or empty.` Do not delete it automatically; ask the user to inspect, move, or delete it before restarting.
+- If `init_progress_status="interrupted_init_progress"` and `init_progress_valid=true`, offer to resume even when `project_exists` or `recoverable_project_exists` is also true; this file means an interrupted initialization checkpoint owns the next routing decision.
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GPD > PREVIOUS INITIALIZATION DETECTED
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Completed through step {PREV_STEP}: {PREV_DESC}
+Completed through step {init_progress_step}: {init_progress_description}
 
 ──────────────────────────────────────────────────────
 Options:
@@ -483,8 +480,14 @@ Options:
 ──────────────────────────────────────────────────────
 ```
 
-If resume: continue from the next unfinished checkpoint after `PREV_STEP` (check which artifacts already exist on disk to confirm).
-If start fresh: delete `init-progress.json` and proceed normally.
+If resume: continue from the next unfinished checkpoint after `init_progress_step` (check which artifacts already exist on disk to confirm).
+If start fresh: delete `init-progress.json` only after the user explicitly chooses that option, then proceed normally.
+
+If no valid `GPD/init-progress.json` is present, apply the generic project/recovery guards:
+
+**If `project_exists` is true:** Error — project already initialized. Use `gpd:progress`.
+
+**If `recoverable_project_exists` is true but `project_exists` is false:** Error — this folder contains partial/recoverable GPD state, not a fresh project. Do not overwrite it. Use `gpd:resume-work` or `gpd:sync-state` to inspect/recover it; if the user really wants a clean restart, ask them to explicitly move or delete the existing `GPD/` artifacts first. A `GPD/` folder with `state.json`/`STATE.md` plus `ROADMAP.md` but no `PROJECT.md` belongs in this branch.
 
 ## 2. Existing Work Offer
 
@@ -520,7 +523,7 @@ Exit command.
 
 If `project_contract` is present in the init JSON, keep `project_contract` and `project_contract_load_info` visible while deciding whether this is fresh work or a continuation. Treat `project_contract_validation` as approval-stage authority rather than a stage-1 requirement. Preserve blockers, warnings, and approval state rather than flattening them into a blank-slate prompt.
 
-**If "Skip mapping" OR `needs_research_map` is false:** Continue to Step 3.
+**If "Skip mapping" OR `needs_research_map` is false:** Existing-work routing is complete. If `--minimal` is active, go to the Minimal Initialization Path now. Otherwise continue to Step 3.
 
 ## 3. Deep Questioning
 
@@ -1848,16 +1851,16 @@ Present completion with next steps:
 
 **Phase 1: [Phase Name]** — [Goal from ROADMAP.md]
 
-`gpd:plan-phase 1`
+`gpd:discuss-phase 1`
 
-<sub>Start a fresh context window, then run `gpd:plan-phase 1`.</sub>
+<sub>Start a fresh context window, then run `gpd:discuss-phase 1`.</sub>
 
-Phases 2+ are stubbed on purpose — flesh each one out with `gpd:plan-phase N` when its turn comes.
+Discuss first; plan after context is clear. Phase stubs stay lean; expand them with `gpd:plan-phase N` when reached.
 
 ---
 
 **Also available:**
-- `gpd:discuss-phase 1` — talk through Phase 1 before planning
+- `gpd:plan-phase 1` — skip discussion only when Phase 1 is already clear enough to plan
 - `gpd:suggest-next` — confirm the next action
 
 ---------------------------------------------------------------

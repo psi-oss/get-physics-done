@@ -107,7 +107,6 @@ _GEMINI_APPROVED_CONTRACT_PATH = "GPD/.approved-project-contract.json"
 _GEMINI_STATIC_POLICY_COMMAND_PREFIXES: tuple[str, ...] = (
     "git init",
     "mkdir -p GPD",
-    "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\"",
 )
 _GEMINI_COMMAND_RUNTIME_NOTE = (
     "<gemini_runtime_notes>\n"
@@ -127,6 +126,7 @@ _GEMINI_COMMAND_SHELL_ALLOWLIST_NOTE = (
     "- Gemini's enforced shell-prefix allowlist for GPD auto-edit mode is:\n{allowlist}\n"
     "- Gemini policy checks are syntactic in headless auto-edit mode. Prefer direct commands and reason over stdout instead of wrapping approved commands in shell variables, `$(...)`, heredocs, or extra chained blocks.\n"
     "- Any remaining `VAR=$(...)` examples in rendered workflow guidance are non-runnable shorthand; do not copy them into Gemini auto-edit mode.\n"
+    "- If `run_shell_command` is denied by policy, stop and report the policy block. Do not replace validation or persistence commands with unvalidated file writes.\n"
     "- Keep contract JSON in-memory or under `GPD/`. Do not write approved contracts to `/tmp`.\n"
     "</gemini_shell_runtime_notes>\n\n"
 )
@@ -1138,6 +1138,7 @@ class GeminiAdapter(RuntimeAdapter):
             )
         if bridge_command is None:
             raise ValueError("bridge_command is required for projected Gemini command surfaces")
+        content = self.translate_shared_command_references(content)
         rendered = _render_gemini_command_prompt(content, bridge_command=bridge_command)
         prompt = tomllib.loads(_convert_to_gemini_toml(rendered)).get("prompt")
         if not isinstance(prompt, str):

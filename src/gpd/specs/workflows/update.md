@@ -40,15 +40,23 @@ printf '%s\n%s\n%s\n%s\n%s\n' \
   "$PATCH_META"
 ```
 
-Parse output as:
-
-- line 1: installed version
-- line 2: install scope flag (`--local` or `--global`)
-- line 3: public update command to run
-- line 4: runtime config directory
-- line 5: expected local-patch metadata path
+Parse lines 1-5 as installed version, scope flag, public update command, runtime config directory, and local-patch metadata path.
 
 If the version file is missing, treat the install as version `0.0.0` and continue.
+
+If line 3 is empty, do not run a generic update command. Show:
+
+```text
+## GPD Update
+
+This installed workflow cannot derive a trusted update command because the install provenance is missing or legacy.
+
+Repair explicitly, then rerun update:
+`{GPD_BOOTSTRAP_COMMAND} install <runtime> <line 2> --target-dir <line 4>`
+
+Use line 2 exactly as printed (`--local` or `--global`) and line 4 exactly as printed for the target directory.
+```
+Then exit.
 </step>
 
 <step name="check_latest_version">
@@ -81,6 +89,7 @@ If that fails, show:
 Couldn't check for updates (offline or release metadata unavailable).
 
 To update manually, run the command from line 3 of the install detection output.
+If line 3 is empty, use the install-provenance repair guidance from step 1 instead.
 ```
 
 Then exit.
@@ -117,11 +126,7 @@ Then exit.
 </step>
 
 <step name="show_changes_and_confirm">
-If an update is available, fetch recent release notes before asking for confirmation.
-
-Preferred source:
-
-- GitHub Releases API: `{GPD_RELEASES_API_URL}`
+If an update is available, fetch recent release notes before asking for confirmation. Preferred source: GitHub Releases API `{GPD_RELEASES_API_URL}`.
 
 Show a short preview covering releases newer than the installed version and up to the latest version. If release notes cannot be fetched, say so briefly and continue with the update prompt anyway.
 
@@ -142,14 +147,8 @@ Custom files outside the managed GPD install are preserved.
 If you've modified managed GPD files directly, they will be backed up to `{GPD_PATCHES_DIR_NAME}/` and can be reapplied with `gpd:reapply-patches` after the update.
 ```
 
-> **Platform note:** If `ask_user` is not available, present the choices in plain text and wait for the user's freeform response.
-
 Use ask_user:
-
-- Question: "Proceed with update?"
-- Options:
-  - "Yes, update now"
-  - "No, cancel"
+Question "Proceed with update?"; options "Yes, update now" and "No, cancel". If `ask_user` is unavailable, present the choices in plain text and wait for the user's freeform response.
 
 If the user cancels, exit.
 </step>
@@ -158,7 +157,12 @@ If the user cancels, exit.
 Run the update with the public bootstrap command from step 1:
 
 ```bash
-: "${UPDATE_COMMAND:?ERROR: UPDATE_COMMAND is empty; use line 3 from detect_current_install.}"
+if [ -z "$UPDATE_COMMAND" ]; then
+  printf '%s\n' \
+    "ERROR: UPDATE_COMMAND is empty; this install is missing trusted update provenance." \
+    "Repair explicitly: {GPD_BOOTSTRAP_COMMAND} install <runtime> ${INSTALL_SCOPE:-<line 2>} --target-dir ${GPD_CONFIG_DIR:-<line 4>}"
+  exit 2
+fi
 sh -c "$UPDATE_COMMAND"
 ```
 
@@ -229,14 +233,12 @@ Otherwise continue normally.
 
 <success_criteria>
 
-- [ ] Installed version read from the runtime install
-- [ ] Latest released version checked from the canonical release metadata endpoint
+- [ ] Installed and latest released versions read from runtime install and canonical metadata
 - [ ] Update skipped if already current
 - [ ] Recent release notes shown before updating when available
 - [ ] Clean reinstall warning shown
 - [ ] User confirmation obtained
-- [ ] Runtime-specific update command executed successfully
-- [ ] Update caches cleared
+- [ ] Runtime-specific update command executed successfully and caches cleared
 - [ ] Restart reminder shown
 
 </success_criteria>

@@ -16,10 +16,10 @@ def test_plan_phase_requires_plan_artifacts_before_accepting_success() -> None:
     plan_phase = _read("plan-phase.md")
 
     assert "Runtime delegation rule: this is a one-shot handoff." in plan_phase
-    assert "Before accepting the success state, verify that at least one readable `*-PLAN.md` artifact exists in `${PHASE_DIR}`" in plan_phase
-    assert "extract the fresh plan artifact list from `gpd_return.files_written`" in plan_phase
-    assert "verify that every named file exists, is readable, and ends in `-PLAN.md`" in plan_phase
-    assert "If the planner says complete but no plan files are present, treat the handoff as incomplete until a fresh continuation names them in `gpd_return.files_written`" in plan_phase
+    assert "Accept only after `gpd_return.files_written` names at least one fresh, readable `${PHASE_DIR}/*-PLAN.md`" in plan_phase
+    assert "do not trust return text or preexisting files alone" in plan_phase
+    assert 'gpd validate handoff-artifacts - "${HANDOFF_ARTIFACT_ARGS[@]}"' in plan_phase
+    assert 'gpd validate plan-contract "$plan_file"' in plan_phase
 
 
 def test_verify_work_rechecks_proof_redteam_artifact_after_repair() -> None:

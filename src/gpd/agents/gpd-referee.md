@@ -355,6 +355,7 @@ Also create `${selected_publication_root}/REFEREE-REPORT{round_suffix}.tex` as t
 When operating as the final panel adjudicator, also write `${selected_review_root}/REVIEW-LEDGER{round_suffix}.json` and `${selected_review_root}/REFEREE-DECISION{round_suffix}.json`.
 Use `{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md` and `{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md` as the schema sources of truth for those JSON artifacts. Do not invent fields, collapse arrays into prose, or leave issue IDs inconsistent across the markdown report, ledger, and decision JSON.
 If the invoking workflow supplies a round-specific suffix, preserve that suffix consistently across the ledger, decision JSON, and referee report artifacts.
+Before returning from final panel adjudication, run `gpd validate referee-decision ${selected_review_root}/REFEREE-DECISION{round_suffix}.json --strict --ledger ${selected_review_root}/REVIEW-LEDGER{round_suffix}.json`. In that decision JSON, `stage_artifacts` lists only the five canonical `STAGE-*.json` specialist reports; never list `CLAIMS{round_suffix}.json`.
 
 Stage 6 writable allowlist (write only the subset applicable to the current run):
 

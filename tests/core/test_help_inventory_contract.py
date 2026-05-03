@@ -181,7 +181,20 @@ def test_help_workflow_export_logs_surfaces_passthrough_filters() -> None:
     for flag in ("--command <label>", "--phase <phase>", "--category <name>"):
         assert flag in help_workflow
     assert "Supports passthrough filters" in help_workflow
+    assert "empty_export: true" in help_workflow
     assert "Usage: `gpd:export-logs --command execute-phase --phase 3 --category workflow`" in help_workflow
+
+
+def test_help_workflow_labels_observe_trace_side_effects_and_export_commit_opt_in() -> None:
+    help_workflow = _read("src/gpd/specs/workflows/help.md")
+
+    assert "`gpd observe execution`, `gpd observe sessions`, `gpd observe show`, and `gpd trace show` inspect only" in (
+        help_workflow
+    )
+    assert "`gpd observe event`, `gpd observe export`, and `gpd trace start|log|stop` write" in help_workflow
+    assert "**`gpd:export [--format html|latex|zip|all] [--commit]`**" in help_workflow
+    assert "generated text exports are committed only with explicit `--commit`" in help_workflow
+    assert "Usage: `gpd:export --format latex --commit`" in help_workflow
 
 
 def test_help_workflow_error_patterns_uses_pattern_library_categories() -> None:

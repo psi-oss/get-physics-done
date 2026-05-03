@@ -148,6 +148,8 @@ Immediately before writing or validating `VERIFICATION.md`, load the canonical s
 
 Do not restate the schema from memory. Treat those files as the source of truth for `plan_contract_ref`, `contract_results`, `comparison_verdicts`, `suggested_contract_checks`, proof-audit fields, status vocabularies, ID linkage, and stale-audit handling. Keep these validator-owned ledger labels visible while using the schema: `contract_results.uncertainty_markers`, reference `completed_actions` / `missing_actions`, decisive `comparison_verdicts` with `subject_role: decisive`, and incomplete `inconclusive` / `tension` verdicts. If a decisive benchmark, prior-work, experiment, baseline, or cross-method comparison remains unresolved, record the canonical incomplete verdict instead of omitting the ledger entry or upgrading the parent target to pass.
 
+Schema guard: `contract_results` keys match PLAN IDs from `plan_contract_ref`; project-only IDs go in body/unbound suggestions. No `gpd_return`, `computational_oracle`, or runtime fields in frontmatter. Oracle in body; return after report. Unclear `evidence[]`: use parent `summary` / `notes`.
+
 Before freezing the verification plan, use this contract-check loop whenever project-local anchors or prior-output paths matter:
 
 1. Call `suggest_contract_checks(contract, project_dir=...)`.
@@ -242,7 +244,7 @@ For forbidden proxies:
 2. Check whether the phase relied on it as evidence of success
 3. Mark the proxy as REJECTED, VIOLATED, or UNRESOLVED in the final report
 
-## Step 4: Verify Artifacts (Three Levels)
+## Step 4: Verify Artifacts (Four Levels)
 
 ### Level 1: Existence
 
@@ -262,10 +264,19 @@ Is the artifact a real derivation / computation / result, not a placeholder?
 
 <!-- Stub detection patterns extracted to reduce context. Load on demand from `references/verification/examples/verifier-worked-examples.md`. -->
 
-
 Scan for three categories: **Physics** (placeholders, magic numbers, suppressed warnings), **Derivation** (unjustified approximations, circular reasoning), **Numerical** (division-by-zero risks, missing convergence criteria, float equality).
 
 Categorize: BLOCKER (prevents goal / produces wrong physics) | WARNING (incomplete but not wrong) | INFO (notable, should be documented)
+
+### Level 3: Content Validation
+
+Execute or re-derive at least one decisive physics check for the artifact: substitute test values, take a limiting case, run a small independent calculation, or compare against a known benchmark.
+
+Record the code, actual output, and PASS/FAIL/INCONCLUSIVE verdict in VERIFICATION.md.
+
+### Level 4: Integration
+
+Confirm the artifact is integrated with the phase goal, contract target, convention lock, dependencies, and downstream references. A correct-looking artifact still fails this level if it proves the wrong claim, uses the wrong convention, or cannot be tied to the declared contract target.
 
 ### Convention Assertion Verification
 
@@ -345,6 +356,10 @@ After the closing frontmatter `---`, add the machine-readable header before the 
 ### Frontmatter Schema
 
 Use the loaded canonical report template and result-ledger schema as the example and validator-aligned ledger source. Do not inline a second YAML schema here.
+
+### Validation Stop Rule
+
+Run validator after writing. Pass: return. Fail: max two targeted repairs; unresolved or PLAN/project ID ambiguity -> `gpd_return.status: blocked` with latest errors. No aliases or empty evidence to pass.
 
 ### Report Body Sections
 

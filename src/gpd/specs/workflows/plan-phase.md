@@ -1,5 +1,5 @@
 <purpose>
-Create executable phase prompts (PLAN.md files) for a research phase with integrated literature review and verification. Default flow: Research (if needed) -> Plan -> Verify -> Done. Orchestrates gpd-phase-researcher, gpd-planner, and gpd-plan-checker agents with a revision loop (max 3 iterations).
+Create executable PLAN.md files for a phase. Default flow: Research if needed -> Plan -> Verify -> Done, using researcher, planner, and checker agents with a max-3 revision loop.
 </purpose>
 
 <process>
@@ -19,11 +19,11 @@ fi
 Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_enabled`, `plan_checker_enabled`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_plans`, `plan_count`, `planning_exists`, `roadmap_exists`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `platform`.
 
 **Mode-aware behavior:**
-- `autonomy=supervised` (default): Present the written draft plans for user review before treating them as approved or moving on to execution. Do not weaken the contract gate just because the draft is human-reviewed.
-- `autonomy=balanced`: Write the plan and pause only if the plan-checker raises issues or the planning choices need user judgment.
-- `autonomy=yolo`: Write the plan and proceed without pausing.
+- `autonomy=supervised` (default): Present draft plans for user review before approval or execution; do not weaken the contract gate.
+- `autonomy=balanced`: Pause only if the checker raises issues or planning choices need user judgment.
+- `autonomy=yolo`: Write the plan and proceed.
 - `research_mode=explore`: Always run research step even if research exists. Expand research and comparison coverage, but do not auto-create git-backed branches or branch-like plans just because alternatives appear.
-- `research_mode=exploit`: Reuse existing research only when it already covers the exact method family, anchors, and decisive evidence path for this phase. Otherwise run targeted research. suppress optional tangents entirely unless the user explicitly requests them. Do not volunteer `gpd:branch-hypothesis` as the default response in exploit mode.
+- `research_mode=exploit`: Reuse existing research only when it already covers the exact method family, anchors, and decisive evidence path for this phase. Otherwise run targeted research and suppress optional tangents entirely unless the user explicitly requests them. Do not volunteer `gpd:branch-hypothesis` as the default response in exploit mode.
 - `research_mode=balanced` (default): Use the standard research depth for the phase and keep the default contract-checking and comparison coverage unless the phase needs broader or narrower review.
 - `research_mode=adaptive`: Start broad until prior decisive evidence or an explicit approach lock justifies narrowing. Do not infer “safe to narrow” from phase number alone.
 - Tangent policy: when multiple viable approaches or optional side questions appear, do NOT silently branch or widen the plan. Use the canonical tangent decision model below instead of assuming extra plans or branches. `git.branching_strategy` does not override this rule.
@@ -136,15 +136,48 @@ PHASE=$(echo "$INIT" | gpd json get .phase_number --default "${REQUESTED_PHASE}"
 bind_plan_phase_init "$INIT"
 ```
 
+**Dirty worktree safety gate:** before phase directory creation, handoffs, fingerprints, alignment, or write-capable reloads, inspect only the project worktree:
+
+```bash
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  DIRTY_STATUS=$(git status --porcelain --untracked-files=all)
+  if [ -n "$DIRTY_STATUS" ]; then
+    echo "ERROR: dirty project worktree detected before planning:"
+    echo "$DIRTY_STATUS"
+    echo "Choose: git status --short, gpd commit, or explicitly approve a project-local cleanup path."
+    echo "HALTING -- plan-phase never stashes, resets, cleans, overwrites, or hides user work."
+    exit 1
+  fi
+fi
+```
+
 **If `planning_exists` is false:** Error -- run `gpd:new-project` first.
 
 **If `project_contract_load_info.status` starts with `blocked`:** STOP and checkpoint with the user. Show the specific `project_contract_load_info.errors` / `warnings`; do not silently continue from `ROADMAP.md` or `REQUIREMENTS.md` alone when the stored contract could not even be loaded cleanly. End with `## > Next Up`: primary `gpd:sync-state`, then `gpd:plan-phase {PHASE}` after repair, plus `gpd:suggest-next`.
 
 **If `project_contract` is empty or null:** STOP and checkpoint with the user. Planning requires an approved scoping contract in `GPD/state.json`; do not infer phase scope from `ROADMAP.md` or `REQUIREMENTS.md` alone. End with `## > Next Up`: primary `gpd:new-project` for project setup repair or `gpd:sync-state` if state exists but drifted, then `gpd:plan-phase {PHASE}`, plus `gpd:suggest-next`.
 
-**Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true.** If the gate is false, keep the contract visible as context and diagnostics, not as approved planning scope.
-
 **If `project_contract_validation.valid` is false:** STOP and checkpoint with the user. Quote the `project_contract_validation.errors` explicitly and repair the contract before planning; a visible-but-blocked contract is not an approved planning contract. End with `## > Next Up`: primary `gpd:sync-state`, then `gpd:plan-phase {PHASE}` after repair, plus `gpd:suggest-next`.
+
+**If `project_contract_gate.authoritative` is not true:** STOP and checkpoint with the user. Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. Show `project_contract_gate`, load errors/warnings, and validation errors. Do not plan, execute, verify, fingerprint, align, or pass `project_contract` to subagents until the gate is authoritative. End with `## > Next Up`: primary `gpd:sync-state` or `gpd:new-project`, then `gpd:plan-phase {PHASE}` after repair, plus `gpd:suggest-next`.
+Run the executable lifecycle authority gate before any research, planning, checker, fingerprint, or alignment step:
+
+```bash
+LIFECYCLE_CONTRACT_GATE=$(gpd --raw validate lifecycle-contract-gate plan-phase "${PHASE}")
+if [ $? -ne 0 ]; then
+  echo "$LIFECYCLE_CONTRACT_GATE"
+  exit 1
+fi
+```
+
+<step name="fail_closed_on_state_conflict" priority="first">
+Before resolving a missing phase, creating `PHASE_DIR`, spawning agents, or writing plans, compare `state_content`, `roadmap_content`, `requirements_content`, phase directories, and conventions. If they disagree about phase/scope, STOP: no new plan, roadmap rewrite, execution, or generic health check. Repair route:
+
+- state/roadmap phase mismatch or missing active phase directory -> `gpd:sync-state`
+- convention-lock or `GPD/CONVENTIONS.md` mismatch -> `gpd:validate-conventions`
+
+Canonical conflict-stop labels: `status: blocked`, `phase_state: contract_conflict`, `plan_authority: blocked`, `execution_state: not_started`, `checkpoint: convention_conflict`, artifacts+writes `none`, `gpd:sync-state`/`gpd:validate-conventions`
+</step>
 
 ## 1.5 Proof-Obligation Planning Gate
 
@@ -156,23 +189,20 @@ Extract from $ARGUMENTS: phase number (integer or decimal like `2.1`), flags (`-
 
 ### `--inline-discuss` Flag (Combined Discuss + Plan)
 
-When `--inline-discuss` is present, combine discuss-phase and plan-phase into a single session. This eliminates the 3-session friction (discuss → plan → execute) for straightforward phases.
+When `--inline-discuss` is present, combine discuss-phase and plan-phase for straightforward phases.
 
 **Before step 5 (Handle Research), insert a quick gray-area probe:**
 
-1. Read the phase goal and description from ROADMAP.md
-2. Present 2-3 critical decision points to the researcher — focus on the gray areas most likely to affect planning:
+1. Read the phase goal/description from ROADMAP.md and ask 2-3 planning-critical gray-area questions:
    - "What formalism/method do you envision for this phase?" (if multiple valid approaches exist)
    - "Are there any constraints or conventions from prior phases that should carry through?" (if phase has dependencies)
    - "What precision level is acceptable?" (for numerical/computational phases)
-3. If those questions reveal multiple viable approaches or optional side questions, use the canonical tangent decision model below instead of assuming extra plans or branches.
-4. Record any explicit tangent decision in the lightweight CONTEXT.md so downstream agents see whether the user chose to stay on the main line, branch, quick-check, or defer.
-5. Record responses as a lightweight CONTEXT.md in the phase directory (same format as discuss-phase output, but with only the critical decisions — skip the full Socratic dialogue)
-6. Proceed to step 5 with the context populated
+2. If those questions reveal viable alternatives or side questions, use the canonical tangent decision model below instead of assuming extra plans or branches.
+3. Record the answers and any explicit tangent decision in lightweight CONTEXT.md, then proceed to step 5.
 
-This is NOT the full discuss-phase flow — just the 2-3 most impactful questions. If the phase is complex enough to need full discussion, the researcher should run `gpd:discuss-phase` separately.
+This is not the full discuss-phase flow; use `gpd:discuss-phase` separately for complex phases.
 
-**If no phase number:** Detect next unplanned phase from roadmap.
+**If no phase number:** Use the `phase_number` returned by bootstrap; `gpd --raw init plan-phase --stage phase_bootstrap` auto-detects the first roadmap phase whose disk status is `empty`, `no_directory`, `discussed`, or `researched`. If bootstrap cannot infer one, stop and ask for an explicit phase.
 
 **If `phase_found` is false:** Validate phase exists in ROADMAP.md. If valid, resolve directory metadata from the roadmap before continuing:
 
@@ -226,13 +256,8 @@ fi
 
 **If an active hypothesis exists:**
 
-1. Extract the hypothesis branch slug from the helper output
-2. Read the HYPOTHESIS.md file:
-
-See the shell snippet above.
-
-3. Display: `Active hypothesis detected: hypothesis/${HYPOTHESIS_SLUG}`
-4. The hypothesis description, motivation, expected outcome, and success criteria become a **primary constraint** for all downstream agents (researcher, planner, checker). Inject the hypothesis context into every agent prompt:
+1. Extract the branch slug, read HYPOTHESIS.md using the shell snippet above, and display `Active hypothesis detected: hypothesis/${HYPOTHESIS_SLUG}`.
+2. Treat the hypothesis description, motivation, expected outcome, and success criteria as a **primary constraint** for researcher, planner, checker, and revision prompts:
 
 ```markdown
 <hypothesis_constraint>
@@ -250,7 +275,7 @@ already explores that path.
 </hypothesis_constraint>
 ```
 
-5. Append this `<hypothesis_constraint>` block to the prompts for: gpd-phase-researcher (step 5), gpd-planner (step 8), gpd-plan-checker (step 10), and revision agents (step 12).
+3. Append this `<hypothesis_constraint>` block to the prompts for the researcher, planner, checker, and revision agents.
 
 ## 4.5. Convention Verification
 
@@ -259,12 +284,15 @@ already explores that path.
 ```bash
 CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
 if [ $? -ne 0 ]; then
-  echo "WARNING: Convention verification failed — resolve before planning"
+  echo "ERROR: Convention verification failed -- resolve before planning"
   echo "$CONV_CHECK"
+  echo "Next: validate conventions before planning"
+  echo "HALTING -- convention mismatches compound into every planned task."
+  exit 1
 fi
 ```
 
-If the check fails, warn the user before spawning the researcher or planner. Convention mismatches in the plan will propagate into every task during execution.
+If the check fails, stop before spawning the researcher or planner. Convention mismatches in the plan propagate into every task during execution.
 
 ## 4.6. Tangent Control During Planning
 
@@ -450,6 +478,9 @@ if [ ! -r "$EXPECTED_RESEARCH_FILE" ]; then
   echo "ERROR: researcher returned completed but ${EXPECTED_RESEARCH_FILE} is missing or unreadable"
   exit 1
 fi
+
+# Re-read RESEARCH.md from disk; `research_content` from INIT (step 1) is **stale** after the researcher writes the artifact.
+RESEARCH_CONTENT=$(cat "$EXPECTED_RESEARCH_FILE")
 ```
 
 ## 5.1 Handle Researcher Checkpoint
@@ -501,95 +532,16 @@ task(
 
 After the continuation returns, rerun the same `gpd_return.files_written` and on-disk artifact gate above before advancing.
 
-## 5.5. Experiment Design (Numerical/Computational Phases)
+## 5.5. Numerical/Computational Planning Guard
 
-**Skip if:** `--light` flag, `--skip-research` flag, or the phase description does not involve numerical computation.
+Numerical phases need explicit experiment obligations, but plan-phase should not add a second design handoff by default. Keep the planner path bounded:
 
-**Research mode effects on experiment design:**
+- Detect numerical work from the phase title/goal, project contract, context, existing research summary, and small filename/header scans. Do not `cat` large research, data, notebook, CSV, or generated-result files just to decide that a phase is numerical.
+- If an `*-EXPERIMENT-DESIGN.md` already exists, pass its staged `experiment_design_content` to the planner.
+- If no design file exists, the planner must encode the necessary numerical protocol directly in the PLAN: convergence/refinement grid, benchmark or limiting-case anchors, uncertainty propagation, seed/reproducibility policy, generated-artifact paths, and stop/rethink conditions.
+- Do not spawn `gpd-experiment-designer` from plan-phase unless the user, context, or project contract explicitly requires a standalone `EXPERIMENT-DESIGN.md`. If a standalone design is required but missing, checkpoint or route to that specialist instead of doing unbounded extra reading inside plan-phase.
 
-| Mode | Experiment Designer | Rationale |
-|------|-------------------|-----------|
-| **explore** | Always spawn (even if numerical indicators are weak) | Broad exploration benefits from structured experiment design |
-| **balanced** | Spawn if numerical indicators detected (default behavior) | Standard heuristic |
-| **exploit** | Skip unless EXPERIMENT-DESIGN.md is explicitly required by CONTEXT.md | Exploit mode minimizes overhead |
-| **adaptive** | Follow balanced behavior until prior decisive evidence or an explicit approach lock stabilizes the method family; then reuse validated experiment templates for the locked approach | Evidence-driven reuse once the method is stable |
-
-**Detection:** Check the phase goal and research content for numerical indicators:
-
-```bash
-PHASE_GOAL=$(echo "$INIT" | gpd json get .phase_name --default "")
-
-# Re-read RESEARCH.md from disk — `research_content` from INIT (step 1) is **stale**
-# because the researcher in step 5 may have just created/updated it.
-RESEARCH_FILE=$(ls "${PHASE_DIR}"/*-RESEARCH.md 2>/dev/null | head -1)
-if [ -n "$RESEARCH_FILE" ]; then
-  RESEARCH_CONTENT=$(cat "$RESEARCH_FILE")
-fi
-```
-
-Scan `PHASE_GOAL` and `RESEARCH_CONTENT` for indicators of computational work: "Monte Carlo", "simulation", "numerical", "finite-size", "convergence", "parameter sweep", "benchmark", "grid", "discretization", "timestep", "sampling".
-
-**If numerical indicators found AND no existing EXPERIMENT-DESIGN.md:**
-
-Display banner:
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- GPD > DESIGNING NUMERICAL EXPERIMENT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-* Spawning experiment designer...
-```
-
-### Spawn gpd-experiment-designer
-
-```bash
-EXPERIMENT_MODEL=$(gpd resolve-model gpd-experiment-designer)
-```
-
-Experiment design prompt:
-
-```markdown
-<objective>
-Design the numerical experiment protocol for Phase {phase_number}: {phase_name}
-</objective>
-
-<phase_context>
-**Phase description:** {phase_description}
-**Research:** {research_content}
-**Conventions:** $(gpd --raw convention list 2>/dev/null)
-**Context:** {context_content}
-</phase_context>
-
-<output>
-Write to: {phase_dir}/{phase}-EXPERIMENT-DESIGN.md
-</output>
-```
-
-```
-task(
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-experiment-designer.md for your role and instructions.\n\n" + experiment_prompt,
-  subagent_type="gpd-experiment-designer",
-  model="{experiment_model}",
-  readonly=false,
-  description="Design experiment for Phase {phase}"
-)
-```
-
-### Handle Experiment Designer Return
-
-**If the experiment designer agent fails to spawn or returns an error:** Experiment design is optional supplementary context for the planner. Proceed without it — the planner will work with RESEARCH.md and CONTEXT.md. Note that experiment design was skipped.
-
-- **`gpd_return.status: completed`:** Verify EXPERIMENT-DESIGN.md exists, display confirmation, continue to step 6
-- **`gpd_return.status: blocked` or `failed`:** Display blocker, offer: 1) Provide context, 2) Skip experiment design, 3) Abort
-
-**If EXPERIMENT-DESIGN.md created:** The planner stage payload already carries this as `experiment_design_content`. Keep it in the stage-local payload rather than re-reading it from disk.
-
-```markdown
-**Experiment Design:** {experiment_design_content}
-```
-
-**If no numerical indicators OR `--light` mode:** Skip silently.
+Scan for indicators such as "Monte Carlo", "simulation", "numerical", "finite-size", "convergence", "parameter sweep", "benchmark", "grid", "discretization", "timestep", and "sampling". In `--light` mode, keep the numerical protocol compact but still include the decisive convergence, uncertainty, benchmark, and forbidden-proxy obligations in the PLAN contract.
 
 ## 6. Check Existing Plans
 
@@ -654,19 +606,22 @@ Render the template's `## Standard Planning Template` into `filled_prompt` with 
 - `{verification_content}` -> {verification_content}
 - `{validation_content}` -> {validation_content}
 Keep `{contract_intake}` and `{effective_reference_intake}` visible in the rendered prompt.
-Stable knowledge docs may appear inside `{active_reference_context}` and `{reference_artifacts_content}`. Treat them as reviewed background syntheses only; they may refine assumptions, caveats, or method choice when consistent with stronger sources, but they do not override `convention_lock`, `project_contract`, the PLAN `contract`, or direct evidence.
-If a plan materially depends on a reviewed knowledge doc and that reliance must be gateable downstream, express it with explicit `knowledge_deps`; keep implicit stable background advisory only.
+Stable knowledge docs in `{active_reference_context}` or `{reference_artifacts_content}` are advisory: they may refine assumptions but never override `convention_lock`, `project_contract`, PLAN `contract`, or direct evidence.
+If a plan relies on a knowledge doc in a downstream-gateable way, express that as explicit `knowledge_deps`.
 
 Do not restate template-owned contract gates, tangent control, tool-requirement policy, proof-bearing plan policy, context-budget guidance, downstream-consumer rules, or the quality gate here.
 ```
 
 ```
+PLANNER_HANDOFF_STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+PLANNER_RETURN=$(
 task(
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.\n\n" + filled_prompt,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.\n\n" + filled_prompt + "\n\n<spawn_contract>\nwrite_scope:\n  mode: scoped_write\n  allowed_paths:\n    - \"{phase_dir}/*-PLAN.md\"\nexpected_artifacts:\n  - \"readable {phase_dir}/*-PLAN.md named in gpd_return.files_written\"\nshared_state_policy: return_only\nartifact_gate: orchestrator validates files_written, scope, freshness, readability, suffix, and plan-contract\n</spawn_contract>",
   subagent_type="gpd-planner",
   model="{planner_model}",
   readonly=false,
   description="Plan Phase {phase}"
+)
 )
 ```
 
@@ -674,15 +629,15 @@ task(
 
 ## 9. Handle Planner Return
 
-**If the planner agent fails to spawn or returns an error:** Do not infer completion from files that already exist on disk. Treat any preexisting `PLAN.md` artifacts as a stale baseline unless this run returns a fresh typed `gpd_return` that names them in `gpd_return.files_written`. If no fresh planner return is available, keep the handoff incomplete. Offer: 1) Retry planner, 2) Create plans in the main context, 3) Abort.
+**If the planner agent fails to spawn or returns an error:** Do not infer completion from existing `PLAN.md` files. Without a fresh typed `gpd_return` naming `files_written`, keep the handoff incomplete. Offer: Retry planner / Main-context plan / Abort.
 
-Human-readable headings such as `## PLANNING COMPLETE`, `## CHECKPOINT REACHED`, and `## PLANNING INCONCLUSIVE` are presentation only. Route on the planner's structured `gpd_return.status`, `gpd_return.files_written`, and the on-disk artifact check.
+Ignore presentation headings; route on structured `gpd_return.status`, `files_written`, and the on-disk artifact check.
 
-- **`gpd_return.status: completed`:** Before accepting the success state, verify that at least one readable `*-PLAN.md` artifact exists in `${PHASE_DIR}` and extract the fresh plan artifact list from `gpd_return.files_written`; verify that every named file exists, is readable, and ends in `-PLAN.md`. Do not accept the planner return text alone. Use the init snapshot (`has_plans`, `plan_count`) as the stale baseline: a plan file that already existed before this handoff only counts as fresh output if this planner return explicitly names it in `gpd_return.files_written`. If the planner says complete but no plan files are present, treat the handoff as incomplete until a fresh continuation names them in `gpd_return.files_written`. Display plan count. If `AUTONOMY=supervised`, show the written draft plans and get user confirmation before advancing to checker or next-step output. If `--skip-verify` or `plan_checker_enabled` is false (from init): skip to step 13 only when no proof-bearing plans were written. Proof-bearing plans still require checker review or an equivalent main-context audit before planning is considered complete. Otherwise: step 10.
+- **`gpd_return.status: completed`:** Accept only after `gpd_return.files_written` names at least one fresh, readable `${PHASE_DIR}/*-PLAN.md`; do not trust return text or preexisting files alone. Display plan count. In `AUTONOMY=supervised`, show draft plans and get user confirmation before checker or next-step output. If `--skip-verify` or `plan_checker_enabled` is false, skip to step 13 only when no proof-bearing plans were written; proof-bearing plans still need checker review or an equivalent main-context audit. Otherwise: step 10.
 - **`gpd_return.status: checkpoint`:** Present to user, get response, spawn a fresh planner continuation handoff. Do not route planner checkpoints into the checker revision loop.
 - **`gpd_return.status: blocked` or `failed`:** Show attempts, offer: Add context / Retry / Manual
 
-On completed returns, consume `gpd_return.roadmap_updates` before checker review or next-step output. The spawned planner does not own `GPD/ROADMAP.md` in default mode; it returns the proposed roadmap patch, replacement, or structured edit for the orchestrator to apply. Apply that update to `GPD/ROADMAP.md`, then verify the phase's plan placeholders/count match the fresh `*-PLAN.md` artifacts. If `roadmap_updates` is absent, malformed, or cannot apply cleanly, treat the handoff as incomplete and choose Retry planner / Apply manually / Abort rather than accepting stale roadmap state.
+On completed returns, consume `gpd_return.roadmap_updates` before checker review or next-step output. The planner returns proposed roadmap edits; the orchestrator applies them to `GPD/ROADMAP.md` and verifies placeholders/count against fresh `*-PLAN.md` artifacts. If missing, malformed, or unapplied, treat the handoff as incomplete: Retry planner / Apply manually / Abort.
 
 Before the checker loop, validate only the fresh plan artifacts named by the planner return:
 
@@ -693,8 +648,23 @@ if [ -z "$FRESH_PLAN_FILES" ]; then
   exit 1
 fi
 
+HANDOFF_ARTIFACT_ARGS=(
+  --allowed-root "$PHASE_DIR"
+  --expected-glob "${PHASE_DIR}/*-PLAN.md"
+  --required-suffix=-PLAN.md
+  --require-files-written
+)
+if [ -n "$PLANNER_HANDOFF_STARTED_AT" ]; then
+  HANDOFF_ARTIFACT_ARGS+=(--fresh-after "$PLANNER_HANDOFF_STARTED_AT")
+fi
+printf '%s\n' "$PLANNER_RETURN" | gpd validate handoff-artifacts - "${HANDOFF_ARTIFACT_ARGS[@]}" || exit 1
+
 for plan_file in $FRESH_PLAN_FILES; do
-  [ -f "$plan_file" ] || continue
+  case "$plan_file" in
+    "${PHASE_DIR}"/*-PLAN.md) ;;
+    *) echo "ERROR: unexpected planner artifact path: $plan_file"; exit 1 ;;
+  esac
+  [ -r "$plan_file" ] || { echo "ERROR: planner artifact is missing or unreadable: $plan_file"; exit 1; }
   gpd validate plan-contract "$plan_file" || exit 1
 done
 ```
@@ -800,12 +770,14 @@ In addition to structural checks, verify:
 ```
 
 ```
+CHECKER_RETURN=$(
 task(
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-plan-checker.md for your role and instructions.\n\n" + checker_prompt,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-plan-checker.md for your role and instructions.\n\n" + checker_prompt + "\n\n<spawn_contract>\nwrite_scope:\n  mode: read_only\n  allowed_paths: []\nexpected_artifacts: []\nshared_state_policy: return_only\nartifact_gate: checker returns approved_plans, blocked_plans, and files_written: []; orchestrator reconciles IDs against FRESH_PLAN_FILES\n</spawn_contract>",
   subagent_type="gpd-plan-checker",
   model="{checker_model}",
   readonly=false,
   description="Verify Phase {phase} plans"
+)
 )
 ```
 
@@ -915,12 +887,15 @@ Keep the revision prompt scoped to targeted checker fixes. Do not restate templa
 ```
 
 ```
+PLANNER_HANDOFF_STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+PLANNER_RETURN=$(
 task(
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.\n\n" + revision_prompt,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.\n\n" + revision_prompt + "\n\n<spawn_contract>\nwrite_scope:\n  mode: scoped_write\n  allowed_paths:\n    - \"{phase_dir}/*-PLAN.md\"\nexpected_artifacts:\n  - \"revised readable {phase_dir}/*-PLAN.md named in gpd_return.files_written\"\nshared_state_policy: return_only\nartifact_gate: orchestrator validates files_written, scope, freshness, readability, suffix, and plan-contract before re-checking\n</spawn_contract>",
   subagent_type="gpd-planner",
   model="{planner_model}",
   readonly=false,
   description="Revise Phase {phase} plans"
+)
 )
 ```
 
@@ -937,6 +912,8 @@ Offer: 1) Force proceed, 2) Provide guidance and retry, 3) Abandon
 ## 13. Present Final Status
 
 Route to `<offer_next>`.
+
+**Structured final status convention:** For clean bounded non-autonomous planning that creates or updates the expected `*-PLAN.md` artifact, has `checkpoint: none`, and has no stale verification, proof-audit, dirty-git, contract, convention, or checker gate, report `status: green`. Execution remaining as the next command is not by itself a yellow condition.
 
 </process>
 
@@ -980,21 +957,13 @@ gpd:execute-phase {X}
 
 <success_criteria>
 
-- [ ] GPD/ directory validated
-- [ ] Phase validated against roadmap
-- [ ] Phase directory created if needed
+- [ ] GPD/ directory, roadmap phase, and phase directory validated
 - [ ] CONTEXT.md loaded early (step 4) and passed to ALL agents
-- [ ] Research completed (unless --skip-research or --gaps or exists)
-- [ ] gpd-phase-researcher spawned with CONTEXT.md
-- [ ] gpd-experiment-designer spawned for numerical phases (unless --light or no numerical indicators)
-- [ ] Existing plans checked
-- [ ] gpd-planner spawned with CONTEXT.md + RESEARCH.md
-- [ ] Plans created (PLANNING COMPLETE or CHECKPOINT handled)
-- [ ] gpd-plan-checker spawned with CONTEXT.md
+- [ ] Research completed or explicitly skipped; numerical phases carry convergence, uncertainty, benchmark, and forbidden-proxy obligations directly in PLAN, or explicitly route to a required standalone experiment design
+- [ ] Existing plans checked; planner and checker spawned with required context
+- [ ] Plans created and any CHECKPOINT handled
 - [ ] Verification passed OR user override OR max iterations with user decision
-- [ ] Plans include dimensional consistency checks
-- [ ] Plans include limiting case validation
-- [ ] Plans include approximation validity bounds
+- [ ] Plans include dimensional, limiting-case, and approximation-validity checks
 - [ ] User sees status between agent spawns
 - [ ] User knows next steps
 </success_criteria>

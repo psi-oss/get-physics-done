@@ -15,19 +15,11 @@ REFERENCES_DIR = Path("src/gpd/specs/references")
 TEMPLATES_DIR = Path("src/gpd/specs/templates")
 PUBLICATION_SHARED_PREFLIGHT = TEMPLATES_DIR / "paper" / "publication-manuscript-root-preflight.md"
 PUBLICATION_BOOTSTRAP_PREFLIGHT = REFERENCES_DIR / "publication" / "publication-bootstrap-preflight.md"
-PUBLICATION_PIPELINE_MODES_INCLUDE = (
-    "@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md"
-)
+PUBLICATION_PIPELINE_MODES_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md"
 PUBLICATION_PIPELINE_MODES_INLINE = "{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md"
-PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE = (
-    "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
-)
-PUBLICATION_ROUND_ARTIFACTS_INCLUDE = (
-    "{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
-)
-PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE = (
-    "@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md"
-)
+PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
+PUBLICATION_ROUND_ARTIFACTS_INCLUDE = "{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
+PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md"
 PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE = (
     "{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
 )
@@ -80,7 +72,10 @@ def test_quick_command_and_workflow_keep_the_project_gate_and_drop_the_custom_st
     assert "project_exists" in quick_workflow
     assert "**Project Exists:** {project_exists}" in quick_workflow
     assert "Quick tasks can run mid-phase and do NOT require ROADMAP.md." in quick_workflow
-    assert "They still require an initialized project workspace with `GPD/PROJECT.md` and the `GPD/` directory." in quick_workflow
+    assert (
+        "They still require an initialized project workspace with `GPD/PROJECT.md` and the `GPD/` directory."
+        in quick_workflow
+    )
     assert "They only need `GPD/` to exist for directory structure." not in quick_workflow
 
 
@@ -95,17 +90,14 @@ def test_peer_review_init_fields_are_manifest_owned_and_stage5_bullets_are_space
     assert "Parse target-aware init JSON for: `project_exists`" not in peer_review
 
     stage_5 = peer_review[
-        peer_review.index("**Stage 5")
-        : peer_review.index("You must explicitly decide whether the paper is:")
+        peer_review.index("**Stage 5") : peer_review.index("You must explicitly decide whether the paper is:")
     ]
     assert "\t-" not in stage_5
 
 
 def test_paper_writer_response_paths_are_orchestrator_supplied_not_global_authority() -> None:
     paper_writer = (AGENTS_DIR / "gpd-paper-writer.md").read_text(encoding="utf-8")
-    author_response = paper_writer[
-        paper_writer.index("<author_response>") : paper_writer.index("</author_response>")
-    ]
+    author_response = paper_writer[paper_writer.index("<author_response>") : paper_writer.index("</author_response>")]
 
     for token in (
         "referee_report_path",
@@ -119,7 +111,10 @@ def test_paper_writer_response_paths_are_orchestrator_supplied_not_global_author
         assert token in author_response
 
     assert "`GPD/AUTHOR-RESPONSE{round_suffix}.md` is the canonical internal tracker" not in author_response
-    assert "`GPD/review/REFEREE_RESPONSE{round_suffix}.md` is the synchronized journal-facing sibling" not in author_response
+    assert (
+        "`GPD/review/REFEREE_RESPONSE{round_suffix}.md` is the synchronized journal-facing sibling"
+        not in author_response
+    )
     assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" not in author_response
     assert "GPD/review/REFEREE-DECISION{round_suffix}.json" not in author_response
 
@@ -170,14 +165,13 @@ def test_write_paper_workflow_drops_authoring_note_placeholders() -> None:
 def test_publication_commands_keep_shared_manuscript_root_preflight_out_of_wrappers() -> None:
     shared_preflight = PUBLICATION_SHARED_PREFLIGHT.read_text(encoding="utf-8")
     bootstrap_preflight = PUBLICATION_BOOTSTRAP_PREFLIGHT.read_text(encoding="utf-8")
-    publication_artifact_gates = (
-        REFERENCES_DIR / "publication" / "publication-artifact-gates.md"
-    ).read_text(encoding="utf-8")
+    publication_artifact_gates = (REFERENCES_DIR / "publication" / "publication-artifact-gates.md").read_text(
+        encoding="utf-8"
+    )
 
     assert (
         "strict preflight reads `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and "
-        "`reproducibility-manifest.json` from the resolved manuscript directory itself."
-        in shared_preflight
+        "`reproducibility-manifest.json` from the resolved manuscript directory itself." in shared_preflight
     )
     assert "Do not use ad hoc wildcard discovery or first-match filename scans." in shared_preflight
     assert "bibliography_audit_clean" in shared_preflight
@@ -234,11 +228,15 @@ def test_publication_commands_keep_shared_manuscript_root_preflight_out_of_wrapp
 
         assert text.count(PUBLICATION_ROUND_ARTIFACTS_INCLUDE) >= expected_round_counts[path.name], path
         if path.name in expected_response_artifact_counts:
-            assert text.count(PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE) >= expected_response_artifact_counts[path.name], path
+            assert text.count(PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE) >= expected_response_artifact_counts[path.name], (
+                path
+            )
         else:
             assert PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE not in text, path
         if path.name in expected_response_handoff_counts:
-            assert text.count(PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE) >= expected_response_handoff_counts[path.name], path
+            assert (
+                text.count(PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE) >= expected_response_handoff_counts[path.name]
+            ), path
         else:
             assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE not in text, path
         if path.name == "arxiv-submission.md":
@@ -311,7 +309,9 @@ def test_write_paper_command_defers_the_route_list_to_the_workflow() -> None:
     assert "@{GPD_INSTALL_DIR}/workflows/write-paper.md" in write_paper
     assert PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE in write_paper_workflow
     assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in write_paper_workflow
-    assert "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md" not in write_paper_workflow
+    assert (
+        "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md" not in write_paper_workflow
+    )
     assert "{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md" in write_paper_workflow
 
 
@@ -353,8 +353,10 @@ def test_sync_state_workflow_keeps_optional_commit_outside_core_reconcile_path()
     assert "Proceed with reconciliation? (y/n)" not in sync_state
     assert "determine which source is more recent" not in sync_state
     assert "Only if the operator explicitly asks to commit the reconciled state" in sync_state
-    assert sync_state.index("<step name=\"reconcile\">") < sync_state.index("<step name=\"optional_commit\">")
-    assert sync_state.index("gpd --raw state validate") < sync_state.index("<step name=\"optional_commit\">")
+    assert sync_state.index('<step name="reconcile">') < sync_state.index('<step name="optional_commit">')
+    assert sync_state.index('gpd --raw --cwd "$PROJECT_ROOT" state validate') < sync_state.index(
+        '<step name="optional_commit">'
+    )
 
 
 def test_model_visible_yaml_notes_do_not_duplicate_scientific_rigor_guardrails() -> None:

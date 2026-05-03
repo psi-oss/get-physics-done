@@ -46,7 +46,7 @@ Model override strings are runtime-native and are not normalized by GPD:
 
 The orchestrator should NOT auto-switch profiles. If the current work suggests a different profile, inform the user and recommend the explicit change:
 
-```
+```text
 Current profile: review
 This phase involves heavy numerical simulation. Consider switching:
   gpd:set-profile numerical

@@ -711,7 +711,7 @@ def _collect_manuscript_watched_files(manuscript_root: Path) -> tuple[Path, ...]
 
 def _resolved_manuscript_watch_root(project_root: Path, manuscript_entrypoint: Path) -> Path:
     subject = resolve_explicit_publication_subject(project_root, manuscript_entrypoint, allow_markdown=True)
-    return subject.manuscript_root or manuscript_entrypoint.parent
+    return subject.artifact_base or subject.manuscript_root or manuscript_entrypoint.parent
 
 
 def _with_extra_watched_files(*groups: tuple[Path, ...] | Path) -> tuple[Path, ...]:

@@ -8,7 +8,7 @@ from collections.abc import Collection
 from pathlib import Path
 
 from gpd.core.artifact_text import PEER_REVIEW_ARTIFACT_SUFFIXES
-from gpd.core.constants import ProjectLayout
+from gpd.core.constants import PUBLICATION_MANUSCRIPT_DIR_NAME, ProjectLayout
 from gpd.core.manuscript_artifacts import (
     _resolve_manuscript_entrypoint_from_root_resolution as resolve_manuscript_entrypoint_from_root_resolution,
 )
@@ -66,6 +66,27 @@ def path_is_within_supported_manuscript_root(project_root: Path, target: Path) -
     """Return whether *target* lives under a supported project manuscript root."""
 
     return _supported_manuscript_root_for_target(project_root, target) is not None
+
+
+def _manuscript_root_needs_supported_metadata(
+    project_root: Path,
+    manuscript_root: Path,
+    *,
+    restrict_to_supported_roots: bool,
+) -> bool:
+    """Return whether an explicit target must obey managed manuscript-root metadata."""
+
+    if restrict_to_supported_roots:
+        return True
+    if ProjectLayout(project_root).project_md.exists():
+        return True
+
+    publication_dir = ProjectLayout(project_root).publication_dir.resolve(strict=False)
+    try:
+        relative_root = manuscript_root.resolve(strict=False).relative_to(publication_dir)
+    except ValueError:
+        return False
+    return len(relative_root.parts) >= 2 and relative_root.parts[1] == PUBLICATION_MANUSCRIPT_DIR_NAME
 
 
 def resolve_review_manuscript_target(
@@ -135,7 +156,15 @@ def resolve_review_manuscript_target(
             if target_suffix in normalized_allowed_suffixes:
                 if target_suffix in {".tex", ".md"}:
                     manuscript_root, root_resolution = _supported_root_resolution_for_target(target)
-                    if manuscript_root is not None and root_resolution is not None:
+                    if (
+                        manuscript_root is not None
+                        and root_resolution is not None
+                        and _manuscript_root_needs_supported_metadata(
+                            project_root,
+                            manuscript_root,
+                            restrict_to_supported_roots=restrict_to_supported_roots,
+                        )
+                    ):
                         if root_resolution.status != "resolved" or root_resolution.manuscript_entrypoint is None:
                             return (
                                 None,
@@ -198,7 +227,10 @@ def resolve_review_manuscript_target(
                     ),
                 )
             if resolution.status == "missing":
-                return None, f"no manuscript entry point found under {_format_display_path_from_cwd(target, cwd=detail_cwd)}"
+                return (
+                    None,
+                    f"no manuscript entry point found under {_format_display_path_from_cwd(target, cwd=detail_cwd)}",
+                )
             return (
                 None,
                 f"{_format_display_path_from_cwd(target, cwd=detail_cwd)} is ambiguous or inconsistent: {resolution.detail}",

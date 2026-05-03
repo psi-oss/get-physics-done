@@ -27,7 +27,7 @@ EXPECTED_WORKFLOW_COUNTS = {
 }
 EXPECTED_RAW_WORKFLOW_COUNTS = {
     **EXPECTED_WORKFLOW_COUNTS,
-    "plan-phase.md": 2,
+    "plan-phase.md": 5,
     "research-phase.md": 2,
 }
 SPAWN_CONTRACT_BLOCK_RE = re.compile(

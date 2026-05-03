@@ -135,8 +135,8 @@ def test_start_workflow_routes_to_existing_entrypoints() -> None:
             "The recent-project picker is advisory",
         ),
         (
-            "Then open that project folder in the runtime and run \\`gpd:resume-work\\`.",
-            "Then open the project folder in the runtime and run \\`gpd:resume-work\\`.",
+            "Then open that project folder in the runtime and choose the \\`gpd:resume-work\\` command.",
+            "Then open the project folder in the runtime and choose the \\`gpd:resume-work\\` command.",
         ),
         (
             "In GPD terms, \\`resume-work\\` is the in-runtime continuation step once the recovery ladder has identified the right project.",

@@ -572,13 +572,15 @@ fi
 
 **4. Append a phase-transition session block:**
 
-Append a `## Session:` block (same format as pause-work) capturing the phase's key results. If the phase has already established a canonical derivation `result_id`, carry it into the session block so reruns can recover the same anchor directly:
+Append a filled `## Session:` block (same format as pause-work) capturing the phase's key results. If the phase has already established a canonical derivation `result_id`, carry it into the session block so reruns can recover the same anchor directly:
 
 ```bash
 timestamp=$(gpd --raw timestamp full)
+```
 
-cat >> GPD/DERIVATION-STATE.md << EOF
+Draft this block as text first. Replace every placeholder with actual content from the summaries before appending it to `GPD/DERIVATION-STATE.md`; do not run or persist this template as-is:
 
+```text
 ---
 
 ## Session: ${timestamp} | Phase Transition: ${PHASE_DIR}
@@ -595,11 +597,9 @@ cat >> GPD/DERIVATION-STATE.md << EOF
 
 ### Approximations Used
 [Fill from SUMMARY approximations frontmatter if present]
-
-EOF
 ```
 
-Fill the `[Fill ...]` placeholders with actual content extracted in step 2. For each convention, check if it already appears in an earlier session block (idempotency guard — prevents duplication on re-run). Skip conventions already present with identical value. For each key result, check if a result with the same ID or expression already appears for this phase number.
+Fill the `[Fill ...]` placeholders with actual content extracted in step 2 before appending. For each convention, check if it already appears in an earlier session block (idempotency guard — prevents duplication on re-run). Skip conventions already present with identical value. For each key result, check if a result with the same ID or expression already appears for this phase number.
 
 **5. Skip if no extractable data:**
 

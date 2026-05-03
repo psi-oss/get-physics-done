@@ -43,8 +43,9 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     write_manifest as _shared_write_manifest,
 )
-from gpd.adapters.runtime_catalog import get_manifest_metadata_list_policy_key
+from gpd.adapters.runtime_catalog import get_manifest_metadata_list_policy_key, get_runtime_descriptor
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
+from gpd.command_labels import validated_public_command_prefix
 from gpd.mcp import managed_integrations as _managed_integrations
 
 logger = logging.getLogger(__name__)
@@ -178,6 +179,8 @@ def convert_claude_to_opencode_frontmatter(content: str, path_prefix: str | None
     """
     converted = content
     converted = convert_tool_references_in_body(converted, _TOOL_REFERENCE_MAP)
+    public_prefix = validated_public_command_prefix(get_runtime_descriptor("opencode"))
+    converted = converted.replace("`gpd:`", f"`{public_prefix}`")
     converted = _GPD_SLASH_COMMAND_RE.sub(r"/gpd-\g<command>", converted)
     converted = _GPD_BARE_COMMAND_RE.sub(r"gpd-\1", converted)
 
@@ -954,6 +957,7 @@ class OpenCodeAdapter(RuntimeAdapter):
 
     def translate_shared_command_references(self, content: str) -> str:
         result = content.replace("/gpd:", self.public_command_surface_prefix)
+        result = result.replace("`gpd:`", f"`{self.public_command_surface_prefix}`")
         result = _GPD_BARE_COMMAND_RE.sub(r"gpd-\1", result)
         return result
 

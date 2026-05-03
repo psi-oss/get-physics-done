@@ -221,6 +221,25 @@ Downstream `gpd paper-build --citation-sources` consumes this sidecar directly.
 Extra keys are rejected by the downstream parser. Do not guess or invent missing identifiers or metadata.
 When available, include `bibtex_key` as an optional preferred key.
 
+Compact valid example:
+
+```json
+[
+  {
+    "source_type": "paper",
+    "reference_id": "ref-main",
+    "bibtex_key": "Ref2026",
+    "title": "Fixture Reference",
+    "authors": ["Ada Example", "Ben Example"],
+    "year": "2026",
+    "journal": "Journal of Fixture Physics"
+  }
+]
+```
+
+Keep audit-only fields such as `verification_status`, `canonical_identifiers`, and `verification_sources` in
+`GPD/literature/{slug}-CITATION-AUDIT.md`; do not put them in `*-CITATION-SOURCES.json`.
+
 Rules:
 
 - Keep `reference_id` stable across reruns for the same canonical reference.

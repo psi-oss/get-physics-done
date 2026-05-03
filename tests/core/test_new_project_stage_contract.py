@@ -63,6 +63,13 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
         "recoverable_project_exists",
         "partial_project_exists",
         "project_recovery_status",
+        "init_progress_exists",
+        "init_progress_status",
+        "init_progress_valid",
+        "init_progress_corrupt",
+        "init_progress_step",
+        "init_progress_description",
+        "init_progress_path",
         "has_research_map",
         "planning_exists",
         "has_research_files",
@@ -78,6 +85,7 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
     )
     assert "project_contract_gate" in contract.stages[0].required_init_fields
     assert "needs_research_map" in contract.stages[0].required_init_fields
+    assert "init_progress_status" in contract.stages[0].required_init_fields
     assert contract.stages[0].conditional_authorities[0].when == "full_questioning_path"
     assert contract.stages[0].conditional_authorities[0].authorities == ("references/research/questioning.md",)
     assert "references/research/questioning.md" in contract.stages[0].must_not_eager_load
@@ -90,7 +98,7 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
         "surface the first scoping question",
         "preserve contract gate visibility without assuming approval-stage authority",
     )
-    assert contract.stages[0].writes_allowed == ("GPD/init-progress.json",)
+    assert contract.stages[0].writes_allowed == ()
     assert contract.stages[1].required_init_fields == (
         "project_contract",
         "project_contract_gate",
@@ -108,7 +116,12 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
         "approval gate has passed",
         "project contract is ready for persistence",
     )
-    assert contract.stages[1].writes_allowed == ("GPD/state.json",)
+    assert contract.stages[1].writes_allowed == (
+        "GPD/state.json",
+        "GPD/STATE.md",
+        "GPD/state.json.bak",
+        "GPD/state.json.lock",
+    )
     assert contract.stages[2].required_init_fields == (
         "researcher_model",
         "synthesizer_model",
@@ -134,6 +147,8 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
         "GPD/ROADMAP.md",
         "GPD/STATE.md",
         "GPD/state.json",
+        "GPD/state.json.bak",
+        "GPD/state.json.lock",
         "GPD/config.json",
         "GPD/CONVENTIONS.md",
         "GPD/init-progress.json",
@@ -183,6 +198,68 @@ def test_new_project_command_mentions_approval_time_grounding_linkage() -> None:
 
     assert "project-contract-schema.md" in command_text
     assert "project-contract-grounding-linkage.md" in command_text
+
+
+def test_new_project_defines_auto_minimal_conflict_as_prewrite_gate() -> None:
+    command_text = _read_new_project_command()
+    workflow_text = _read_new_project_workflow()
+
+    expected_error = "Error: --auto and --minimal cannot be combined."
+    assert expected_error in command_text
+    assert expected_error in workflow_text
+    assert "This conflict stop happens before git initialization" in command_text
+    assert "Do not initialize git, create `GPD/`, write state" in workflow_text
+    assert workflow_text.index(expected_error) < workflow_text.index("## 1. Setup")
+
+
+def test_new_project_recovery_gate_precedes_generic_project_hard_stops() -> None:
+    workflow_text = _read_new_project_workflow()
+
+    progress_gate = workflow_text.index(
+        "**Check for previous initialization attempt before generic project/recovery hard-stops:**"
+    )
+    project_stop = workflow_text.index("**If `project_exists` is true:**")
+    recoverable_stop = workflow_text.index("**If `recoverable_project_exists` is true")
+
+    assert progress_gate < project_stop
+    assert progress_gate < recoverable_stop
+    assert (
+        "Use the structured setup fields from `SCOPE_INIT`; do not manually parse `GPD/init-progress.json`"
+        in workflow_text
+    )
+    assert 'init_progress_status="interrupted_init_progress"' in workflow_text
+    assert "{init_progress_step}: {init_progress_description}" in workflow_text
+    assert "Do not delete it automatically" in workflow_text
+    assert "If start fresh: delete `init-progress.json` only after the user explicitly chooses" in workflow_text
+    assert "cat GPD/init-progress.json" not in workflow_text
+
+
+def test_new_project_minimal_roadmap_contract_is_direct_not_staged_handoff() -> None:
+    workflow_text = _read_new_project_workflow()
+    minimal_m4 = workflow_text[
+        workflow_text.index("#### M4. Create ROADMAP.md") : workflow_text.index("#### M5. Create STATE.md")
+    ]
+
+    assert "For minimal bootstrap only, write a lightweight local `GPD/ROADMAP.md` directly" in minimal_m4
+    assert "Do not claim or invoke the staged post-scope roadmapping handoff in the minimal path" in minimal_m4
+    assert "Route `GPD/ROADMAP.md` through the staged post-scope roadmapping handoff" not in minimal_m4
+
+
+def test_new_project_defers_git_until_first_mutation_gate() -> None:
+    workflow_text = _read_new_project_workflow()
+
+    setup_start = workflow_text.index("## 1. Setup")
+    existing_work_start = workflow_text.index("## 2. Existing Work Offer")
+    first_mutation_gate = workflow_text.index("Before persistence, cross the **First Mutation Gate**")
+    git_init = workflow_text.index("```bash\ngit init\n```")
+    state_persistence = workflow_text.index("gpd state set-project-contract -")
+    minimal_parse_failure = workflow_text.index("Error: Could not extract research context from the provided file.")
+    auto_doc_failure = workflow_text.index("Error: --auto requires a research document via @ reference.")
+
+    assert "```bash\ngit init\n```" not in workflow_text[setup_start:existing_work_start]
+    assert auto_doc_failure < git_init
+    assert minimal_parse_failure < git_init
+    assert first_mutation_gate < git_init < state_persistence
 
 
 def test_new_project_notation_contracts_split_checkpoint_from_artifact_write() -> None:
@@ -246,14 +323,23 @@ def test_new_project_stage_contract_rejects_invalid_ordering(tmp_path: Path) -> 
 @pytest.mark.parametrize(
     ("mutator", "expected"),
     [
-        (lambda payload: payload["stages"][0]["loaded_authorities"].__setitem__(0, "references/missing.md"), "markdown file"),
+        (
+            lambda payload: payload["stages"][0]["loaded_authorities"].__setitem__(0, "references/missing.md"),
+            "markdown file",
+        ),
         (lambda payload: payload["stages"][0]["allowed_tools"].__setitem__(0, "network"), "unknown tool name"),
-        (lambda payload: payload["stages"][1]["required_init_fields"].__setitem__(0, "bogus_field"), "unknown field name"),
+        (
+            lambda payload: payload["stages"][1]["required_init_fields"].__setitem__(0, "bogus_field"),
+            "unknown field name",
+        ),
         (
             lambda payload: payload["stages"][0]["must_not_eager_load"].append("workflows/new-project.md"),
             "overlap with must_not_eager_load",
         ),
-        (lambda payload: payload["stages"][0]["writes_allowed"].append("../state.json"), "normalized relative POSIX path"),
+        (
+            lambda payload: payload["stages"][0]["writes_allowed"].append("../state.json"),
+            "normalized relative POSIX path",
+        ),
     ],
 )
 def test_new_project_stage_contract_rejects_validation_drift(mutator, expected: str) -> None:

@@ -24,7 +24,15 @@ export PROJECT_ROOT
 PROJECT_ROOT=$(echo "$SYNC_BOOTSTRAP_INIT" | gpd json get .project_root)
 ```
 
-Use `sync_bootstrap.required_init_fields` from `SYNC_BOOTSTRAP_INIT`. Use `project_root` from the init payload as the only write/read root; do not use the shell launch directory. Do not re-probe `GPD/STATE.md`, `GPD/state.json`, or `GPD/state.json.bak` by hand during routing.
+Use `sync_bootstrap.required_init_fields` from `SYNC_BOOTSTRAP_INIT`. Use `project_root` from the init payload as the only write/read root; do not use the shell launch directory. `init_root_policy` and `project_reentry_guidance` are authoritative: sync-state is current-workspace-only and must not inspect or repair a recent project from another folder. Do not re-probe `GPD/STATE.md`, `GPD/state.json`, or `GPD/state.json.bak` by hand during routing.
+
+**If `state_md_exists` and `state_json_exists` are both false, and `state_json_backup_exists` is true:**
+
+```
+Backup-only state found. Display state_recovery_guidance, then stop.
+```
+
+Exit. Do not promote `GPD/state.json.bak` automatically.
 
 **If `state_md_exists` and `state_json_exists` are both false:**
 
@@ -34,39 +42,12 @@ No state files found. Run gpd:new-project to initialize project state.
 
 Exit.
 
-**If `state_md_exists` is true and `state_json_exists` is false:**
+**If exactly one of `state_md_exists` or `state_json_exists` is true:**
 
-Load single-source recovery before reading state content:
-
-```bash
-SINGLE_SOURCE_RECOVERY_INIT=$(gpd --raw init sync-state --stage single_source_recovery)
-if [ $? -ne 0 ]; then
-  echo "ERROR: gpd sync-state recovery init failed: $SINGLE_SOURCE_RECOVERY_INIT"
-  exit 1
-fi
-```
-
-Use `single_source_recovery.required_init_fields` from `SINGLE_SOURCE_RECOVERY_INIT`.
-
-Recover `state.json` from the markdown recovery source and preserve the JSON-only state on disk by rebuilding the dual-write pair atomically:
-
-```bash
-uv run python - <<'PY'
-from pathlib import Path
-import os
-from gpd.core.state import save_state_markdown
-
-cwd = Path(os.environ["PROJECT_ROOT"])
-md_path = cwd / "GPD" / "STATE.md"
-save_state_markdown(cwd, md_path.read_text(encoding="utf-8"))
-PY
-```
-
-Then run `gpd --raw state validate`, report the recovery result, and stop. Do not prompt for a merge decision: markdown recovery is the only allowed source when JSON is absent.
-
-**If `state_json_exists` is true and `state_md_exists` is false:**
-
-Load single-source recovery before regenerating the missing markdown projection:
+Load single-source recovery for the diagnostic context, but do not choose the
+recovery source in the prompt. The backend repair command is the source-selection
+authority; it uses the recovery-aware state loader, including recovered backup
+sources and integrity issues.
 
 ```bash
 SINGLE_SOURCE_RECOVERY_INIT=$(gpd --raw init sync-state --stage single_source_recovery)
@@ -78,22 +59,19 @@ fi
 
 Use `single_source_recovery.required_init_fields` from `SINGLE_SOURCE_RECOVERY_INIT`.
 
-`state.json` is authoritative. Rebuild `STATE.md` directly from it:
+Repair the dual-write pair through the tested backend path:
 
 ```bash
-uv run python - <<'PY'
-import json
-from pathlib import Path
-import os
-from gpd.core.state import save_state_json
-
-cwd = Path(os.environ["PROJECT_ROOT"])
-state = json.loads((cwd / "GPD" / "state.json").read_text(encoding="utf-8"))
-save_state_json(cwd, state)
-PY
+SYNC_STATE_REPAIR=$(gpd --raw --cwd "$PROJECT_ROOT" state repair-sync)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd sync-state repair failed: $SYNC_STATE_REPAIR"
+  exit 1
+fi
 ```
 
-Then run `gpd --raw state validate`, report the regeneration result, and stop.
+Report `source_used`, `integrity_issues`, and `validation_status` from
+`SYNC_STATE_REPAIR`, then stop. Do not prompt for a merge decision and do not
+run raw JSON or markdown parsing from the prompt.
 
 **If `state_md_exists` and `state_json_exists` are both true:** Continue to comparison.
 </step>
@@ -162,43 +140,23 @@ fi
 
 Use `reconcile_and_validate.required_init_fields` as the reconciliation inputs.
 
-**If `state.json` is valid:**
-
-Regenerate `STATE.md` from `state.json`:
-
-```bash
-uv run python - <<'PY'
-import json
-from pathlib import Path
-import os
-from gpd.core.state import save_state_json
-
-cwd = Path(os.environ["PROJECT_ROOT"])
-state = json.loads((cwd / "GPD" / "state.json").read_text(encoding="utf-8"))
-save_state_json(cwd, state)
-PY
-```
-
-**If `state.json` is invalid or unreadable but `STATE.md` is valid:**
-
-Recover `state.json` from `STATE.md` through the authoritative markdown write path:
+Run the backend reconciliation command. It chooses the recovery source from the
+loader result, prefers valid backup state over malformed markdown, rejects
+malformed markdown-only recovery, preserves JSON-only fields, and writes the
+dual state pair atomically.
 
 ```bash
-uv run python - <<'PY'
-from pathlib import Path
-import os
-from gpd.core.state import save_state_markdown
-
-cwd = Path(os.environ["PROJECT_ROOT"])
-md_path = cwd / "GPD" / "STATE.md"
-save_state_markdown(cwd, md_path.read_text(encoding="utf-8"))
-PY
+SYNC_STATE_REPAIR=$(gpd --raw --cwd "$PROJECT_ROOT" state repair-sync)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd sync-state repair failed: $SYNC_STATE_REPAIR"
+  exit 1
+fi
 ```
 
 **Verify sync result:**
 
 ```bash
-gpd --raw state validate
+gpd --raw --cwd "$PROJECT_ROOT" state validate
 ```
 
 If validation fails, report the validation issues and stop. Do not commit a partially reconciled pair.
@@ -225,10 +183,10 @@ If they diverged, report changed mirrored fields and note JSON-only fields were 
 **Only if the operator explicitly asks to commit the reconciled state:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files GPD/STATE.md GPD/state.json 2>&1) || true
+PRE_CHECK=$(gpd --cwd "$PROJECT_ROOT" pre-commit-check --files GPD/STATE.md GPD/state.json 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit \
+gpd --cwd "$PROJECT_ROOT" commit \
   "fix: reconcile STATE.md and state.json divergence" \
   --files GPD/STATE.md GPD/state.json
 ```
@@ -238,8 +196,8 @@ gpd commit \
 
 <failure_handling>
 
-- **STATE.md corrupt:** If `state.json` is valid, regenerate markdown from it. If both are damaged, try `state.json.bak`, then any valid `STATE.md`, then controlled regeneration from defaults plus surviving structured artifacts.
-- **state.json corrupt (invalid JSON):** Move it aside to `GPD/state.json.bak`, then recover from `STATE.md` through the markdown write path. Do not delete it without keeping a backup first.
+- **STATE.md corrupt:** The backend repair path regenerates markdown from valid structured state. If primary JSON is missing or corrupt, it prefers a valid `state.json.bak` before considering markdown. Malformed markdown-only recovery fails closed.
+- **state.json corrupt (invalid JSON):** The backend repair path uses the recovery-aware state loader and valid backup state when available. Do not move or delete files from the prompt.
 - **Both files exist but disagree:** Treat the mismatch as a reportable drift, not a bidirectional merge request. Use `state.json` for structured fields and regenerate `STATE.md` from it unless `state.json` is unreadable.
 - **Regeneration fails validation:** Stop and report the blocking issues. Do not stage or commit the pair.
 

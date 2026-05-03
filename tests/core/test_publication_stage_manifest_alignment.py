@@ -78,9 +78,7 @@ def test_stage_one_deferred_authorities_are_not_raw_projection_includes() -> Non
         if not deferred_authorities:
             continue
 
-        for line_number, include_relpath in _raw_projection_include_relpaths(
-            workflow_path.read_text(encoding="utf-8")
-        ):
+        for line_number, include_relpath in _raw_projection_include_relpaths(workflow_path.read_text(encoding="utf-8")):
             if include_relpath in deferred_authorities:
                 if include_relpath in RAW_INCLUDE_ALLOWED_DEFERRED_AUTHORITIES:
                     continue
@@ -228,6 +226,10 @@ def test_arxiv_submission_stage_manifest_surfaces_publication_routing() -> None:
     assert "managed_publication_root" in bootstrap.required_init_fields
     assert "selected_publication_root" in bootstrap.required_init_fields
     assert "selected_review_root" in bootstrap.required_init_fields
+    assert "latest_response_round" in bootstrap.required_init_fields
+    assert "latest_response_artifacts" in bootstrap.required_init_fields
+    assert "latest_response_requires_fresh_review" in bootstrap.required_init_fields
+    assert "latest_response_freshness" in bootstrap.required_init_fields
     assert package.writes_allowed == ("GPD/publication/{subject_slug}/arxiv",)
     for stage_id in manifest.stage_ids():
         assert "arxiv_submission_argument_input" in manifest.stage(stage_id).required_init_fields

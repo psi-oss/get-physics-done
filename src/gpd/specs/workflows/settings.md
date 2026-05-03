@@ -67,9 +67,12 @@ Parse current values, using the schema defaults noted below when a key is absent
 - `workflow.verifier` -- spawn verifier during execute-phase (this does NOT disable mandatory proof red-teaming for `proof_obligation` work)
 - `execution.review_cadence` -- execution review density: `"dense"` (default), `"adaptive"`, `"sparse"`
 - `execution.max_unattended_minutes_per_plan` -- wall-clock budget before a bounded continuation should be created
+- `execution.max_unattended_minutes_per_wave` -- wall-clock budget before a wave-level bounded continuation should be created
 - `execution.project_usd_budget` -- optional advisory USD budget for the whole current workspace / project
 - `execution.session_usd_budget` -- optional advisory USD budget for the current active session
 - `execution.checkpoint_after_n_tasks` -- task budget before a bounded continuation should be created
+- `execution.checkpoint_after_first_load_bearing_result` -- whether the first load-bearing result forces a review gate
+- `execution.checkpoint_before_downstream_dependent_tasks` -- whether downstream fanout waits on a review gate
 - `planning.commit_docs` -- whether planning artifacts are committed to git (default: `true`)
 - `parallelization` -- execute wave plans in parallel (default: `true`)
 - `model_profile` -- which agent model profile to use (default: `review`)
@@ -258,10 +261,13 @@ ask_user([
 ])
 ```
 
-After the ask_user responses are collected, ask one compact inline follow-up for unattended execution budgets using the current values as defaults:
+After the ask_user responses are collected, ask one compact inline follow-up for unattended execution budgets and checkpoint controls using the current values as defaults:
 
 - `execution.max_unattended_minutes_per_plan`
 - `execution.max_unattended_minutes_per_wave`
+- `execution.checkpoint_after_n_tasks`
+- `execution.checkpoint_after_first_load_bearing_result`
+- `execution.checkpoint_before_downstream_dependent_tasks`
 
 Explain that these budgets bound how long GPD should keep running before it creates a continuation or another review stop. If the user is unsure, preserve the current values.
 
@@ -270,7 +276,7 @@ Then ask one compact inline follow-up for optional advisory USD budget guardrail
 - `execution.project_usd_budget`
 - `execution.session_usd_budget`
 
-Explain that these are optional read-only guardrails checked by `gpd cost` against recorded machine-local USD telemetry. They are advisory only, may stay partial or estimated when telemetry is missing, and never stop work automatically. If the user is unsure, preserve the current values. Blank / `none` should clear the corresponding USD budget.
+Explain that these are optional read-only guardrails checked by `gpd cost` against recorded machine-local USD telemetry. They are advisory only, may stay partial or estimated when telemetry is missing, and never stop work automatically. If the user is unsure, preserve the current values. To clear a configured USD budget, use literal JSON `null`. Blank means preserve the current value. Do not advertise or pass `none` or an empty string as a clearing value.
 
 </step>
 
@@ -311,6 +317,29 @@ Normalization rules:
 <step name="update_config">
 Apply each selected setting through the config CLI. This keeps storage canonical and avoids writing nested alias blocks by hand.
 
+Before applying, map the collected ask_user and inline follow-up responses into these variables only:
+
+- `SELECTED_AUTONOMY`
+- `SELECTED_RESEARCH_MODE`
+- `SELECTED_MODEL_PROFILE`
+- `SELECTED_PARALLELIZATION`
+- `SELECTED_COMMIT_DOCS`
+- `SELECTED_WORKFLOW_RESEARCH`
+- `SELECTED_WORKFLOW_PLAN_CHECKER`
+- `SELECTED_WORKFLOW_VERIFIER`
+- `SELECTED_REVIEW_CADENCE`
+- `SELECTED_MAX_UNATTENDED_MINUTES_PER_PLAN`
+- `SELECTED_MAX_UNATTENDED_MINUTES_PER_WAVE`
+- `SELECTED_CHECKPOINT_AFTER_N_TASKS`
+- `SELECTED_CHECKPOINT_AFTER_FIRST_RESULT`
+- `SELECTED_CHECKPOINT_BEFORE_DEPENDENTS`
+- `SELECTED_BRANCHING_STRATEGY`
+- `SELECTED_PROJECT_USD_BUDGET`
+- `SELECTED_SESSION_USD_BUDGET`
+- `SELECTED_RUNTIME`
+
+For optional USD budgets, valid write values are a positive number or literal JSON `null`; if the user left the answer blank, preserve the current value by skipping that `gpd config set` call. Preserve `git.phase_branch_template` and `git.milestone_branch_template` exactly as the current config stores them; this guided flow changes only `git.branching_strategy`.
+
 ```bash
 gpd config set autonomy "$SELECTED_AUTONOMY"
 gpd config set research_mode "$SELECTED_RESEARCH_MODE"
@@ -323,14 +352,19 @@ gpd config set workflow.verifier "$SELECTED_WORKFLOW_VERIFIER"
 gpd config set execution.review_cadence "$SELECTED_REVIEW_CADENCE"
 gpd config set execution.max_unattended_minutes_per_plan "$SELECTED_MAX_UNATTENDED_MINUTES_PER_PLAN"
 gpd config set execution.max_unattended_minutes_per_wave "$SELECTED_MAX_UNATTENDED_MINUTES_PER_WAVE"
-gpd config set execution.project_usd_budget "$SELECTED_PROJECT_USD_BUDGET"
-gpd config set execution.session_usd_budget "$SELECTED_SESSION_USD_BUDGET"
 gpd config set execution.checkpoint_after_n_tasks "$SELECTED_CHECKPOINT_AFTER_N_TASKS"
 gpd config set execution.checkpoint_after_first_load_bearing_result "$SELECTED_CHECKPOINT_AFTER_FIRST_RESULT"
 gpd config set execution.checkpoint_before_downstream_dependent_tasks "$SELECTED_CHECKPOINT_BEFORE_DEPENDENTS"
 gpd config set git.branching_strategy "$SELECTED_BRANCHING_STRATEGY"
-gpd config set git.phase_branch_template "$SELECTED_PHASE_BRANCH_TEMPLATE"
-gpd config set git.milestone_branch_template "$SELECTED_MILESTONE_BRANCH_TEMPLATE"
+
+if [ -n "$SELECTED_PROJECT_USD_BUDGET" ]; then
+  # To clear the budget, SELECTED_PROJECT_USD_BUDGET must be literal JSON null.
+  gpd config set execution.project_usd_budget "$SELECTED_PROJECT_USD_BUDGET"
+fi
+if [ -n "$SELECTED_SESSION_USD_BUDGET" ]; then
+  # To clear the budget, SELECTED_SESSION_USD_BUDGET must be literal JSON null.
+  gpd config set execution.session_usd_budget "$SELECTED_SESSION_USD_BUDGET"
+fi
 ```
 
 For runtime model overrides, first merge the new `<SELECTED_RUNTIME>` tier map with existing `model_overrides` for other runtimes, then write the whole `model_overrides` object with `gpd config set model_overrides "$MODEL_OVERRIDES_JSON"`. Include only non-empty tier values; omit or clear `<SELECTED_RUNTIME>` when using runtime defaults.

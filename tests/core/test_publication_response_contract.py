@@ -52,13 +52,13 @@ def test_publication_review_round_artifacts_define_canonical_round_family() -> N
     assert "Canonical round-suffix and sibling-artifact contract for publication review rounds." in source
     assert "Round 1 uses `round_suffix=\"\"`." in source
     assert "Round `N` for `N >= 2` uses `round_suffix=\"-R{N}\"`." in source
-    assert "GPD/REFEREE-REPORT{round_suffix}.md" in source
-    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in source
-    assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in source
-    assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in source
-    assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in source
-    assert "GPD/review/PROOF-REDTEAM{round_suffix}.md" in source
-    assert "current project-backed canonical layout" in source
+    assert "${selected_publication_root}/REFEREE-REPORT{round_suffix}.md" in source
+    assert "${selected_review_root}/REVIEW-LEDGER{round_suffix}.json" in source
+    assert "${selected_review_root}/REFEREE-DECISION{round_suffix}.json" in source
+    assert "${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md" in source
+    assert "${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md" in source
+    assert "${selected_review_root}/PROOF-REDTEAM{round_suffix}.md" in source
+    assert "default project-backed canonical layout" in source
     assert "subject-owned publication root `GPD/publication/{subject_slug}`" in source
     assert "does not by itself promise a full relocation" in source
     assert "review-round-artifact-contract.md" not in source

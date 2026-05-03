@@ -116,12 +116,14 @@ __all__ = [
     "StateGetResult",
     "StateLoadResult",
     "StatePatchResult",
+    "SyncStateRepairResult",
     "StateSnapshotResult",
     "StateUpdateResult",
     "StateValidateResult",
     "UpdateProgressResult",
     "VALID_STATUSES",
     "VALID_TRANSITIONS",
+    "backup_only_state_guidance",
     "default_state_dict",
     "ensure_state_schema",
     "generate_state_markdown",
@@ -149,7 +151,9 @@ __all__ = [
     "state_record_metric",
     "state_record_session",
     "state_record_verification",
+    "state_repair_sync",
     "state_replace_field",
+    "project_contract_authority_status",
     "state_set_project_contract",
     "state_set_continuation_bounded_segment",
     "state_carry_forward_continuation_last_result_id",
@@ -170,6 +174,21 @@ EM_DASH = "\u2014"
 # as semantic null on re-parse, so round-trip stability is preserved regardless
 # of which placeholder form is on disk.
 INACTIVE_FIELD_SENTINEL = "none"
+_BACKUP_ONLY_WITHOUT_PRIMARY_STATE_ISSUE = (
+    "state.json.bak exists without primary state.json or STATE.md; explicit recovery approval is required "
+    "before treating it as state authority"
+)
+_BACKUP_ONLY_STATE_GUIDANCE = (
+    "GPD/state.json.bak exists, but primary GPD/state.json and GPD/STATE.md are missing. "
+    "GPD will not promote the backup automatically; inspect the backup and restore one primary state file only "
+    "after explicit recovery approval, then rerun sync-state from this workspace."
+)
+
+
+def backup_only_state_guidance() -> str:
+    """Return user-facing guidance for a backup-only state surface."""
+
+    return _BACKUP_ONLY_STATE_GUIDANCE
 
 
 def _recent_projects_index_path() -> Path:
@@ -500,6 +519,7 @@ class StateLoadResult(BaseModel):
     integrity_status: str = "healthy"
     integrity_issues: list[str] = Field(default_factory=list)
     state_source: str | None = None
+    recovery_guidance: str | None = None
     project_contract_load_info: dict | None = None
     project_contract_validation: dict | None = None
     project_contract_gate: dict | None = None
@@ -530,6 +550,24 @@ class StateValidateResult(BaseModel):
     project_contract_load_info: dict | None = None
     project_contract_validation: dict | None = None
     project_contract_gate: dict | None = None
+
+
+class SyncStateRepairResult(BaseModel):
+    """Returned by :func:`state_repair_sync`."""
+
+    model_config = ConfigDict(frozen=True)
+
+    repaired: bool
+    state_mutated: bool = False
+    source_used: str | None = None
+    project_root: str | None = None
+    validation_valid: bool | None = None
+    validation_status: str | None = None
+    integrity_issues: list[str] = Field(default_factory=list)
+    issues: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    error: str | None = None
+    reason: str | None = None
 
 
 class StateUpdateResult(BaseModel):
@@ -1125,6 +1163,105 @@ def _finalize_project_contract_gate(
         alignment=alignment,
     )
     return finalized_load_info, validation_payload, gate_payload
+
+
+def _project_contract_authority_failure_message(
+    *,
+    load_info: dict[str, object],
+    validation: dict[str, object] | None,
+    gate: dict[str, object],
+) -> str:
+    """Build one operator-facing authority failure message for contract-gated lifecycle paths."""
+
+    details = [
+        f"status={load_info.get('status')}",
+        f"visible={gate.get('visible')}",
+        f"authoritative={gate.get('authoritative')}",
+        f"repair_required={gate.get('repair_required')}",
+    ]
+    errors = [str(error) for error in load_info.get("errors") or []]
+    warnings = [str(warning) for warning in load_info.get("warnings") or []]
+    validation_errors = [str(error) for error in (validation or {}).get("errors") or []]
+    if errors:
+        details.append("load_errors=" + "; ".join(errors))
+    if warnings:
+        details.append("load_warnings=" + "; ".join(warnings))
+    if validation_errors:
+        details.append("validation_errors=" + "; ".join(validation_errors))
+    return (
+        "project_contract_gate.authoritative is not true; repair the current project contract before "
+        "using it as lifecycle or alignment authority (" + ", ".join(details) + ")"
+    )
+
+
+def _project_contract_authority_snapshot(
+    cwd: Path,
+) -> tuple[
+    ResearchContract | None,
+    dict[str, object],
+    dict[str, object] | None,
+    dict[str, object],
+    str | None,
+]:
+    """Return the visible contract plus the current fail-closed authority status."""
+
+    contract, load_info = _load_project_contract_for_runtime_context(cwd)
+    state_obj, _integrity_issues, _state_source = peek_state_json(
+        cwd,
+        recover_intent=False,
+        surface_blocked_project_contract=True,
+        acquire_lock=False,
+    )
+    finalized_load_info, validation_payload, gate_payload = _finalize_project_contract_gate(
+        cwd,
+        contract,
+        load_info,
+        state_obj=state_obj if isinstance(state_obj, dict) else None,
+    )
+    error = None
+    if gate_payload.get("authoritative") is not True or not (
+        isinstance(validation_payload, dict) and validation_payload.get("valid") is True
+    ):
+        error = _project_contract_authority_failure_message(
+            load_info=finalized_load_info,
+            validation=validation_payload,
+            gate=gate_payload,
+        )
+    return contract, finalized_load_info, validation_payload, gate_payload, error
+
+
+def project_contract_authority_status(cwd: Path) -> dict[str, object]:
+    """Return a JSON-safe authority gate payload for lifecycle contract preflights."""
+
+    _contract, load_info, validation_payload, gate_payload, error = _project_contract_authority_snapshot(cwd)
+    payload: dict[str, object] = {
+        "passed": error is None,
+        "project_contract_gate": gate_payload,
+        "project_contract_load_info": load_info,
+        "project_contract_validation": validation_payload,
+    }
+    if error is not None:
+        payload["error"] = error
+    return payload
+
+
+def _load_authoritative_project_contract_for_runtime_context(
+    cwd: Path,
+) -> tuple[ResearchContract, dict[str, object], dict[str, object], dict[str, object]]:
+    """Load the current project contract only when the runtime gate says it is authoritative."""
+
+    contract, load_info, validation_payload, gate_payload, error = _project_contract_authority_snapshot(cwd)
+    if error is not None:
+        raise StateError(error)
+    if contract is None or validation_payload is None:
+        raise StateError(
+            _project_contract_authority_failure_message(
+                load_info=load_info,
+                validation=validation_payload,
+                gate=gate_payload,
+            )
+        )
+    return contract, load_info, validation_payload, gate_payload
 
 
 def _normalize_continuation_payload(
@@ -2095,12 +2232,12 @@ def _normalize_state_schema_with_backup_project_contract(
     def _state_reset_issue_present(issues: list[str]) -> bool:
         return "schema normalization: irrecoverable validation failure; reset to defaults" in issues
 
-    if (
-        backup_normalized is not None
-        and not _state_reset_issue_present(backup_issues)
-        and (not isinstance(raw, dict) or _state_reset_issue_present(integrity_issues))
-    ):
-        normalized = backup_normalized
+    repairable_backup = (
+        backup_normalized if backup_normalized is not None and not _state_reset_issue_present(backup_issues) else None
+    )
+
+    if repairable_backup is not None and (not isinstance(raw, dict) or _state_reset_issue_present(integrity_issues)):
+        normalized = repairable_backup
         integrity_issues = list(backup_issues)
         recovered_root_from_backup = True
         logger.warning("Recovered state.json from state.json.bak after primary state.json required normalization")
@@ -2121,24 +2258,24 @@ def _normalize_state_schema_with_backup_project_contract(
         ]
         if (
             isinstance(raw, dict)
-            and backup_normalized is not None
+            and repairable_backup is not None
             and not recovered_root_from_backup
             and primary_position_issues
-            and isinstance(backup_normalized.get("position"), dict)
+            and isinstance(repairable_backup.get("position"), dict)
         ):
             normalized = copy.deepcopy(normalized)
-            normalized["position"] = copy.deepcopy(backup_normalized["position"])
+            normalized["position"] = copy.deepcopy(repairable_backup["position"])
             integrity_issues = [issue for issue in integrity_issues if issue not in primary_position_issues]
             recovered_position_from_backup = True
         if (
             isinstance(raw, dict)
-            and backup_normalized is not None
+            and repairable_backup is not None
             and not recovered_root_from_backup
             and primary_continuation_issues
-            and _continuation_payload_has_values(backup_normalized.get("continuation"))
+            and _continuation_payload_has_values(repairable_backup.get("continuation"))
         ):
             normalized = copy.deepcopy(normalized)
-            normalized["continuation"] = copy.deepcopy(backup_normalized["continuation"])
+            normalized["continuation"] = copy.deepcopy(repairable_backup["continuation"])
             integrity_issues = [issue for issue in integrity_issues if issue not in primary_continuation_issues]
             recovered_continuation_from_backup = True
     normalized = _normalize_state_continuation(normalized)
@@ -2999,7 +3136,10 @@ def _backup_is_stale_for_markdown(backup_path: Path, md_path: Path) -> bool:
 
     try:
         backup_payload = json.loads(backup_path.read_text(encoding="utf-8"))
-        md_payload = parse_state_to_json(md_path.read_text(encoding="utf-8"))
+        md_content = md_path.read_text(encoding="utf-8")
+        if _state_markdown_structure_issues(md_content):
+            return False
+        md_payload = parse_state_to_json(md_content)
     except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return True
     if not isinstance(backup_payload, dict):
@@ -3598,6 +3738,11 @@ def _load_state_json_with_integrity_issues(
                 )
             return normalized, integrity_issues, state_source
         except FileNotFoundError:
+            md_path = _state_md_path(cwd)
+            if not md_path.exists():
+                if bak_path.exists():
+                    return None, [_BACKUP_ONLY_WITHOUT_PRIMARY_STATE_ISSUE], None
+                return None, [], None
             restored, integrity_issues = _load_state_json_from_backup(
                 cwd,
                 bak_path,
@@ -4117,6 +4262,89 @@ def save_state_markdown(cwd: Path, md_content: str) -> dict:
         return save_state_markdown_locked(cwd, md_content)
 
 
+@instrument_gpd_function("state.repair_sync")
+def state_repair_sync(cwd: Path) -> SyncStateRepairResult:
+    """Repair the dual state files through the recovery-aware backend path."""
+
+    layout = ProjectLayout(cwd)
+    before = {
+        "STATE.md": safe_read_file(layout.state_md),
+        "state.json": safe_read_file(layout.state_json),
+        "state.json.bak": safe_read_file(layout.state_json_backup),
+    }
+
+    with _state_lock(cwd):
+        _recover_intent_locked(cwd)
+        state_obj, integrity_issues, state_source = _load_state_json_with_integrity_issues(
+            cwd,
+            persist_recovery=False,
+            recover_intent=False,
+            surface_blocked_project_contract=True,
+            acquire_lock=False,
+        )
+        if not isinstance(state_obj, dict) or state_source is None:
+            return SyncStateRepairResult(
+                repaired=False,
+                project_root=cwd.resolve(strict=False).as_posix(),
+                integrity_issues=integrity_issues,
+                issues=["No recoverable state source found"],
+                error="No recoverable state source found",
+                reason="missing_or_unrecoverable_state",
+            )
+
+        if state_source == "STATE.md":
+            try:
+                md_content = layout.state_md.read_text(encoding="utf-8")
+            except (FileNotFoundError, OSError, UnicodeDecodeError) as exc:
+                return SyncStateRepairResult(
+                    repaired=False,
+                    source_used=state_source,
+                    project_root=cwd.resolve(strict=False).as_posix(),
+                    integrity_issues=integrity_issues,
+                    issues=[f"STATE.md parse error: {exc}"],
+                    error=f"STATE.md parse error: {exc}",
+                    reason="state_md_unreadable",
+                )
+            md_structure_issues = _state_markdown_structure_issues(md_content)
+            if md_structure_issues:
+                return SyncStateRepairResult(
+                    repaired=False,
+                    source_used=state_source,
+                    project_root=cwd.resolve(strict=False).as_posix(),
+                    integrity_issues=integrity_issues,
+                    issues=md_structure_issues,
+                    error="STATE.md is not a valid recovery source",
+                    reason="state_md_malformed",
+                )
+
+        save_state_json_locked(cwd, state_obj)
+
+    validation = state_validate(
+        cwd,
+        recover_intent=False,
+        acquire_lock=False,
+        surface_blocked_project_contract=True,
+    )
+    after = {
+        "STATE.md": safe_read_file(layout.state_md),
+        "state.json": safe_read_file(layout.state_json),
+        "state.json.bak": safe_read_file(layout.state_json_backup),
+    }
+    return SyncStateRepairResult(
+        repaired=validation.valid,
+        state_mutated=after != before,
+        source_used=state_source,
+        project_root=cwd.resolve(strict=False).as_posix(),
+        validation_valid=validation.valid,
+        validation_status=validation.integrity_status,
+        integrity_issues=integrity_issues,
+        issues=validation.issues,
+        warnings=validation.warnings,
+        error=None if validation.valid else "State validation failed after repair",
+        reason=None if validation.valid else "validation_failed",
+    )
+
+
 # ─── State Commands ────────────────────────────────────────────────────────────
 
 
@@ -4170,6 +4398,12 @@ def state_load(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
         integrity_status=integrity_status,
         integrity_issues=integrity_issues,
         state_source=state_source,
+        recovery_guidance=(
+            backup_only_state_guidance()
+            if state_obj is None
+            and any(_BACKUP_ONLY_WITHOUT_PRIMARY_STATE_ISSUE in issue for issue in integrity_issues)
+            else None
+        ),
         project_contract_load_info=project_contract_load_info,
         project_contract_validation=project_contract_validation,
         project_contract_gate=project_contract_gate,
@@ -4231,6 +4465,12 @@ def state_load_readonly(cwd: Path, integrity_mode: str = "standard") -> StateLoa
         integrity_status=integrity_status,
         integrity_issues=integrity_issues,
         state_source=state_source,
+        recovery_guidance=(
+            backup_only_state_guidance()
+            if state_obj is None
+            and any(_BACKUP_ONLY_WITHOUT_PRIMARY_STATE_ISSUE in issue for issue in integrity_issues)
+            else None
+        ),
         project_contract_load_info=project_contract_load_info,
         project_contract_validation=project_contract_validation,
         project_contract_gate=project_contract_gate,
@@ -5276,9 +5516,22 @@ def state_record_contract_alignment(
         raise StateError("contract_hash must be a non-empty string")
     if not isinstance(context_hash, str) or not context_hash.strip():
         raise StateError("context_hash must be a non-empty string")
+    normalized_contract_hash = contract_hash.strip()
+    normalized_context_hash = context_hash.strip()
     resolved_now = now if now is not None else datetime.now(tz=UTC).isoformat()
     with _state_lock(cwd):
         _recover_intent_locked(cwd)
+        authoritative_contract, _load_info, _validation, _gate = (
+            _load_authoritative_project_contract_for_runtime_context(cwd)
+        )
+        from gpd.core.contract_validation import contract_fingerprint
+
+        current_contract_hash = contract_fingerprint(authoritative_contract)
+        if normalized_contract_hash != current_contract_hash:
+            raise StateError(
+                "contract_hash does not match the current authoritative project contract fingerprint "
+                f"(expected {current_contract_hash})"
+            )
         state_obj, _integrity_issues, state_source = _load_state_json_with_integrity_issues(
             cwd,
             persist_recovery=False,
@@ -5290,8 +5543,8 @@ def state_record_contract_alignment(
             raise StateError("State not found")
         state_obj["contract_alignment"] = ContractAlignmentGate(
             confirmed_at=resolved_now,
-            confirmed_contract_hash=contract_hash,
-            confirmed_context_hash=context_hash,
+            confirmed_contract_hash=normalized_contract_hash,
+            confirmed_context_hash=normalized_context_hash,
         ).model_dump(mode="python")
         save_state_json_locked(cwd, state_obj)
 

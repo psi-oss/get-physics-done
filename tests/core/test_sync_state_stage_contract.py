@@ -31,10 +31,17 @@ def test_sync_state_stage_manifest_loads_and_preserves_stage_order() -> None:
 
     assert bootstrap.loaded_authorities == ("workflows/sync-state.md",)
     assert bootstrap.required_init_fields == (
+        "workspace_root",
         "project_root",
+        "project_root_source",
+        "project_root_auto_selected",
+        "init_root_policy",
+        "project_reentry_mode",
+        "project_reentry_guidance",
         "state_md_exists",
         "state_json_exists",
         "state_json_backup_exists",
+        "state_recovery_guidance",
         "state_load_source",
         "state_integrity_issues",
         "platform",
@@ -74,8 +81,15 @@ def test_sync_state_workflow_uses_staged_fields_instead_of_manual_state_probing(
     assert "CONFLICT_ANALYSIS_INIT=$(gpd --raw init sync-state --stage conflict_analysis)" in text
     assert "RECONCILE_INIT=$(gpd --raw init sync-state --stage reconcile_and_validate)" in text
     assert 'PROJECT_ROOT=$(echo "$SYNC_BOOTSTRAP_INIT" | gpd json get .project_root)' in text
-    assert 'cwd = Path(os.environ["PROJECT_ROOT"])' in text
+    assert "sync-state is current-workspace-only and must not inspect or repair a recent project" in text
+    assert "Backup-only state found. Display state_recovery_guidance, then stop." in text
     assert 'cwd = Path(".")' not in text
+    assert 'gpd --raw --cwd "$PROJECT_ROOT" state repair-sync' in text
+    assert 'gpd --raw --cwd "$PROJECT_ROOT" state validate' in text
+    assert "gpd --raw state validate" not in text
+    assert "json.loads" not in text
+    assert "save_state_markdown" not in text
+    assert "save_state_json" not in text
     assert "--prefer" not in text
     assert "Do not re-probe `GPD/STATE.md`, `GPD/state.json`, or `GPD/state.json.bak` by hand during routing." in text
     assert "Do not re-read the mirrored files by hand for comparison." in text

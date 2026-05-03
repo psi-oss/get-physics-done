@@ -89,6 +89,13 @@ def test_load_workflow_stage_manifest_is_cached() -> None:
         "recoverable_project_exists",
         "partial_project_exists",
         "project_recovery_status",
+        "init_progress_exists",
+        "init_progress_status",
+        "init_progress_valid",
+        "init_progress_corrupt",
+        "init_progress_step",
+        "init_progress_description",
+        "init_progress_path",
         "has_research_map",
         "planning_exists",
         "has_research_files",
@@ -135,6 +142,8 @@ def test_load_workflow_stage_manifest_is_cached() -> None:
         "GPD/ROADMAP.md",
         "GPD/STATE.md",
         "GPD/state.json",
+        "GPD/state.json.bak",
+        "GPD/state.json.lock",
         "GPD/config.json",
         "GPD/CONVENTIONS.md",
         "GPD/init-progress.json",
@@ -393,7 +402,9 @@ def test_workflow_stage_manifest_serialized_payload_round_trips_expanded_fields(
     "workflow_id",
     [
         "arxiv-submission",
+        "execute-phase",
         "map-research",
+        "plan-phase",
         "quick",
         "verify-work",
     ],
@@ -727,8 +738,8 @@ def test_publication_staged_init_preserves_explicit_launch_arguments(tmp_path: P
 
     write_paper_manifest = load_workflow_stage_manifest("write-paper")
     for stage_id in write_paper_manifest.stage_ids():
-        payload = init_write_paper(tmp_path, subject="--intake intake/write-paper-authoring-input.json", stage=stage_id)
-        assert payload["write_paper_argument_input"] == "--intake intake/write-paper-authoring-input.json"
+        payload = init_write_paper(tmp_path, subject="paper/main.tex", stage=stage_id)
+        assert payload["write_paper_argument_input"] == "paper/main.tex"
 
 
 def test_known_init_fields_for_quick_cover_task_bootstrap_and_reference_context() -> None:
@@ -1244,6 +1255,10 @@ def test_arxiv_submission_stage_manifest_can_be_loaded() -> None:
     assert "managed_publication_root" in bootstrap.required_init_fields
     assert "selected_publication_root" in bootstrap.required_init_fields
     assert "selected_review_root" in bootstrap.required_init_fields
+    assert "latest_response_round" in bootstrap.required_init_fields
+    assert "latest_response_freshness_policy" in bootstrap.required_init_fields
+    assert "latest_response_requires_fresh_review" in bootstrap.required_init_fields
+    assert "latest_response_freshness" in bootstrap.required_init_fields
     assert "references/publication/publication-review-round-artifacts.md" in review_gate.loaded_authorities
     assert "references/publication/peer-review-reliability.md" in review_gate.loaded_authorities
     assert "references/publication/publication-response-writer-handoff.md" not in review_gate.loaded_authorities
@@ -1261,6 +1276,10 @@ def test_known_init_fields_for_arxiv_submission_include_publication_routing() ->
     assert "managed_publication_root" in known_init_fields
     assert "selected_publication_root" in known_init_fields
     assert "selected_review_root" in known_init_fields
+    assert "latest_response_round" in known_init_fields
+    assert "latest_response_freshness_policy" in known_init_fields
+    assert "latest_response_requires_fresh_review" in known_init_fields
+    assert "latest_response_freshness" in known_init_fields
 
 
 @pytest.mark.parametrize(

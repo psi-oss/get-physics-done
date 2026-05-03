@@ -119,10 +119,17 @@ RESUME_WORK_INIT_FIELDS = frozenset(
 )
 SYNC_STATE_INIT_FIELDS = frozenset(
     {
+        "workspace_root",
         "project_root",
+        "project_root_source",
+        "project_root_auto_selected",
+        "init_root_policy",
+        "project_reentry_mode",
+        "project_reentry_guidance",
         "state_md_exists",
         "state_json_exists",
         "state_json_backup_exists",
+        "state_recovery_guidance",
         "state_md_content",
         "state_json_content",
         "state_json_backup_content",
@@ -149,6 +156,13 @@ NEW_PROJECT_INIT_FIELDS = frozenset(
         "recoverable_project_exists",
         "partial_project_exists",
         "project_recovery_status",
+        "init_progress_exists",
+        "init_progress_status",
+        "init_progress_valid",
+        "init_progress_corrupt",
+        "init_progress_step",
+        "init_progress_description",
+        "init_progress_path",
         "has_research_map",
         "planning_exists",
         "has_research_files",
@@ -625,6 +639,10 @@ RESEARCH_PHASE_INIT_FIELDS = frozenset(
 MAP_RESEARCH_INIT_FIELDS = frozenset(
     {
         "mapper_model",
+        "workspace_root",
+        "project_root",
+        "project_root_source",
+        "project_root_auto_selected",
         "commit_docs",
         "autonomy",
         "research_mode",
@@ -632,6 +650,7 @@ MAP_RESEARCH_INIT_FIELDS = frozenset(
         "map_focus_provided",
         "parallelization",
         "research_map_dir",
+        "research_map_dir_absolute",
         "existing_maps",
         "has_maps",
         "planning_exists",
@@ -930,6 +949,12 @@ PEER_REVIEW_INIT_FIELDS = frozenset(
         "latest_author_response",
         "latest_referee_response",
         "latest_response_artifacts",
+        "latest_response_freshness_policy",
+        "latest_response_requires_fresh_review",
+        "latest_response_required_review_round",
+        "latest_response_required_review_round_suffix",
+        "latest_response_freshness_detail",
+        "latest_response_freshness",
         "platform",
     }
 )
@@ -986,6 +1011,12 @@ ARXIV_SUBMISSION_SNAPSHOT_FIELDS = frozenset(
         "latest_author_response",
         "latest_referee_response",
         "latest_response_artifacts",
+        "latest_response_freshness_policy",
+        "latest_response_requires_fresh_review",
+        "latest_response_required_review_round",
+        "latest_response_required_review_round_suffix",
+        "latest_response_freshness_detail",
+        "latest_response_freshness",
     }
 )
 ARXIV_SUBMISSION_INIT_FIELDS = frozenset(

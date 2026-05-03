@@ -27,6 +27,12 @@ def _workflow_step(text: str, step_name: str) -> str:
     return text[start:end]
 
 
+def _workflow_block(text: str, block_name: str) -> str:
+    start = text.index(f"<{block_name}>")
+    end = text.index(f"</{block_name}>", start)
+    return text[start:end]
+
+
 def test_resume_work_stage_manifest_loads_and_preserves_stage_order() -> None:
     manifest = load_workflow_stage_manifest("resume-work")
 
@@ -124,6 +130,24 @@ def test_resume_work_transition_reference_uses_installed_workflow_path() -> None
 
     assert "- **Transition** -> `{GPD_INSTALL_DIR}/workflows/transition.md`" in text
     assert "- **Transition** -> ./transition.md" not in text
+
+
+def test_resume_work_quick_resume_refuses_auto_selected_recent_projects() -> None:
+    text = (WORKFLOWS_DIR / "resume-work.md").read_text(encoding="utf-8")
+    initialize = _workflow_step(text, "initialize")
+    quick_resume = _workflow_block(text, "quick_resume")
+
+    ambiguity_gate = "**If `project_reentry_requires_selection` is true"
+    auto_recent_gate = "**If `project_root_auto_selected` is true"
+    new_project_gate = "**If `planning_exists` is false and no recent-project selection is required:**"
+
+    assert ambiguity_gate in initialize
+    assert auto_recent_gate in initialize
+    assert new_project_gate in initialize
+    assert initialize.index(ambiguity_gate) < initialize.index(new_project_gate)
+    assert initialize.index(auto_recent_gate) < initialize.index(new_project_gate)
+    assert "quick resume is disabled" in quick_resume
+    assert "do not continue automatically" in quick_resume
 
 
 def test_init_resume_invokes_resume_context(monkeypatch: pytest.MonkeyPatch) -> None:

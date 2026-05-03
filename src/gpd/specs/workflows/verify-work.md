@@ -1,7 +1,7 @@
 <purpose>
 Orchestrate conversational verification through a thin session wrapper around `gpd-verifier`.
 
-The verifier agent owns contract-backed target construction, proof policy, computational checks, comparison verdicts, and canonical verification status. This workflow owns preflight, session routing, researcher interaction, report synchronization, diagnosis, and gap-repair routing.
+The verifier owns target construction, proof policy, computational checks, comparison verdicts, and canonical status. This workflow owns preflight, routing, interaction, report sync, diagnosis, and gap repair.
 </purpose>
 
 <philosophy>
@@ -47,15 +47,7 @@ VERIFY_FLAG_TEXT="${VERIFY_FLAGS[*]}"
 [ -n "$VERIFY_FLAG_TEXT" ] || VERIFY_FLAG_TEXT="--all"
 ```
 
-Targeted verification flags:
-
-- `--dimensional` - narrow the verifier's optional breadth to dimensional checks
-- `--limits` - narrow the verifier's optional breadth to limiting cases
-- `--convergence` - narrow the verifier's optional breadth to numerical convergence
-- `--regression` - narrow the verifier's optional breadth to regression scans
-- `--all` or no flags - delegate the full verifier package
-
-Targeted flags narrow the optional check mix only. They do not change canonical verifier ownership or relax fail-closed routing.
+Targeted flags narrow the optional check mix only. `--all` or no flags delegates the full package; proof gates, ownership, and fail-closed routing do not change.
 </step>
 
 <step name="initialize" priority="first">
@@ -142,6 +134,18 @@ If `project_contract_load_info.status` starts with `blocked`, stop and show the 
 
 If `project_contract_validation.valid` is false, stop and show `project_contract_validation.errors` before delegation.
 
+**If `project_contract_gate.authoritative` is not true:** STOP and checkpoint. Show gate/load/validation errors. Do not plan, execute, verify, fingerprint, align, or pass `project_contract` to subagents until the gate is authoritative. End with `## > Next Up`: primary `gpd:sync-state` or `gpd:new-project`, then `gpd:verify-work ${PHASE_ARG}` after repair, plus `gpd:suggest-next`.
+
+Run the executable lifecycle authority gate before proof repair, inventory building, contract checks, or verifier delegation:
+
+```bash
+LIFECYCLE_CONTRACT_GATE=$(gpd --raw validate lifecycle-contract-gate verify-work "${PHASE_ARG}")
+if [ $? -ne 0 ]; then
+  echo "$LIFECYCLE_CONTRACT_GATE"
+  exit 1
+fi
+```
+
 Use canonical artifact discovery helpers during bootstrap:
 
 ```bash
@@ -180,7 +184,7 @@ For proof-bearing work, an additional mandatory floor applies before the wrapper
 CHECK_PROOF_MODEL=$(gpd resolve-model gpd-check-proof)
 ```
 
-> Runtime delegation rule: this is a single-turn handoff. If the spawned agent needs user input, it checkpoints and returns; do not keep the original run waiting inside the same task. If the proof critic cannot produce a passed audit, keep the verification session fail-closed.
+> Runtime delegation rule: this is a single-turn handoff. If the spawned agent needs user input, it checkpoints and returns; do not keep the original run waiting inside the same task. If the proof critic cannot produce a passed audit, keep the session fail-closed.
 
 ```
 task(
@@ -201,6 +205,7 @@ Return through the typed proof-redteam handoff contract.",
 
 After the proof critic returns, re-open `${PHASE_DIR_ABS}/${phase_number}-PROOF-REDTEAM.md` from disk and confirm the artifact exists and is `passed` before finalizing the gap ledger. Never trust the return text alone; if the file is missing, stale, malformed, or not passed, keep the verification session fail-closed and start a fresh proof continuation.
 If `gpd-check-proof` still cannot produce a passed audit, keep the verification status fail-closed.
+Do not stop with only the proof-redteam artifact as the user-facing result: the canonical verification report must still record the proof gap ledger. Continue to verifier handoff with reopened proof content/freshness so `${PHASE_DIR_ABS}/${phase_number}-VERIFICATION.md` is written/updated with a gap report or blocked `gpd_return.status`; otherwise route to `gpd:verify-work ${phase_number}` rather than treating the proof-redteam file alone as a complete verification artifact.
 </step>
 
 <step name="load_anchor_context">
@@ -254,7 +259,7 @@ The delegation prompt must tell the verifier to own:
 - suggested contract checks and gap ledger contents
 
 Pass the project contract, proof freshness summary, active reference context, and protocol bundle context into the handoff so the verifier can build its own authoritative ledger.
-Use `protocol_bundle_verifier_extensions` as the primary source for bundle checklist extensions; `protocol_bundle_context` is the readable projection. Use `suggest_contract_checks(contract)` whenever decisive anchor actions or prior-output paths remain ambiguous. Required decisive comparisons should stay legible enough that the researcher can recognize in the phase promise which `claim`, acceptance test, or reference is still unresolved. Do not mark the parent claim or acceptance test as passed until that decisive comparison is resolved.
+Use `protocol_bundle_verifier_extensions` as primary bundle checklist surface; `protocol_bundle_context` is readable projection. Use `suggest_contract_checks(contract)` for ambiguous decisive anchors or prior-output paths. Required decisive comparisons should stay legible enough that the researcher can recognize in the phase promise which `claim`, acceptance test, or reference is still unresolved. Do not mark the parent claim or acceptance test as passed until that decisive comparison is resolved.
 Human-readable headings in the verifier output are presentation only; route on the canonical verification frontmatter and `gpd_return.status`, not on headings or marker strings.
 
 > Runtime delegation rule: this is a one-shot handoff. If the spawned verifier needs user input, it must checkpoint and return. The wrapper must start a fresh continuation after the user responds instead of trying to keep the original verifier alive.
@@ -296,7 +301,8 @@ Protocol bundle verifier extensions: {protocol_bundle_verifier_extensions}
 Proof freshness summary: {phase_proof_review_status}
 </verification_context>
 
-Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. Use `protocol_bundle_verifier_extensions` as the primary bundle-extension surface. Keep decisive comparison gaps legible at the claim / acceptance-test / reference level. If user input is required, return `gpd_return.status: checkpoint` and stop; do not wait inside the same run.
+Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. Use `protocol_bundle_verifier_extensions` as primary bundle-extension surface. Keep decisive comparison gaps legible at the claim / acceptance-test / reference level. If user input is required, return `gpd_return.status: checkpoint` and stop.
+Schema finalization is bounded: validator pass returns; after two schema-only repair failures, return `gpd_return.status: blocked` with latest errors.
 
 <spawn_contract>
 write_scope:
@@ -328,6 +334,7 @@ Read the verifier-produced verification file or report path.
 - `gpd_return.status: blocked` or `failed` means keep the session fail-closed, present the issues, and end with `## > Next Up`: primary `gpd:verify-work ${phase_number}`, plus `gpd:resume-work` and `gpd:suggest-next`. Do not treat any preexisting verification file as a new verifier result on this path.
 - If the verifier agent fails to spawn or returns an error, keep the session fail-closed. End with the same `gpd:verify-work ${phase_number}` Next Up route. Do not let a stale existing verification file satisfy the success path.
 - If the canonical verification artifact is missing, unreadable, absent from `gpd_return.files_written`, or fails contract validation, treat the handoff as incomplete and request a fresh verifier continuation. Never trust the return text alone.
+- Do not patch canonical verification frontmatter in this wrapper. Surface bounded-loop validator errors fail-closed with `## > Next Up`: `gpd:verify-work ${phase_number}`, `gpd:resume-work`, `gpd:suggest-next`.
 - If a canonical verification file already exists, preserve its authoritative frontmatter and append only the session-local overlay here.
 - Do not recompute canonical verification status in this workflow.
 

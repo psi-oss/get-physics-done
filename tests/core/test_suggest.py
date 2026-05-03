@@ -11,9 +11,10 @@ import pytest
 from gpd.adapters import get_adapter, list_runtimes
 from gpd.adapters.runtime_catalog import get_runtime_descriptor
 from gpd.core import suggest as suggest_module
-from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME
+from gpd.core.constants import ENV_DATA_DIR, ENV_GPD_ACTIVE_RUNTIME
 from gpd.core.conventions import KNOWN_CONVENTIONS
 from gpd.core.proof_review import resolve_manuscript_proof_review_status
+from gpd.core.recent_projects import record_recent_project
 from gpd.core.reproducibility import compute_sha256
 from gpd.core.runtime_command_surfaces import format_active_runtime_command
 from gpd.core.suggest import (
@@ -67,6 +68,7 @@ def _isolate_runtime_detection(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     """Keep suggest tests independent from the host machine's runtime installs."""
     for key in _RUNTIME_ENV_VARS_TO_CLEAR:
         monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv(ENV_DATA_DIR, str(tmp_path / "gpd-data"))
     monkeypatch.setattr("gpd.hooks.runtime_detect.Path.home", lambda: tmp_path / "home")
 
 
@@ -372,10 +374,7 @@ def _write_managed_publication_submission_lane(
         ),
         encoding="utf-8",
     )
-    response_root = publication_root
-    (response_root / "REFEREE-REPORT.md").write_text("Accepted after revision.\n", encoding="utf-8")
-    (response_root / "AUTHOR-RESPONSE.md").write_text("Responses incorporated.\n", encoding="utf-8")
-    (review_dir / "REFEREE_RESPONSE.md").write_text("Accepted.\n", encoding="utf-8")
+    (publication_root / "REFEREE-REPORT.md").write_text("Accepted after revision.\n", encoding="utf-8")
     return entrypoint
 
 
@@ -481,6 +480,27 @@ def _write_review_round(
     )
 
 
+def _write_bound_response_pair(project_root: Path, *, round_number: int = 1) -> None:
+    round_suffix = "" if round_number <= 1 else f"-R{round_number}"
+    response_frontmatter = (
+        "---\n"
+        f"response_to: REFEREE-REPORT{round_suffix}.md\n"
+        f"round: {round_number}\n"
+        f"manuscript_path: {manuscript_relpath()}\n"
+        f"review_ledger: GPD/review/REVIEW-LEDGER{round_suffix}.json\n"
+        f"referee_decision: GPD/review/REFEREE-DECISION{round_suffix}.json\n"
+        "---\n\n"
+    )
+    (project_root / "GPD" / f"AUTHOR-RESPONSE{round_suffix}.md").write_text(
+        response_frontmatter + "# Author Response\n",
+        encoding="utf-8",
+    )
+    (project_root / "GPD" / "review" / f"REFEREE_RESPONSE{round_suffix}.md").write_text(
+        response_frontmatter + "# Referee Response\n",
+        encoding="utf-8",
+    )
+
+
 # ─── No Project ────────────────────────────────────────────────────────────────
 
 
@@ -491,6 +511,41 @@ def test_no_project_suggests_new_project(tmp_path: Path) -> None:
     assert result.top_action is not None
     assert result.top_action.action == "new-project"
     assert result.top_action.priority == 1
+
+
+def test_no_project_with_recoverable_recent_projects_suggests_recent_resume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A projectless parent with recent projects should not route to fresh setup."""
+    data_dir = tmp_path / "gpd-data"
+    monkeypatch.setenv(ENV_DATA_DIR, str(data_dir))
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    recent_project = tmp_path / "recent-project"
+    recent_project.mkdir()
+    _setup_project(recent_project)
+    resume_file = recent_project / "GPD" / "phases" / "01" / ".continue-here.md"
+    resume_file.parent.mkdir(parents=True, exist_ok=True)
+    resume_file.write_text("resume here\n", encoding="utf-8")
+
+    record_recent_project(
+        recent_project,
+        session_data={
+            "last_date": "2026-03-29T12:00:00+00:00",
+            "stopped_at": "Phase 01",
+            "resume_file": "GPD/phases/01/.continue-here.md",
+            "resume_target_kind": "handoff",
+            "resume_target_recorded_at": "2026-03-29T12:00:00+00:00",
+        },
+    )
+
+    result = suggest_next(workspace)
+
+    assert result.suggestion_count == 1
+    assert result.top_action is not None
+    assert result.top_action.action == "resume-recent"
+    assert result.top_action.command == "gpd resume --recent"
+    assert "gpd:resume-work" in result.top_action.reason
 
 
 def test_no_project_uses_workspace_runtime_install_for_command_formatting(tmp_path: Path) -> None:
@@ -567,6 +622,17 @@ def test_format_command_falls_back_to_local_cli_for_unknown_runtime(
     monkeypatch.setattr("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", lambda cwd=None: RUNTIME_UNKNOWN)
 
     assert suggest_module._format_command("new-project", cwd=workspace) == "gpd init new-project"
+
+
+def test_suggest_next_does_not_create_state_lock_for_read_only_state_probe(tmp_path: Path) -> None:
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    _create_state(root, {"position": {"current_phase": "01", "status": "Initialized"}})
+
+    result = suggest_next(root)
+
+    assert result.suggestion_count >= 0
+    assert not (root / "GPD" / "state.json.lock").exists()
 
 
 @pytest.mark.parametrize("include_local_conflict", [False, True])
@@ -740,6 +806,24 @@ def test_complete_unverified_suggests_verify(tmp_path: Path) -> None:
     result = suggest_next(root)
     actions = [s.action for s in result.suggestions]
     assert "verify-work" in actions
+
+
+def test_stale_verification_blocks_audit_and_paper_suggestions(tmp_path: Path) -> None:
+    """Stale verification is verification debt, not milestone/paper readiness."""
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    phase_dir = _create_phase(root, "01-setup", plans=1, summaries=1, verification=True)
+    (phase_dir / "01-VERIFICATION.md").write_text("status: stale\n", encoding="utf-8")
+
+    result = suggest_next(root)
+
+    actions = [s.action for s in result.suggestions]
+    assert "verify-work" in actions
+    assert "audit-milestone" not in actions
+    assert "write-paper" not in actions
+    verify = next(s for s in result.suggestions if s.action == "verify-work")
+    assert verify.command == "gpd init verify-work 01"
+    assert "stale" in verify.reason
 
 
 def test_researched_phase_suggests_plan(tmp_path: Path) -> None:
@@ -1073,17 +1157,17 @@ def test_legacy_review_dir_referee_report_still_suggests_response_during_migrati
     assert "arxiv-submission" not in actions
 
 
-def test_author_response_and_accepted_decision_clear_referee_response_suggestion(tmp_path: Path) -> None:
+def test_completed_response_pair_routes_back_to_peer_review_before_arxiv_submission(tmp_path: Path) -> None:
     root = _write_submission_review_package(tmp_path, theorem_bearing=False, review_report=True)
     _create_roadmap(root)
-    (root / "GPD" / "AUTHOR-RESPONSE.md").write_text("Responses incorporated.\n", encoding="utf-8")
+    _write_bound_response_pair(root)
 
     result = suggest_next(root)
     actions = [s.action for s in result.suggestions]
 
     assert "respond-to-referees" not in actions
-    assert "peer-review" not in actions
-    assert "arxiv-submission" in actions
+    assert "peer-review" in actions
+    assert "arxiv-submission" not in actions
 
 
 def test_blocking_accepted_decision_does_not_suggest_arxiv_submission(tmp_path: Path) -> None:

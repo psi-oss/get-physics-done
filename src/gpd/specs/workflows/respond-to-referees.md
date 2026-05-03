@@ -39,6 +39,7 @@ fi
 
 Use `INIT.staged_loading.required_init_fields` as the bootstrap contract. Do not recreate the canonical field list here; the `respond-to-referees-stage-manifest.json` sidecar owns stage-local init fields, authorities, allowed tools, and writes.
 Parse JSON for: `project_contract_gate`, manuscript routing, publication/review roots, latest review artifacts, latest response artifacts, autonomy, and research_mode.
+For nested-cwd launches, use `project_root`, `selected_publication_root`, `selected_review_root`, and the resolved manuscript root from init/preflight as authority. `cd` to the selected project root before relative writes, or use absolute paths rooted there; do not infer response roots from launch cwd.
 
 **Read mode settings:**
 
@@ -321,7 +322,14 @@ gpd commit \
 
 Keep the two files synchronized for the rest of the workflow: draft issue-by-issue substance in `${RESPONSE_AUTHOR_PATH}`, and mirror the journal-facing prose into `${RESPONSE_REFEREE_PATH}`.
 
-Treat `${RESPONSE_AUTHOR_PATH}` and `${RESPONSE_REFEREE_PATH}` as the response success gate. If either artifact is missing after the writer returns, the response is not complete. The shared publication response-artifact contract remains authoritative for freshness, metadata binding, and fail-closed completion.
+Treat `${RESPONSE_AUTHOR_PATH}` and `${RESPONSE_REFEREE_PATH}` as the response success gate. The shared response-artifact contract owns freshness, metadata binding, and fail-closed completion.
+
+Successful response states:
+
+| State | Requirements |
+|---|---|
+| `current` | same-round target-bound pair inspected, frontmatter binds to resolved manuscript/round, no material writes; report `command_execution_state: read_only_inspection`, artifacts, and `files_written: none` |
+| `completed_this_run` | both canonical paths written/refreshed by this invocation or fresh child handoff and named in current-run `files_written` / `gpd_return.files_written`; stale drafts or one-sided files do not count |
 
 </step>
 
@@ -370,6 +378,8 @@ Address Group-C new-calculation items first? [Y/n/e]  (Enter = Y; e opens freefo
 ```
 
 **Edit branch:** If the user chooses `e`, collect revised triage instructions, update the Group-C ordering or classification, and re-present the updated `[Y/n/e]` prompt once before creating phases or changing response trackers. Do not treat the edit text itself as approval.
+
+Track response scope from this triage: Group A-only rounds are response-only; any Group B manuscript edit, Group C calculation/evidence change, figure change, citation change, or reproducibility change makes the round manuscript-changing until proven otherwise.
 
 </step>
 
@@ -502,7 +512,7 @@ pdflatex -interaction=nonstopmode "${MANUSCRIPT_BASENAME}" 2>&1 | tail -5
 4. Check cross-references to new or renumbered equations/figures
 5. Resolve any `MISSING:` citation markers left by the paper-writer (see write-paper workflow for the resolution protocol)
 6. Re-check any decisive `comparison_verdicts` or benchmark anchors touched by the revision. If protocol bundles are selected, use them only as an additive reminder of which decisive comparisons or estimator caveats must remain visible after revision.
-7. If the revision touched bibliography files or citation commands, refresh `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` before generating the response letter or proceeding to final review. Use `derived_manuscript_reference_status` as the quick read on what likely changed, but the manuscript-root bibliography audit remains authoritative for the round. Stale bibliography audits are not acceptable in a referee-response round. Confirm the refreshed JSON artifact exists before treating the round as complete.
+7. If the revision touched bibliography files or citation commands, refresh `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` before generating the response letter or proceeding to final review. Use `gpd paper-build` as the refresh path, and use `derived_manuscript_reference_status` as the quick read on what likely changed; the manuscript-root bibliography audit remains authoritative for the round. Stale bibliography audits are not acceptable in a referee-response round. Confirm the refreshed JSON artifact exists before treating the round as complete.
 8. If a spawned paper-writer returns `status: checkpoint`, stop after recording the checkpoint. Present it to the user and spawn a fresh continuation handoff after the user responds. Do not ask the child agent to wait inside the same run.
 
 **If inconsistencies found and iteration < 3:**
@@ -540,62 +550,7 @@ If centralized preflight resolved a subject-owned publication root at `GPD/publi
 "work in progress." Complete them with gpd:execute-phase before resubmission.
 ```
 
-If a manuscript-local response letter companion is required for a project-backed manuscript, write `${PAPER_DIR}/response-letter.tex` (or `.md` depending on journal requirements):
-
-```latex
-\documentclass[12pt]{article}
-\usepackage[margin=1in]{geometry}
-
-\begin{document}
-
-\noindent Dear Editor,
-
-\medskip
-
-We thank the referees for their careful reading of our manuscript and their
-constructive comments. We have revised the manuscript to address all points
-raised. Below we provide point-by-point responses.
-
-\bigskip
-
-{For each referee:}
-
-\section*{Response to Referee {N}}
-
-{For each comment:}
-
-\subsection*{Comment {N}.{M}}
-
-\textit{``{referee comment text}''}
-
-\medskip
-
-{Response text}
-
-{If changes made:}
-\textbf{Changes:} {description of changes with section/equation references}
-
-{End for each comment}
-{End for each referee}
-
-\section*{Summary of Changes}
-
-\subsection*{Major changes}
-\begin{enumerate}
-{numbered list of significant changes}
-\end{enumerate}
-
-\subsection*{Minor changes}
-\begin{enumerate}
-{numbered list of minor changes}
-\end{enumerate}
-
-\bigskip
-\noindent Sincerely,\\
-{Authors}
-
-\end{document}
-```
+If a project-backed manuscript needs a manuscript-local response-letter companion, write `${PAPER_DIR}/response-letter.tex` or `.md` with: editor thanks, per-referee/per-comment quote, response, concrete changes, summary of major/minor changes, and signature.
 
 </step>
 
@@ -640,55 +595,18 @@ gpd commit \
   --files "${COMMIT_FILES[@]}"
 ```
 
-**Present completion summary:**
+**Present completion summary:** report response counts, new-calculation status, manuscript/response-letter/compile status, canonical response paths, optional local response letter, and revised manuscript files.
 
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- GPD > REFEREE RESPONSE COMPLETE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Closeout routing:
 
-### Progress
+| Round result | Next step |
+|---|---|
+| response-only, no manuscript/figure/citation/reproducibility changes | `package_state: not_applicable`; after citation/claim evidence is inspected and strict preflight agrees, `gpd:arxiv-submission <resolved-manuscript>` |
+| manuscript/figure/citation/evidence changed | fresh `gpd:peer-review` before any `gpd:arxiv-submission` |
+| citation or claim evidence not inspected | `bibliography_gate`, `claim_evidence_gate`, or `gpd:peer-review`; do not claim arXiv readiness |
+| new calculations pending | `gpd:plan-phase {N}`, `gpd:execute-phase {N}`, then `gpd:respond-to-referees` |
 
-| Item | Status |
-|------|--------|
-| Referee 1 responses | {N}/{M} addressed |
-| Referee 2 responses | {N}/{M} addressed |
-| New calculations | {N}/{M} complete |
-| Manuscript revised | {Done / Partial} |
-| Canonical response artifacts | {Done / Partial} |
-| Optional manuscript-local response letter | {Not requested / Draft / Done} |
-| Compilation check | {Pass / Fail} |
-
-### Files
-
-- Structured response tracking: `${RESPONSE_AUTHOR_PATH}`
-- Journal-facing response letter source: `${RESPONSE_REFEREE_PATH}`
-- Optional manuscript-local response letter: `${PAPER_DIR}/response-letter.tex` or `${PAPER_DIR}/response-letter.md` when present
-- Revised manuscript: {paper_dir}/*.tex
-
----
-
-## Next Steps
-
-{If all complete:}
-1. Review canonical response artifacts: `cat "${RESPONSE_REFEREE_PATH}"` and `cat "${RESPONSE_AUTHOR_PATH}"`
-2. If a manuscript-local response letter was requested, review it: `cat ${PAPER_DIR}/response-letter.tex` (or `.md`)
-3. Build revised manuscript: `cd ${PAPER_DIR} && make`
-4. If this round changed manuscript content, figures, citations, or reproducibility evidence, run `gpd:peer-review` next. A manuscript-changing referee-response round is not submission-ready until a fresh staged review clears the revised manuscript.
-5. Run `gpd:arxiv-submission` only after that fresh staged review clears the revised manuscript.
-6. Submit the revised manuscript and whatever response-letter form the journal actually requires
-
-{If new calculations pending:}
-1. Execute pending calculations:
-   gpd:plan-phase {N}
-   gpd:execute-phase {N}
-2. Return here to incorporate results:
-   gpd:respond-to-referees (will detect existing `${RESPONSE_REFEREE_PATH}` / `${RESPONSE_AUTHOR_PATH}`)
-
-Recommend `gpd:peer-review` as the standalone re-review command once the revised manuscript compiles cleanly. For any round that changed the manuscript itself, that re-review is mandatory before `gpd:arxiv-submission`. This keeps revision rounds aligned with the referee agent's `REFEREE-REPORT-R{N}.md` protocol.
-
----
-```
+Use the documented positional arXiv form only: `gpd:arxiv-submission <resolved-manuscript>`; for example, `gpd:arxiv-submission paper/curvature_flow_bounds.tex`. Do not use bare `gpd:arxiv-submission` or invent `--manuscript`.
 
 </step>
 

@@ -371,6 +371,45 @@ def test_resolve_project_reentry_ignores_empty_gpd_workspace_when_unique_recent_
     assert resolution.project_root == project.resolve(strict=False).as_posix()
 
 
+@pytest.mark.parametrize(
+    ("local_marker", "expected_reason"),
+    [
+        ("config", "workspace carries local GPD config"),
+        ("phases", "workspace carries local GPD phase directory"),
+    ],
+)
+def test_resolve_project_reentry_keeps_local_progress_surfaces_over_recent_project(
+    tmp_path: Path,
+    local_marker: str,
+    expected_reason: str,
+) -> None:
+    workspace = _make_gpd_workspace(tmp_path / "workspace")
+    if local_marker == "config":
+        (workspace / "GPD" / "config.json").write_text('{"autonomy": "balanced"}\n', encoding="utf-8")
+    else:
+        (workspace / "GPD" / "phases").mkdir()
+    project = _make_gpd_workspace(tmp_path / "recent-project", project=True)
+
+    resolution = resolve_project_reentry(
+        workspace,
+        recent_rows=[
+            _recent_row(
+                project,
+                last_session_at="2026-03-28T12:00:00+00:00",
+            )
+        ],
+    )
+
+    assert resolution.mode == "current-workspace"
+    assert resolution.source == "current_workspace"
+    assert resolution.auto_selected is False
+    assert resolution.has_current_workspace_candidate is True
+    assert resolution.project_root == workspace.resolve(strict=False).as_posix()
+    assert resolution.selected_candidate is not None
+    assert resolution.selected_candidate.reason == expected_reason
+    assert resolution.selected_candidate.project_exists is False
+
+
 def test_resolve_project_reentry_auto_selects_unique_recoverable_recent_project(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()

@@ -33,19 +33,23 @@ class _StableCliRunner(CliRunner):
 
 runner = _StableCliRunner()
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
-_HELLO_CONTEXT_SHA256 = (
-    "sha256:d73aac31ef8d5329cb61f8941219af525b2547d60ee159353b88cd4bb8e31e14"
-)
-_EXPLICIT_CONTEXT_SHA256 = (
-    "sha256:a22bdbf5bf3e84c661ebfbfaf3d296bd2cd7bbc73a64d5cce003a9508f65b1ae"
-)
-_NESTED_CONTEXT_SHA256 = (
-    "sha256:adf69e91b95e6ad45a5e2a057add1708c2b9f34b199657407b89e62fb0240d21"
-)
+_HELLO_CONTEXT_SHA256 = "sha256:d73aac31ef8d5329cb61f8941219af525b2547d60ee159353b88cd4bb8e31e14"
+_EXPLICIT_CONTEXT_SHA256 = "sha256:a22bdbf5bf3e84c661ebfbfaf3d296bd2cd7bbc73a64d5cce003a9508f65b1ae"
+_NESTED_CONTEXT_SHA256 = "sha256:adf69e91b95e6ad45a5e2a057add1708c2b9f34b199657407b89e62fb0240d21"
+_FIXTURE_PATH = Path(__file__).resolve().parent / "fixtures" / "stage0" / "project_contract.json"
 
 
 def _strip_ansi(text: str) -> str:
     return _ANSI_ESCAPE_RE.sub("", text)
+
+
+def _write_project_contract(project_root: Path) -> str:
+    contract = json.loads(_FIXTURE_PATH.read_text(encoding="utf-8"))
+    state_path = project_root / "GPD" / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["project_contract"] = contract
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    return contract_fingerprint(ResearchContract.model_validate(contract))
 
 
 @pytest.fixture()
@@ -68,9 +72,7 @@ def gpd_project(tmp_path: Path) -> Path:
     (planning / "PROJECT.md").write_text(
         "# Test Project\n\n## Core Research Question\nWhat is physics?\n", encoding="utf-8"
     )
-    (planning / "REQUIREMENTS.md").write_text(
-        "# Requirements\n\n- [ ] **REQ-01**: Do the thing\n", encoding="utf-8"
-    )
+    (planning / "REQUIREMENTS.md").write_text("# Requirements\n\n- [ ] **REQ-01**: Do the thing\n", encoding="utf-8")
     (planning / "ROADMAP.md").write_text(
         "# Roadmap\n\n## Phase 1: Test Phase\nGoal: Test\nRequirements: REQ-01\n",
         encoding="utf-8",
@@ -89,7 +91,7 @@ def _chdir(gpd_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_cli_contract_record_alignment_round_trip(gpd_project: Path) -> None:
     """Recording via CLI must persist the hashes into state.json."""
-    contract_hash = "sha256:" + "a" * 64
+    contract_hash = _write_project_contract(gpd_project)
     context_hash = "sha256:" + "b" * 64
 
     result = runner.invoke(
@@ -148,9 +150,7 @@ def test_cli_contract_context_fingerprint_auto_resolves_active_phase(
     assert _strip_ansi(result.output).strip() == _HELLO_CONTEXT_SHA256
 
 
-def test_cli_contract_context_fingerprint_explicit_path(
-    gpd_project: Path, tmp_path: Path
-) -> None:
+def test_cli_contract_context_fingerprint_explicit_path(gpd_project: Path, tmp_path: Path) -> None:
     """An explicit path argument still fingerprints the given file."""
     target = tmp_path / "explicit-context.md"
     target.write_text("explicit context text", encoding="utf-8")
@@ -205,14 +205,7 @@ def test_cli_contract_context_fingerprint_raw_wraps_result(gpd_project: Path) ->
 
 def test_cli_contract_fingerprint_raw_wraps_result(gpd_project: Path) -> None:
     """Raw contract fingerprint output follows the standard CLI JSON envelope."""
-    fixture_path = (
-        Path(__file__).resolve().parent / "fixtures" / "stage0" / "project_contract.json"
-    )
-    contract = json.loads(fixture_path.read_text(encoding="utf-8"))
-    state_path = gpd_project / "GPD" / "state.json"
-    state = json.loads(state_path.read_text(encoding="utf-8"))
-    state["project_contract"] = contract
-    state_path.write_text(json.dumps(state), encoding="utf-8")
+    expected = _write_project_contract(gpd_project)
 
     result = runner.invoke(
         app,
@@ -221,13 +214,12 @@ def test_cli_contract_fingerprint_raw_wraps_result(gpd_project: Path) -> None:
     )
 
     assert result.exit_code == 0, _strip_ansi(result.output)
-    expected = contract_fingerprint(ResearchContract.model_validate(contract))
     assert json.loads(_strip_ansi(result.output)) == {"result": expected}
 
 
 def test_cli_contract_alignment_status_after_record(gpd_project: Path) -> None:
     """After recording, alignment-status must echo the persisted hashes."""
-    contract_hash = "sha256:" + "c" * 64
+    contract_hash = _write_project_contract(gpd_project)
     context_hash = "sha256:" + "d" * 64
 
     record_result = runner.invoke(
@@ -261,14 +253,7 @@ def test_cli_contract_alignment_summary_returns_rows_json(
     gpd_project: Path,
 ) -> None:
     """`gpd contract alignment-summary` emits one row per claim from state."""
-    fixture_path = (
-        Path(__file__).resolve().parent / "fixtures" / "stage0" / "project_contract.json"
-    )
-    contract = json.loads(fixture_path.read_text(encoding="utf-8"))
-    state_path = gpd_project / "GPD" / "state.json"
-    state = json.loads(state_path.read_text(encoding="utf-8"))
-    state["project_contract"] = contract
-    state_path.write_text(json.dumps(state), encoding="utf-8")
+    _write_project_contract(gpd_project)
 
     result = runner.invoke(app, ["contract", "alignment-summary"], catch_exceptions=False)
     assert result.exit_code == 0, _strip_ansi(result.output)
@@ -289,4 +274,5 @@ def test_cli_contract_alignment_summary_errors_when_contract_missing(
     # The `gpd_project` fixture writes `state.json` without a `project_contract`.
     result = runner.invoke(app, ["contract", "alignment-summary"], catch_exceptions=False)
     assert result.exit_code != 0
-    assert "No project contract" in _strip_ansi(result.output)
+    combined_output = _strip_ansi(result.output + getattr(result, "stderr", ""))
+    assert "project_contract_gate.authoritative is not true" in combined_output

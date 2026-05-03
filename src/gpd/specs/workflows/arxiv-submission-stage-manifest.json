@@ -49,7 +49,18 @@
       "latest_review_round_suffix",
       "latest_review_ledger",
       "latest_referee_decision",
-      "latest_review_artifacts"
+      "latest_review_artifacts",
+      "latest_response_round",
+      "latest_response_round_suffix",
+      "latest_author_response",
+      "latest_referee_response",
+      "latest_response_artifacts",
+      "latest_response_freshness_policy",
+      "latest_response_requires_fresh_review",
+      "latest_response_required_review_round",
+      "latest_response_required_review_round_suffix",
+      "latest_response_freshness_detail",
+      "latest_response_freshness"
     ]
   },
   "stages": [

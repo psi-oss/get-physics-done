@@ -190,7 +190,7 @@ Additionally:
 - Stage 1 must also emit `CLAIMS{round_suffix}.json` as a compact `ClaimIndex`.
 - Strict-stage specialist artifacts must use canonical names `STAGE-reader`, `STAGE-literature`, `STAGE-math`, `STAGE-physics`, `STAGE-interestingness`.
 - In strict mode, specialist stage filenames must match `STAGE-(reader|literature|math|physics|interestingness)(-R<round>)?.json`, and all five must share the same optional `-R<round>` suffix.
-- In strict mode, any additional noncanonical `stage_artifacts` entry fails validation rather than being ignored.
+- In strict mode, `REFEREE-DECISION{round_suffix}.json` `stage_artifacts` may list only those five canonical `STAGE-*.json` specialist reports for the active round. `CLAIMS{round_suffix}.json` is the separately validated claim index, not a `stage_artifacts` entry; any additional noncanonical entry fails validation rather than being ignored.
 - The final adjudicator must emit `REVIEW-LEDGER{round_suffix}.json` and `REFEREE-DECISION{round_suffix}.json` (empty suffix on the first round).
 - The artifact should stay compact. It is a decision handoff, not a second manuscript.
 - `StageReviewReport`, nested `ReviewFinding`, and nested `ProofAuditRecord` entries use a closed schema; do not invent extra keys beyond those shown here.
@@ -362,6 +362,7 @@ The final referee must preserve a compact claim-evidence table, at minimum:
 `claim | claim_type | manuscript_location | direct_evidence | support_status | overclaim_severity | required_fix`
 
 Unsupported central physical-interpretation or significance claims are never compatible with `minor_revision`.
+When a managed or project-backed review rejects because central claims, novelty framing, significance, or venue fit outrun the evidence, downstream machine-readable summaries should treat the review as completed but publication-blocked: claim state is overclaim-blocked, the active checkpoint is the review gate, and any rewrite continuation names the exact manuscript target under review.
 
 ## Claim-Discipline Rules
 

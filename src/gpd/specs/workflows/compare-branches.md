@@ -93,7 +93,7 @@ Extract the same data (STATE.md, SUMMARYs, VERIFICATIONs) from the parent branch
 
 **If no branch has any SUMMARY.md files:**
 
-```
+```text
 No completed plans found on any branch. Nothing to compare yet.
 
 Complete at least one plan on each branch before comparing:

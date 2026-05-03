@@ -19,7 +19,7 @@ Extract: phase list with names, goals, dependencies, and disk status.
 
 **If no roadmap found:**
 
-```
+```text
 ╔══════════════════════════════════════════════════════════════╗
 ║  ERROR                                                       ║
 ╚══════════════════════════════════════════════════════════════╝

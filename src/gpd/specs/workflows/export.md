@@ -1,5 +1,5 @@
 <purpose>
-Export research results into shareable formats. Collects key results, equations, derivations, and figures from all completed phases and packages them for external consumption. Supports HTML (with MathJax), LaTeX (journal-ready scaffold), ZIP (reproducibility package), or all formats.
+Export research results into shareable formats. Collects key results, equations, derivations, and figures from all completed phases and packages them for external consumption. Supports HTML (with MathJax), LaTeX (journal-ready scaffold), ZIP (reproducibility package), or all formats. Generated files are not committed unless `$ARGUMENTS` includes explicit `--commit`.
 </purpose>
 
 <required_reading>
@@ -29,7 +29,7 @@ Extract: `project_title`, `milestone`, completed phases list, total phase count.
 
 **If no completed phases:**
 
-```
+```text
 ╔══════════════════════════════════════════════════════════════╗
 ║  ERROR                                                       ║
 ╚══════════════════════════════════════════════════════════════╝
@@ -108,6 +108,8 @@ Export format:
 ```bash
 mkdir -p exports
 ```
+
+Output boundary: `exports/` is the only durable write root for this workflow. Do not write generated export files under `GPD/publication/`, `GPD/review/`, `GPD/exports/`, `slides/`, manuscript roots, or OS temp directories. Export artifacts are shareable copies only; they must not update project state and must not satisfy publication, peer-review, response, arXiv-package, or slides gates.
 
 </step>
 
@@ -375,9 +377,17 @@ cd exports && tar -czf results.tar.gz README.md scripts/ data/ summaries/ PROJEC
 </step>
 
 <step name="commit_exports">
-**Commit text-based exports (not binary archives):**
+**Optional commit for text-based exports (not binary archives):**
 
-Commit the HTML and LaTeX exports. Do NOT commit ZIP/tar.gz archives (binary artifacts that bloat git).
+Do not commit exports by default. Commit HTML/LaTeX/BibTeX only when `$ARGUMENTS` includes `--commit`. Do NOT commit ZIP/tar.gz archives.
+
+If `--commit` is absent, skip this step and report:
+
+```
+Text exports were not committed. Re-run `gpd:export ... --commit` to opt in.
+```
+
+If `--commit` is present:
 
 ```bash
 # Only commit text-format exports that were actually generated
@@ -400,7 +410,7 @@ else
 fi
 ```
 
-The `commit` CLI respects `commit_docs` from config internally — if disabled, the commit is automatically skipped.
+The `commit` CLI respects `commit_docs`; if disabled, the commit is skipped.
 </step>
 
 </process>
@@ -413,6 +423,7 @@ The `commit` CLI respects `commit_docs` from config internally — if disabled, 
 - Don't include raw planning artifacts (PLAN.md, RESEARCH.md) in exports -- those are internal
 - Don't overwrite existing exports without noting it
 - Don't generate empty sections -- omit sections with no content
+- Don't commit export artifacts unless `--commit` was explicit
 - Don't commit ZIP/tar.gz archives to git -- they are binary artifacts
   </anti_patterns>
 
@@ -427,6 +438,6 @@ Export is complete when:
 - [ ] Files written to exports/
 - [ ] File locations and sizes reported to user
 - [ ] Format-specific instructions provided
-- [ ] Text exports committed (if commit_docs enabled)
+- [ ] Text exports committed only if `--commit` was explicitly requested and `commit_docs` allowed it
 
 </success_criteria>

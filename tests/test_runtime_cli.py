@@ -27,6 +27,9 @@ from tests.runtime_install_helpers import seed_complete_runtime_install
 
 _RUNTIME_DESCRIPTORS = tuple(iter_runtime_descriptors())
 _RUNTIME_NAMES = tuple(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS)
+_SLASH_RUNTIME_DESCRIPTORS = tuple(
+    descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.validated_command_surface.endswith("_slash_command")
+)
 _SHARED_INSTALL = get_shared_install_metadata()
 MANIFEST_NAME = _SHARED_INSTALL.manifest_name
 BOOTSTRAP_COMMAND = _SHARED_INSTALL.bootstrap_command
@@ -294,7 +297,9 @@ def test_runtime_cli_preserves_custom_global_target_in_incomplete_install_repair
     [
         descriptor
         for descriptor in _RUNTIME_DESCRIPTORS
-        if descriptor.global_config.env_var or descriptor.global_config.env_dir_var or descriptor.global_config.env_file_var
+        if descriptor.global_config.env_var
+        or descriptor.global_config.env_dir_var
+        or descriptor.global_config.env_file_var
     ],
     ids=lambda descriptor: descriptor.runtime_name,
 )
@@ -309,7 +314,11 @@ def test_runtime_cli_treats_env_overridden_global_target_as_global_repair_target
     home.mkdir()
     override_dir = tmp_path / "override-global"
     override_dir.mkdir()
-    env_var = descriptor.global_config.env_var or descriptor.global_config.env_dir_var or descriptor.global_config.env_file_var
+    env_var = (
+        descriptor.global_config.env_var
+        or descriptor.global_config.env_dir_var
+        or descriptor.global_config.env_file_var
+    )
     assert env_var is not None
     monkeypatch.setenv(env_var, str(override_dir))
     config_dir = adapter.resolve_global_config_dir(home=home)
@@ -346,7 +355,9 @@ def test_runtime_cli_treats_env_overridden_global_target_as_global_repair_target
     [
         descriptor
         for descriptor in _RUNTIME_DESCRIPTORS
-        if descriptor.global_config.env_var or descriptor.global_config.env_dir_var or descriptor.global_config.env_file_var
+        if descriptor.global_config.env_var
+        or descriptor.global_config.env_dir_var
+        or descriptor.global_config.env_file_var
     ],
     ids=lambda descriptor: descriptor.runtime_name,
 )
@@ -812,6 +823,7 @@ def test_runtime_cli_dispatches_with_runtime_pin(monkeypatch, tmp_path: Path, de
     _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
+    runtime_config_env_names = runtime_cli._runtime_config_env_names(descriptor.runtime_name)
 
     observed: dict[str, object] = {}
 
@@ -819,6 +831,7 @@ def test_runtime_cli_dispatches_with_runtime_pin(monkeypatch, tmp_path: Path, de
         observed["argv"] = list(sys.argv)
         observed["runtime"] = os.environ.get(ENV_GPD_ACTIVE_RUNTIME)
         observed["disable_reexec"] = os.environ.get(ENV_GPD_DISABLE_CHECKOUT_REEXEC)
+        observed["config_env"] = {name: os.environ.get(name) for name in runtime_config_env_names}
         return 0
 
     monkeypatch.setattr("gpd.cli.entrypoint", fake_entrypoint)
@@ -840,6 +853,47 @@ def test_runtime_cli_dispatches_with_runtime_pin(monkeypatch, tmp_path: Path, de
     assert observed["argv"] == ["gpd", "state", "load"]
     assert observed["runtime"] == descriptor.runtime_name
     assert observed["disable_reexec"] == "1"
+    assert observed["config_env"] == {name: str(config_dir) for name in runtime_config_env_names}
+
+
+@pytest.mark.parametrize("descriptor", _SLASH_RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_bridge_pins_raw_help_to_target_runtime_surface(
+    monkeypatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    descriptor,
+) -> None:
+    adapter = get_adapter(descriptor.runtime_name)
+    config_dir = tmp_path / adapter.config_dir_name
+    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            [
+                "--runtime",
+                descriptor.runtime_name,
+                "--config-dir",
+                f"./{adapter.config_dir_name}",
+                "--install-scope",
+                "local",
+                "--raw",
+                "help",
+                "--command",
+                "progress",
+                "--minimal",
+            ]
+        )
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 0, captured.err
+    payload = json.loads(captured.out)
+    assert payload["validated_surface"] == descriptor.validated_command_surface
+    assert payload["public_runtime_command_prefix"] == descriptor.public_command_surface_prefix
+    assert payload["command_context"]["validated_surface"] == descriptor.validated_command_surface
+    assert payload["command_context"]["public_runtime_command_prefix"] == descriptor.public_command_surface_prefix
 
 
 @pytest.mark.parametrize(
@@ -921,16 +975,20 @@ def test_runtime_cli_preserves_subcommand_runtime_flags(monkeypatch, tmp_path: P
 def test_runtime_cli_restores_process_env_after_dispatch(monkeypatch, tmp_path: Path, descriptor) -> None:
     config_dir = tmp_path / descriptor.config_dir_name
     _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    runtime_config_env_names = runtime_cli._runtime_config_env_names(descriptor.runtime_name)
     observed: dict[str, object] = {}
 
     def fake_entrypoint() -> int:
         observed["runtime"] = os.environ.get(ENV_GPD_ACTIVE_RUNTIME)
         observed["disable_reexec"] = os.environ.get(ENV_GPD_DISABLE_CHECKOUT_REEXEC)
+        observed["config_env"] = {name: os.environ.get(name) for name in runtime_config_env_names}
         return 0
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv(ENV_GPD_ACTIVE_RUNTIME, "outer-runtime")
     monkeypatch.setenv(ENV_GPD_DISABLE_CHECKOUT_REEXEC, "outer-flag")
+    for env_name in runtime_config_env_names:
+        monkeypatch.setenv(env_name, f"outer-{env_name.lower()}")
     monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
     monkeypatch.setattr("gpd.cli.entrypoint", fake_entrypoint)
 
@@ -950,8 +1008,11 @@ def test_runtime_cli_restores_process_env_after_dispatch(monkeypatch, tmp_path: 
     assert exit_code == 0
     assert observed["runtime"] == descriptor.runtime_name
     assert observed["disable_reexec"] == "1"
+    assert observed["config_env"] == {name: str(config_dir) for name in runtime_config_env_names}
     assert os.environ[ENV_GPD_ACTIVE_RUNTIME] == "outer-runtime"
     assert os.environ[ENV_GPD_DISABLE_CHECKOUT_REEXEC] == "outer-flag"
+    for env_name in runtime_config_env_names:
+        assert os.environ[env_name] == f"outer-{env_name.lower()}"
 
 
 def test_runtime_cli_bridge_parse_preserves_passthrough_after_double_dash() -> None:
@@ -994,9 +1055,10 @@ def test_cli_resolves_cli_cwd_from_last_repeated_flag(monkeypatch, tmp_path: Pat
     final_cwd.mkdir(parents=True)
     monkeypatch.chdir(launcher_cwd)
 
-    assert cli_module._resolve_cli_cwd_from_argv(
-        ["state", "load", "--cwd", str(first_cwd), "--cwd", str(final_cwd)]
-    ) == final_cwd
+    assert (
+        cli_module._resolve_cli_cwd_from_argv(["state", "load", "--cwd", str(first_cwd), "--cwd", str(final_cwd)])
+        == final_cwd
+    )
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
@@ -1288,10 +1350,13 @@ def test_runtime_cli_rejects_local_candidate_with_file_prefixes_but_no_runtime(
         encoding="utf-8",
     )
 
-    assert runtime_cli._is_matching_local_install_candidate(
-        candidate,
-        runtime=descriptor.runtime_name,
-    ) is False
+    assert (
+        runtime_cli._is_matching_local_install_candidate(
+            candidate,
+            runtime=descriptor.runtime_name,
+        )
+        is False
+    )
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)

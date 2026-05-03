@@ -643,7 +643,7 @@ if [ -f "$VERIFICATION_FILE" ]; then
 fi
 ```
 
-If the file is missing, absent from `gpd_return.files_written`, or fails `gpd validate verification-contract "${VERIFICATION_FILE}"`, the verification is INCOMPLETE. If no computational output blocks are found, the verification is INCOMPLETE. The verifier must go back and execute at least one computational check before the workflow can proceed.
+If the file is missing, absent from `gpd_return.files_written`, or fails `gpd validate verification-contract "${VERIFICATION_FILE}"`, the verification is INCOMPLETE. The validator enforces the computational oracle evidence gate, so a report with no executed code/output/verdict block cannot pass. The verifier must go back and execute at least one computational check before the workflow can proceed.
 
 This gate enforces the principle that verification must involve external computation, not just LLM reasoning about physics.
 </step>
@@ -651,7 +651,7 @@ This gate enforces the principle that verification must involve external computa
 <step name="return_to_orchestrator">
 Route on `gpd_return.status`, not on headings. If the run reports `completed`, accept it only after `VERIFICATION.md` exists on disk, is named in `gpd_return.files_written`, and passes `gpd validate verification-contract "${phase_dir}/${phase_number}-VERIFICATION.md"`. For proof-bearing phases, the sibling `*-PROOF-REDTEAM.md` must also exist and report `status: passed` before the phase can be treated as verified. If the run reports `checkpoint`, present the checkpoint and start a fresh continuation after user input. If it reports `blocked` or `failed`, keep the session fail-closed and surface the issues.
 
-Return status (`passed` | `gaps_found` | `expert_needed` | `human_needed`), score (N/M contract targets), independently confirmed count (K/M), report path.
+Return status (`passed` | `gaps_found` | `expert_needed` | `human_needed`), score (N/M contract targets), and report path. Keep any independent-confirmed tally in the report body or markdown return narrative only; do not add it to verification frontmatter or `gpd_return`.
 
 If gaps_found: list gaps with contract IDs, computation evidence, comparison verdict failures or forbidden-proxy violations, and recommended fix plan names.
 If expert_needed: list items requiring expert review with explanation of why computational verification was insufficient.

@@ -19,14 +19,23 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Extract from init JSON: `commit_docs`, `date`, `timestamp`, `todo_count`, `todos`, `pending_dir`, `todos_dir_exists`, `project_exists`.
+Extract from init JSON: `commit_docs`, `date`, `timestamp`, `todo_count`, `todos`, `pending_dir`, `done_dir`, `todos_dir_exists`, `project_exists`, `workspace_root`, `project_root`.
 
 **Note:** `add-todo` works even without a project (creates `GPD/todos/` standalone). No project_exists gate needed — todos can be created independently.
+
+Before file operations, bind to the effective root returned by init so nested workspaces use the ancestor project todo tree instead of creating a second local `GPD/` tree:
+
+```bash
+project_root=$(echo "$INIT" | gpd json get .project_root --default "$(pwd)")
+pending_dir=$(echo "$INIT" | gpd json get .pending_dir --default "GPD/todos/pending")
+done_dir=$(echo "$INIT" | gpd json get .done_dir --default "GPD/todos/done")
+cd "$project_root" || exit 1
+```
 
 Ensure directories exist:
 
 ```bash
-mkdir -p GPD/todos/pending GPD/todos/done
+mkdir -p "$pending_dir" "$done_dir"
 ```
 
 Note existing areas from the todos array for consistency in infer_area step.
@@ -100,7 +109,7 @@ Generate slug for the title:
 
 ```bash
 slug=$(gpd --raw slug "$title")
-todo_file="GPD/todos/pending/${date}-${slug}.md"
+todo_file="${pending_dir}/${date}-${slug}.md"
 ```
 
 Write to `${todo_file}`:
@@ -126,10 +135,7 @@ files:
 </step>
 
 <step name="update_state">
-If `GPD/STATE.md` exists:
-
-1. Use `todo_count` from init context (or re-run `init todos` if count changed)
-2. Update "### Pending Todos" under "## Accumulated Context"
+The todo files are the source of truth for pending count. If `project_exists` is true and `GPD/STATE.md` exists, do not hand-edit "### Pending Todos" with ad hoc text manipulation; use `gpd --raw init todos` or `gpd:progress` for the live count until a canonical todo-state sync command is available.
 
 </step>
 
@@ -137,10 +143,10 @@ If `GPD/STATE.md` exists:
 Commit the todo and any updated state:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files "${todo_file}" GPD/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files "${todo_file}" 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: capture todo - ${title}" --files "${todo_file}" GPD/STATE.md
+gpd commit "docs: capture todo - ${title}" --files "${todo_file}"
 ```
 
 Tool respects `commit_docs` config and gitignore automatically.
@@ -175,6 +181,6 @@ Would you like to:
 - [ ] Problem section has enough context for a future AI session
 - [ ] No duplicates (checked and resolved)
 - [ ] Area consistent with existing todos
-- [ ] STATE.md updated if exists
-- [ ] Todo and state committed to git
+- [ ] STATE.md not hand-edited; todo count remains file-derived
+- [ ] Todo committed to git
 </success_criteria>

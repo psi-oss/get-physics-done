@@ -2414,6 +2414,7 @@ class ExportLogsResult(BaseModel):
     events_exported: int = 0
     traces_exported: int = 0
     files_written: list[str] = Field(default_factory=list)
+    empty_export: bool = False
     reason: str | None = None
 
 
@@ -2437,6 +2438,13 @@ def export_logs(
     Supported formats: ``jsonl`` (raw, one JSON object per line),
     ``json`` (pretty-printed array), ``markdown`` (human-readable report).
     """
+    if format not in {"jsonl", "json", "markdown"}:
+        return ExportLogsResult(
+            exported=False,
+            output_dir=str(Path(output_dir)) if output_dir else "",
+            reason=f"Unsupported format: {format}. Use jsonl, json, or markdown.",
+        )
+
     layout = _layout(cwd)
     if layout is None:
         return ExportLogsResult(
@@ -2446,21 +2454,26 @@ def export_logs(
         )
 
     dest = Path(output_dir) if output_dir else layout.root / "GPD" / "exports" / "logs"
-    dest.mkdir(parents=True, exist_ok=True)
 
-    if format not in {"jsonl", "json", "markdown"}:
+    all_sessions = _iter_session_meta(layout)
+    if not all_sessions:
         return ExportLogsResult(
             exported=False,
             output_dir=str(dest),
-            reason=f"Unsupported format: {format}. Use jsonl, json, or markdown.",
+            reason=(
+                "No observability sessions found in GPD/observability/sessions/. "
+                "Run any GPD command first, then retry export-logs."
+            ),
         )
+
+    dest.mkdir(parents=True, exist_ok=True)
 
     files_written: list[str] = []
     sessions_exported = 0
     events_exported = 0
     traces_exported = 0
 
-    sessions = _iter_session_meta(layout)
+    sessions = all_sessions
     if command:
         sessions = [s for s in sessions if s.command == command]
     if session:
@@ -2602,6 +2615,8 @@ def export_logs(
                 existing = safe_read_file(report_path_obj) or ""
                 atomic_write(report_path_obj, existing + "\n".join(trace_section))
 
+    empty_export = sessions_exported == 0 and events_exported == 0 and traces_exported == 0
+
     return ExportLogsResult(
         exported=True,
         output_dir=str(dest),
@@ -2609,4 +2624,6 @@ def export_logs(
         events_exported=events_exported,
         traces_exported=traces_exported,
         files_written=files_written,
+        empty_export=empty_export,
+        reason="No matching sessions, events, or traces found for the requested filters." if empty_export else None,
     )

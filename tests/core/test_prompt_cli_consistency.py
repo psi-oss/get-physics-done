@@ -21,6 +21,7 @@ from gpd.core.public_surface_contract import (
     local_cli_validate_command_context_command,
     resume_authority_fields,
 )
+from gpd.core.state import VALID_STATUSES
 from gpd.registry import VALID_CONTEXT_MODES, _parse_frontmatter, get_command
 from tests.doc_surface_contracts import (
     DOCTOR_RUNTIME_SCOPE_RE,
@@ -45,6 +46,7 @@ from tests.doc_surface_contracts import (
     resume_authority_public_vocabulary_intro,
     resume_backend_only_fields,
 )
+from tests.prompt_metrics_support import iter_markdown_fences
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CLI_PATH = REPO_ROOT / "src/gpd/cli.py"
@@ -63,6 +65,67 @@ GROUP_COMMAND_RE = re.compile(r"@{group}\.command\(\s*\"([a-z0-9-]+)\"(?:,|\))",
 NON_CANONICAL_GPD_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9_./}])(?:\$gpd-[A-Za-z0-9{}-]+|/gpd-[A-Za-z0-9{}-]+)(?!\.md)")
 RAW_AFTER_SUBCOMMAND_RE = re.compile(r"\bgpd\s+(?!--raw\b)[^`\n]*\s+--raw\b")
 SUMMARY_EXTRACT_FIELDS_RE = re.compile(r"\bgpd\s+summary-extract\b[^\n`]*\s--fields\b")
+SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
+RUNTIME_LABEL_IN_SHELL_RE = re.compile(
+    r"(?<![A-Za-z0-9_./}])"
+    r"(?:gpd:[A-Za-z0-9][A-Za-z0-9-]*|\$gpd-[A-Za-z0-9][A-Za-z0-9-]*|/gpd[:\-][A-Za-z0-9][A-Za-z0-9-]*)"
+    r"(?![A-Za-z0-9_.-])"
+)
+COMMAND_LOOKING_FENCE_LINE_RE = re.compile(
+    r"^\s*(?:"
+    r"gpd:[A-Za-z0-9][A-Za-z0-9-]*"
+    r"|\$gpd-[A-Za-z0-9][A-Za-z0-9-]*"
+    r"|/gpd[:\-][A-Za-z0-9][A-Za-z0-9-]*"
+    r"|gpd\s+[A-Za-z0-9][A-Za-z0-9-]*"
+    r")(?:\b|\s|$)"
+)
+BRACKETED_SHELL_PLACEHOLDER_ARG_RE = re.compile(
+    r"(?:^|\s)--[A-Za-z0-9][A-Za-z0-9-]*(?:=|\s+)"
+    r"(?:"
+    r"\"[^\"\n]*\[[A-Za-z{][^\]\n]*\][^\"\n]*\""
+    r"|'[^'\n]*\[[A-Za-z{][^\]\n]*\][^'\n]*'"
+    r"|\[[A-Za-z{][^\]\n]*\]"
+    r"|\S*\[[A-Za-z{][^\]\n]*\]\S*"
+    r")"
+)
+OPTIONAL_BRACKETED_SHELL_ARG_RE = re.compile(r"^\s*\[--[A-Za-z0-9][A-Za-z0-9-]*(?:\s+[^\]]+)?\]\s*\\?\s*$")
+GPD_PATH_WRITE_REDIRECT_RE = re.compile(
+    r"(?:^|[\s{])(?:cat\s+)?(?:>>?|[0-9]>>?)\s+[\"']?(?:\$\{?[A-Za-z_][A-Za-z0-9_]*\}?/)?GPD/"
+)
+BRACKETED_GPD_WRITE_PLACEHOLDER_RE = re.compile(r"\[(?:Fill(?::| from)?|[A-Za-z][A-Za-z0-9 _./:;`|-]{0,160})[^\]\n]*\]")
+START_ROUTE_RUNTIME_RUN_PROSE_RE = re.compile(
+    r"\bas if the researcher had run\b"
+    r"|\b(?:run|runs|ran|rerun|re-run|execute|executes|executed)\s+\\?`"
+    r"(?:gpd:|\$gpd-|/gpd[:\-])",
+    re.IGNORECASE,
+)
+APPROVED_RUNTIME_LABEL_SHELL_FENCE_LINES = {
+    ("src/gpd/commands/error-patterns.md", 'echo "Error: No GPD project found. Run gpd:new-project first."'),
+    ("src/gpd/commands/suggest-next.md", 'echo "Try gpd:progress for manual project status."'),
+    ("src/gpd/agents/gpd-planner.md", 'cat "$phase_dir"/*-CONTEXT.md 2>/dev/null   # From gpd:discuss-phase'),
+    (
+        "src/gpd/agents/gpd-planner.md",
+        'cat "$phase_dir"/*-RESEARCH.md 2>/dev/null   # From gpd:research-phase or discover',
+    ),
+    ("src/gpd/specs/workflows/discuss-phase.md", 'echo "Use gpd:progress to see available phases."'),
+    (
+        "src/gpd/specs/workflows/execute-phase.md",
+        'echo "ERROR: missing phase. Usage: gpd:execute-phase <phase-number> [--gaps-only]"',
+    ),
+    ("src/gpd/specs/workflows/execute-phase.md", 'echo "  gpd:validate-conventions"'),
+    ("src/gpd/specs/workflows/execute-phase.md", 'echo "Next Up: gpd:execute-phase {N}"'),
+    (
+        "src/gpd/specs/workflows/plan-milestone-gaps.md",
+        'echo "ERROR: No existing phases found. Create phases with gpd:plan-phase first."',
+    ),
+}
+APPROVED_BRACKETED_SHELL_ARG_LINES = {
+    (
+        "src/gpd/specs/workflows/complete-milestone.md",
+        'ARCHIVE=$(gpd milestone complete "v[X.Y]" --name "[Milestone Name]")',
+    ),
+    ("src/gpd/specs/workflows/new-milestone.md", '--summary "Started milestone v[X.Y]: [Name]" \\'),
+}
 
 
 def _extract_between(content: str, start_marker: str, end_marker: str) -> str:
@@ -76,6 +139,14 @@ def _iter_prompt_sources() -> list[Path]:
     for root in PROMPT_ROOTS:
         files.extend(sorted(root.rglob("*.md")))
     return files
+
+
+def _shell_fence_language(info: str) -> str:
+    return info.strip().split(None, 1)[0].casefold() if info.strip() else ""
+
+
+def _has_bracketed_shell_placeholder_arg(line: str) -> bool:
+    return bool(BRACKETED_SHELL_PLACEHOLDER_ARG_RE.search(line) or OPTIONAL_BRACKETED_SHELL_ARG_RE.search(line))
 
 
 def _declared_command_surfaces() -> set[str]:
@@ -181,6 +252,93 @@ def test_prompt_sources_keep_command_surface_rules_canonical_and_consistent() ->
     assert summary_extract_fields == []
 
 
+def test_prompt_shell_fences_do_not_add_runtime_command_labels() -> None:
+    offenders: list[str] = []
+
+    for path in _iter_prompt_sources():
+        content = path.read_text(encoding="utf-8")
+        relpath = path.relative_to(REPO_ROOT).as_posix()
+
+        for fence in iter_markdown_fences(content):
+            if _shell_fence_language(fence.info) not in SHELL_FENCE_LANGUAGES:
+                continue
+            for offset, line in enumerate(fence.body.splitlines(), start=1):
+                stripped = line.strip()
+                if not RUNTIME_LABEL_IN_SHELL_RE.search(line):
+                    continue
+                if (relpath, stripped) in APPROVED_RUNTIME_LABEL_SHELL_FENCE_LINES:
+                    continue
+                offenders.append(f"{relpath}:{fence.start_line + offset} -> {stripped}")
+
+    assert offenders == []
+
+
+def test_command_looking_fences_are_explicitly_labeled() -> None:
+    offenders: list[str] = []
+
+    for path in _iter_prompt_sources():
+        content = path.read_text(encoding="utf-8")
+        relpath = path.relative_to(REPO_ROOT).as_posix()
+
+        for fence in iter_markdown_fences(content):
+            if fence.info.strip():
+                continue
+            for offset, line in enumerate(fence.body.splitlines(), start=1):
+                stripped = line.strip()
+                if COMMAND_LOOKING_FENCE_LINE_RE.search(line):
+                    offenders.append(f"{relpath}:{fence.start_line + offset} -> {stripped}")
+
+    assert offenders == []
+
+
+def test_prompt_shell_arguments_do_not_add_bracketed_placeholders() -> None:
+    offenders: list[str] = []
+
+    for path in _iter_prompt_sources():
+        content = path.read_text(encoding="utf-8")
+        relpath = path.relative_to(REPO_ROOT).as_posix()
+
+        for fence in iter_markdown_fences(content):
+            if _shell_fence_language(fence.info) not in SHELL_FENCE_LANGUAGES:
+                continue
+            for offset, line in enumerate(fence.body.splitlines(), start=1):
+                stripped = line.strip()
+                if not _has_bracketed_shell_placeholder_arg(line):
+                    continue
+                if (relpath, stripped) in APPROVED_BRACKETED_SHELL_ARG_LINES:
+                    continue
+                offenders.append(f"{relpath}:{fence.start_line + offset} -> {stripped}")
+
+    assert offenders == []
+
+
+def test_prompt_shell_fences_do_not_write_gpd_placeholder_heredocs() -> None:
+    offenders: list[str] = []
+
+    for path in _iter_prompt_sources():
+        content = path.read_text(encoding="utf-8")
+        relpath = path.relative_to(REPO_ROOT).as_posix()
+
+        for fence in iter_markdown_fences(content):
+            if _shell_fence_language(fence.info) not in SHELL_FENCE_LANGUAGES:
+                continue
+            if not GPD_PATH_WRITE_REDIRECT_RE.search(fence.body):
+                continue
+            for offset, line in enumerate(fence.body.splitlines(), start=1):
+                stripped = line.strip()
+                if BRACKETED_GPD_WRITE_PLACEHOLDER_RE.search(line):
+                    offenders.append(f"{relpath}:{fence.start_line + offset} -> {stripped}")
+
+    assert offenders == []
+
+
+def test_start_workflow_routes_runtime_labels_without_shell_run_prose() -> None:
+    workflow = (WORKFLOWS_DIR / "start.md").read_text(encoding="utf-8")
+    route_step = _extract_between(workflow, '<step name="route_choice">', "</step>")
+
+    assert START_ROUTE_RUNTIME_RUN_PROSE_RE.search(route_step) is None
+
+
 def test_prompt_surface_extractor_matches_shared_root_global_flags() -> None:
     cli_content = CLI_PATH.read_text(encoding="utf-8")
     root_commands = _declared_root_commands(cli_content)
@@ -279,8 +437,8 @@ def test_start_prompt_delegates_routing_to_workflow_only() -> None:
     assert "reloads canonical state for that project." in start_workflow
     assert "GPD may auto-select it" in start_workflow
     assert "recent-project picker" in start_workflow
-    assert "Then open that project folder in the runtime and run" in start_workflow
-    assert "`gpd:resume-work`." in start_workflow
+    assert "Then open that project folder in the runtime and choose" in start_workflow
+    assert "\\`gpd:resume-work\\` command." in start_workflow
     assert (
         "the in-runtime continuation step once the recovery ladder has identified the right project" in start_workflow
     )
@@ -523,6 +681,36 @@ def test_new_milestone_prompt_mentions_planning_commit_docs() -> None:
     for content in (command, workflow):
         assert "planning.commit_docs" in content
         assert "gpd:discuss-phase [N]" in content or "gpd:discuss-phase 1" in content
+
+
+def test_new_milestone_state_status_literals_are_valid() -> None:
+    workflow = (REPO_ROOT / "src/gpd/specs/workflows/new-milestone.md").read_text(encoding="utf-8")
+
+    statuses = re.findall(r'"--Status"\s+"([^"]+)"', workflow)
+
+    assert statuses
+    assert all(status in VALID_STATUSES for status in statuses)
+    assert "Defining objectives" not in workflow
+
+
+def test_new_milestone_roadmapper_stage_parse_and_artifact_words_match_payload() -> None:
+    workflow = (REPO_ROOT / "src/gpd/specs/workflows/new-milestone.md").read_text(encoding="utf-8")
+
+    roadmap_authoring = workflow[workflow.index("ROADMAPPER_INIT=") :]
+
+    assert "`planning_exists`" not in roadmap_authoring.split("Use the bootstrap init", maxsplit=1)[0]
+    assert "fresh `SUMMARY.md` proof" not in roadmap_authoring
+    assert "fresh ROADMAP/REQUIREMENTS proof" in roadmap_authoring
+    assert "shared_state_policy: return_only" in roadmap_authoring
+    assert "Do not accept a direct roadmapper edit to `GPD/STATE.md` as success proof." in roadmap_authoring
+
+
+def test_progress_route_d_includes_required_milestone_version_argument() -> None:
+    workflow = (WORKFLOWS_DIR / "progress.md").read_text(encoding="utf-8")
+    route_d = workflow[workflow.index("**Route D: Milestone complete**") :]
+
+    assert "`gpd:complete-milestone {milestone_version}`" in route_d
+    assert "`gpd:complete-milestone`\n" not in route_d
 
 
 def test_command_prompts_declare_valid_context_modes() -> None:

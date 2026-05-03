@@ -258,6 +258,61 @@ def test_validate_review_stage_report_accepts_canonical_payload(tmp_path: Path) 
     assert payload["recommendation_ceiling"] == "major_revision"
 
 
+def test_validate_review_stage_report_file_path_falls_back_to_workspace_claim_index(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    workspace_review_dir = tmp_path / "GPD" / "review"
+    workspace_review_dir.mkdir(parents=True)
+    _write_claim_index(workspace_review_dir, manuscript_path=MANUSCRIPT_PATH)
+    external_review_dir = tmp_path / "round-artifacts"
+    external_review_dir.mkdir()
+    _write_stage_review_report_artifact(
+        external_review_dir,
+        stage_kind=ReviewStageKind.reader,
+        manuscript_path=MANUSCRIPT_PATH,
+    )
+
+    result = runner.invoke(
+        app,
+        ["--raw", "validate", "review-stage-report", str(external_review_dir / "STAGE-reader.json")],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["stage_id"] == "reader"
+
+
+def test_validate_review_stage_report_file_path_prefers_sibling_claim_index(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    workspace_review_dir = tmp_path / "GPD" / "review"
+    workspace_review_dir.mkdir(parents=True)
+    _write_claim_index(workspace_review_dir, manuscript_path=MANUSCRIPT_PATH, manuscript_sha256="b" * 64)
+    external_review_dir = tmp_path / "round-artifacts"
+    external_review_dir.mkdir()
+    _write_claim_index(external_review_dir, manuscript_path=MANUSCRIPT_PATH)
+    _write_stage_review_report_artifact(
+        external_review_dir,
+        stage_kind=ReviewStageKind.reader,
+        manuscript_path=MANUSCRIPT_PATH,
+    )
+
+    result = runner.invoke(
+        app,
+        ["--raw", "validate", "review-stage-report", str(external_review_dir / "STAGE-reader.json")],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["manuscript_sha256"] == "a" * 64
+
+
 def test_validate_review_stage_report_accepts_generic_claim_kind_without_math_proof_audit(tmp_path: Path) -> None:
     stage_report_path = tmp_path / "STAGE-math.json"
     claim_index = ClaimIndex(

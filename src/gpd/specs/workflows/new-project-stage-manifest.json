@@ -21,6 +21,13 @@
         "recoverable_project_exists",
         "partial_project_exists",
         "project_recovery_status",
+        "init_progress_exists",
+        "init_progress_status",
+        "init_progress_valid",
+        "init_progress_corrupt",
+        "init_progress_step",
+        "init_progress_description",
+        "init_progress_path",
         "has_research_map",
         "planning_exists",
         "has_research_files",
@@ -61,9 +68,7 @@
         "file_write",
         "task"
       ],
-      "writes_allowed": [
-        "GPD/init-progress.json"
-      ],
+      "writes_allowed": [],
       "produced_state": [
         "intake routing state",
         "scoping-contract gate state"
@@ -111,7 +116,10 @@
         "ask_user"
       ],
       "writes_allowed": [
-        "GPD/state.json"
+        "GPD/state.json",
+        "GPD/STATE.md",
+        "GPD/state.json.bak",
+        "GPD/state.json.lock"
       ],
       "produced_state": [
         "approved project contract",
@@ -165,6 +173,8 @@
         "GPD/ROADMAP.md",
         "GPD/STATE.md",
         "GPD/state.json",
+        "GPD/state.json.bak",
+        "GPD/state.json.lock",
         "GPD/config.json",
         "GPD/CONVENTIONS.md",
         "GPD/init-progress.json",

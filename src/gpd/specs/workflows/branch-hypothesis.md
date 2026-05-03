@@ -271,7 +271,7 @@ gpd commit "docs: create hypothesis branch for {slug}" --files GPD/hypotheses/${
 <step name="completion">
 Present completion summary:
 
-```
+```text
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GPD > HYPOTHESIS BRANCH CREATED
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

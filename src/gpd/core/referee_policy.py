@@ -176,6 +176,21 @@ def _claim_index_path_for_round(stage_artifact_path: Path, *, round_suffix: str)
     return stage_artifact_path.with_name(f"CLAIMS{round_suffix}.json")
 
 
+def _claim_index_paths_for_stage_artifact(
+    stage_artifact_path: Path,
+    *,
+    round_suffix: str,
+    fallback_review_root: Path | None = None,
+) -> tuple[Path, ...]:
+    sibling_path = _claim_index_path_for_round(stage_artifact_path, round_suffix=round_suffix)
+    candidates = [sibling_path]
+    if fallback_review_root is not None:
+        fallback_path = fallback_review_root / f"CLAIMS{round_suffix}.json"
+        if fallback_path.resolve(strict=False) != sibling_path.resolve(strict=False):
+            candidates.append(fallback_path)
+    return tuple(candidates)
+
+
 def _round_suffix_for_round(round_number: int) -> str:
     return "" if round_number <= 1 else f"-R{round_number}"
 
@@ -185,19 +200,29 @@ def _canonical_stage_artifact_name(stage_id: str, round_number: int) -> str:
 
 
 def _load_claim_index_for_stage_artifact(
-    stage_artifact_path: Path, *, round_suffix: str
+    stage_artifact_path: Path,
+    *,
+    round_suffix: str,
+    fallback_review_root: Path | None = None,
 ) -> tuple[ClaimIndex | None, list[str]]:
-    claim_index_path = _claim_index_path_for_round(stage_artifact_path, round_suffix=round_suffix)
-    if not claim_index_path.exists():
-        return None, [f"matching claim index is missing: {claim_index_path.as_posix()}"]
+    claim_index_paths = _claim_index_paths_for_stage_artifact(
+        stage_artifact_path,
+        round_suffix=round_suffix,
+        fallback_review_root=fallback_review_root,
+    )
+    for claim_index_path in claim_index_paths:
+        if not claim_index_path.exists():
+            continue
+        try:
+            payload = _load_review_json_artifact(claim_index_path)
+            return ClaimIndex.model_validate(payload), []
+        except ValueError as exc:
+            return None, [f"matching claim index could not be loaded: {exc}"]
+        except PydanticValidationError as exc:
+            return None, ["matching claim index is invalid: " + _format_model_errors(exc, label=claim_index_path.name)]
 
-    try:
-        payload = _load_review_json_artifact(claim_index_path)
-        return ClaimIndex.model_validate(payload), []
-    except ValueError as exc:
-        return None, [f"matching claim index could not be loaded: {exc}"]
-    except PydanticValidationError as exc:
-        return None, ["matching claim index is invalid: " + _format_model_errors(exc, label=claim_index_path.name)]
+    missing_paths = ", ".join(path.as_posix() for path in claim_index_paths)
+    return None, [f"matching claim index is missing: {missing_paths}"]
 
 
 def validate_stage_review_artifact_alignment(
@@ -711,6 +736,7 @@ def validate_stage_review_artifact_file(
     expected_manuscript_path: str | None = None,
     expected_manuscript_label: str = "expected manuscript",
     expected_manuscript_sha256: str | None = None,
+    claim_index_fallback_root: Path | None = None,
 ) -> list[str]:
     """Return semantic validation errors for a stage-review file."""
 
@@ -731,6 +757,7 @@ def validate_stage_review_artifact_file(
         expected_manuscript_path=expected_manuscript_path,
         expected_manuscript_label=expected_manuscript_label,
         expected_manuscript_sha256=expected_manuscript_sha256,
+        claim_index_fallback_root=claim_index_fallback_root,
     )
 
 
@@ -741,6 +768,7 @@ def validate_stage_review_artifact_payload(
     expected_manuscript_path: str | None = None,
     expected_manuscript_label: str = "expected manuscript",
     expected_manuscript_sha256: str | None = None,
+    claim_index_fallback_root: Path | None = None,
 ) -> list[str]:
     """Return semantic validation errors for one typed stage-review artifact."""
 
@@ -756,6 +784,7 @@ def validate_stage_review_artifact_payload(
     claim_index, claim_index_errors = _load_claim_index_for_stage_artifact(
         artifact_path,
         round_suffix=round_suffix,
+        fallback_review_root=claim_index_fallback_root,
     )
     errors.extend(claim_index_errors)
     errors.extend(

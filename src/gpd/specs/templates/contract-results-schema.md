@@ -109,6 +109,7 @@ Rules:
 
 - Ledger keys must be real IDs from the referenced PLAN contract.
 - `contract_results` and every nested entry use a closed schema. Only the documented keys are allowed; invented keys such as `context_usage` fail validation.
+- `contract_results` is keyed to `plan_contract_ref`; project-only IDs belong in body or unbound `suggested_contract_checks`.
 - Missing contract-backed `contract_results` is invalid.
 - `uncertainty_markers` must remain explicit in contract-backed outputs so the model sees unresolved anchors, competing explanations, and disconfirming observations before writing.
 - Every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the referenced PLAN contract must appear in the matching section.
@@ -146,6 +147,7 @@ Rules:
 - For list-typed proof-audit fields (`covered_hypothesis_ids`, `missing_hypothesis_ids`, `covered_parameter_symbols`, `missing_parameter_symbols`, `uncovered_quantifiers`, `uncovered_conclusion_clause_ids`), even a single item must stay a YAML list. Scalar strings are invalid.
 - `status`, `proof_audit.completeness`, and evidence literals such as `confidence`, `quantifier_status`, and `counterexample_status` use the exact lowercase literals shown here. Near-matches like `Passed` or `High` are invalid.
 - `evidence[].confidence: high | medium | low | unreliable`
+- `evidence[]` accepts documented keys only; never `kind`, `path`, `source`, `summary`, `actual_output`, or `command`. Put detail in parent `summary`/`notes` or body.
 - Inside `evidence[]`, list-typed proof coverage fields (`covered_hypothesis_ids`, `missing_hypothesis_ids`, `covered_parameter_symbols`, `missing_parameter_symbols`, `uncovered_conclusion_clause_ids`) must stay YAML lists even when they contain a single item. Keep quantifier coverage in `proof_audit.uncovered_quantifiers`, not in `evidence[]`.
 
 ---

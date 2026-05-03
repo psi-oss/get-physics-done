@@ -948,6 +948,38 @@ def test_observe_help_surfaces_read_only_execution_snapshot_command() -> None:
     assert "Show the current local execution status without modifying project state." in result.output
 
 
+def test_observe_and_trace_help_label_read_only_and_writing_subcommands() -> None:
+    observe_help = runner.invoke(app, ["observe", "--help"])
+    assert observe_help.exit_code == 0
+    observe_output = _normalize_cli_output(observe_help.output)
+    assert "event/export are the subcommands that write files" in observe_output
+
+    observe_event_help = runner.invoke(app, ["observe", "event", "--help"])
+    assert observe_event_help.exit_code == 0
+    assert "Record one local observability event (writes session logs)." in observe_event_help.output
+
+    observe_show_help = runner.invoke(app, ["observe", "show", "--help"])
+    assert observe_show_help.exit_code == 0
+    assert "without modifying project state" in _normalize_cli_output(observe_show_help.output)
+
+    trace_help = runner.invoke(app, ["trace", "--help"])
+    assert trace_help.exit_code == 0
+    trace_output = _normalize_cli_output(trace_help.output)
+    assert "show is read-only" in trace_output
+    assert "start/log/stop write trace state" in trace_output
+
+    trace_show_help = runner.invoke(app, ["trace", "show", "--help"])
+    assert trace_show_help.exit_code == 0
+    assert (
+        "Inspect trace events with optional filters without modifying project state."
+        in _normalize_cli_output(trace_show_help.output)
+    )
+
+    trace_stop_help = runner.invoke(app, ["trace", "stop", "--help"])
+    assert trace_stop_help.exit_code == 0
+    assert "writes trace and observability state" in _normalize_cli_output(trace_stop_help.output)
+
+
 def test_doctor_help_surfaces_runtime_readiness_mode() -> None:
     result = runner.invoke(app, ["doctor", "--help"])
     normalized_output = _normalize_cli_output(result.output)
@@ -991,6 +1023,19 @@ def test_permissions_sync_help_surfaces_guided_runtime_changes() -> None:
     assert "--runtime" in normalized_output
     assert "--autonomy" in normalized_output
     assert "--target-dir" in normalized_output
+
+
+def test_config_set_tier_models_help_surfaces_targeted_runtime_options() -> None:
+    result = runner.invoke(app, ["config", "set-tier-models", "--help"])
+    normalized_output = _normalize_cli_output(result.output)
+
+    assert result.exit_code == 0
+    assert "Update model_overrides for one runtime" in normalized_output
+    assert "--runtime" in normalized_output
+    assert "--tier-1" in normalized_output
+    assert "--tier-2" in normalized_output
+    assert "--tier-3" in normalized_output
+    assert "--clear" in normalized_output
 
 
 def test_active_runtime_settings_command_falls_back_to_runtime_neutral_reference(
@@ -1577,6 +1622,64 @@ def test_resume_plain_output_hints_recent_when_workspace_is_missing(tmp_path: Pa
     assert result.exit_code == 0
     assert "No GPD planning directory" in result.output
     assert local_cli_resume_recent_command() in result.output
+
+
+def test_resume_plain_output_surfaces_ambiguous_recent_project_reason(tmp_path: Path, monkeypatch) -> None:
+    workspace = tmp_path / "outside-ambiguous"
+    workspace.mkdir()
+    first_project = tmp_path / "first-project"
+    second_project = tmp_path / "second-project"
+    monkeypatch.chdir(workspace)
+    monkeypatch.setattr(
+        "gpd.core.context.init_resume",
+        lambda _cwd: {
+            "workspace_root": workspace.as_posix(),
+            "project_root": None,
+            "project_root_source": None,
+            "project_root_auto_selected": False,
+            "project_reentry_mode": "ambiguous-recent-projects",
+            "project_reentry_requires_selection": True,
+            "project_reentry_selected_candidate": None,
+            "project_reentry_candidates": [
+                {
+                    "source": "recent_project",
+                    "project_root": first_project.as_posix(),
+                    "available": True,
+                    "recoverable": True,
+                    "resumable": True,
+                },
+                {
+                    "source": "recent_project",
+                    "project_root": second_project.as_posix(),
+                    "available": True,
+                    "recoverable": True,
+                    "resumable": True,
+                },
+            ],
+            "workspace_state_exists": False,
+            "workspace_roadmap_exists": False,
+            "workspace_project_exists": False,
+            "workspace_planning_exists": False,
+            "planning_exists": False,
+            "state_exists": False,
+            "roadmap_exists": False,
+            "project_exists": False,
+            "resume_candidates": [],
+            "has_live_execution": False,
+            "execution_resumable": False,
+            "execution_paused_at": None,
+            "autonomy": None,
+            "research_mode": None,
+        },
+    )
+
+    result = runner.invoke(app, ["resume"])
+
+    assert result.exit_code == 0
+    output = _normalize_cli_output(result.output)
+    assert "GPD found 2 recoverable recent projects on this machine, so you need to choose one." in output
+    assert "2 recoverable choices require explicit selection" in output
+    assert local_cli_resume_recent_command() in output
 
 
 def test_resume_plain_output_surfaces_auto_selected_recent_project(tmp_path: Path, monkeypatch) -> None:
@@ -2755,6 +2858,16 @@ def test_validate_verification_contract_help_surfaces_stale_proof_gate_visibilit
     normalized_output = _normalize_cli_output(result.output)
     assert "Validate VERIFICATION frontmatter and contract-result alignment" in normalized_output
     assert "stale proof-audit blockers when recorded" in normalized_output
+    assert "oracle evidence" in normalized_output
+
+
+def test_validate_comparison_contract_help_surfaces_verdict_ledger_visibility() -> None:
+    result = runner.invoke(app, ["validate", "comparison-contract", "--help"])
+
+    assert result.exit_code == 0
+    normalized_output = _normalize_cli_output(result.output)
+    assert "Validate standalone comparison artifact frontmatter and comparison_verdicts" in normalized_output
+    assert "GPD/comparisons/*-COMPARISON.md" in normalized_output
 
 
 def test_validate_command_context_help_surfaces_registry_argument_name() -> None:

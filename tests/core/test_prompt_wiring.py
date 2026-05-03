@@ -67,6 +67,35 @@ def _assert_contains_fragments(text: str, *fragments: str) -> None:
     assert not missing, "Missing expected prompt fragments:\n" + "\n".join(missing)
 
 
+def _assert_slides_public_label_local_preflight_guidance(text: str, *, shared_source: bool = False) -> None:
+    _assert_contains_fragments(
+        text,
+        "validate command-context",
+        "`slides`",
+    )
+    if shared_source:
+        _assert_contains_fragments(
+            text,
+            "this shared workflow is `gpd:slides`",
+            "active runtime's native command label",
+            "bare registry slug `slides`",
+        )
+        assert "$gpd-slides" not in text
+    else:
+        assert "this shared workflow is `gpd:slides`" in text or (
+            "public runtime label" in text and "$gpd-slides" in text
+        )
+    assert "bare" in text.lower()
+    assert any(
+        fragment in text
+        for fragment in (
+            "local command-context bridge argument",
+            "shell/local bridge",
+            "bare registry slug",
+        )
+    )
+
+
 def _assert_workflow_calls_staged_init_for_manifest_stages(workflow_id: str, workflow_text: str) -> None:
     staged_loading = registry.get_command(workflow_id).staged_loading
 
@@ -89,7 +118,7 @@ COMMAND_SPAWN_TOKENS = {
 WORKFLOW_SPAWN_TOKENS = {
     "derive-equation.md": ["gpd-check-proof"],
     "explain.md": ["gpd-explainer", "gpd-bibliographer"],
-    "plan-phase.md": ["gpd-phase-researcher", "gpd-planner", "gpd-plan-checker", "gpd-experiment-designer"],
+    "plan-phase.md": ["gpd-phase-researcher", "gpd-planner", "gpd-plan-checker"],
     "execute-phase.md": [
         "gpd-executor",
         "gpd-check-proof",
@@ -427,9 +456,9 @@ def test_plan_phase_applies_planner_roadmap_updates_in_orchestrator() -> None:
     plan_phase = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
 
     assert "gpd_return.roadmap_updates" in plan_phase
-    assert "The spawned planner does not own `GPD/ROADMAP.md` in default mode" in plan_phase
-    assert "Apply that update to `GPD/ROADMAP.md`" in plan_phase
-    assert "verify the phase's plan placeholders/count match the fresh `*-PLAN.md` artifacts" in plan_phase
+    assert "The planner returns proposed roadmap edits" in plan_phase
+    assert "the orchestrator applies them to `GPD/ROADMAP.md`" in plan_phase
+    assert "verifies placeholders/count against fresh `*-PLAN.md` artifacts" in plan_phase
 
 
 def test_executor_completion_examples_use_command_based_next_actions() -> None:
@@ -967,6 +996,7 @@ def test_readme_and_help_workflow_surface_publication_lane_boundary_without_clai
 def test_slides_workflow_references_templates_and_existing_output_policy() -> None:
     workflow = (WORKFLOWS_DIR / "slides.md").read_text(encoding="utf-8")
 
+    _assert_slides_public_label_local_preflight_guidance(workflow, shared_source=True)
     assert "{GPD_INSTALL_DIR}/templates/slides/presentation-brief.md" in workflow
     assert "{GPD_INSTALL_DIR}/templates/slides/outline.md" in workflow
     assert "{GPD_INSTALL_DIR}/templates/slides/slides.md" in workflow
@@ -975,6 +1005,57 @@ def test_slides_workflow_references_templates_and_existing_output_policy() -> No
     assert "1. Refresh" in workflow
     assert "2. Update" in workflow
     assert "3. Skip" in workflow
+    assert "`slides/` is the only durable write root for this workflow" in workflow
+    assert "must not satisfy publication, peer-review, response, arXiv-package, or export gates" in workflow
+    assert "If the workspace is not a git checkout" in workflow
+    assert "runtime-native deletion for exact known aux files under `slides/`" in workflow
+    assert "main.nav" in workflow
+    assert "main.snm" in workflow
+    assert "source-bound skeleton" in workflow
+
+
+def test_phase5_slides_prompt_covers_cleanup_non_git_and_thin_source_boundaries() -> None:
+    workflow = (WORKFLOWS_DIR / "slides.md").read_text(encoding="utf-8")
+
+    _assert_slides_public_label_local_preflight_guidance(workflow, shared_source=True)
+    assert "If the workspace is not a git checkout" in workflow
+    assert "runtime-native deletion for exact known aux files under `slides/`" in workflow
+    assert "main.nav" in workflow
+    assert "main.snm" in workflow
+    assert "source-bound skeleton" in workflow
+
+
+def test_publication_workflows_surface_no_write_stop_contracts_from_committed_sources() -> None:
+    peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    arxiv = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
+    slides = (WORKFLOWS_DIR / "slides.md").read_text(encoding="utf-8")
+
+    _assert_contains_fragments(
+        peer_review,
+        "STOP at `manuscript_required`",
+        "`next_step: none`",
+    )
+    _assert_contains_fragments(
+        arxiv,
+        "`command_execution_state: blocked_before_write`",
+        "`response_gate`",
+        "`review_state: stale`",
+        "`response_state: requires_fresh_review`",
+    )
+    _assert_contains_fragments(
+        slides,
+        "`checkpoint: none`",
+        "`next_step: none`",
+        "`review_state: not_required`",
+    )
+
+
+def test_export_workflow_keeps_outputs_under_exports_without_satisfying_publication_gates() -> None:
+    workflow = (WORKFLOWS_DIR / "export.md").read_text(encoding="utf-8")
+
+    assert "`exports/` is the only durable write root for this workflow" in workflow
+    assert "Do not write generated export files under `GPD/publication/`, `GPD/review/`, `GPD/exports/`" in workflow
+    assert "must not satisfy publication, peer-review, response, arXiv-package, or slides gates" in workflow
 
 
 def test_representative_prompts_use_centralized_command_context_preflight() -> None:
@@ -1122,7 +1203,10 @@ def test_publication_review_round_detection_prompts_are_shell_safe_and_pair_resp
         "The pipeline increments the round number only when the prior report and the canonical paired "
         "response artifacts are present" in reliability
     )
-    assert "`GPD/AUTHOR-RESPONSE{round_suffix}.md` plus `GPD/review/REFEREE_RESPONSE{round_suffix}.md`" in reliability
+    assert (
+        "`${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md` plus "
+        "`${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md`" in reliability
+    )
 
     assert re.search(r"\bfind\b[\s\S]{0,160}-name ['\"]REFEREE_RESPONSE\*\.md['\"]", respond)
     assert re.search(r"\bfind\b[\s\S]{0,160}-name ['\"]AUTHOR-RESPONSE\*\.md['\"]", respond)
@@ -1314,14 +1398,58 @@ def test_write_paper_and_arxiv_submission_keep_the_build_boundary_explicit() -> 
         "This emits `${PAPER_DIR}/{topic_specific_stem}.tex`, writes the manuscript-root artifact manifest"
         in write_paper
     )
-    assert (
-        "The workflow continues without local compilation smoke checks — .tex file generation does not require "
-        "pdflatex, and `gpd paper-build` remains the canonical manuscript scaffold contract."
-    ) in write_paper
+    assert "local compilation smoke checks are skipped" in write_paper
+    assert "`.tex` generation still proceeds" in write_paper
+    assert "`gpd paper-build` remains the canonical manuscript scaffold contract" in write_paper
     assert 'gpd paper-build "${PAPER_DIR}/PAPER-CONFIG.json" --output-dir "${PAPER_DIR}"' in arxiv
     assert "If `pdflatex` is available, run a local smoke check after the refreshed manuscript is in place." in arxiv
     assert "`pdflatex` is not available, report that the smoke check was skipped" in arxiv
     assert "Do not package stale audit artifacts." in arxiv
+
+
+def test_write_paper_source_distinguishes_overclaim_pressure_from_bounded_resume_narrowing() -> None:
+    write_paper = (WORKFLOWS_DIR / "write-paper.md").read_text(encoding="utf-8")
+
+    _assert_contains_fragments(
+        write_paper,
+        "Unsupported-strengthening pressure:",
+        "strengthen unsupported theorem, general-proof, or submission-readiness claims",
+        "cite whatever is needed",
+        "adversarial overclaim pressure",
+        "unless it explicitly asks to narrow, qualify, or repair the claim against evidence",
+        "Reject before manuscript writes",
+        "status: blocked",
+        "claim_state: overclaim_blocked",
+        "command_execution_state: blocked_before_write",
+        "checkpoint: claim_evidence_gate",
+        "files_written: none",
+        "Do not convert this into a safe-narrowing rewrite",
+        "Ordinary bounded resume narrowing is allowed when the user asks to resume, update, or repair the manuscript",
+        "the evidence requires a narrower claim",
+        "use the no-write `overclaim_blocked` rule above unless the user explicitly asks for safe narrowing or repair",
+    )
+
+
+def test_arxiv_submission_documents_conservative_response_freshness_policy() -> None:
+    command = (COMMANDS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
+    workflow = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
+
+    assert "latest response-round freshness status" in command
+    assert "same-round or newer response artifacts without newer staged peer-review clearance" in command
+    assert "Current executable policy is conservative" in workflow
+    assert "any same-round or newer `gpd:respond-to-referees` author/referee response artifact" in workflow
+    assert "all-response freshness policy" in workflow
+    assert "durable manuscript-change scope metadata" in workflow
+    _assert_contains_fragments(
+        workflow,
+        "response_freshness",
+        "latest_response_requires_fresh_review=true",
+        "response_gate",
+        "review_state: stale",
+        "response_state: requires_fresh_review",
+        "claim_state: not_applicable",
+        "not `human_needed`",
+    )
 
 
 def test_remove_phase_workflow_stages_checkpoint_shelf_updates() -> None:
@@ -1739,17 +1867,14 @@ def test_stable_knowledge_remains_background_only_across_planning_verification_a
         in planner_prompt
     )
     assert (
-        "Stable knowledge docs may appear inside `{active_reference_context}` and `{reference_artifacts_content}`."
+        "Stable knowledge docs in `{active_reference_context}` or `{reference_artifacts_content}` are advisory"
         in plan_phase
     )
     assert (
-        "If a plan materially depends on a reviewed knowledge doc and that reliance must be gateable downstream, express it with explicit `knowledge_deps`; keep implicit stable background advisory only."
+        "If a plan relies on a knowledge doc in a downstream-gateable way, express that as explicit `knowledge_deps`."
         in plan_phase
     )
-    assert (
-        "they do not override `convention_lock`, `project_contract`, the PLAN `contract`, or direct evidence."
-        in plan_phase
-    )
+    assert "never override `convention_lock`, `project_contract`, PLAN `contract`, or direct evidence." in plan_phase
     assert (
         "Stable knowledge docs that appear there are reviewed background synthesis: use them to clarify definitions, assumptions, and caveats only when they agree with stronger sources, and never as decisive evidence on their own."
         in verify_workflow
@@ -2094,7 +2219,7 @@ def test_workflows_use_raw_json_when_shell_snippets_pipe_cli_output_into_gpd_jso
     assert 'gpd --raw init phase-op --include state,config "${PHASE}"' not in research_command
     assert "BOOTSTRAP_INIT=$(load_map_research_stage map_bootstrap)" in map_workflow
     assert "MAPPER_AUTHORING_INIT=$(load_map_research_stage mapper_authoring)" in map_workflow
-    assert 'gpd --raw init map-research --stage "${stage_name}" -- "${ARGUMENTS:-}"' in map_workflow
+    assert 'gpd --raw --cwd "$target_cwd" init map-research --stage "${stage_name}" -- "${ARGUMENTS:-}"' in map_workflow
     assert 'RESEARCH_MODE=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_mode --default balanced)' in map_workflow
     assert "MAP_RESEARCH_FOCUS=" not in map_workflow
     assert "MAP_FOCUS=" not in map_workflow
@@ -2438,7 +2563,7 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
         assert removed_alias not in summary_template
     assert "`suggested_contract_checks` is verification-only and does not belong in summaries." in summary_template
     assert "contract_results" in verification_template
-    assert "machine-readable surface limited to the schema-owned ledgers" in verification_template
+    assert "machine-readable surface limited to schema-owned ledgers" in verification_template
     assert "verification-side `suggested_contract_checks`" in verification_template
     assert (
         "Use `{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract."
@@ -2609,6 +2734,36 @@ def test_execute_phase_workflow_surfaces_project_contract_validation_gate() -> N
         'gpd contract record-alignment --contract-hash "$CONTRACT_HASH" --context-hash "$CONTEXT_HASH"'
     ) in alignment_step
     assert "claim_deliverable_alignment_check: skipped (already confirmed this session)" in alignment_step
+
+
+def test_execute_and_autonomous_gate_execution_before_plan_work() -> None:
+    execute_phase = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
+    autonomous = (WORKFLOWS_DIR / "autonomous.md").read_text(encoding="utf-8")
+
+    execute_gate = _extract_between(
+        execute_phase,
+        '<step name="validate_selected_plans_before_execution" priority="first">',
+        "</step>",
+    )
+    assert "workspace scripts, numerical computations, task dispatches, subagents, artifact writes" in execute_gate
+    assert 'gpd validate plan-contract "$plan"' in execute_gate
+    assert 'if ! gpd verify plan "$plan"; then' in execute_gate
+    assert 'PLAN_PREFLIGHT=$(gpd --raw validate plan-preflight "$plan")' in execute_gate
+    assert 'gpd verify references "$plan"' in execute_gate
+    assert 'gpd phase validate-waves "$phase_number"' in execute_gate
+    assert "gpd:plan-phase {N}` is the supported public plan repair route" in execute_gate
+
+    assert "Before invoking execute-phase, run gate" in autonomous
+    assert 'gpd --raw validate lifecycle-contract-gate execute-phase "${PHASE_NUM}"' in autonomous
+    assert "gpd validate plan-contract" in autonomous
+    assert "gpd --raw validate plan-preflight" in autonomous
+    assert (
+        "stop before workspace scripts, numerical computations, task dispatches, subagents, artifact writes"
+        in autonomous
+    )
+    assert "gpd:discuss-phase ${PHASE_NUM}` then `gpd:plan-phase ${PHASE_NUM}" in autonomous
+    assert "--revise" not in execute_phase
+    assert "--revise" not in autonomous
 
 
 def test_execute_phase_and_execute_plan_use_staged_execution_bootstrap_instead_of_monolithic_init() -> None:
@@ -3083,7 +3238,8 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     assert "state.json is authoritative for structured fields" in sync_state
     assert "This workflow is intentionally fail-closed" in sync_state
     assert "optional_commit" in sync_state
-    assert "save_state_markdown" in sync_state
+    assert 'gpd --raw --cwd "$PROJECT_ROOT" state repair-sync' in sync_state
+    assert "Do not move or delete files from the prompt." in sync_state
     assert "gpd --raw state snapshot" not in sync_state
     assert "Proceed with reconciliation? (y/n)" not in sync_state
     assert "determine which source is more recent" not in sync_state
@@ -4368,12 +4524,10 @@ def test_pause_resume_and_derivation_templates_preserve_result_id_continuity() -
         "The `<persistent_state>` and `<intermediate_results>` sections in `.continue-here.md` are filled (documenting what was appended to DERIVATION-STATE.md)"
         in pause_work
     )
-    assert "gpd state record-session \\" in pause_work
+    assert 'gpd state record-session "${record_session_args[@]}"' in pause_work
     assert "Treat an explicit `--last-result-id` override as a manual repair path" in pause_work
-    assert (
-        "If the active bounded-segment continuity already carries a canonical `last_result_id`, omit `--last-result-id`"
-        in pause_work
-    )
+    assert "If the active bounded-segment continuity already carries a canonical" in pause_work
+    assert "last_result_id, omit --last-result-id and let the automatic continuity path" in pause_work
     assert "canonical `last_result_id`" in resume_work
     assert "preferred continuity anchor" in resume_work
     assert "Reference the result IDs added to state.json this session" in continue_here
@@ -4643,6 +4797,30 @@ def test_publication_workflows_keep_manuscript_local_reference_status_rooted_at_
     )
 
 
+def test_respond_to_referees_arxiv_handoff_uses_public_positional_arxiv_target() -> None:
+    respond = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+    arxiv_command = (COMMANDS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
+    arxiv_workflow = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
+    arxiv_help_block = help_workflow.split(
+        "**`gpd:arxiv-submission [manuscript root or .tex entrypoint]`**",
+        1,
+    )[1].split("**`gpd:explain", 1)[0]
+
+    assert 'argument-hint: "[manuscript root or .tex entrypoint]"' in arxiv_command
+    assert "Paper target: $ARGUMENTS (optional manuscript root or `.tex` entrypoint" in arxiv_command
+    assert "Resolve the manuscript target from raw preflight plus `$ARGUMENTS`" in arxiv_workflow
+    assert "Usage: `gpd:arxiv-submission paper/`" in arxiv_help_block
+    assert "--manuscript" not in arxiv_help_block
+
+    assert "`gpd:arxiv-submission <resolved-manuscript>`" in respond
+    assert "`gpd:arxiv-submission paper/curvature_flow_bounds.tex`" in respond
+    assert "`$gpd-arxiv-submission <resolved-manuscript>`" not in respond
+    assert "`$gpd-arxiv-submission paper/curvature_flow_bounds.tex`" not in respond
+    assert "`gpd:arxiv-submission --manuscript" not in respond
+    assert "`$gpd-arxiv-submission --manuscript" not in respond
+
+
 def test_stage9_adaptive_mode_and_review_cadence_docs_stay_aligned() -> None:
     research_phase = (WORKFLOWS_DIR / "research-phase.md").read_text(encoding="utf-8")
     verify_work = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
@@ -4781,6 +4959,11 @@ def test_help_and_execution_surfaces_wire_tangent_control_path() -> None:
     assert "{GPD_INSTALL_DIR}/workflows/quick.md" in tangent_workflow
     assert "{GPD_INSTALL_DIR}/workflows/add-todo.md" in tangent_workflow
     assert "{GPD_INSTALL_DIR}/workflows/branch-hypothesis.md" in tangent_workflow
+    assert "Until a concrete `$TANGENT_DECISION` is captured" in tangent_workflow
+    assert "do not name `gpd:quick`, `gpd:add-todo`, `gpd:branch-hypothesis`, `gpd:execute-phase`" in tangent_workflow
+    assert "do not present `gpd:quick`, `gpd:add-todo`, `gpd:branch-hypothesis`, `gpd:execute-phase`" in (
+        COMMANDS_DIR / "tangent.md"
+    ).read_text(encoding="utf-8")
 
 
 def test_planner_and_plan_phase_keep_no_silent_branching_and_exploit_tangent_suppression() -> None:
@@ -5033,14 +5216,14 @@ def test_new_milestone_keeps_full_roadmap_detail_shallow_mode_false() -> None:
     assert "<shallow_mode>false</shallow_mode>" in new_milestone
 
 
-def test_new_project_next_up_recommends_plan_phase_1_primary() -> None:
+def test_new_project_next_up_recommends_discuss_phase_1_primary() -> None:
     new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
     # The standard-mode Next Up block is the final occurrence; the first is the --minimal path.
     next_up_block = new_project[new_project.rindex("## > Next Up") :]
-    # plan-phase 1 should appear before discuss-phase 1 in that block.
-    plan_idx = next_up_block.index("`gpd:plan-phase 1`")
+    # discuss-phase 1 should appear before plan-phase 1 in that block.
     discuss_idx = next_up_block.index("`gpd:discuss-phase 1`")
-    assert plan_idx < discuss_idx, "plan-phase 1 must be the primary Next Up recommendation, not discuss-phase"
+    plan_idx = next_up_block.index("`gpd:plan-phase 1`")
+    assert discuss_idx < plan_idx, "discuss-phase 1 must be the primary Next Up recommendation, not plan-phase"
 
 
 def test_roadmapper_documents_shallow_mode_behavior() -> None:
@@ -5060,6 +5243,10 @@ def test_route_workflow_uses_physics_scope_examples_and_ordered_compound_contrac
     assert "TAM/revenue/impact analysis" not in route_workflow
     assert "parameter sweep on top of a derived model" in route_workflow
     assert "No active milestone override" in route_workflow
+    assert "fail_closed_on_state_conflict" in route_workflow
+    assert "state/roadmap phase mismatch or missing active phase directory -> `gpd:sync-state`" in route_workflow
+    assert "convention-lock or `GPD/CONVENTIONS.md` mismatch -> `gpd:validate-conventions`" in route_workflow
+    assert "generic health checks" in route_workflow
 
     assert 'argument-hint: "[--frozen=yes|no] [--change=extend|revise] [--layer=new|change]"' in route_command
     assert "Follow the included route workflow" in route_command
@@ -5069,6 +5256,23 @@ def test_route_workflow_uses_physics_scope_examples_and_ordered_compound_contrac
         in route_workflow
     )
     assert "ordered compound sequence `gpd:complete-milestone` then `gpd:new-milestone`" in help_workflow
+
+
+def test_phase_lifecycle_workflows_fail_closed_on_dirty_state_and_stale_verification() -> None:
+    plan_phase = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
+    autonomous = (WORKFLOWS_DIR / "autonomous.md").read_text(encoding="utf-8")
+
+    assert "Dirty worktree safety gate" in plan_phase
+    assert "git status --porcelain --untracked-files=all" in plan_phase
+    assert "plan-phase never stashes, resets, cleans, overwrites, or hides user work" in plan_phase
+    assert "fail_closed_on_state_conflict" in plan_phase
+    assert "Canonical conflict-stop labels" in plan_phase
+    assert "ERROR: Convention verification failed -- resolve before planning" in plan_phase
+
+    assert "stale/missing/non-passing verification blocks audit/paper" in autonomous
+    assert "Next: gpd:verify-work ${COMPLETE_PHASE}" in autonomous
+    assert "gpd --raw validate lifecycle-contract-gate plan-phase" in autonomous
+    assert "Do not relabel this as missing plan authority" in autonomous
 
 
 def test_new_project_customize_settings_matches_supervised_dense_defaults() -> None:

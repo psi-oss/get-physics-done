@@ -40,15 +40,17 @@ from gpd.core.manuscript_artifacts import (
     resolve_current_publication_subject,
 )
 from gpd.core.phases import _milestone_completion_snapshot
+from gpd.core.project_reentry import resolve_project_reentry
 from gpd.core.proof_review import (
     manuscript_requires_theorem_bearing_review,
     publication_lineage_roots,
     resolve_manuscript_proof_review_status,
 )
-from gpd.core.public_surface_contract import recovery_local_snapshot_command
+from gpd.core.public_surface_contract import recovery_cross_workspace_command, recovery_local_snapshot_command
 from gpd.core.publication_runtime import (
     resolve_latest_publication_response_artifacts,
     resolve_latest_publication_review_artifacts,
+    resolve_publication_response_freshness,
 )
 from gpd.core.reproducibility import compute_sha256
 from gpd.core.runtime_command_surfaces import format_active_runtime_command
@@ -162,6 +164,7 @@ class _PhaseAnalysis:
     incomplete_count: int
     has_research: bool
     has_verification: bool
+    verification_status: str
 
 
 # ─── Internal Helpers ─────────────────────────────────────────────────────────
@@ -189,6 +192,52 @@ def _is_research_file(name: str) -> bool:
 
 def _is_verification_file(name: str) -> bool:
     return name.endswith(VERIFICATION_SUFFIX)
+
+
+def _phase_verification_status(phase_path: Path, files: list[str]) -> str:
+    """Classify phase verification freshness from local verification artifacts."""
+    verification_files = sorted(file for file in files if _is_verification_file(file))
+    if not verification_files:
+        return "missing"
+
+    statuses: list[str] = []
+    for filename in verification_files:
+        try:
+            text = (phase_path / filename).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            statuses.append("invalid")
+            continue
+        match = re.search(r"(?im)^\s*status\s*:\s*([a-zA-Z0-9_-]+)\s*$", text)
+        if match:
+            statuses.append(match.group(1).strip().lower())
+            continue
+        lowered = text.lower()
+        if re.search(r"\b(stale|expired|outdated)\b", lowered):
+            statuses.append("stale")
+        elif re.search(r"\b(gaps?_found|gap[s ]+found|failed|invalid)\b", lowered):
+            statuses.append("gaps_found")
+        else:
+            statuses.append("passed")
+
+    blocking = {
+        "stale",
+        "gaps_found",
+        "gap_found",
+        "failed",
+        "failure",
+        "invalid",
+        "human_needed",
+        "expert_needed",
+        "needs_human",
+        "needs_expert",
+        "missing",
+    }
+    for status in statuses:
+        if status in blocking:
+            return "gaps_found" if status in {"gap_found", "failed", "failure"} else status
+    if any(status in {"passed", "verified", "complete", "completed"} for status in statuses):
+        return "passed"
+    return "present"
 
 
 def _load_config(cwd: Path) -> dict[str, object]:
@@ -280,7 +329,8 @@ def _scan_phases(cwd: Path) -> list[_PhaseAnalysis]:
         plans = [f for f in files if _is_plan_file(f)]
         summaries = [f for f in files if _is_summary_file(f)]
         has_research = any(_is_research_file(f) for f in files)
-        has_verification = any(_is_verification_file(f) for f in files)
+        verification_status = _phase_verification_status(phase_path, files)
+        has_verification = verification_status != "missing"
 
         plan_count = len(plans)
         summary_count = _matching_phase_artifact_count(plans, summaries)
@@ -305,6 +355,7 @@ def _scan_phases(cwd: Path) -> list[_PhaseAnalysis]:
                 incomplete_count=max(0, plan_count - summary_count),
                 has_research=has_research,
                 has_verification=has_verification,
+                verification_status=verification_status,
             )
         )
 
@@ -469,6 +520,13 @@ def _publication_review_package_allows_submission(cwd: Path, manuscript_entrypoi
     )
     if latest_review_artifacts is None:
         return False
+    response_freshness = resolve_publication_response_freshness(
+        cwd,
+        manuscript_entrypoint=manuscript_entrypoint,
+        review_artifacts=latest_review_artifacts,
+    )
+    if response_freshness.requires_fresh_review:
+        return False
 
     ledger_path = latest_review_artifacts.review_ledger
     decision_path = latest_review_artifacts.referee_decision
@@ -550,7 +608,8 @@ def _is_bounded_external_write_paper_lane(cwd: Path, manuscript_entrypoint: Path
         return False
     return (
         publication_subject.publication_lane_kind == "managed_publication_manuscript"
-        and publication_subject.manuscript_entrypoint.resolve(strict=False) == manuscript_entrypoint.resolve(strict=False)
+        and publication_subject.manuscript_entrypoint.resolve(strict=False)
+        == manuscript_entrypoint.resolve(strict=False)
     )
 
 
@@ -724,6 +783,45 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     manuscript_state_is_blocked = manuscript_resolution.status in {"ambiguous", "invalid"}
 
     if not project_exists and manuscript_entrypoint is None:
+        reentry = resolve_project_reentry(cwd)
+        if reentry.has_recoverable_current_workspace:
+            only = Recommendation(
+                action="resume-work",
+                priority=1,
+                command=format_command("resume-work"),
+                reason="Recoverable GPD state found in this workspace — resume or reconcile it before starting fresh",
+            )
+            return SuggestResult(
+                suggestions=[only],
+                total_suggestions=1,
+                suggestion_count=1,
+                top_action=only,
+                context=SuggestContext(),
+            )
+        recoverable_recent = [
+            candidate
+            for candidate in reentry.candidates
+            if candidate.source == "recent_project" and candidate.recoverable
+        ]
+        if recoverable_recent:
+            count = len(recoverable_recent)
+            only = Recommendation(
+                action="resume-recent",
+                priority=1,
+                command=recovery_cross_workspace_command(),
+                reason=(
+                    f"No active project found here, but {count} recent recoverable project"
+                    f"{'' if count == 1 else 's'} are available — choose one, reopen it, then run "
+                    f"{canonical_command_label('resume-work')}"
+                ),
+            )
+            return SuggestResult(
+                suggestions=[only],
+                total_suggestions=1,
+                suggestion_count=1,
+                top_action=only,
+                context=SuggestContext(),
+            )
         only = Recommendation(
             action="new-project",
             priority=1,
@@ -820,18 +918,25 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
             )
         )
 
-    # 5b. Verify completed phase that lacks verification
+    # 5b. Verify completed phase that lacks fresh/passing verification
     unverified_complete = next(
-        (p for p in phase_analysis if p.status == "complete" and not p.has_verification),
+        (p for p in phase_analysis if p.status == "complete" and p.verification_status != "passed"),
         None,
     )
     if unverified_complete:
+        if unverified_complete.verification_status == "missing":
+            reason = f"Phase {unverified_complete.number} is complete but unverified — run verification"
+        else:
+            reason = (
+                f"Phase {unverified_complete.number} verification is {unverified_complete.verification_status} "
+                "— refresh verification before closeout"
+            )
         suggestions.append(
             _MutableRecommendation(
                 action="verify-work",
-                priority=4,
+                priority=2,
                 command=f"{format_command('verify-work')} {unverified_complete.number}",
-                reason=f"Phase {unverified_complete.number} is complete but unverified — run verification",
+                reason=reason,
                 phase=unverified_complete.number,
             )
         )
@@ -952,7 +1057,10 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
         )
 
     # ── 12. All phases complete → milestone audit ───────────────────────
-    if all_complete and phase_analysis:
+    all_complete_verified = all_complete and phase_analysis and all(
+        phase.verification_status == "passed" for phase in phase_analysis
+    )
+    if all_complete_verified:
         suggestions.append(
             _MutableRecommendation(
                 action="audit-milestone",
@@ -976,8 +1084,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
 
     # 13a. All phases complete + verified → suggest paper writing
     if all_complete and phase_analysis and not has_paper_flag and not manuscript_state_is_blocked:
-        all_verified = all(p.has_verification for p in phase_analysis)
-        if all_verified:
+        if all_complete_verified:
             suggestions.append(
                 _MutableRecommendation(
                     action="write-paper",
@@ -1072,14 +1179,14 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
 
 
 def _load_state_json_safe(cwd: Path) -> dict[str, object] | None:
-    """Load state.json without depending on the full state module's recovery logic.
+    """Load visible state without mutating local recovery/lock artifacts.
 
-    Tries ``gpd.core.state.load_state_json`` if available; falls back to direct read.
+    Tries the read-only state loader if available; falls back to direct read.
     """
     try:
-        from gpd.core.state import load_state_json
+        from gpd.core.state import load_state_json_readonly
 
-        return load_state_json(cwd)
+        return load_state_json_readonly(cwd)
     except (FileNotFoundError, OSError, ImportError):
         logger.debug("suggest: state load failed", exc_info=True)
 

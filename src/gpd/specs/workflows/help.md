@@ -62,6 +62,8 @@ This reference lists the canonical in-runtime command names for the installed ru
 - If you are new to terminals or runtime setup, start with the Beginner Onboarding Hub linked from the README and installer output.
 - That shared onboarding surface keeps the OS guides, runtime guides, and startup checklist in one place.
 - Use these names inside the installed agent/runtime command surface.
+- Runtime label: Show `gpd:` as native labels; keep local CLI `gpd ...` unchanged.
+- If a reference section shows canonical `gpd:` names, treat them as lookup labels unless you are copying a normal-terminal command exactly.
 - Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly.
 - Use `gpd permissions status --runtime <runtime> --autonomy <mode>` when you want the read-only runtime-owned approval/alignment snapshot from your normal terminal. Use `supervised` unless you intentionally selected a different autonomy mode.
 - Use `gpd doctor` to check the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>` for the unattended or overnight verdict, `gpd permissions sync --runtime <runtime> --autonomy <mode>` when runtime-owned permissions need realignment, and `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `tectonic --version`, or `wolframscript -version`.
@@ -69,7 +71,7 @@ This reference lists the canonical in-runtime command names for the installed ru
 - That is the generic typed command-policy check for the public runtime surface. Today, `gpd validate review-contract <command>` and `gpd validate review-preflight <command> [subject] --strict` are specialized typed surfaces for commands that expose review/publication contracts.
 - If a plan declares specialized `tool_requirements`, use `gpd validate plan-preflight <PLAN.md>` from your normal terminal before execution.
 - For a normal-terminal, current-workspace read-only recovery snapshot without launching the runtime, use `gpd resume`.
-- For cross-project discovery from your normal terminal, use `gpd resume --recent` to find the workspace first, then open the selected project and continue there with the runtime `resume-work` command.
+- For cross-project discovery from your normal terminal, use `gpd resume --recent` to find the workspace first, then open the selected project and continue there with the runtime `gpd:resume-work` command.
 - After resuming inside the runtime, use `gpd:suggest-next` when you only need the next action.
 - For a normal-terminal, read-only machine-local usage / cost summary, use `gpd cost`.
 
@@ -97,7 +99,7 @@ Use the path that matches your current situation:
 3. `gpd:resume-work` - Continue inside the reopened project's canonical state
 4. `gpd:progress` - See the broader project snapshot
 5. `gpd:suggest-next` - Get the fastest next action
-6. `gpd observe execution` - Watch progress / waiting state, conservative `possibly stalled` wording, and the next read-only checks from your normal terminal
+6. `gpd observe execution` - Read-only progress / waiting state snapshot, conservative `possibly stalled` wording, and the next read-only checks from your normal terminal
 7. `gpd cost` - Review recorded machine-local usage / cost from your normal terminal
 
 **Post-startup settings**
@@ -189,7 +191,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:check-todos [area]` - Review pending todos and pick one
 - `gpd:decisions [phase or keyword]` - Search the decision log
 - `gpd:graph` - Visualize phase dependencies
-- `gpd:export [--format html|latex|zip|all]` - Export project artifacts
+- `gpd:export [--format html|latex|zip|all] [--commit]` - Export project artifacts; generated text exports are committed only with explicit `--commit`
 - `gpd:export-logs [--format jsonl|json|markdown] [--session <id>] [--last N] [--command <label>] [--phase <phase>] [--category <name>] [--no-traces] [--output-dir <path>]` - Export observability logs
 - `gpd:error-patterns [category]` - Review common project-specific errors
 - `gpd:record-backtrack [--reverted-commit=<sha>] [--trigger=<text>] [--phase=<NN-slug>] [description]` - Capture a backtrack event (what went wrong, what got reverted)
@@ -216,7 +218,7 @@ Use `gpd:help --command <name>` when you want the detailed notes for one runtime
 
 ### Core Workflow
 
-```
+```text
 gpd:new-project -> gpd:discuss-phase -> gpd:plan-phase -> gpd:execute-phase -> gpd:verify-work -> repeat
 ```
 
@@ -520,6 +522,7 @@ Check research status and intelligently route to next action.
 - Use `--brief` when returning and you only need orientation
 - Use `--reconcile` only on the runtime `gpd:progress` surface when state appears out of sync with disk artifacts
 - The local CLI `gpd progress` is a separate read-only renderer and uses `json|bar|table` instead of these runtime flags
+- Local observability checks stay split by side effect: `gpd observe execution`, `gpd observe sessions`, `gpd observe show`, and `gpd trace show` inspect only; `gpd observe event`, `gpd observe export`, and `gpd trace start|log|stop` write observability, export, or trace files.
 
 Usage: `gpd:progress`
 Usage: `gpd:progress --full` (detailed runtime view with all phase artifacts)
@@ -886,7 +889,7 @@ Usage: `gpd:review-knowledge GPD/knowledge/K-renormalization-group-fixed-points.
 
 **Workflow presets**
 
-- `Paper/manuscript workflows` - First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`; inspect paper-toolchain readiness with `gpd doctor`, inspect the preset with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific `settings` command
+- `Paper/manuscript workflows` - First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`; inspect paper-toolchain readiness with `gpd doctor`, inspect the preset with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific `gpd:settings` command
 - `gpd doctor --runtime <runtime> --local` / `gpd doctor --runtime <runtime> --global` - Check the local or global runtime target from your normal terminal before using that preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `tectonic --version`, or `wolframscript -version`. Failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
 - `gpd presets list` - Inspect the local preset catalog; presets resolve to the existing config keys and do not add a separate persisted preset block
 - `gpd presets show <preset>` - Preview one preset's bundle before applying it
@@ -971,15 +974,17 @@ Usage: `gpd:graph`
 
 > **Note:** Wave dependency validation runs automatically when executing phases. To validate manually, use `gpd phase validate-waves <phase>` — checks depends_on targets, file overlap within waves, wave consistency, and circular dependencies.
 
-**`gpd:export [--format html|latex|zip|all]`**
+**`gpd:export [--format html|latex|zip|all] [--commit]`**
 Export research results to HTML, LaTeX, or ZIP package.
 
 - HTML: standalone page with MathJax rendering
 - LaTeX: document with proper equations and bibliography
 - ZIP: complete archive of all planning artifacts
+- Does not commit generated files by default; add `--commit` to opt in to committing generated HTML, LaTeX, and BibTeX exports
 
 Usage: `gpd:export --format html`
 Usage: `gpd:export --format all`
+Usage: `gpd:export --format latex --commit`
 
 **`gpd:export-logs [--format jsonl|json|markdown] [--session <id>] [--last N] [--command <label>] [--phase <phase>] [--category <name>] [--no-traces] [--output-dir <path>]`**
 Export observability sessions and optional traces to files for review, sharing, or archival.
@@ -988,6 +993,7 @@ Export observability sessions and optional traces to files for review, sharing, 
 - Writes filtered exports to `GPD/exports/logs/` or a custom directory
 - Supports JSONL, JSON, and markdown output
 - Supports passthrough filters `--command <label>`, `--phase <phase>`, and `--category <name>`
+- Validates the output format before creating directories; refuses to write if no observability sessions exist; labels filtered empty exports with `empty_export: true`
 - Useful when you need to share or inspect the recorded execution history outside the runtime
 
 Usage: `gpd:export-logs`
@@ -1273,7 +1279,7 @@ Example config:
 
 **Starting a new research project:**
 
-```
+```text
 gpd:new-project        # Unified flow: questioning -> survey -> discuss -> objectives -> roadmap
 # Start a fresh context window, then run:
 gpd:discuss-phase 1    # Gather context and clarify approach
@@ -1285,14 +1291,14 @@ gpd:execute-phase 1    # Execute all plans in phase
 
 **Fast project bootstrap (skip deep questioning):**
 
-```
+```text
 gpd:new-project --minimal              # One structured intake plus scope approval
 gpd:new-project --minimal @plan.md     # Parse a plan file, then repair/approve scope
 ```
 
 **Leaving and returning after a break:**
 
-```
+```text
 gpd:pause-work        # Before leaving mid-phase, capture a continuation handoff artifact
 # Start a fresh context window, then run gpd resume in your normal terminal for the current workspace
 gpd resume             # Current-workspace read-only recovery snapshot from your normal terminal
@@ -1304,13 +1310,13 @@ gpd:progress --brief  # Short orientation snapshot if you need more context
 
 **Normal terminal, read-only recovery snapshot:**
 
-```
+```text
 gpd resume
 ```
 
 **Normal terminal, read-only machine-local usage / cost summary:**
 
-```
+```text
 gpd cost
 ```
 
@@ -1318,7 +1324,7 @@ Read-only machine-local usage / cost summary from recorded local telemetry, opti
 
 **Adding urgent mid-milestone work:**
 
-```
+```text
 gpd:insert-phase 5 "Fix sign error in renormalization group equation"
 gpd:plan-phase 5.1
 gpd:execute-phase 5.1
@@ -1326,7 +1332,7 @@ gpd:execute-phase 5.1
 
 **Completing a milestone:**
 
-```
+```text
 gpd:complete-milestone v2.0
 # Start a fresh context window, then run:
 gpd:new-milestone  # Start next milestone (questioning -> survey -> objectives -> roadmap)
@@ -1334,7 +1340,7 @@ gpd:new-milestone  # Start next milestone (questioning -> survey -> objectives -
 
 **Capturing ideas during work:**
 
-```
+```text
 gpd:add-todo                                      # Capture from conversation context
 gpd:add-todo Check finite-size scaling exponent    # Capture with explicit description
 gpd:check-todos                                    # Review and work on todos

@@ -493,7 +493,9 @@ def test_ingest_reference_artifacts_rejects_unknown_citation_source_fields(tmp_p
                 "reference_id": "ref-extra",
                 "source_type": "paper",
                 "title": "Extra Field Paper",
-                "legacy_note": "stale",
+                "verification_status": "verified",
+                "canonical_identifiers": {"doi": "10.0000/example"},
+                "verification_sources": ["audit log"],
             }
         ],
     )
@@ -557,8 +559,12 @@ def test_literature_review_surfaces_publish_closed_citation_source_contract() ->
     assert "matching `GPD/literature/{slug}-CITATION-SOURCES.json` sidecar" in command_doc
     assert "closed contract is:" in agent_doc
     assert "Extra keys are rejected by the downstream parser." in agent_doc
+    assert '"year": "2026"' in agent_doc
+    assert "`verification_status`, `canonical_identifiers`, and `verification_sources`" in agent_doc
     assert "strict `CitationSource` objects" in workflow_doc
     assert "Extra keys are rejected" in workflow_doc
+    assert '"year": "2026"' in workflow_doc
+    assert "`verification_status`, `canonical_identifiers`, and `verification_sources`" in workflow_doc
     assert (
         "Only read or propagate the deferred reference-artifact context after the scope has been fixed." in workflow_doc
     )
