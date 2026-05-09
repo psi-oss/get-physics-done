@@ -79,10 +79,11 @@ class TestDecisionEngine:
         assert decision.better is True
         assert decision.fidelity == 0.9999
 
-    def test_no_fidelity_proceeds_with_cost(self):
+    def test_no_fidelity_fails_closed(self):
         result = self._make_result(avg_f=None, unitary_f=None)
         decision = decide_better(result)
-        assert decision.better is True
+        assert decision.better is False
+        assert decision.meets_fidelity is False
         assert decision.fidelity is None
 
     def test_custom_weights(self):

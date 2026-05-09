@@ -211,7 +211,7 @@ def decide_better(
         + weights.time * result.sim_time_new
     )
 
-    meets_fidelity = (f is None) or (f >= fidelity_threshold)
+    meets_fidelity = (f is not None) and (f >= fidelity_threshold)
     better = meets_fidelity and (cost_new < cost_ref)
 
     return Decision(

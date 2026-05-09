@@ -54,6 +54,8 @@ def compare_circuits(
     err = _check_qiskit()
     if err:
         return stable_mcp_error(err)
+    if sim_reps < 1:
+        return stable_mcp_error("sim_reps must be >= 1")
 
     from qiskit import QuantumCircuit
 
@@ -65,7 +67,10 @@ def compare_circuits(
     except Exception as e:
         return stable_mcp_error(f"Failed to parse QASM: {e}")
 
-    result = _compare(qc_ref, qc_new, sim_reps=sim_reps)
+    try:
+        result = _compare(qc_ref, qc_new, sim_reps=sim_reps)
+    except Exception as e:
+        return stable_mcp_error(f"Benchmark comparison failed: {e}")
     return stable_mcp_response(result.to_dict())
 
 
@@ -97,6 +102,8 @@ def decide_better(
     err = _check_qiskit()
     if err:
         return stable_mcp_error(err)
+    if sim_reps < 1:
+        return stable_mcp_error("sim_reps must be >= 1")
 
     from qiskit import QuantumCircuit
 
@@ -110,9 +117,12 @@ def decide_better(
     except Exception as e:
         return stable_mcp_error(f"Failed to parse QASM: {e}")
 
-    result = _compare(qc_ref, qc_new, sim_reps=sim_reps)
-    weights = CostWeights(twoq=weight_twoq, depth=weight_depth, time=weight_time)
-    decision = _decide(result, fidelity_threshold=fidelity_threshold, weights=weights)
+    try:
+        result = _compare(qc_ref, qc_new, sim_reps=sim_reps)
+        weights = CostWeights(twoq=weight_twoq, depth=weight_depth, time=weight_time)
+        decision = _decide(result, fidelity_threshold=fidelity_threshold, weights=weights)
+    except Exception as e:
+        return stable_mcp_error(f"Decision evaluation failed: {e}")
 
     payload = decision.to_dict()
     payload["comparison"] = result.to_dict()
@@ -141,7 +151,10 @@ def circuit_stats(
     except Exception as e:
         return stable_mcp_error(f"Failed to parse QASM: {e}")
 
-    stats = _stats(qc)
+    try:
+        stats = _stats(qc)
+    except Exception as e:
+        return stable_mcp_error(f"Circuit stats failed: {e}")
     return stable_mcp_response(stats.to_dict())
 
 
