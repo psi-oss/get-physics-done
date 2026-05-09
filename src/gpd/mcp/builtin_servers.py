@@ -72,6 +72,13 @@ _BUILTIN_SERVERS: dict[str, _ServerDef] = {
         "optional": True,
         "module_check": "arxiv_mcp_server",
     },
+    "gpd-quantum-benchmark": {
+        "command": _PYTHON_COMMAND_SENTINEL,
+        "args": ["-m", "gpd.mcp.servers.quantum_benchmark_server"],
+        "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
+        "optional": True,
+        "module_check": "qiskit",
+    },
 }
 
 _PUBLIC_BOOTSTRAP_PREREQUISITE = "Install GPD before enabling built-in MCP servers."
@@ -235,6 +242,24 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
             "tool": "search_papers",
             "input": {"query": "quantum field theory", "max_results": 1},
             "expect": "contains paper",
+        },
+    },
+    "gpd-quantum-benchmark": {
+        "description": (
+            "Optional quantum circuit benchmark verification. Available only when the optional qiskit dependency "
+            "is installed via the 'quantum' extras group. Tools for comparing quantum circuits on gate "
+            "counts, fidelity metrics, and simulation time, with a Pareto-frontier decision engine."
+        ),
+        "capabilities": [
+            "compare_circuits",
+            "decide_better",
+            "circuit_stats",
+        ],
+        "registry_prefix": "gpd_quantum_benchmark",
+        "health_check": {
+            "tool": "circuit_stats",
+            "input": {"qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[1];\nh q[0];"},
+            "expect": "contains total_gates",
         },
     },
 }

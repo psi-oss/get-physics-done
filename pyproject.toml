@@ -46,6 +46,10 @@ dependencies = [
 arxiv = [
     "arxiv-mcp-server>=0.4.11",
 ]
+quantum = [
+    "qiskit>=1.0",
+    "numpy>=1.24",
+]
 
 [project.scripts]
 gpd = "gpd.cli:entrypoint"
@@ -58,6 +62,7 @@ gpd = "gpd.cli:entrypoint"
 "gpd-mcp-wolfram" = "gpd.mcp.integrations.wolfram_bridge:main"
 "gpd-mcp-state" = "gpd.mcp.servers.state_server:main"
 "gpd-mcp-skills" = "gpd.mcp.servers.skills_server:main"
+"gpd-mcp-quantum-benchmark" = "gpd.mcp.servers.quantum_benchmark_server:main"
 
 [project.urls]
 Homepage = "https://github.com/psi-oss/get-physics-done"

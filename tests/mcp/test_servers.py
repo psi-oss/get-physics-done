@@ -353,13 +353,10 @@ class TestBuiltinServerDescriptors:
 
         target_python = "/opt/gpd/python3.11"
         current_python = "/usr/bin/python3.9"
-        observed: dict[str, object] = {}
+        all_calls: list[list[object]] = []
 
         def fake_run(command, *, check, stdout, stderr):
-            observed["command"] = command
-            observed["check"] = check
-            observed["stdout"] = stdout
-            observed["stderr"] = stderr
+            all_calls.append(command)
             return SimpleNamespace(returncode=0 if command[0] == target_python else 1)
 
         monkeypatch.setattr(builtin_servers.sys, "executable", current_python)
@@ -368,10 +365,11 @@ class TestBuiltinServerDescriptors:
         servers = builtin_servers.build_mcp_servers_dict(python_path=target_python)
 
         assert "gpd-arxiv" in servers
-        assert observed["command"][0] == target_python
-        assert observed["command"][2].startswith("import importlib.util")
-        assert observed["command"][3] == "arxiv_mcp_server"
-        assert observed["check"] is False
+        module_names_checked = [cmd[3] for cmd in all_calls if len(cmd) > 3]
+        assert "arxiv_mcp_server" in module_names_checked
+        assert "qiskit" in module_names_checked
+        assert all(cmd[0] == target_python for cmd in all_calls)
+        assert all(cmd[2].startswith("import importlib.util") for cmd in all_calls if len(cmd) > 2)
 
 
 class TestMcpServerRunner:

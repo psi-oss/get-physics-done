@@ -1,0 +1,39 @@
+{
+  "name": "gpd-quantum-benchmark",
+  "description": "Optional quantum circuit benchmark verification. Available only when the optional qiskit dependency is installed via the 'quantum' extras group. Tools for comparing quantum circuits on gate counts, fidelity metrics, and simulation time, with a Pareto-frontier decision engine.",
+  "transport": "stdio",
+  "command": "gpd-mcp-quantum-benchmark",
+  "args": [],
+  "env": {
+    "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
+  },
+  "capabilities": [
+    "compare_circuits",
+    "decide_better",
+    "circuit_stats"
+  ],
+  "registry_prefix": "gpd_quantum_benchmark",
+  "prerequisites": [
+    "Install GPD before enabling built-in MCP servers."
+  ],
+  "health_check": {
+    "tool": "circuit_stats",
+    "input": {
+      "qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[1];\nh q[0];"
+    },
+    "expect": "contains total_gates"
+  },
+  "optional": true,
+  "availability": "conditional",
+  "availability_condition": "Available only when the optional Python module 'qiskit' is installed.",
+  "alternatives": {
+    "python_module": {
+      "command": "${GPD_PYTHON}",
+      "args": [
+        "-m",
+        "gpd.mcp.servers.quantum_benchmark_server"
+      ],
+      "notes": "Replace `${GPD_PYTHON}` with a Python >=3.11 interpreter that has GPD installed."
+    }
+  }
+}
