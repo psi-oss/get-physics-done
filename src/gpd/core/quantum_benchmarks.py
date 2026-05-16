@@ -1,6 +1,6 @@
 """Quantum circuit benchmark verification for GPD agents.
 
-Provides fidelity metrics (unitary process fidelity, average state fidelity),
+Provides fidelity metrics (process fidelity, average state fidelity),
 circuit cost analysis, and a Pareto-frontier decision engine for evaluating
 whether a newly derived quantum circuit improves on a reference.
 
@@ -42,9 +42,6 @@ class CircuitStats:
         }
 
 
-TWO_QUBIT_GATE_NAMES = frozenset(
-    {"cx", "cz", "swap", "cry", "crx", "cp", "rxx", "ryy", "rzz", "iswap", "ecr"}
-)
 
 
 def circuit_stats(qc: object) -> CircuitStats:
@@ -53,7 +50,16 @@ def circuit_stats(qc: object) -> CircuitStats:
         raise RuntimeError("qiskit is required for circuit_stats")
     counts = qc.count_ops()  # type: ignore[union-attr]
     total = int(sum(counts.values()))
-    twoq = int(sum(counts.get(k, 0) for k in TWO_QUBIT_GATE_NAMES))
+    
+    twoq = 0
+    if hasattr(qc, "data"):
+        for instr in qc.data:
+            qargs = getattr(instr, "qubits", None)
+            if qargs is None and isinstance(instr, tuple) and len(instr) > 1:
+                qargs = instr[1]
+            if qargs is not None and len(qargs) == 2:
+                twoq += 1
+
     return CircuitStats(
         total_gates=total,
         two_qubit_gates=twoq,
@@ -64,7 +70,7 @@ def circuit_stats(qc: object) -> CircuitStats:
 
 
 def unitary_fidelity(qc1: object, qc2: object, *, max_qubits: int = 5) -> float | None:
-    """Process fidelity via unitary overlap: F = |Tr(U1^dag U2)| / 2^n.
+    """Process fidelity via unitary overlap: F = |Tr(U1^dag U2)|^2 / d^2.
 
     Returns None if circuits are too large or qiskit is unavailable.
     """
@@ -79,15 +85,15 @@ def unitary_fidelity(qc1: object, qc2: object, *, max_qubits: int = 5) -> float 
     u1 = Operator(qc1).data
     u2 = Operator(qc2).data
     overlap = np.trace(np.conjugate(u1.T) @ u2)
-    return float(np.abs(overlap) / (2**n))
+    return float(np.abs(overlap)**2 / (2**(2*n)))
 
 
 def average_state_fidelity(
-    qc1: object, qc2: object, *, trials: int = 64, seed: int | None = 123
+    qc1: object, qc2: object, *, trials: int = 64, seed: int | None = 123, max_qubits: int = 5
 ) -> float | None:
     """Average state fidelity over Haar-random input states.
 
-    Returns None if qiskit is unavailable or qubit counts mismatch.
+    Returns None if qiskit is unavailable, circuits are too large, or qubit counts mismatch.
     """
     if not _qiskit_available():
         return None
@@ -97,6 +103,8 @@ def average_state_fidelity(
     if qc1.num_qubits != qc2.num_qubits:  # type: ignore[union-attr]
         return None
     n = qc1.num_qubits  # type: ignore[union-attr]
+    if n > max_qubits:
+        return None
     rng = np.random.default_rng(seed)
     d = 2**n
     acc = 0.0
@@ -159,7 +167,14 @@ def compare_circuits(qc_ref: object, qc_new: object, *, sim_reps: int = 3) -> Co
 class CostWeights:
     twoq: float = 2.0
     depth: float = 1.0
-    time: float = 1.0
+    time: float = 0.0
+
+
+def _pct_change(ref_val: float, new_val: float) -> float:
+    """Calculate percentage change (negative = improvement / reduction)."""
+    if ref_val == 0:
+        return 0.0 if new_val == 0 else float("inf")
+    return ((new_val - ref_val) / ref_val) * 100.0
 
 
 @dataclass
@@ -169,7 +184,9 @@ class Decision:
     cost_ref: float
     cost_new: float
     fidelity: float | None
+    fidelity_source: str  # "avg_state" or "none"
     weights: CostWeights
+    pareto: dict[str, dict[str, float]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -178,8 +195,44 @@ class Decision:
             "cost_ref": self.cost_ref,
             "cost_new": self.cost_new,
             "fidelity": self.fidelity,
+            "fidelity_source": self.fidelity_source,
             "weights": {"twoq": self.weights.twoq, "depth": self.weights.depth, "time": self.weights.time},
+            "pareto": self.pareto,
         }
+
+    def rationale(self, fidelity_threshold: float = 0.999) -> str:
+        """Generate a human-readable decision explanation."""
+        lines = []
+        if self.fidelity is not None:
+            if self.meets_fidelity:
+                lines.append(f"✅ Fidelity {self.fidelity:.4f} >= {fidelity_threshold:.4f} (meets threshold, source: {self.fidelity_source})")
+            else:
+                lines.append(f"❌ Fidelity {self.fidelity:.4f} < {fidelity_threshold:.4f} (fails threshold, source: {self.fidelity_source})")
+        else:
+            lines.append("⚠️  No fidelity data available (avg_state_fidelity was None)")
+
+        cost_savings = self.cost_ref - self.cost_new
+        cost_pct = (cost_savings / self.cost_ref * 100) if self.cost_ref > 0 else 0.0
+        lines.append(f"\nCost (weights: 2Q={self.weights.twoq}, depth={self.weights.depth}, time={self.weights.time}):")
+        lines.append(f"  Reference: {self.cost_ref:.2f}")
+        lines.append(f"  New:       {self.cost_new:.2f}")
+        lines.append(f"  Savings:   {cost_savings:+.2f} ({cost_pct:+.1f}%)")
+
+        if self.pareto:
+            lines.append("\nPareto Frontier:")
+            for metric, data in self.pareto.items():
+                imp = data.get("improvement_pct", 0.0)
+                symbol = "📈" if imp < 0 else ("📉" if imp > 0 else "➡️ ")
+                lines.append(f"  {symbol} {metric}: {data['ref']:.1f} → {data['new']:.1f} ({imp:+.1f}%)")
+
+        if self.better:
+            lines.append(f"\n🏆 WINNER: New circuit (fidelity OK, {abs(cost_pct):.1f}% cost reduction)")
+        elif not self.meets_fidelity:
+            lines.append("\n❌ REJECTED: Fidelity below threshold")
+        else:
+            lines.append(f"\n❌ REJECTED: New circuit is more expensive ({cost_pct:+.1f}%)")
+
+        return "\n".join(lines)
 
 
 def decide_better(
@@ -192,13 +245,17 @@ def decide_better(
 
     New wins if: avg_state_fidelity >= threshold AND cost_new < cost_ref.
     Cost = w_twoq * two_qubit_gates + w_depth * depth + w_time * sim_time.
+
+    Note: w_time defaults to 0.0 — simulation time is informational only
+    unless explicitly re-weighted. The decision does NOT fall back to
+    unitary_fidelity because it is on a different scale (process fidelity
+    vs average state fidelity).
     """
     if weights is None:
         weights = CostWeights()
 
     f = result.avg_state_fidelity
-    if f is None:
-        f = result.unitary_fidelity
+    fidelity_source = "avg_state" if f is not None else "none"
 
     cost_ref = (
         weights.twoq * result.ref_stats.two_qubit_gates
@@ -214,11 +271,37 @@ def decide_better(
     meets_fidelity = (f is not None) and (f >= fidelity_threshold)
     better = meets_fidelity and (cost_new < cost_ref)
 
+    pareto = {
+        "two_qubit_gates": {
+            "ref": float(result.ref_stats.two_qubit_gates),
+            "new": float(result.new_stats.two_qubit_gates),
+            "improvement_pct": _pct_change(
+                result.ref_stats.two_qubit_gates, result.new_stats.two_qubit_gates
+            ),
+        },
+        "depth": {
+            "ref": float(result.ref_stats.depth),
+            "new": float(result.new_stats.depth),
+            "improvement_pct": _pct_change(
+                result.ref_stats.depth, result.new_stats.depth
+            ),
+        },
+        "sim_time": {
+            "ref": float(result.sim_time_ref),
+            "new": float(result.sim_time_new),
+            "improvement_pct": _pct_change(
+                result.sim_time_ref, result.sim_time_new
+            ),
+        },
+    }
+
     return Decision(
         better=better,
         meets_fidelity=meets_fidelity,
         cost_ref=cost_ref,
         cost_new=cost_new,
         fidelity=f,
+        fidelity_source=fidelity_source,
         weights=weights,
+        pareto=pareto,
     )
