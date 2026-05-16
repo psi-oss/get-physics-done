@@ -48,7 +48,7 @@ def _parse_qasm(qasm_str: str) -> object:
         return qiskit.qasm3.loads(qasm_str)
     except ImportError:
         pass
-    except (ValueError, qiskit.qasm3.QASM3ExporterError if hasattr(qiskit, 'qasm3') else Exception):
+    except (ValueError, qiskit.qasm3.QASM3ImporterError if hasattr(qiskit, 'qasm3') else Exception):
         logger.debug("QASM 3 parse failed, falling back to QASM 2")
 
     # Try QASM 2 (only if the module is available).

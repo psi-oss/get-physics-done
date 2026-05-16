@@ -170,10 +170,10 @@ class CostWeights:
     time: float = 0.0
 
 
-def _pct_change(ref_val: float, new_val: float) -> float:
+def _pct_change(ref_val: float, new_val: float) -> float | None:
     """Calculate percentage change (negative = improvement / reduction)."""
     if ref_val == 0:
-        return 0.0 if new_val == 0 else float("inf")
+        return 0.0 if new_val == 0 else None
     return ((new_val - ref_val) / ref_val) * 100.0
 
 
@@ -186,7 +186,7 @@ class Decision:
     fidelity: float | None
     fidelity_source: str  # "avg_state" or "none"
     weights: CostWeights
-    pareto: dict[str, dict[str, float]] = field(default_factory=dict)
+    pareto: dict[str, dict[str, float | None]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -221,9 +221,12 @@ class Decision:
         if self.pareto:
             lines.append("\nPareto Frontier:")
             for metric, data in self.pareto.items():
-                imp = data.get("improvement_pct", 0.0)
-                symbol = "📈" if imp < 0 else ("📉" if imp > 0 else "➡️ ")
-                lines.append(f"  {symbol} {metric}: {data['ref']:.1f} → {data['new']:.1f} ({imp:+.1f}%)")
+                imp = data.get("improvement_pct")
+                if imp is None:
+                    lines.append(f"  ⚠️  {metric}: {data['ref']:.1f} → {data['new']:.1f} (N/A)")
+                else:
+                    symbol = "📈" if imp < 0 else ("📉" if imp > 0 else "➡️ ")
+                    lines.append(f"  {symbol} {metric}: {data['ref']:.1f} → {data['new']:.1f} ({imp:+.1f}%)")
 
         if self.better:
             lines.append(f"\n🏆 WINNER: New circuit (fidelity OK, {abs(cost_pct):.1f}% cost reduction)")
