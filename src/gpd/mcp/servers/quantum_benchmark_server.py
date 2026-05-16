@@ -35,6 +35,34 @@ def _check_qiskit() -> str | None:
         return "qiskit is not installed. Install with: pip install get-physics-done[quantum]"
 
 
+def _parse_qasm(qasm_str: str) -> object:
+    """Parse an OpenQASM string, attempting QASM 3 then QASM 2.
+
+    Falls back through: qiskit.qasm3.loads -> qiskit.qasm2.loads -> QuantumCircuit.from_qasm_str.
+    """
+    from qiskit import QuantumCircuit
+
+    # Try QASM 3 first (only if the module is available).
+    try:
+        import qiskit.qasm3
+        return qiskit.qasm3.loads(qasm_str)
+    except ImportError:
+        pass
+    except (ValueError, qiskit.qasm3.QASM3ExporterError if hasattr(qiskit, 'qasm3') else Exception):
+        logger.debug("QASM 3 parse failed, falling back to QASM 2")
+
+    # Try QASM 2 (only if the module is available).
+    try:
+        import qiskit.qasm2
+        return qiskit.qasm2.loads(qasm_str)
+    except ImportError:
+        pass
+    except (ValueError, Exception) as e:
+        logger.debug("QASM 2 parse failed (%s), falling back to legacy", e)
+
+    return QuantumCircuit.from_qasm_str(qasm_str)
+
+
 @mcp.tool()
 def compare_circuits(
     ref_qasm: str,
@@ -43,12 +71,12 @@ def compare_circuits(
 ) -> dict[str, object]:
     """Compare two quantum circuits on gate counts, fidelity, and simulation time.
 
-    Accepts OpenQASM 2.0 strings for the reference and new circuits.
+    Accepts OpenQASM 2.0 or 3.0 strings for the reference and new circuits.
     Returns stats for both circuits plus unitary and average state fidelity.
 
     Args:
-        ref_qasm: OpenQASM 2.0 string for the reference circuit
-        new_qasm: OpenQASM 2.0 string for the new/optimized circuit
+        ref_qasm: OpenQASM string for the reference circuit
+        new_qasm: OpenQASM string for the new/optimized circuit
         sim_reps: Number of simulation repetitions for timing (default 3)
     """
     err = _check_qiskit()
@@ -57,13 +85,11 @@ def compare_circuits(
     if sim_reps < 1:
         return stable_mcp_error("sim_reps must be >= 1")
 
-    from qiskit import QuantumCircuit
-
     from gpd.core.quantum_benchmarks import compare_circuits as _compare
 
     try:
-        qc_ref = QuantumCircuit.from_qasm_str(ref_qasm)
-        qc_new = QuantumCircuit.from_qasm_str(new_qasm)
+        qc_ref = _parse_qasm(ref_qasm)
+        qc_new = _parse_qasm(new_qasm)
     except Exception as e:
         return stable_mcp_error(f"Failed to parse QASM: {e}")
 
@@ -81,7 +107,7 @@ def decide_better(
     fidelity_threshold: float = 0.999,
     weight_twoq: float = 2.0,
     weight_depth: float = 1.0,
-    weight_time: float = 1.0,
+    weight_time: float = 0.0,
     sim_reps: int = 3,
 ) -> dict[str, object]:
     """Decide whether a new quantum circuit improves on a reference.
@@ -91,12 +117,12 @@ def decide_better(
     Cost = weight_twoq * two_qubit_gates + weight_depth * depth + weight_time * sim_time.
 
     Args:
-        ref_qasm: OpenQASM 2.0 string for the reference circuit
-        new_qasm: OpenQASM 2.0 string for the new/optimized circuit
+        ref_qasm: OpenQASM string for the reference circuit
+        new_qasm: OpenQASM string for the new/optimized circuit
         fidelity_threshold: Minimum fidelity to accept the new circuit (default 0.999)
         weight_twoq: Cost weight for two-qubit gates (default 2.0)
         weight_depth: Cost weight for circuit depth (default 1.0)
-        weight_time: Cost weight for simulation time (default 1.0)
+        weight_time: Cost weight for simulation time (default 0.0, informational only)
         sim_reps: Number of simulation repetitions for timing (default 3)
     """
     err = _check_qiskit()
@@ -105,15 +131,13 @@ def decide_better(
     if sim_reps < 1:
         return stable_mcp_error("sim_reps must be >= 1")
 
-    from qiskit import QuantumCircuit
-
     from gpd.core.quantum_benchmarks import CostWeights
     from gpd.core.quantum_benchmarks import compare_circuits as _compare
     from gpd.core.quantum_benchmarks import decide_better as _decide
 
     try:
-        qc_ref = QuantumCircuit.from_qasm_str(ref_qasm)
-        qc_new = QuantumCircuit.from_qasm_str(new_qasm)
+        qc_ref = _parse_qasm(ref_qasm)
+        qc_new = _parse_qasm(new_qasm)
     except Exception as e:
         return stable_mcp_error(f"Failed to parse QASM: {e}")
 
@@ -126,6 +150,7 @@ def decide_better(
 
     payload = decision.to_dict()
     payload["comparison"] = result.to_dict()
+    payload["rationale"] = decision.rationale(fidelity_threshold=fidelity_threshold)
     return stable_mcp_response(payload)
 
 
@@ -136,18 +161,16 @@ def circuit_stats(
     """Get gate counts, depth, and circuit statistics for a quantum circuit.
 
     Args:
-        qasm: OpenQASM 2.0 string for the circuit to analyze
+        qasm: OpenQASM string for the circuit to analyze
     """
     err = _check_qiskit()
     if err:
         return stable_mcp_error(err)
 
-    from qiskit import QuantumCircuit
-
     from gpd.core.quantum_benchmarks import circuit_stats as _stats
 
     try:
-        qc = QuantumCircuit.from_qasm_str(qasm)
+        qc = _parse_qasm(qasm)
     except Exception as e:
         return stable_mcp_error(f"Failed to parse QASM: {e}")
 
