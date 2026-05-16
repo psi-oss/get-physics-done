@@ -59,6 +59,7 @@ class TestDecisionEngine:
         assert decision.better is True
         assert decision.meets_fidelity is True
         assert decision.cost_new < decision.cost_ref
+        assert decision.fidelity_source == "avg_state"
 
     def test_new_loses_low_fidelity(self):
         result = self._make_result(avg_f=0.95)
@@ -73,11 +74,12 @@ class TestDecisionEngine:
         assert decision.meets_fidelity is True
         assert decision.cost_new > decision.cost_ref
 
-    def test_fallback_to_unitary_fidelity(self):
+    def test_no_fallback_to_unitary_fidelity(self):
         result = self._make_result(avg_f=None, unitary_f=0.9999)
         decision = decide_better(result)
-        assert decision.better is True
-        assert decision.fidelity == 0.9999
+        assert decision.better is False
+        assert decision.fidelity is None
+        assert decision.fidelity_source == "none"
 
     def test_no_fidelity_fails_closed(self):
         result = self._make_result(avg_f=None, unitary_f=None)
@@ -101,6 +103,38 @@ class TestDecisionEngine:
         assert "better" in d
         assert "weights" in d
         assert d["weights"]["twoq"] == 2.0
+        assert d["fidelity_source"] == "avg_state"
+        assert "pareto" in d
+        assert "two_qubit_gates" in d["pareto"]
+        assert "depth" in d["pareto"]
+        assert "sim_time" in d["pareto"]
+
+    def test_pareto_improvement_pct(self):
+        result = self._make_result(ref_twoq=6, new_twoq=3, ref_depth=10, new_depth=8)
+        decision = decide_better(result)
+        pareto = decision.pareto
+        assert pareto["two_qubit_gates"]["improvement_pct"] == pytest.approx(-50.0)
+        assert pareto["depth"]["improvement_pct"] == pytest.approx(-20.0)
+
+    def test_rationale_winner(self):
+        result = self._make_result()
+        decision = decide_better(result)
+        text = decision.rationale(fidelity_threshold=0.999)
+        assert "WINNER" in text
+        assert "avg_state" in text
+
+    def test_rationale_rejected_fidelity(self):
+        result = self._make_result(avg_f=0.95)
+        decision = decide_better(result, fidelity_threshold=0.999)
+        text = decision.rationale(fidelity_threshold=0.999)
+        assert "REJECTED" in text
+        assert "Fidelity below threshold" in text
+
+    def test_rationale_no_fidelity(self):
+        result = self._make_result(avg_f=None, unitary_f=None)
+        decision = decide_better(result)
+        text = decision.rationale()
+        assert "No fidelity data available" in text
 
 
 class TestMCPToolsWithoutQiskit:
@@ -111,21 +145,24 @@ class TestMCPToolsWithoutQiskit:
             from gpd.mcp.servers.quantum_benchmark_server import compare_circuits
 
             result = compare_circuits("", "")
-            assert "error" in result
+            assert "error" in str(result).lower() or "iserror" in str(result).lower()
+            assert "qiskit not installed" in str(result)
 
     def test_decide_better_no_qiskit(self):
         with patch("gpd.mcp.servers.quantum_benchmark_server._check_qiskit", return_value="qiskit not installed"):
             from gpd.mcp.servers.quantum_benchmark_server import decide_better as mcp_decide
 
             result = mcp_decide("", "")
-            assert "error" in result
+            assert "error" in str(result).lower() or "iserror" in str(result).lower()
+            assert "qiskit not installed" in str(result)
 
     def test_circuit_stats_no_qiskit(self):
         with patch("gpd.mcp.servers.quantum_benchmark_server._check_qiskit", return_value="qiskit not installed"):
             from gpd.mcp.servers.quantum_benchmark_server import circuit_stats
 
             result = circuit_stats("")
-            assert "error" in result
+            assert "error" in str(result).lower() or "iserror" in str(result).lower()
+            assert "qiskit not installed" in str(result)
 
 
 class TestCircuitStats:
