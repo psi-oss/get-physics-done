@@ -21,7 +21,8 @@
     "input": {
       "qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[1];\nh q[0];"
     },
-    "expect": "contains total_gates"
+    "expect": "contains total_gates",
+    "skip_if_unavailable": true
   },
   "optional": true,
   "availability": "conditional",
