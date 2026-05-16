@@ -5,6 +5,14 @@ All notable changes to Get Physics Done are documented here.
 ## vNEXT
 
 - Add quantum circuit benchmark verification MCP server (`gpd-quantum-benchmark`). Provides `compare_circuits`, `decide_better`, and `circuit_stats` tools for agents to verify newly derived quantum circuits against reference implementations using fidelity metrics and Pareto-frontier cost analysis. Requires optional `qiskit` dependency (`pip install get-physics-done[quantum]`).
+- Fix `decide_better` flaky cost metric: default `weight_time` changed from `1.0` to `0.0` so wall-clock simulation time no longer influences the verdict by default. Simulation time remains available as an informational metric and can be re-weighted explicitly.
+- Fix `decide_better` fidelity fallback: no longer silently falls back from `avg_state_fidelity` to `unitary_fidelity` (different scales — average state fidelity vs process fidelity). A new `fidelity_source` field on `Decision` makes provenance explicit.
+- Fix `average_state_fidelity` missing OOM guard: now enforces `max_qubits` cap (default 5) matching the existing guard in `unitary_fidelity`.
+- Fix two-qubit gate counting: `circuit_stats` now iterates `qc.data` and checks `len(qargs) == 2` instead of relying on an incomplete hardcoded gate name set. Removes dead `TWO_QUBIT_GATE_NAMES` frozenset.
+- Fix `unitary_fidelity` formula and docstring: corrected to canonical process fidelity `|Tr(U₁†U₂)|² / d²` with matching documentation.
+- Add Pareto frontier breakdown to `Decision`: per-metric `improvement_pct` for two-qubit gates, depth, and simulation time, ported from the original benchmark verifier.
+- Add `Decision.rationale()` method for human-readable decision explanations with emoji-annotated Pareto analysis.
+- Standardize QASM loading in MCP server: new `_parse_qasm` attempts `qiskit.qasm3.loads` then `qiskit.qasm2.loads` before legacy `from_qasm_str`, supporting modern QASM 3 emitters.
 - Fix `state patch` silent failures: failed fields now include `failure_reasons` with specific messages (invalid status, invalid transition, field not found). Dot-notation prefixes (e.g., `position.status` -> `Status`) are stripped only when the original name is not found. Session Continuity mirror fields (e.g., `resume_file`) are rejected with an explicit error directing users to the continuation API. CLI pretty-prints each failure reason as a separate row.
 - Recognize bare arXiv IDs (`1304.4926`, `hep-th/0603001`) and bare DOIs (`10.1103/PhysRevD.100.026003`) as concrete reference locators for `must_surface` anchor validation. Fix casefold mismatch in `_is_project_artifact_path` that misclassified mixed-case archive names (e.g., `math.DG/0211159`) as project artifact paths.
 - Fix `gpd suggest` ignoring actual project state: use `_project_scoped_cwd()` so root-level PROJECT.md is auto-migrated before `suggest_next()` runs, matching the pattern used by `progress`, `state`, and `status` commands.
