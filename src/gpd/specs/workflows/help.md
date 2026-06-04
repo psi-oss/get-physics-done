@@ -148,6 +148,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:compare-branches` - Compare results across hypothesis branches
 - `gpd:pause-work` - Save a continuation handoff before stepping away
 - `gpd:add-todo [description]` - Capture a task or idea
+- `gpd:build-persona [focus|--from-current-project|--interview-only]` - Draft a private research-persona patch for explicit review
 - `gpd:check-todos [area]` - Review pending todos and pick one
 - `gpd:decisions [phase or keyword]` - Search the decision log
 - `gpd:graph` - Visualize phase dependencies
@@ -282,6 +283,11 @@ Notes: Creates a current-workspace knowledge document draft from a topic, paper,
 Review a current-workspace knowledge document for approval, changes, or promotion gating
 Usage: `gpd:review-knowledge GPD/knowledge/K-example.md`
 Notes: Reviews a canonical current-workspace knowledge document using typed approval evidence. Approval can promote stable knowledge; stable and superseded states remain addressable and traceable by canonical path or knowledge id. Writes review artifacts under GPD/knowledge/reviews/.
+
+**`gpd:build-persona [focus|--from-current-project|--interview-only]`**
+Build a private research persona patch from explicit interview or consented source ingestion
+Usage: `gpd:build-persona --interview-only`; `gpd:build-persona --from-current-project "math/code balance and citation style"`; `gpd:build-persona --paper paper/main.tex`; `gpd:build-persona --bibtex references/library.bib`; `gpd:build-persona --manual-patch /tmp/persona-patch.json`
+Notes: Emits a candidate ResearchPersonaPatch only; apply it separately with `gpd research-persona apply-patch`. Interviewing, paper imports, BibTeX imports, repository scans, and manual patch review require exact source consent. Source-derived candidates use `gpd research-persona ingest-source SOURCE_JSON|- --output PATCH_JSON`. Never writes persona storage directly.
 
 **`gpd:literature-review [topic or research question]`**
 Structured literature review for a physics research topic with citation network analysis and open question identification

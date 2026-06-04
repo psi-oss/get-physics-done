@@ -28,6 +28,10 @@ If no override is configured for the active runtime, `gpd resolve-model` returns
 | gpd-research-synthesizer | tier-1        | tier-2      | tier-2        | tier-2   | tier-1          |
 | gpd-debugger             | tier-1        | tier-1      | tier-2        | tier-1   | tier-2          |
 | gpd-research-mapper      | tier-2        | tier-3      | tier-3        | tier-3   | tier-3          |
+| gpd-persona-builder      | tier-2        | tier-3      | tier-2        | tier-2   | tier-2          |
+| gpd-researcher-doppelganger | tier-2     | tier-2      | tier-2        | tier-2   | tier-2          |
+| gpd-expertise-explainer  | tier-2        | tier-2      | tier-2        | tier-2   | tier-1          |
+| gpd-scientific-taste     | tier-1        | tier-2      | tier-1        | tier-1   | tier-2          |
 | gpd-verifier             | tier-1        | tier-1      | tier-2        | tier-1   | tier-2          |
 | gpd-plan-checker         | tier-2        | tier-2      | tier-2        | tier-1   | tier-2          |
 | gpd-consistency-checker  | tier-1        | tier-2      | tier-2        | tier-1   | tier-2          |

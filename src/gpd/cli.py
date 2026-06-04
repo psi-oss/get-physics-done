@@ -4704,6 +4704,24 @@ def init_new_milestone(
     _output(payload)
 
 
+@init_app.command("build-persona")
+def init_build_persona(
+    stage: str | None = typer.Option(
+        None,
+        "--stage",
+        help="Load the staged build-persona context for a specific stage id.",
+    ),
+) -> None:
+    """Assemble context for research-persona builder stages."""
+    from gpd.core.context import init_build_persona
+
+    try:
+        payload = init_build_persona(_get_cwd(), stage=stage)
+    except ValueError as exc:
+        _error(str(exc))
+    _output(payload)
+
+
 @init_app.command("write-paper")
 def init_write_paper(
     subject: list[str] = typer.Argument(
@@ -5340,9 +5358,350 @@ def calculation_complete(
 config_app = typer.Typer(help="GPD configuration")
 app.add_typer(config_app, name="config")
 
+research_persona_app = typer.Typer(help="Machine-local research persona profile")
+app.add_typer(research_persona_app, name="research-persona")
+
 
 _WOLFRAM_INTEGRATION_NAME = WOLFRAM_MANAGED_INTEGRATION.integration_id
 _INSTALL_RESULT_ADAPTER_KEY = "__gpd_install_adapter_instance__"
+
+
+def _research_persona_cli_support():
+    try:
+        import gpd.core.research_persona_cli as support
+    except ModuleNotFoundError as exc:
+        if exc.name == "gpd.core.research_persona_cli":
+            _error("Research persona CLI support is unavailable: missing gpd.core.research_persona_cli")
+        raise
+    return support
+
+
+def _research_persona_payload(function_name: str, **kwargs: object) -> object:
+    support = _research_persona_cli_support()
+    try:
+        handler = getattr(support, function_name)
+    except AttributeError:
+        _error(f"Research persona CLI support is unavailable: missing {function_name}()")
+
+    try:
+        return handler(**kwargs)
+    except GPDError as exc:
+        _error(str(exc))
+    except ValueError as exc:
+        _error(str(exc))
+    except Exception as exc:
+        if exc.__class__.__module__.startswith("gpd.core.research_persona"):
+            _error(str(exc))
+        raise
+
+
+@research_persona_app.command("show")
+def research_persona_show(
+    projection: str = typer.Option(
+        "local",
+        "--projection",
+        help="Projection to show: local, prompt, project-private, or public.",
+    ),
+) -> None:
+    """Show the machine-local research persona profile."""
+
+    payload = _research_persona_payload(
+        "build_show_payload",
+        cwd=_get_cwd(),
+        projection=projection,
+    )
+    _output(payload)
+
+
+@research_persona_app.command("validate")
+def research_persona_validate(
+    input_path: str | None = typer.Argument(
+        None,
+        metavar="[PROFILE_JSON|-]",
+        help="Optional profile JSON path, or - for stdin. Defaults to the stored profile.",
+    ),
+) -> None:
+    """Validate a research persona profile document or the stored profile."""
+
+    document = _load_json_document_or_error(input_path) if input_path is not None else None
+    payload = _research_persona_payload(
+        "build_validate_payload",
+        cwd=_get_cwd(),
+        document=document,
+        input_path=input_path,
+    )
+    _output(payload)
+
+
+@research_persona_app.command("audit")
+def research_persona_audit(
+    input_path: str | None = typer.Argument(
+        None,
+        metavar="[PROFILE_JSON|-]",
+        help="Optional profile JSON path, or - for stdin. Defaults to the stored profile.",
+    ),
+    stale_after_days: int = typer.Option(
+        180,
+        "--stale-after-days",
+        min=1,
+        help="Freshness window for last_confirmed_at before a fact is reported stale.",
+    ),
+    include_info: bool = typer.Option(
+        True,
+        "--include-info/--no-info",
+        help="Include informational privacy-boundary findings in the audit report.",
+    ),
+) -> None:
+    """Audit research persona profile quality without writing storage."""
+
+    document = _load_json_document_or_error(input_path) if input_path is not None else None
+    payload = _research_persona_payload(
+        "build_audit_payload",
+        cwd=_get_cwd(),
+        document=document,
+        input_path=input_path,
+        stale_after_days=stale_after_days,
+        include_info=include_info,
+    )
+    _output(payload)
+
+
+@research_persona_app.command("diff")
+def research_persona_diff(
+    patch_path: str = typer.Argument(
+        ...,
+        metavar="PATCH_JSON|-",
+        help="Patch JSON path, or - for stdin.",
+    ),
+) -> None:
+    """Preview the effect of a research persona patch without writing."""
+
+    patch_document = _load_json_document_or_error(patch_path)
+    payload = _research_persona_payload(
+        "build_diff_payload",
+        cwd=_get_cwd(),
+        patch_document=patch_document,
+        patch_path=patch_path,
+    )
+    _output(payload)
+
+
+@research_persona_app.command("apply-patch")
+def research_persona_apply_patch(
+    patch_path: str = typer.Argument(
+        ...,
+        metavar="PATCH_JSON|-",
+        help="Patch JSON path, or - for stdin.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Validate and preview the patch without writing persona data.",
+    ),
+) -> None:
+    """Apply a governed patch to the machine-local research persona."""
+
+    patch_document = _load_json_document_or_error(patch_path)
+    payload = _research_persona_payload(
+        "build_apply_patch_payload",
+        cwd=_get_cwd(),
+        patch_document=patch_document,
+        patch_path=patch_path,
+        dry_run=dry_run,
+    )
+    _output(payload)
+
+
+@research_persona_app.command("forget")
+def research_persona_forget(
+    fact_id: str = typer.Argument(..., help="Research persona fact id to forget."),
+    reason: str | None = typer.Option(
+        None,
+        "--reason",
+        help="Optional private reason recorded with the tombstone.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Preview the forget operation without writing persona data.",
+    ),
+) -> None:
+    """Forget one research persona fact by id."""
+
+    payload = _research_persona_payload(
+        "build_forget_payload",
+        cwd=_get_cwd(),
+        fact_id=fact_id,
+        reason=reason,
+        dry_run=dry_run,
+    )
+    _output(payload)
+
+
+@research_persona_app.command("export-capsule")
+def research_persona_export_capsule(
+    role: str = typer.Option(
+        "planner",
+        "--role",
+        help="Capsule role: planner, executor, verifier, paper_writer, literature, recovery, explainer, doppelganger, or taste.",
+    ),
+) -> None:
+    """Export a prompt-safe research persona capsule for a workflow role."""
+
+    payload = _research_persona_payload(
+        "build_export_capsule_payload",
+        cwd=_get_cwd(),
+        role=role,
+    )
+    _output(payload)
+
+
+@research_persona_app.command("ingest-source")
+def research_persona_ingest_source(
+    source_path: str = typer.Argument(
+        ...,
+        metavar="SOURCE_JSON|-",
+        help="Explicit source-document JSON path, or - for stdin.",
+    ),
+    output_path: str | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Optional candidate patch JSON file to write. This never writes persona storage.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Build the ingestion payload without writing even the optional candidate patch artifact.",
+    ),
+    privacy_default: str = typer.Option(
+        "private_local",
+        "--privacy-default",
+        help="Default privacy label for candidate facts from the explicit source.",
+    ),
+) -> None:
+    """Build a candidate research persona patch from explicit source data."""
+
+    source_document = _load_json_document_or_error(source_path)
+    payload = _research_persona_payload(
+        "build_ingest_source_payload",
+        cwd=_get_cwd(),
+        source_document=source_document,
+        source_path=source_path,
+        output_path=output_path,
+        dry_run=dry_run,
+        privacy_default=privacy_default,
+    )
+    _output(payload)
+
+
+@research_persona_app.command("doppelganger")
+def research_persona_doppelganger(
+    task: str | None = typer.Option(
+        None,
+        "--task",
+        help="Optional task or decision context for the advisory preview.",
+    ),
+    focus: str | None = typer.Option(
+        None,
+        "--focus",
+        help="Optional focus area for the Researcher Doppelganger preview.",
+    ),
+    max_items: int = typer.Option(
+        8,
+        "--max-items",
+        min=1,
+        help="Maximum advisory items to return.",
+    ),
+) -> None:
+    """Preview how the stored prompt-safe persona capsule would steer research work."""
+
+    payload = _research_persona_payload(
+        "build_doppelganger_payload",
+        cwd=_get_cwd(),
+        task=task,
+        focus=focus,
+        max_items=max_items,
+    )
+    _output(payload)
+
+
+@research_persona_app.command("explain-plan")
+def research_persona_explain_plan(
+    plan_path: str | None = typer.Argument(
+        None,
+        metavar="[PLAN_JSON|-]",
+        help="Optional plan JSON path, or - for stdin.",
+    ),
+    task: str | None = typer.Option(
+        None,
+        "--task",
+        help="Optional task context for explanation planning.",
+    ),
+    audience: str | None = typer.Option(
+        None,
+        "--audience",
+        help="Optional intended audience or explanation level.",
+    ),
+    max_items: int = typer.Option(
+        8,
+        "--max-items",
+        min=1,
+        help="Maximum explanation guidance items to return.",
+    ),
+) -> None:
+    """Preview expertise-aware explanation guidance from a prompt-safe capsule."""
+
+    plan_document = _load_json_document_or_error(plan_path) if plan_path is not None else None
+    payload = _research_persona_payload(
+        "build_explain_plan_payload",
+        cwd=_get_cwd(),
+        plan_document=plan_document,
+        plan_path=plan_path,
+        task=task,
+        audience=audience,
+        max_items=max_items,
+    )
+    _output(payload)
+
+
+@research_persona_app.command("taste-check")
+def research_persona_taste_check(
+    candidate_path: str | None = typer.Argument(
+        None,
+        metavar="[CANDIDATE_JSON|-]",
+        help="Optional candidate-work JSON path, or - for stdin.",
+    ),
+    task: str | None = typer.Option(
+        None,
+        "--task",
+        help="Optional task context for the taste check.",
+    ),
+    focus: str | None = typer.Option(
+        None,
+        "--focus",
+        help="Optional focus area for the Scientific Taste Model preview.",
+    ),
+    max_items: int = typer.Option(
+        8,
+        "--max-items",
+        min=1,
+        help="Maximum taste-check items to return.",
+    ),
+) -> None:
+    """Preview scientific-taste feedback from a prompt-safe capsule."""
+
+    candidate_document = _load_json_document_or_error(candidate_path) if candidate_path is not None else None
+    payload = _research_persona_payload(
+        "build_taste_check_payload",
+        cwd=_get_cwd(),
+        candidate_document=candidate_document,
+        candidate_path=candidate_path,
+        task=task,
+        focus=focus,
+        max_items=max_items,
+    )
+    _output(payload)
 
 
 def _integrations_config_path(cwd: Path) -> Path:

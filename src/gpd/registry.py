@@ -334,7 +334,9 @@ _normalize_command_policy_string_list = _registry_command_policy._normalize_comm
 _normalize_command_subject_policy = _registry_command_policy._normalize_command_subject_policy
 _normalize_command_supporting_context_policy = _registry_command_policy._normalize_command_supporting_context_policy
 _parse_command_policy = _registry_command_policy._parse_command_policy
-_publication_contract_mentions_external_artifact = _registry_command_policy._publication_contract_mentions_external_artifact
+_publication_contract_mentions_external_artifact = (
+    _registry_command_policy._publication_contract_mentions_external_artifact
+)
 _publication_subject_policy_defaults = _registry_command_policy._publication_subject_policy_defaults
 _render_command_policy_payload = _registry_command_policy._render_command_policy_payload
 _render_command_policy_submapping = _registry_command_policy._render_command_policy_submapping
@@ -1586,6 +1588,7 @@ def _discover_commands() -> dict[str, CommandDef]:
 
 _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-autonomous": "execution",
+    "gpd-build-persona": "configuration",
     "gpd-digest-knowledge": "research",
     "gpd-execute": "execution",
     "gpd-plan-checker": "verification",

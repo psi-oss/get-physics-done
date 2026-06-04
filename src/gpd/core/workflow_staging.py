@@ -502,6 +502,7 @@ VERIFY_WORK_INIT_FIELDS = frozenset(
 _DEFAULT_ALLOWED_TOOLS_BY_WORKFLOW = {
     "arxiv-submission": _READ_WRITE_SEARCH_TASK_TOOLS,
     "autonomous": _ASK_READ_SHELL_TASK_TOOLS,
+    "build-persona": _ASK_READ_WRITE_SEARCH_TASK_TOOLS,
     "execute-phase": _ASK_FULL_FILE_TASK_TOOLS,
     "literature-review": _LITERATURE_REVIEW_STAGE_ALLOWED_TOOLS,
     "map-research": _ASK_READ_WRITE_SEARCH_TASK_TOOLS,
@@ -625,6 +626,7 @@ _MANIFEST_DERIVED_KNOWN_INIT_FIELD_WORKFLOWS = frozenset(
     {
         "arxiv-submission",
         "autonomous",
+        "build-persona",
         "execute-phase",
         "literature-review",
         "map-research",

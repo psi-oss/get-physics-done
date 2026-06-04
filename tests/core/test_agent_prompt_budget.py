@@ -30,7 +30,7 @@ PATH_PREFIX = "/runtime/"
 
 MIN_LINE_MARGIN = 20
 MIN_CHAR_MARGIN = 1_000
-PHASE5_MAX_TOTAL_AGENT_EXPANDED_CHARS = 363_000
+PHASE5_MAX_TOTAL_AGENT_EXPANDED_CHARS = 395_000
 PHASE5_FINAL_TOTAL_AGENT_EXPANDED_CHARS = 355_000
 PHASE5_MAX_AGENT_EXPANDED_CHARS = 36_500
 PHASE5_MIN_ROLE_KIT_AGENT_COUNT = 12
@@ -54,6 +54,10 @@ AGENT_BASELINES = {
     "gpd-project-researcher": (274, 12_605),
     "gpd-referee": (395, 29_711),
     "gpd-research-mapper": (355, 18_717),
+    "gpd-persona-builder": (264, 12_946),
+    "gpd-researcher-doppelganger": (131, 6_090),
+    "gpd-expertise-explainer": (140, 6_433),
+    "gpd-scientific-taste": (138, 6_492),
     "gpd-research-synthesizer": (371, 22_366),
     "gpd-review-literature": (53, 2_591),
     "gpd-review-math": (54, 3_343),

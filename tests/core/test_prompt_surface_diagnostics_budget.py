@@ -15,16 +15,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PROMPT_TOTAL_BUDGET = {"lines": 42_900, "chars": 1_773_000}
 PROMPT_KIND_BUDGETS = {
     "command": {"lines": 20_200, "chars": 760_000},
-    "agent": {"lines": 6_500, "chars": 363_000},
+    "agent": {"lines": 7_200, "chars": 395_000},
     "workflow": {"lines": 15_300, "chars": 618_000},
 }
-STAGE_FIRST_TURN_BUDGET = {"lines": 3_180, "chars": 134_000}
+STAGE_FIRST_TURN_BUDGET = {"lines": 3_400, "chars": 142_000}
 # Phase 3 strict target uses <= assertions, so char caps are one below the
 # acceptance threshold.
-STAGE_FIRST_TURN_ACTIVE_BUDGET = {"lines": 2_200, "chars": 104_500}
-STAGED_WORKFLOW_DIAGNOSTIC_COUNT = 16
+STAGE_FIRST_TURN_ACTIVE_BUDGET = {"lines": 2_250, "chars": 107_000}
+STAGED_WORKFLOW_DIAGNOSTIC_COUNT = 17
 STAGE_EAGER_CHAR_BUDGET = 855_000
-PHASE2_STAGE_EAGER_CHAR_BASELINE = 772_803
+PHASE2_STAGE_EAGER_CHAR_BASELINE = 776_000
 STAGE_SELECTED_INIT_FIELD_BUDGET = 2_505
 STAGE_SELECTED_INIT_CONTENT_FIELD_BUDGET = 12
 REFERENCE_ARTIFACTS_CONTENT_SELECTION_BUDGET = 3
@@ -80,7 +80,7 @@ EXECUTE_PHASE_SPLIT_FAMILY_STAGES = (
 )
 MUST_NOT_EAGER_LOAD_VIOLATION_BUDGET = 0
 MUST_NOT_EAGER_LOAD_PRIOR_STAGE_RESIDUE_BUDGET = 8
-PRIOR_STAGE_RESIDUE_BUDGET = {"lines": 8_300, "chars": 360_000}
+PRIOR_STAGE_RESIDUE_BUDGET = {"lines": 8_300, "chars": 365_000}
 PRIOR_STAGE_RESIDUE_STAGE_COUNT_BUDGET = 72
 MAX_SINGLE_STAGE_PRIOR_STAGE_RESIDUE_CHAR_BUDGET = 10_000
 ROOT_WORKFLOW_AUTHORITY_STAGE_BUDGET = 0
@@ -88,6 +88,7 @@ ROOT_AUTHORITY_FREE_WORKFLOWS = frozenset(
     {
         "arxiv-submission",
         "autonomous",
+        "build-persona",
         "execute-phase",
         "literature-review",
         "map-research",
@@ -104,7 +105,7 @@ ROOT_AUTHORITY_FREE_WORKFLOWS = frozenset(
         "write-paper",
     }
 )
-PHASE4_STAGED_ROOT_INDEX_SOURCE_BUDGET = {"lines": 625, "chars": 32_000}
+PHASE4_STAGED_ROOT_INDEX_SOURCE_BUDGET = {"lines": 750, "chars": 39_000}
 PHASE4_STAGED_COMMAND_WRAPPER_SOURCE_BUDGET = {"lines": 1_300, "chars": 51_000}
 PHASE4_STAGED_JIT_ADVISORY_BUDGETS = {
     "first_turn_char_count": 160_000,
@@ -145,7 +146,7 @@ NON_REFERENCE_SEMANTIC_DUPLICATE_BUDGETS = {
     "status_handling": 70,
     "files_written_freshness": 12,
     "stale_artifact_rejection": 14,
-    "fresh_continuation": 15,
+    "fresh_continuation": 16,
     "heading_prose_non_authority": 7,
     "no_synthesized_child_gpd_return": 1,
 }
@@ -161,7 +162,7 @@ PHASE4_NON_REFERENCE_SEMANTIC_DUPLICATE_TARGETS = {
 }
 PHASE5_NON_REFERENCE_SEMANTIC_DUPLICATE_TARGETS = {
     "status_handling": 70,
-    "fresh_continuation": 15,
+    "fresh_continuation": 16,
     "files_written_freshness": 12,
     "stale_artifact_rejection": 14,
     "heading_prose_non_authority": 7,
@@ -200,7 +201,7 @@ def _aggregate_budget_for_descriptor(descriptor: RuntimeDescriptor) -> dict[str,
 
 def _command_only_budget_for_descriptor(descriptor: RuntimeDescriptor) -> dict[str, int]:
     if descriptor.native_include_support:
-        return {"lines": 7_400, "chars": 378_000}
+        return {"lines": 7_400, "chars": 381_000}
     if not descriptor.agent_prompt_uses_dollar_templates:
         return {"lines": 15_400, "chars": 690_000}
     if descriptor.public_command_surface_prefix.endswith(":"):

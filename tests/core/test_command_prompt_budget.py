@@ -32,6 +32,7 @@ COMMAND_BASELINES = {
     "audit-milestone": (518, 20_292, 1),
     "autonomous": (77, 2_089, 1),
     "branch-hypothesis": (383, 11_072, 1),
+    "build-persona": (173, 7_123, 1),
     "check-todos": (241, 6_763, 1),
     "compact-state": (259, 8_283, 1),
     "compare-branches": (395, 12_490, 1),
@@ -53,7 +54,7 @@ COMMAND_BASELINES = {
     "export-logs": (248, 9_260, 1),
     "graph": (337, 10_491, 1),
     "health": (103, 3_132, 0),
-    "help": (113, 5_723, 0),
+    "help": (124, 6_778, 0),
     "insert-phase": (198, 5_913, 1),
     "limiting-cases": (317, 11_484, 1),
     "list-phase-assumptions": (393, 14_092, 1),
@@ -100,6 +101,7 @@ COMMAND_BASELINES = {
 }
 WORST_COMMAND_HARD_CAPS = {
     "compare-experiment": (540, 22_500),
+    "build-persona": (200, 8_200),
     "audit-milestone": (560, 21_500),
     "start": (330, 21_000),
     "settings": (400, 20_500),
@@ -131,6 +133,7 @@ WORKFLOW_BASELINES = {
     "audit-milestone": (430, 15_421, 1),
     "autonomous": (43, 2_023, 0),
     "branch-hypothesis": (334, 9_597, 0),
+    "build-persona": (316, 15_374, 0),
     "check-todos": (205, 5_768, 0),
     "compact-state": (213, 6_916, 0),
     "compare-branches": (359, 11_470, 0),

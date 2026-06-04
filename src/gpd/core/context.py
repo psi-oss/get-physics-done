@@ -436,6 +436,7 @@ _RESEARCH_PHASE_INCLUDE_FILE_FIELDS = {
 __all__ = [
     "init_arxiv_submission",
     "init_autonomous",
+    "init_build_persona",
     "init_execute_phase",
     "init_literature_review",
     "init_map_research",
@@ -3843,6 +3844,27 @@ def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
                 read_file=_safe_read_file_truncated,
             ),
         ),
+    )
+
+
+def init_build_persona(cwd: Path, stage: str | None = None) -> dict:
+    """Assemble staged context for the research-persona builder workflow."""
+    if stage is None:
+        return {
+            "storage_policy": "candidate_patch_only",
+            "mutation_route": "gpd research-persona apply-patch",
+            "raw_profile_prompt_policy": "forbidden",
+        }
+
+    from gpd.core.workflow_staging import load_workflow_stage_manifest
+
+    manifest = load_workflow_stage_manifest("build-persona")
+    return _assemble_staged_init_payload(
+        workflow_id="build-persona",
+        stage_id=stage,
+        cwd=cwd.expanduser().resolve(strict=False),
+        base_payload={},
+        manifest=manifest,
     )
 
 

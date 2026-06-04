@@ -417,6 +417,25 @@ Create continuation handoff when pausing research mid-phase
 **`gpd:add-todo [optional description]`**
 Capture idea or task as todo from current research conversation context
 
+**`gpd:build-persona [focus|--from-current-project|--interview-only]`**
+Build a private research persona patch from explicit interview or consented source ingestion
+
+- `gpd:build-persona --interview-only`
+- `gpd:build-persona --from-current-project "math/code balance and citation style"`
+- `gpd:build-persona --paper paper/main.tex`
+- `gpd:build-persona --bibtex references/library.bib`
+- `gpd:build-persona --manual-patch /tmp/persona-patch.json`
+
+Notes:
+- Emits a candidate ResearchPersonaPatch only; apply it separately with `gpd research-persona apply-patch`.
+- Interviewing, paper imports, BibTeX imports, repository scans, and manual patch review require exact source consent.
+- Source-derived candidates use `gpd research-persona ingest-source SOURCE_JSON|- --output PATCH_JSON`.
+- Never writes persona storage directly.
+
+- Subject policy: subject=research_persona_scope; resolution=explicit_input_or_interactive_scope; explicit inputs=focus area, current-project scan request, interview-only request, paper path ingestion request, BibTeX path ingestion request, repository scan request, manual JSON patch review request, user statement capture request
+- Output policy: mode=advisory; managed root=none
+- Staged workflow: `build-persona`.
+
 **`gpd:check-todos [area filter]`**
 List pending research todos and select one to work on
 

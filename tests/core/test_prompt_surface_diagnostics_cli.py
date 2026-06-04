@@ -109,7 +109,7 @@ def test_prompt_surface_diagnostics_raw_json_shape() -> None:
     assert len(payload["semantic_duplicate_invariants"]) <= 3
     assert all(len(group["examples"]) <= 3 for group in payload["semantic_duplicate_invariants"])
     stage_totals = payload["totals"]["stage_diagnostics"]
-    assert stage_totals["workflow_count"] == 16
+    assert stage_totals["workflow_count"] == 17
     assert stage_totals["must_not_eager_load_violation_count"] == 0
     assert stage_totals["must_not_eager_load_actionable_violation_count"] == 0
     assert stage_totals["manifest_must_not_duplicate_entry_count"] == 0

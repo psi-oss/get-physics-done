@@ -513,6 +513,46 @@ The `gpd` CLI also includes machine-readable validation, observability, and trac
 Typed command metadata is not review-only. `gpd validate command-context` exposes the shared command applicability surface for public commands, while `gpd validate review-contract` and `gpd validate review-preflight` are the current specialized typed surfaces for commands that expose review/publication contracts.
 
 <details>
+<summary><strong>Research Persona local controls</strong></summary>
+
+Research Persona is an opt-in, local-private profile for adapting GPD to the
+way you work as a researcher: interests, research areas, math/code/experiment
+and theory/applied emphasis, papers, collaborators, references, tools,
+workstyle, explanation preferences, and scientific taste. The stored profile is
+machine-local GPD data, not project state, not a shared artifact, and not a
+runtime transcript.
+
+Use the runtime `gpd:build-persona` command to draft persona updates from an
+interview or from explicitly consented source material. Source ingestion is
+patch-only: current-project, paper, BibTeX, repository, manual patch, and user
+statement inputs become candidate `ResearchPersonaPatch` JSON for review.
+Durable changes go through the local audit route: `gpd research-persona
+validate`, `gpd research-persona diff`, explicit approval, and then `gpd
+research-persona apply-patch`. `forget` tombstones a fact, and accepted patches
+record local history and tombstone metadata.
+
+| Command | What it does |
+|---------|--------------|
+| `gpd research-persona show --projection local` | Show the stored persona through a selected privacy projection |
+| `gpd research-persona validate [PROFILE_JSON|-]` | Validate stored or supplied persona JSON |
+| `gpd research-persona diff PATCH_JSON|-` | Preview a candidate patch without writing |
+| `gpd research-persona apply-patch PATCH_JSON|-` | Apply an approved patch, with `--dry-run` for preview only |
+| `gpd research-persona audit [PROFILE_JSON|-]` | Inspect persona quality, privacy, evidence, and capsule readiness without writing |
+| `gpd research-persona forget FACT_ID` | Tombstone one fact, with `--dry-run` for preview only |
+| `gpd research-persona ingest-source SOURCE_JSON|-` | Build a candidate patch from an explicit source document; optional `--output` writes only that candidate patch artifact |
+| `gpd research-persona export-capsule --role doppelganger` | Export a prompt-safe role capsule; roles include planner, executor, verifier, paper_writer, literature, recovery, explainer, doppelganger, and taste |
+| `gpd research-persona doppelganger` | Preview likely user objections, standards, and next moves through a prompt-safe Researcher Doppelganger capsule |
+| `gpd research-persona explain-plan [PLAN_JSON|-]` | Preview Expertise-Aware Explanations guidance from an explainer capsule |
+| `gpd research-persona taste-check [CANDIDATE_JSON|-]` | Preview Scientific Taste Model feedback from a taste capsule |
+
+Persona application previews consume prompt-safe capsules rather than the full
+private profile. They are advisory surfaces only: they should not create silent
+memory, infer private facts from unrelated context, or place full private
+profile content in prompts.
+
+</details>
+
+<details>
 <summary><strong>Validation commands</strong></summary>
 
 | Command | What it does |

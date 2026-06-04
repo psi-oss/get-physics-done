@@ -15,6 +15,7 @@ from gpd.core.workflow_staging import (
 _MANIFEST_DERIVED_KNOWN_INIT_WORKFLOWS = (
     "arxiv-submission",
     "autonomous",
+    "build-persona",
     "execute-phase",
     "literature-review",
     "map-research",

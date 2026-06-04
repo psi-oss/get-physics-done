@@ -42,7 +42,7 @@ def _stable_field_union(field_sequences: Iterable[Iterable[str]]) -> tuple[str, 
 
 @pytest.mark.parametrize("workflow_id", _staged_workflow_ids())
 def test_known_init_fields_for_all_staged_workflows_are_manifest_effective(workflow_id: str) -> None:
-    assert len(_staged_workflow_ids()) == 16
+    assert len(_staged_workflow_ids()) == 17
 
     fields_by_stage = expanded_required_init_fields_by_stage(load_workflow_stage_manifest(workflow_id))
     expected = frozenset(_stable_field_union(fields for _, fields in fields_by_stage))
