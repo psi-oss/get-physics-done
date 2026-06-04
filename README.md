@@ -21,7 +21,7 @@ Get Physics Done is an open-source agentic AI system for physics research from [
 
 https://github.com/user-attachments/assets/e79f8153-c0bd-484f-b69e-da8f142649e0
 
-[Start Here](#start-here) · [Quick Start](#quick-start) · [Supported Runtimes](#supported-runtimes) · [Workflow](#what-gpd-does) · [Commands](#key-gpd-paths) · [Models](#optional-model-profiles-and-tier-overrides) · [Advanced CLI](#advanced-cli-utilities) · [System Requirements](#system-requirements)
+[Start Here](#start-here) · [Quick Start](#quick-start) · [Examples](https://github.com/psi-oss/get-physics-done/tree/main/examples) · [Supported Runtimes](#supported-runtimes) · [Workflow](#what-gpd-does) · [Commands](#key-gpd-paths) · [Models](#optional-model-profiles-and-tier-overrides) · [Advanced CLI](#advanced-cli-utilities) · [System Requirements](#system-requirements)
 
 ## Start Here
 
@@ -84,7 +84,6 @@ Use the opened runtime for the installed GPD command ladder (`help -> start -> t
 <!-- gpd-public-surface:terminal-runtime-bridge:end -->
 
 </details>
-
 
 ## Who This Is For
 
@@ -331,6 +330,8 @@ arxiv-submission
 Typical artifacts include derivation notes, numerical scripts, convergence studies, and phase-level planning and verification documents under `GPD/`.
 
 </details>
+
+For more worked examples across classical mechanics, quantum mechanics, statistical mechanics, electrodynamics, fluid dynamics, and QFT, see the **[Examples Gallery](https://github.com/psi-oss/get-physics-done/tree/main/examples)**.
 
 ## Key GPD Paths
 
