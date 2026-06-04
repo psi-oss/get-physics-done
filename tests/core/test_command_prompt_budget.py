@@ -97,6 +97,7 @@ COMMAND_BASELINES = {
     "validate-conventions": (271, 10_556, 1),
     "verify-work": (228, 8_001, 1),
     "write-paper": (332, 14_789, 1),
+    "zen": (64, 2_013, 1),
 }
 WORST_COMMAND_HARD_CAPS = {
     "compare-experiment": (540, 22_500),
@@ -197,6 +198,7 @@ WORKFLOW_BASELINES = {
     "verify-phase": (377, 20_313, 0),
     "verify-work": (16, 755, 0),
     "write-paper": (31, 1_661, 0),
+    "zen": (36, 1_371, 0),
 }
 WORST_WORKFLOW_HARD_CAPS = {
     "verify-phase": (720, 44_000),

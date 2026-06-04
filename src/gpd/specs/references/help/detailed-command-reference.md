@@ -41,6 +41,9 @@ Notes:
 
 - Staged workflow: `new-project`.
 
+**`gpd:zen [optional mood word]`**
+Print a short physics-research zen koan to reset your focus, without taking any action
+
 **`gpd:map-research`**
 Map existing research project — theoretical framework, computations, conventions, and open questions
 

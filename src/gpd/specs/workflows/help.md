@@ -81,6 +81,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:tour` - Show a read-only overview of the main commands
 - `gpd:new-project` - Create a full GPD project
 - `gpd:new-project --minimal` - Create a GPD project through the shortest setup path
+- `gpd:zen` - Print a short research koan and take no action
 - `gpd:map-research` - Map an existing research folder before planning
 - `gpd:resume-work` - Resume the selected project's canonical state inside the runtime
 - `gpd:progress` - Review project status and likely next steps
