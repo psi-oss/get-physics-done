@@ -1388,6 +1388,15 @@ def test_read_only_builtin_mcp_tools_publish_annotations() -> None:
             "limiting_case_check",
             "symmetry_check",
             "get_verification_coverage",
+            "conservation_check",
+            "equation_check",
+            "series_check",
+            "ode_check",
+            "tensor_check",
+            "integral_check",
+            "commutator_check",
+            "pde_check",
+            "matrix_check",
         },
     }
 

@@ -67,6 +67,7 @@ from gpd.core.verification_checks import (
 )
 from gpd.mcp.servers import (
     ABSOLUTE_PROJECT_DIR_SCHEMA,
+    _cas,
     configure_mcp_logging,
     read_only_tool_annotations,
     resolve_absolute_project_dir,
@@ -2134,6 +2135,54 @@ def _dims_equal(a: dict[str, int], b: dict[str, int]) -> bool:
     """Check if two dimensional dicts are equal."""
     all_keys = set(a.keys()) | set(b.keys())
     return all(a.get(k, 0) == b.get(k, 0) for k in all_keys)
+
+
+# Named physical quantities → base-dimension exponents over {M, L, T, Q, Theta}.
+# Used to give real symbols dimensions for symbolic dimensional analysis.
+_NAMED_DIMENSIONS: dict[str, dict[str, int]] = {
+    "dimensionless": {},
+    "scalar": {},
+    "1": {},
+    "mass": {"M": 1},
+    "length": {"L": 1},
+    "distance": {"L": 1},
+    "position": {"L": 1},
+    "time": {"T": 1},
+    "charge": {"Q": 1},
+    "temperature": {"Theta": 1},
+    "current": {"Q": 1, "T": -1},
+    "velocity": {"L": 1, "T": -1},
+    "speed": {"L": 1, "T": -1},
+    "acceleration": {"L": 1, "T": -2},
+    "momentum": {"M": 1, "L": 1, "T": -1},
+    "force": {"M": 1, "L": 1, "T": -2},
+    "energy": {"M": 1, "L": 2, "T": -2},
+    "work": {"M": 1, "L": 2, "T": -2},
+    "power": {"M": 1, "L": 2, "T": -3},
+    "pressure": {"M": 1, "L": -1, "T": -2},
+    "frequency": {"T": -1},
+    "angular_frequency": {"T": -1},
+    "area": {"L": 2},
+    "volume": {"L": 3},
+    "density": {"M": 1, "L": -3},
+    "action": {"M": 1, "L": 2, "T": -1},  # e.g. hbar
+    "voltage": {"M": 1, "L": 2, "T": -2, "Q": -1},
+}
+
+
+def _spec_to_dimvec(spec: str) -> dict[str, int] | None:
+    """Resolve a dimension spec to base-exponents, or None if unrecognized.
+
+    Accepts a named quantity ("energy", "velocity", ...) or a bracket form
+    ("[M][L]^2[T]^-2"). Returns {} for an explicitly dimensionless spec.
+    """
+    text = spec.strip()
+    named = _NAMED_DIMENSIONS.get(text.lower())
+    if named is not None:
+        return dict(named)
+    if "[" in text:
+        return {k: v for k, v in _parse_dimensions(text).items() if v != 0}
+    return None
 
 
 # ─── MCP Tools ────────────────────────────────────────────────────────────────
@@ -4905,22 +4954,41 @@ def get_bundle_checklist(bundle_ids: BundleIdListInput) -> dict:
 
 
 @mcp.tool(annotations=read_only_tool_annotations())
-def dimensional_check(expressions: list[str]) -> dict:
+def dimensional_check(expressions: list[str], dimensions: dict[str, str] | None = None) -> dict:
     """Verify dimensional consistency of physics expressions.
 
-    Each expression should be in the format "LHS = RHS" where dimensions
-    are annotated with [M], [L], [T], [Q], [Theta] notation.
+    Two modes:
 
-    Example: "[M][L]^2[T]^-2 = [M][L]^2[T]^-2" (energy = energy)
+    1. **Annotated** — each expression is "LHS = RHS" with dimensions written in
+       [M], [L], [T], [Q], [Theta] notation, e.g. "[M][L]^2[T]^-2 = [M][L]^2[T]^-2".
+    2. **Symbolic** — pass real expressions (e.g. "E = m c^2", LaTeX allowed) plus
+       a ``dimensions`` map of symbol → dimension. Each dimension is a named
+       quantity ("energy", "velocity", "mass", "force", ...) or a bracket form
+       ("[M][L]^2[T]^-2"). The tool then computes the dimensions of each side
+       with SymPy and returns a real pass/fail in the result's ``cas`` block,
+       also flagging sums whose terms have incompatible dimensions.
+
+    Symbols absent from ``dimensions`` or otherwise unresolvable yield an
+    ``inconclusive`` verdict — never a false pass.
     """
     with gpd_span("mcp.verification.dimensional_check"):
         validated_expressions, error = _validate_string_list(expressions, field_name="expressions")
         if error is not None:
             return error
-        return stable_mcp_response(_dimensional_check_inner(validated_expressions))
+        symbol_dims: dict[str, dict[str, int]] | None = None
+        if dimensions is not None:
+            validated_dims, error = _validate_string_mapping(dimensions, field_name="dimensions")
+            if error is not None:
+                return error
+            symbol_dims = {}
+            for symbol, spec in validated_dims.items():
+                dimvec = _spec_to_dimvec(spec)
+                if dimvec is not None:
+                    symbol_dims[symbol] = dimvec
+        return stable_mcp_response(_dimensional_check_inner(validated_expressions, symbol_dims))
 
 
-def _dimensional_check_inner(expressions: list[str]) -> dict:
+def _dimensional_check_inner(expressions: list[str], symbol_dims: dict[str, dict[str, int]] | None = None) -> dict:
     results: list[dict[str, object]] = []
 
     for expr in expressions:
@@ -4950,7 +5018,17 @@ def _dimensional_check_inner(expressions: list[str]) -> dict:
             "lhs_dimensions": {k: v for k, v in lhs_dims.items() if v != 0},
             "rhs_dimensions": {k: v for k, v in rhs_dims.items() if v != 0},
         }
-        if no_annotations:
+        if no_annotations and symbol_dims is not None:
+            # Symbolic path: compute dimensions of real symbols via the CAS.
+            cas = _cas.check_dimensions(expr, symbol_dims)
+            result["cas"] = cas
+            if cas["verdict"] == _cas.VERDICT_PASS:
+                result["valid"] = True
+            if "lhs_dimensions" in cas:
+                result["lhs_dimensions"] = cas["lhs_dimensions"]
+                result["rhs_dimensions"] = cas["rhs_dimensions"]
+            result["note"] = cas["detail"]
+        elif no_annotations:
             result["note"] = "No dimension annotations found — cannot verify"
         elif not match:
             mismatches = {}
@@ -4963,10 +5041,13 @@ def _dimensional_check_inner(expressions: list[str]) -> dict:
         results.append(result)
 
     all_valid = bool(results) and all(r.get("valid", False) for r in results)
+    cas_verdicts = [r["cas"]["verdict"] for r in results if isinstance(r.get("cas"), dict)]
     return {
         "schema_version": VERIFICATION_SCHEMA_VERSION,
         "all_consistent": all_valid,
         "checked_count": len(results),
+        "cas_executed": sum(1 for r in results if r.get("cas", {}).get("attempted")),
+        "overall_cas_verdict": _aggregate_cas_verdict(cas_verdicts),
         "results": results,
     }
 
@@ -4975,12 +5056,18 @@ def _dimensional_check_inner(expressions: list[str]) -> dict:
 def limiting_case_check(expression: str, limits: dict[str, str]) -> dict:
     """Verify that an expression reduces to known results in specified limits.
 
-    This is a structural check -- it validates that the limit analysis
-    has been documented. The actual mathematical verification should be
-    performed by a CAS (SymPy) via the code execution MCP server.
+    When a limit is written as ``var -> point`` (e.g. ``"hbar -> 0"``) and both
+    the expression and the expected result are machine-parseable, this tool
+    actually computes ``sympy.limit(expression, var, point)`` and returns a
+    real ``pass``/``fail``/``computed`` verdict in each result's ``cas`` block
+    (with the aggregate in ``overall_cas_verdict``). Parse failures, timeouts,
+    or prose limits (e.g. ``"non-relativistic limit"``) downgrade to
+    ``inconclusive`` and fall back to the structural ``status`` marker — the
+    oracle never reports ``pass`` for something it could not compute.
 
     Args:
-        expression: The general expression being checked
+        expression: The general expression being checked (``LHS = RHS`` allowed;
+                    the RHS formula is used).
         limits: Dict mapping limit descriptions to expected results.
                 E.g., {"hbar -> 0": "classical Hamilton-Jacobi",
                        "c -> infinity": "non-relativistic Schrodinger"}
@@ -5016,12 +5103,17 @@ def _limiting_case_inner(expression: str, limits: dict[str, str]) -> dict:
                 limit_type = stype
                 break
 
+        cas = _cas.check_limit(expression, limit_desc, expected_result)
         results.append(
             {
                 "limit": limit_desc,
                 "expected": expected_result,
                 "limit_type": limit_type,
+                # Structural marker (kept for backward compatibility): records that
+                # the limit analysis was supplied. The authoritative result is in
+                # the `cas` block below when the limit is machine-evaluable.
                 "status": "documented",
+                "cas": cas,
                 "guidance": (
                     f"Verify: apply limit '{limit_desc}' to the expression. "
                     f"Result should reduce to: {expected_result}. "
@@ -5043,21 +5135,40 @@ def _limiting_case_inner(expression: str, limits: dict[str, str]) -> dict:
         if not any("weak" in key.lower() or "g ->" in key.lower() for key in limits):
             suggestions.append("Consider checking weak-coupling limit (g -> 0)")
 
+    cas_verdicts = [r["cas"]["verdict"] for r in results if isinstance(r.get("cas"), dict)]
     return {
         "schema_version": VERIFICATION_SCHEMA_VERSION,
         "expression_length": len(expression),
         "limits_checked": len(results),
+        "cas_executed": sum(1 for r in results if r.get("cas", {}).get("attempted")),
+        "overall_cas_verdict": _aggregate_cas_verdict(cas_verdicts),
         "results": results,
         "suggestions": suggestions,
     }
+
+
+def _aggregate_cas_verdict(verdicts: list[str]) -> str:
+    """Collapse per-item CAS verdicts into one. A single FAIL dominates."""
+    if _cas.VERDICT_FAIL in verdicts:
+        return _cas.VERDICT_FAIL
+    if _cas.VERDICT_PASS in verdicts:
+        return _cas.VERDICT_PASS
+    if _cas.VERDICT_COMPUTED in verdicts:
+        return _cas.VERDICT_COMPUTED
+    return _cas.VERDICT_INCONCLUSIVE
 
 
 @mcp.tool(annotations=read_only_tool_annotations())
 def symmetry_check(expression: str, symmetries: list[str]) -> dict:
     """Verify that an expression respects specified symmetries.
 
-    Structural check that symmetry analysis has been documented.
-    Actual verification should use CAS or explicit transformation.
+    For coordinate-reflection symmetries (``parity`` → ``x -> -x``,
+    ``time-reversal`` → ``t -> -t``) over a machine-parseable expression, this
+    tool actually performs the substitution with SymPy and classifies the
+    result as invariant (even) / odd / neither in each result's ``cas`` block.
+    Symmetries with no single-substitution test (gauge, Lorentz, ...) return
+    ``inconclusive`` and rely on the structural ``status`` + ``strategy``
+    guidance, so the executed verdict is never fabricated.
 
     Args:
         expression: The expression to check
@@ -5111,19 +5222,28 @@ def _symmetry_check_inner(expression: str, symmetries: list[str]) -> dict:
                 matched_type = key
                 break
 
+        cas = _cas.check_symmetry(expression, sym)
         results.append(
             {
                 "symmetry": sym,
                 "matched_type": matched_type,
                 "strategy": strategy or f"Apply {sym} transformation to expression and verify expected behavior",
+                # Structural marker (kept for backward compatibility). When the
+                # symmetry reduces to a coordinate reflection (parity / time
+                # reversal) over a parseable expression, the executed result is
+                # in the `cas` block.
                 "status": "requires_verification",
+                "cas": cas,
             }
         )
 
+    cas_verdicts = [r["cas"]["verdict"] for r in results if isinstance(r.get("cas"), dict)]
     return {
         "schema_version": VERIFICATION_SCHEMA_VERSION,
         "expression_length": len(expression),
         "symmetries_checked": len(results),
+        "cas_executed": sum(1 for r in results if r.get("cas", {}).get("attempted")),
+        "overall_cas_verdict": _aggregate_cas_verdict(cas_verdicts),
         "results": results,
     }
 
@@ -5225,6 +5345,334 @@ def _coverage_inner(error_class_ids: list[int], active_checks: list[str]) -> dic
             )
         ),
     }
+
+
+@mcp.tool(annotations=read_only_tool_annotations())
+def conservation_check(
+    quantity: str, trajectory: list[dict[str, float]], tolerance: float = 1e-6
+) -> dict:
+    """Verify a conserved quantity stays constant along a trajectory.
+
+    Evaluates ``quantity`` (an expression in the state variables; plain or LaTeX)
+    at every state in ``trajectory`` and measures its drift. Returns a real
+    pass/fail verdict on the relative drift versus ``tolerance`` (absolute drift
+    when the quantity is ~0 throughout), with the min/max/initial/final values.
+
+    This catches the most common dynamics error class — energy/momentum/charge
+    that silently drifts — by actually computing it, rather than trusting that
+    the integrator conserved it.
+
+    Args:
+        quantity: e.g. "0.5*m*v**2 + 0.5*k*x**2" (SHO energy) or LaTeX.
+        trajectory: list of states, each a mapping of variable name -> number.
+        tolerance: maximum allowed relative drift (default 1e-6).
+    """
+    with gpd_span("mcp.verification.conservation_check"):
+        validated_quantity, error = _validate_string(quantity, field_name="quantity")
+        if error is not None:
+            return error
+        if not isinstance(trajectory, list) or not trajectory:
+            return _error_result("trajectory must be a non-empty list of state mappings")
+        for index, state in enumerate(trajectory):
+            if not isinstance(state, dict):
+                return _error_result(f"trajectory[{index}] must be a mapping of variable -> number")
+            for key, value in state.items():
+                if not isinstance(key, str):
+                    return _error_result(f"trajectory[{index}] keys must be strings")
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    return _error_result(f"trajectory[{index}][{key}] must be a number")
+        if isinstance(tolerance, bool) or not isinstance(tolerance, (int, float)) or tolerance < 0:
+            return _error_result("tolerance must be a non-negative number")
+        result = _cas.check_conservation(validated_quantity, trajectory, float(tolerance))
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
+@mcp.tool(annotations=read_only_tool_annotations())
+def equation_check(lhs: str, rhs: str, assumptions: dict[str, str] | None = None) -> dict:
+    """Verify whether two expressions are algebraically equal (the core of any
+    derivation step).
+
+    Computes ``simplify(lhs - rhs)`` / ``.equals()`` with SymPy and returns a
+    real pass/fail, so equality is checked by the CAS rather than by the agent's
+    mental algebra. Accepts plain or LaTeX expressions. Optional ``assumptions``
+    maps a symbol to positive/negative/real/integer/nonzero/... for identities
+    that hold only under an assumption (e.g. ``sqrt(x**2) = x`` for x > 0).
+    Undecidable comparisons return inconclusive — never a false pass.
+
+    Args:
+        lhs: left-hand side, e.g. "sin(x)**2 + cos(x)**2" or LaTeX.
+        rhs: right-hand side, e.g. "1".
+        assumptions: optional symbol -> assumption (e.g. {"x": "positive"}).
+    """
+    with gpd_span("mcp.verification.equation_check"):
+        validated_lhs, error = _validate_string(lhs, field_name="lhs")
+        if error is not None:
+            return error
+        validated_rhs, error = _validate_string(rhs, field_name="rhs")
+        if error is not None:
+            return error
+        validated_assumptions = None
+        if assumptions is not None:
+            validated_assumptions, error = _validate_string_mapping(assumptions, field_name="assumptions")
+            if error is not None:
+                return error
+        result = _cas.check_equation(validated_lhs, validated_rhs, validated_assumptions)
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
+@mcp.tool(annotations=read_only_tool_annotations())
+def series_check(
+    expression: str, variable: str, point: str = "0", order: int = 6, expected: str | None = None
+) -> dict:
+    """Compute (and optionally verify) a Taylor / asymptotic series expansion.
+
+    Perturbation theory and asymptotic analysis are pervasive in physics and
+    error-prone by hand. This computes ``series(expression, variable, point,
+    order)`` with SymPy; if ``expected`` is supplied it returns a real pass/fail,
+    otherwise it returns the computed expansion. Accepts plain or LaTeX input.
+    Unparseable input or a series SymPy cannot evaluate → inconclusive.
+
+    Args:
+        expression: e.g. "sin(x)" or LaTeX r"\\frac{1}{1-x}".
+        variable: the expansion variable, e.g. "x".
+        point: expansion point ("0", "oo", or a symbol). Defaults to "0".
+        order: truncation order (1..15). Defaults to 6.
+        expected: optional claimed expansion to compare against.
+    """
+    with gpd_span("mcp.verification.series_check"):
+        validated_expression, error = _validate_string(expression, field_name="expression")
+        if error is not None:
+            return error
+        validated_variable, error = _validate_string(variable, field_name="variable")
+        if error is not None:
+            return error
+        validated_point, error = _validate_string(point, field_name="point")
+        if error is not None:
+            return error
+        if isinstance(order, bool) or not isinstance(order, int) or not (1 <= order <= 15):
+            return _error_result("order must be an integer between 1 and 15")
+        validated_expected = None
+        if expected is not None:
+            validated_expected, error = _validate_string(expected, field_name="expected")
+            if error is not None:
+                return error
+        result = _cas.check_series(
+            validated_expression, validated_variable, validated_point, order, validated_expected
+        )
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
+@mcp.tool(annotations=read_only_tool_annotations())
+def ode_check(equation: str, solution: str, variable: str = "x", function: str = "y") -> dict:
+    """Verify a candidate solution satisfies a differential equation.
+
+    Substitutes the solution and its derivatives into the ODE and simplifies the
+    residual with SymPy: zero → pass, provably nonzero → fail. Use prime notation
+    for derivatives of ``function`` (``y``, ``y'``, ``y''`` …); the equation may
+    be a residual or "LHS = RHS".
+
+    Args:
+        equation: e.g. "y'' + omega**2 * y = 0".
+        solution: e.g. "A*cos(omega*x) + B*sin(omega*x)" (plain or LaTeX).
+        variable: the independent variable (default "x").
+        function: the dependent function name used in the equation (default "y").
+    """
+    with gpd_span("mcp.verification.ode_check"):
+        validated_equation, error = _validate_string(equation, field_name="equation")
+        if error is not None:
+            return error
+        validated_solution, error = _validate_string(solution, field_name="solution")
+        if error is not None:
+            return error
+        validated_variable, error = _validate_string(variable, field_name="variable")
+        if error is not None:
+            return error
+        validated_function, error = _validate_string(function, field_name="function")
+        if error is not None:
+            return error
+        result = _cas.check_ode(
+            validated_equation, validated_solution, validated_variable, validated_function
+        )
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
+@mcp.tool(annotations=read_only_tool_annotations())
+def tensor_check(equation: str) -> dict:
+    """Check free/dummy index consistency of a tensor equation.
+
+    Indices are written ``^{...}`` (upper) / ``_{...}`` (lower), space- or
+    backslash-separated, e.g. "F^{mu nu} = \\partial^{mu} A^{nu} - \\partial^{nu} A^{mu}".
+    Verifies every term on a side carries the same free indices in the same
+    up/down position, that the two sides match, and that repeated indices are
+    valid one-up/one-down contractions. Returns pass/fail with the free-index
+    signature and a list of issues; this checks index bookkeeping, not the
+    tensor algebra itself.
+
+    Args:
+        equation: a tensor equation "LHS = RHS" with indexed terms.
+    """
+    with gpd_span("mcp.verification.tensor_check"):
+        validated_equation, error = _validate_string(equation, field_name="equation")
+        if error is not None:
+            return error
+        result = _cas.check_tensor_indices(validated_equation)
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
+@mcp.tool(annotations=read_only_tool_annotations())
+def integral_check(
+    integrand: str,
+    variable: str,
+    claimed: str | None = None,
+    lower: str | None = None,
+    upper: str | None = None,
+) -> dict:
+    """Verify a claimed integral.
+
+    Indefinite (no bounds): the claimed antiderivative is verified by
+    differentiation — ``d(claimed)/dx == integrand`` — the robust direction.
+    Definite (``lower`` and ``upper`` given): computes the definite integral with
+    SymPy and compares to ``claimed``. With no ``claimed``, returns the computed
+    result. Plain or LaTeX input; an integral SymPy cannot evaluate →
+    inconclusive.
+
+    Args:
+        integrand: e.g. "2*x" or LaTeX.
+        variable: integration variable, e.g. "x".
+        claimed: claimed antiderivative (indefinite) or value (definite).
+        lower, upper: bounds for a definite integral (e.g. "0", "oo", "pi").
+    """
+    with gpd_span("mcp.verification.integral_check"):
+        validated_integrand, error = _validate_string(integrand, field_name="integrand")
+        if error is not None:
+            return error
+        validated_variable, error = _validate_string(variable, field_name="variable")
+        if error is not None:
+            return error
+        validated_claimed = None
+        if claimed is not None:
+            validated_claimed, error = _validate_string(claimed, field_name="claimed")
+            if error is not None:
+                return error
+        validated_lower = None
+        if lower is not None:
+            validated_lower, error = _validate_string(lower, field_name="lower")
+            if error is not None:
+                return error
+        validated_upper = None
+        if upper is not None:
+            validated_upper, error = _validate_string(upper, field_name="upper")
+            if error is not None:
+                return error
+        if (validated_lower is None) != (validated_upper is None):
+            return _error_result("a definite integral needs both lower and upper bounds")
+        result = _cas.check_integral(
+            validated_integrand, validated_variable, validated_claimed, validated_lower, validated_upper
+        )
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
+@mcp.tool(annotations=read_only_tool_annotations())
+def commutator_check(operators: dict[str, str], a: str, b: str, expected: str, variable: str = "x") -> dict:
+    """Verify an operator commutator ``[a, b] = expected`` on a test function.
+
+    ``operators`` maps a name to its action on the test function ``f``, using
+    ``f`` and ``f_x``, ``f_xx`` … for derivatives. Computes ``a(b f) - b(a f)``
+    with SymPy and compares to ``expected``. Example: the canonical commutator
+    ``operators={"X": "x*f", "P": "-I*hbar*f_x"}, a="X", b="P",
+    expected="I*hbar*f"`` (i.e. [x, p] = i hbar) → pass.
+
+    Args:
+        operators: name -> action on f (e.g. {"X": "x*f", "P": "-I*hbar*f_x"}).
+        a, b: operator names to commute.
+        expected: the claimed result's action on f (e.g. "I*hbar*f").
+        variable: the spatial variable used in the actions (default "x").
+    """
+    with gpd_span("mcp.verification.commutator_check"):
+        validated_operators, error = _validate_string_mapping(operators, field_name="operators")
+        if error is not None:
+            return error
+        validated_a, error = _validate_string(a, field_name="a")
+        if error is not None:
+            return error
+        validated_b, error = _validate_string(b, field_name="b")
+        if error is not None:
+            return error
+        validated_expected, error = _validate_string(expected, field_name="expected")
+        if error is not None:
+            return error
+        validated_variable, error = _validate_string(variable, field_name="variable")
+        if error is not None:
+            return error
+        result = _cas.check_commutator(
+            validated_operators, validated_a, validated_b, validated_expected, validated_variable
+        )
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
+@mcp.tool(annotations=read_only_tool_annotations())
+def pde_check(equation: str, solution: str, variables: list[str], function: str = "u") -> dict:
+    """Verify a candidate solution satisfies a partial differential equation.
+
+    Partial derivatives of ``function`` use subscript notation — each letter
+    after ``_`` is one differentiation w.r.t. that variable: ``u_t``, ``u_xx``,
+    ``u_xt`` (mixed). The equation may be a residual or "LHS = RHS". Substitutes
+    the solution and its partials and simplifies the residual: zero → pass,
+    nonzero → fail.
+
+    Args:
+        equation: e.g. the heat equation "u_t = alpha * u_xx".
+        solution: e.g. "exp(-alpha*k**2*t) * sin(k*x)" (plain or LaTeX).
+        variables: the independent variables, e.g. ["t", "x"].
+        function: the dependent function name (default "u").
+    """
+    with gpd_span("mcp.verification.pde_check"):
+        validated_equation, error = _validate_string(equation, field_name="equation")
+        if error is not None:
+            return error
+        validated_solution, error = _validate_string(solution, field_name="solution")
+        if error is not None:
+            return error
+        validated_variables, error = _validate_string_list(variables, field_name="variables")
+        if error is not None:
+            return error
+        validated_function, error = _validate_string(function, field_name="function")
+        if error is not None:
+            return error
+        result = _cas.check_pde(
+            validated_equation, validated_solution, validated_variables, validated_function
+        )
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
+@mcp.tool(annotations=read_only_tool_annotations())
+def matrix_check(matrix: list[list[str]], property: str) -> dict:
+    """Verify a structural property of a matrix.
+
+    ``property`` is one of: symmetric, antisymmetric, hermitian, anti-hermitian,
+    unitary, orthogonal, idempotent (projection), involutory, normal. Entries are
+    expression strings; ``I`` denotes the imaginary unit (e.g. the Pauli matrix
+    ``Y = [["0", "-I"], ["I", "0"]]``). Returns pass/fail; unparseable entries or
+    an undecidable comparison → inconclusive.
+
+    Args:
+        matrix: rows of entry strings, e.g. [["0", "1"], ["1", "0"]] (Pauli X).
+        property: the property to verify.
+    """
+    with gpd_span("mcp.verification.matrix_check"):
+        if not isinstance(matrix, list) or not matrix:
+            return _error_result("matrix must be a non-empty list of rows")
+        for index, row in enumerate(matrix):
+            if not isinstance(row, list) or not row:
+                return _error_result(f"matrix[{index}] must be a non-empty list of entry strings")
+            for col, cell in enumerate(row):
+                if not isinstance(cell, str):
+                    return _error_result(f"matrix[{index}][{col}] must be a string")
+        validated_property, error = _validate_string(property, field_name="property")
+        if error is not None:
+            return error
+        result = _cas.check_matrix(matrix, validated_property)
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
 
 
 # ─── Entry Point ──────────────────────────────────────────────────────────────

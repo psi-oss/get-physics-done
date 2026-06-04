@@ -41,7 +41,7 @@ It covers:
 - `src/gpd/hooks/*.py`: `11`
 - `src/gpd/mcp/*.py`: `5`
 - `src/gpd/mcp/integrations/*.py`: `2`
-- `src/gpd/mcp/servers/*.py`: `15`
+- `src/gpd/mcp/servers/*.py`: `16`
 - `infra/gpd-*.json`: `8`
 
 Excluded as noise from node counting, but still modeled where contractually relevant:
@@ -271,7 +271,7 @@ flowchart TD
   `authority`
   Fallback version source when installed metadata is unavailable.
 
-- `pyproject.toml -> external Python packages {typer, rich, pydantic, PyYAML, mcp, pybtex, Pillow, jinja2, pytest, pytest-asyncio, pytest-xdist, ruff, hatchling, arxiv-mcp-server, arxiv, httpx, cairosvg, pypdf}`
+- `pyproject.toml -> external Python packages {typer, rich, pydantic, PyYAML, mcp, pybtex, Pillow, jinja2, sympy, lark, pytest, pytest-asyncio, pytest-xdist, ruff, hatchling, arxiv-mcp-server, arxiv, httpx, cairosvg, pypdf}`
   `external-package`
 
 - `src/gpd/mcp/builtin_servers.py -> infra/gpd-*.json`

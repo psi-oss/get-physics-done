@@ -423,12 +423,14 @@ def _string_constant_assignments(repo_root: Path, relative_path: str) -> dict[st
 def _expected_runtime_dependency_names() -> set[str]:
     return {
         "jinja2",
+        "lark",
         "mcp",
         "pillow",
         "pybtex",
         "pydantic",
         "pyyaml",
         "rich",
+        "sympy",
         "typer",
     }
 

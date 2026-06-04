@@ -2980,6 +2980,49 @@ class TestVerificationServer:
         assert result["schema_version"] == 1
         assert result["error"] == "expressions[1] must be a string"
 
+    # --- dimensional_check symbolic mode (real expressions + dimension map) ---
+
+    def test_dimensional_check_symbolic_energy_mass_velocity(self):
+        from gpd.mcp.servers.verification_server import dimensional_check
+
+        result = dimensional_check(["E = m*c^2"], {"E": "energy", "m": "mass", "c": "velocity"})
+        assert result["all_consistent"] is True
+        assert result["results"][0]["cas"]["verdict"] == "pass"
+
+    def test_dimensional_check_symbolic_catches_inconsistency(self):
+        from gpd.mcp.servers.verification_server import dimensional_check
+
+        result = dimensional_check(["E = m*c"], {"E": "energy", "m": "mass", "c": "velocity"})
+        assert result["all_consistent"] is False
+        assert result["results"][0]["cas"]["verdict"] == "fail"
+
+    def test_dimensional_check_symbolic_latex(self):
+        from gpd.mcp.servers.verification_server import dimensional_check
+
+        result = dimensional_check([r"E = \frac{1}{2} m v^2"], {"E": "energy", "m": "mass", "v": "velocity"})
+        assert result["results"][0]["cas"]["verdict"] == "pass"
+
+    def test_dimensional_check_symbolic_mixed_sum_fails(self):
+        from gpd.mcp.servers.verification_server import dimensional_check
+
+        # Adding a length and a time is dimensionally inconsistent.
+        result = dimensional_check(["x = a + t"], {"x": "length", "a": "length", "t": "time"})
+        assert result["results"][0]["cas"]["verdict"] == "fail"
+
+    def test_dimensional_check_symbolic_missing_symbol_inconclusive(self):
+        from gpd.mcp.servers.verification_server import dimensional_check
+
+        result = dimensional_check(["E = m*c^2"], {"E": "energy", "m": "mass"})
+        assert result["results"][0]["cas"]["verdict"] == "inconclusive"
+        assert result["all_consistent"] is False
+
+    def test_dimensional_check_symbolic_bracket_spec(self):
+        from gpd.mcp.servers.verification_server import dimensional_check
+
+        # A dimension may be given as a bracket spec instead of a name.
+        result = dimensional_check(["p = m*v"], {"p": "[M][L][T]^-1", "m": "mass", "v": "velocity"})
+        assert result["results"][0]["cas"]["verdict"] == "pass"
+
     # --- limiting_case_check (pure function) ---
 
     def test_limiting_case_check_basic(self):
@@ -3028,6 +3071,109 @@ class TestVerificationServer:
         )
         assert result["results"][0]["limit_type"] == "classical"
 
+    # --- limiting_case_check CAS-backed executable verdicts ---
+
+    def test_limiting_case_cas_pass_on_correct_limit(self):
+        from gpd.mcp.servers.verification_server import limiting_case_check
+
+        result = limiting_case_check("f = sin(x)/x", {"x -> 0": "1"})
+        assert result["overall_cas_verdict"] == "pass"
+        assert result["cas_executed"] == 1
+        cas = result["results"][0]["cas"]
+        assert cas["attempted"] is True
+        assert cas["verdict"] == "pass"
+        assert cas["computed_limit"] == "1"
+
+    def test_limiting_case_cas_fail_catches_wrong_limit(self):
+        from gpd.mcp.servers.verification_server import limiting_case_check
+
+        # sin(x)/x -> 1, not 0: the oracle must catch the false claim.
+        result = limiting_case_check("f = sin(x)/x", {"x -> 0": "0"})
+        assert result["overall_cas_verdict"] == "fail"
+        assert result["results"][0]["cas"]["verdict"] == "fail"
+
+    def test_limiting_case_cas_infinity_limit(self):
+        from gpd.mcp.servers.verification_server import limiting_case_check
+
+        result = limiting_case_check("E = 1/(1 + x)", {"x -> infinity": "0"})
+        assert result["overall_cas_verdict"] == "pass"
+
+    def test_limiting_case_cas_inconclusive_on_prose_limit(self):
+        from gpd.mcp.servers.verification_server import limiting_case_check
+
+        # A prose limit (no "var -> point") cannot be computed; the verdict must
+        # be inconclusive and the structural status preserved (backward compat).
+        result = limiting_case_check(
+            "E = gamma * m * c^2",
+            {"non-relativistic limit": "E = m*c^2 + 1/2*m*v^2"},
+        )
+        row = result["results"][0]
+        assert row["status"] == "documented"
+        assert row["cas"]["verdict"] == "inconclusive"
+        assert row["cas"]["attempted"] is False
+
+    def test_limiting_case_cas_never_passes_unparseable_expression(self):
+        from gpd.mcp.servers.verification_server import limiting_case_check
+
+        result = limiting_case_check("totally unparseable prose here", {"x -> 0": "0"})
+        assert result["results"][0]["cas"]["verdict"] == "inconclusive"
+        assert result["overall_cas_verdict"] != "pass"
+
+    def test_limiting_case_cas_rejects_unsafe_input(self):
+        from gpd.mcp.servers.verification_server import limiting_case_check
+
+        result = limiting_case_check('__import__("os").system("echo hi")', {"x -> 0": "0"})
+        assert result["results"][0]["cas"]["verdict"] == "inconclusive"
+        assert result["overall_cas_verdict"] != "pass"
+
+    # --- limiting_case_check LaTeX expressions ---
+
+    def test_limiting_case_cas_latex_classical_limit_pass(self):
+        from gpd.mcp.servers.verification_server import limiting_case_check
+
+        # (1 - cos(hbar*x)) / hbar -> 0 as hbar -> 0, given in LaTeX.
+        result = limiting_case_check(r"\frac{1 - \cos(\hbar x)}{\hbar}", {r"\hbar \to 0": "0"})
+        assert result["overall_cas_verdict"] == "pass"
+        assert result["results"][0]["cas"]["variable"] == "hbar"
+
+    def test_limiting_case_cas_latex_infinity_limit(self):
+        from gpd.mcp.servers.verification_server import limiting_case_check
+
+        result = limiting_case_check(r"\frac{1}{1 + x}", {r"x \to \infty": "0"})
+        assert result["overall_cas_verdict"] == "pass"
+
+    def test_limiting_case_cas_latex_juxtaposed_superscripts_rescued(self):
+        from gpd.mcp.servers.verification_server import limiting_case_check
+
+        # lark rejects juxtaposed superscript products (a^2 b^2); the delatexify
+        # fallback rescues them. Kinetic energy hbar^2 k^2 / 2m -> 0 as hbar -> 0.
+        result = limiting_case_check(r"\frac{\hbar^2 k^2}{2m}", {r"\hbar \to 0": "0"})
+        assert result["overall_cas_verdict"] == "pass"
+        assert result["results"][0]["cas"]["computed_limit"] == "0"
+
+    def test_limiting_case_cas_latex_derivative_degrades_safely(self):
+        from gpd.mcp.servers.verification_server import limiting_case_check
+
+        # Differential operators must never be faked into algebra: inconclusive.
+        result = limiting_case_check(r"\frac{d^2 \psi}{dx^2}", {r"x \to 0": "0"})
+        assert result["results"][0]["cas"]["verdict"] == "inconclusive"
+        assert result["overall_cas_verdict"] != "pass"
+
+    def test_cas_latex_rejects_dangerous_tex(self):
+        from gpd.mcp.servers import _cas
+
+        assert _cas.safe_parse(r"\input{/etc/passwd}") is None
+        assert _cas.safe_parse(r"\frac{\hbar^2}{2m}") is not None
+
+    def test_cas_delatexify_hamiltonian_and_refuses_derivatives(self):
+        from gpd.mcp.servers import _cas
+
+        # Full harmonic-oscillator Hamiltonian parses via the delatexify fallback.
+        assert _cas.safe_parse(r"\frac{p^2}{2m} + \frac{1}{2} m \omega^2 x^2") is not None
+        # Derivative / Laplacian operators are refused (stay None → inconclusive).
+        assert _cas.safe_parse(r"\frac{d^2 \psi}{dx^2}") is None
+        assert _cas.safe_parse(r"\nabla^2 \phi") is None
+
     def test_limiting_case_check_invalid_limit_key_returns_error_envelope(self):
         from gpd.mcp.servers.verification_server import limiting_case_check
 
@@ -3072,6 +3218,418 @@ class TestVerificationServer:
 
         assert result["schema_version"] == 1
         assert result["error"] == "symmetries[1] must be a string"
+
+    # --- symmetry_check CAS-backed executable verdicts ---
+
+    def test_symmetry_cas_parity_even(self):
+        from gpd.mcp.servers.verification_server import symmetry_check
+
+        result = symmetry_check("V = x**2", ["parity"])
+        cas = result["results"][0]["cas"]
+        assert cas["attempted"] is True
+        assert cas["invariant"] is True
+        assert "even" in cas["classification"]
+        assert cas["transformation"] == "x -> -x"
+
+    def test_symmetry_cas_parity_odd(self):
+        from gpd.mcp.servers.verification_server import symmetry_check
+
+        result = symmetry_check("V = x**3", ["parity"])
+        assert result["results"][0]["cas"]["classification"] == "odd"
+
+    def test_symmetry_cas_inconclusive_for_gauge(self):
+        from gpd.mcp.servers.verification_server import symmetry_check
+
+        # No single-substitution test for gauge: stays inconclusive and keeps
+        # the structural status + strategy guidance.
+        result = symmetry_check("A_mu field", ["gauge invariance"])
+        row = result["results"][0]
+        assert row["status"] == "requires_verification"
+        assert row["strategy"] is not None
+        assert row["cas"]["verdict"] == "inconclusive"
+
+    def test_symmetry_cas_latex_parity_even(self):
+        from gpd.mcp.servers.verification_server import symmetry_check
+
+        result = symmetry_check(r"V = \frac{1}{2} k x^2", ["parity"])
+        cas = result["results"][0]["cas"]
+        assert cas["classification"] == "invariant (even)"
+        assert cas["invariant"] is True
+
+    # --- conservation_check (executable trajectory drift) ---
+
+    def test_conservation_check_conserved_energy(self):
+        import math
+
+        from gpd.mcp.servers.verification_server import conservation_check
+
+        # SHO on the unit circle: E = 1/2 v^2 + 1/2 x^2 is exactly conserved.
+        traj = [
+            {"x": math.cos(i * math.pi / 6), "v": -math.sin(i * math.pi / 6), "m": 1.0, "k": 1.0}
+            for i in range(13)
+        ]
+        result = conservation_check("0.5*m*v**2 + 0.5*k*x**2", traj)
+        assert result["verdict"] == "pass"
+        assert result["conserved"] is True
+        assert result["max_relative_drift"] < 1e-6
+
+    def test_conservation_check_catches_drift(self):
+        from gpd.mcp.servers.verification_server import conservation_check
+
+        bad = [{"x": 0.0, "v": 1.0 + 0.05 * i, "m": 1.0, "k": 1.0} for i in range(10)]
+        result = conservation_check("0.5*m*v**2 + 0.5*k*x**2", bad)
+        assert result["verdict"] == "fail"
+        assert result["conserved"] is False
+
+    def test_conservation_check_zero_quantity_absolute_basis(self):
+        from gpd.mcp.servers.verification_server import conservation_check
+
+        result = conservation_check("p1 + p2", [{"p1": 1.0, "p2": -1.0}, {"p1": 2.0, "p2": -2.0}])
+        assert result["verdict"] == "pass"
+        assert result["drift_basis"] == "absolute"
+
+    def test_conservation_check_latex_quantity(self):
+        from gpd.mcp.servers.verification_server import conservation_check
+
+        result = conservation_check(r"\frac{1}{2} m v^2", [{"m": 1, "v": 2}, {"m": 1, "v": 2}])
+        assert result["verdict"] == "pass"
+
+    def test_conservation_check_missing_variable_inconclusive(self):
+        from gpd.mcp.servers.verification_server import conservation_check
+
+        result = conservation_check("a + b", [{"a": 1.0}, {"a": 2.0}])
+        assert result["verdict"] == "inconclusive"
+
+    def test_conservation_check_too_short_inconclusive(self):
+        from gpd.mcp.servers.verification_server import conservation_check
+
+        result = conservation_check("x", [{"x": 1.0}])
+        assert result["verdict"] == "inconclusive"
+
+    def test_conservation_check_invalid_trajectory_returns_error_envelope(self):
+        from gpd.mcp.servers.verification_server import conservation_check
+
+        result = conservation_check("x", "notalist")
+        assert result["schema_version"] == 1
+        assert "error" in result
+
+    def test_conservation_check_unparseable_quantity_inconclusive(self):
+        from gpd.mcp.servers.verification_server import conservation_check
+
+        result = conservation_check("not a real expr $$$", [{"x": 1.0}, {"x": 2.0}])
+        assert result["verdict"] == "inconclusive"
+
+    # --- equation_check (symbolic identity) ---
+
+    def test_equation_check_true_identity(self):
+        from gpd.mcp.servers.verification_server import equation_check
+
+        assert equation_check("sin(x)**2 + cos(x)**2", "1")["verdict"] == "pass"
+
+    def test_equation_check_false_identity(self):
+        from gpd.mcp.servers.verification_server import equation_check
+
+        result = equation_check("sin(x)**2", "1 - cos(x)")
+        assert result["verdict"] == "fail"
+        assert "difference" in result
+
+    def test_equation_check_with_assumption(self):
+        from gpd.mcp.servers.verification_server import equation_check
+
+        # sqrt(x**2) == x only when x is positive.
+        assert equation_check("sqrt(x**2)", "x", {"x": "positive"})["verdict"] == "pass"
+        assert equation_check("sqrt(x**2)", "x")["verdict"] != "pass"
+
+    def test_equation_check_latex(self):
+        from gpd.mcp.servers.verification_server import equation_check
+
+        result = equation_check(r"\frac{a}{b} + \frac{c}{b}", r"\frac{a+c}{b}")
+        assert result["verdict"] == "pass"
+
+    def test_equation_check_unparseable_inconclusive(self):
+        from gpd.mcp.servers.verification_server import equation_check
+
+        assert equation_check("not real $$$", "1")["verdict"] == "inconclusive"
+
+    def test_equation_check_invalid_input_error_envelope(self):
+        from gpd.mcp.servers.verification_server import equation_check
+
+        result = equation_check("x", 5)
+        assert result["schema_version"] == 1
+        assert "error" in result
+
+    # --- series_check (Taylor / asymptotic expansion) ---
+
+    def test_series_check_computes_expansion(self):
+        from gpd.mcp.servers.verification_server import series_check
+
+        result = series_check("sin(x)", "x")
+        assert result["verdict"] == "computed"
+        assert "x**5/120" in result["computed_series"]
+
+    def test_series_check_matches_expected(self):
+        from gpd.mcp.servers.verification_server import series_check
+
+        result = series_check("sin(x)", "x", "0", 6, "x - x**3/6 + x**5/120")
+        assert result["verdict"] == "pass"
+
+    def test_series_check_catches_wrong_expansion(self):
+        from gpd.mcp.servers.verification_server import series_check
+
+        result = series_check("sin(x)", "x", "0", 6, "x - x**3/3")
+        assert result["verdict"] == "fail"
+
+    def test_series_check_latex_geometric(self):
+        from gpd.mcp.servers.verification_server import series_check
+
+        result = series_check(r"\frac{1}{1-x}", "x", "0", 5)
+        assert result["verdict"] == "computed"
+        assert "x**4" in result["computed_series"]
+
+    def test_series_check_invalid_order_error_envelope(self):
+        from gpd.mcp.servers.verification_server import series_check
+
+        result = series_check("sin(x)", "x", "0", 99)
+        assert result["schema_version"] == 1
+        assert "error" in result
+
+    def test_series_check_unparseable_inconclusive(self):
+        from gpd.mcp.servers.verification_server import series_check
+
+        assert series_check("not real $$$", "x")["verdict"] == "inconclusive"
+
+    # --- ode_check (solution satisfies a differential equation) ---
+
+    def test_ode_check_sho_solution(self):
+        from gpd.mcp.servers.verification_server import ode_check
+
+        result = ode_check("y'' + omega**2 * y = 0", "A*cos(omega*x) + B*sin(omega*x)")
+        assert result["verdict"] == "pass"
+
+    def test_ode_check_wrong_solution(self):
+        from gpd.mcp.servers.verification_server import ode_check
+
+        result = ode_check("y'' + omega**2 * y = 0", "A*cos(2*omega*x)")
+        assert result["verdict"] == "fail"
+
+    def test_ode_check_first_order_decay(self):
+        from gpd.mcp.servers.verification_server import ode_check
+
+        result = ode_check("y' + k*y = 0", "C*exp(-k*x)")
+        assert result["verdict"] == "pass"
+
+    def test_ode_check_latex_solution(self):
+        from gpd.mcp.servers.verification_server import ode_check
+
+        result = ode_check("y'' + y = 0", r"\sin(x)")
+        assert result["verdict"] == "pass"
+
+    def test_ode_check_function_absent_inconclusive(self):
+        from gpd.mcp.servers.verification_server import ode_check
+
+        result = ode_check("z + 1 = 0", "x")
+        assert result["verdict"] == "inconclusive"
+
+    # --- symmetry_check scale invariance (Euler homogeneity) ---
+
+    def test_symmetry_check_scale_homogeneous(self):
+        from gpd.mcp.servers.verification_server import symmetry_check
+
+        result = symmetry_check("V = k*x**2", ["scale invariance"])
+        cas = result["results"][0]["cas"]
+        assert cas["scale_degree"] == "2"
+        assert "degree 2" in cas["classification"]
+
+    def test_symmetry_check_scale_not_homogeneous(self):
+        from gpd.mcp.servers.verification_server import symmetry_check
+
+        result = symmetry_check("f = x**2 + x", ["scale"])
+        cas = result["results"][0]["cas"]
+        assert cas["invariant"] is False
+        assert "not scale-homogeneous" in cas["classification"]
+
+    # --- tensor_check (index / contraction consistency) ---
+
+    def test_tensor_check_consistent_maxwell(self):
+        from gpd.mcp.servers.verification_server import tensor_check
+
+        result = tensor_check(r"F^{mu nu} = \partial^{mu} A^{nu} - \partial^{nu} A^{mu}")
+        assert result["verdict"] == "pass"
+        assert result["free_indices"] == ["mu(upper)", "nu(upper)"]
+
+    def test_tensor_check_valid_contraction(self):
+        from gpd.mcp.servers.verification_server import tensor_check
+
+        result = tensor_check(r"S = T^{mu nu} g_{mu nu}")
+        assert result["verdict"] == "pass"
+        assert result["free_indices"] == []
+
+    def test_tensor_check_up_down_mismatch(self):
+        from gpd.mcp.servers.verification_server import tensor_check
+
+        result = tensor_check(r"A^{mu} = B_{mu}")
+        assert result["verdict"] == "fail"
+
+    def test_tensor_check_same_position_repeat(self):
+        from gpd.mcp.servers.verification_server import tensor_check
+
+        result = tensor_check(r"X = A^{mu} B^{mu}")
+        assert result["verdict"] == "fail"
+        assert result["issues"]
+
+    def test_tensor_check_free_index_mismatch(self):
+        from gpd.mcp.servers.verification_server import tensor_check
+
+        result = tensor_check(r"A^{mu} = B^{mu} C^{nu}")
+        assert result["verdict"] == "fail"
+
+    def test_tensor_check_no_equals_inconclusive(self):
+        from gpd.mcp.servers.verification_server import tensor_check
+
+        result = tensor_check(r"A^{mu} B_{mu}")
+        assert result["verdict"] == "inconclusive"
+
+    # --- integral_check (antiderivative / definite integral) ---
+
+    def test_integral_check_antiderivative_correct(self):
+        from gpd.mcp.servers.verification_server import integral_check
+
+        assert integral_check("x**2", "x", "x**3/3")["verdict"] == "pass"
+
+    def test_integral_check_antiderivative_wrong(self):
+        from gpd.mcp.servers.verification_server import integral_check
+
+        assert integral_check("x**2", "x", "x**3")["verdict"] == "fail"
+
+    def test_integral_check_definite(self):
+        from gpd.mcp.servers.verification_server import integral_check
+
+        assert integral_check("x**2", "x", "1/3", "0", "1")["verdict"] == "pass"
+
+    def test_integral_check_gaussian(self):
+        from gpd.mcp.servers.verification_server import integral_check
+
+        assert integral_check("exp(-x**2)", "x", "sqrt(pi)", "-oo", "oo")["verdict"] == "pass"
+
+    def test_integral_check_latex_antiderivative(self):
+        from gpd.mcp.servers.verification_server import integral_check
+
+        assert integral_check(r"\frac{1}{x}", "x", "log(x)")["verdict"] == "pass"
+
+    def test_integral_check_computes_antiderivative(self):
+        from gpd.mcp.servers.verification_server import integral_check
+
+        result = integral_check("cos(x)", "x")
+        assert result["verdict"] == "computed"
+        assert result["antiderivative"] == "sin(x)"
+
+    def test_integral_check_one_bound_error_envelope(self):
+        from gpd.mcp.servers.verification_server import integral_check
+
+        result = integral_check("x", "x", None, "0", None)
+        assert result["schema_version"] == 1
+        assert "error" in result
+
+    # --- commutator_check (operator algebra) ---
+
+    def test_commutator_check_canonical(self):
+        from gpd.mcp.servers.verification_server import commutator_check
+
+        ops = {"X": "x*f", "P": "-I*hbar*f_x"}
+        assert commutator_check(ops, "X", "P", "I*hbar*f")["verdict"] == "pass"
+
+    def test_commutator_check_wrong(self):
+        from gpd.mcp.servers.verification_server import commutator_check
+
+        ops = {"X": "x*f", "P": "-I*hbar*f_x"}
+        assert commutator_check(ops, "X", "P", "f")["verdict"] == "fail"
+
+    def test_commutator_check_self_commutes(self):
+        from gpd.mcp.servers.verification_server import commutator_check
+
+        ops = {"X": "x*f", "P": "-I*hbar*f_x"}
+        assert commutator_check(ops, "X", "X", "0")["verdict"] == "pass"
+
+    def test_commutator_check_missing_operator_inconclusive(self):
+        from gpd.mcp.servers.verification_server import commutator_check
+
+        assert commutator_check({"X": "x*f"}, "X", "P", "f")["verdict"] == "inconclusive"
+
+    # --- pde_check (solution satisfies a partial differential equation) ---
+
+    def test_pde_check_heat_equation(self):
+        from gpd.mcp.servers.verification_server import pde_check
+
+        result = pde_check("u_t = alpha*u_xx", "exp(-alpha*k**2*t)*sin(k*x)", ["t", "x"])
+        assert result["verdict"] == "pass"
+
+    def test_pde_check_wave_equation(self):
+        from gpd.mcp.servers.verification_server import pde_check
+
+        result = pde_check("u_tt = c**2*u_xx", "sin(k*x - c*k*t)", ["t", "x"])
+        assert result["verdict"] == "pass"
+
+    def test_pde_check_laplace(self):
+        from gpd.mcp.servers.verification_server import pde_check
+
+        result = pde_check("u_xx + u_yy = 0", "exp(k*x)*sin(k*y)", ["x", "y"])
+        assert result["verdict"] == "pass"
+
+    def test_pde_check_wrong_solution(self):
+        from gpd.mcp.servers.verification_server import pde_check
+
+        result = pde_check("u_t = alpha*u_xx", "sin(k*x)*t", ["t", "x"])
+        assert result["verdict"] == "fail"
+
+    def test_pde_check_function_absent_inconclusive(self):
+        from gpd.mcp.servers.verification_server import pde_check
+
+        result = pde_check("w + 1 = 0", "x", ["t", "x"])
+        assert result["verdict"] == "inconclusive"
+
+    # --- matrix_check (structural matrix properties) ---
+
+    def test_matrix_check_pauli_x_hermitian(self):
+        from gpd.mcp.servers.verification_server import matrix_check
+
+        assert matrix_check([["0", "1"], ["1", "0"]], "hermitian")["verdict"] == "pass"
+
+    def test_matrix_check_pauli_y_unitary(self):
+        from gpd.mcp.servers.verification_server import matrix_check
+
+        assert matrix_check([["0", "-I"], ["I", "0"]], "unitary")["verdict"] == "pass"
+
+    def test_matrix_check_rotation_orthogonal(self):
+        from gpd.mcp.servers.verification_server import matrix_check
+
+        assert matrix_check([["cos(t)", "-sin(t)"], ["sin(t)", "cos(t)"]], "orthogonal")["verdict"] == "pass"
+
+    def test_matrix_check_not_symmetric(self):
+        from gpd.mcp.servers.verification_server import matrix_check
+
+        assert matrix_check([["1", "2"], ["3", "4"]], "symmetric")["verdict"] == "fail"
+
+    def test_matrix_check_projection_idempotent(self):
+        from gpd.mcp.servers.verification_server import matrix_check
+
+        assert matrix_check([["1", "0"], ["0", "0"]], "idempotent")["verdict"] == "pass"
+
+    def test_matrix_check_non_square_unitary_fails(self):
+        from gpd.mcp.servers.verification_server import matrix_check
+
+        assert matrix_check([["1", "0", "0"], ["0", "1", "0"]], "unitary")["verdict"] == "fail"
+
+    def test_matrix_check_unknown_property_inconclusive(self):
+        from gpd.mcp.servers.verification_server import matrix_check
+
+        assert matrix_check([["1", "0"], ["0", "1"]], "magical")["verdict"] == "inconclusive"
+
+    def test_matrix_check_invalid_entry_error_envelope(self):
+        from gpd.mcp.servers.verification_server import matrix_check
+
+        result = matrix_check([["1", 2], ["3", "4"]], "symmetric")
+        assert result["schema_version"] == 1
+        assert "error" in result
 
     def test_dimensional_check_rejects_whitespace_only_expression(self):
         from gpd.mcp.servers.verification_server import dimensional_check
