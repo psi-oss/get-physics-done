@@ -17,7 +17,9 @@
     "limiting_case_check",
     "symmetry_check",
     "get_verification_coverage",
-    "conservation_check"
+    "conservation_check",
+    "equation_check",
+    "series_check"
   ],
   "registry_prefix": "gpd_verification",
   "prerequisites": [

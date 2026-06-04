@@ -796,3 +796,114 @@ def check_conservation(
             f"{rel_drift if basis == 'relative' else abs_drift:.3g} > {tolerance:.3g})"
         ),
     }
+
+
+# ─── Symbolic identity (equation) checking ─────────────────────────────────────
+
+# Single-symbol assumptions that meaningfully change algebraic equality
+# (e.g. sqrt(x**2) == x only when x is positive).
+_ASSUMPTION_KEYS = frozenset(
+    {"positive", "negative", "nonnegative", "nonzero", "real", "integer", "rational", "complex"}
+)
+
+
+def check_equation(lhs: str, rhs: str, assumptions: dict | None = None, timeout_s: float = _DEFAULT_TIMEOUT_S) -> dict:
+    """Verify whether ``lhs == rhs`` symbolically (plain or LaTeX).
+
+    Optional ``assumptions`` maps a symbol to one of positive/negative/real/
+    integer/... so identities valid only under an assumption (e.g.
+    ``sqrt(x**2) == x`` for ``x`` positive) can be confirmed. Returns
+    pass/fail/inconclusive; undecidable comparisons are inconclusive, never pass.
+    """
+    left = safe_parse(lhs)
+    right = safe_parse(rhs)
+    if left is None or right is None:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": "one or both sides are not machine-parseable"}
+    if assumptions:
+        sympy = _sympy()
+        replacements = {}
+        for name, kind in assumptions.items():
+            key = str(kind).strip().lower()
+            if key in _ASSUMPTION_KEYS:
+                replacements[sympy.Symbol(name)] = sympy.Symbol(name, **{key: True})
+        if replacements:
+            ok_l, left = run_with_timeout(lambda value=left: value.subs(replacements), timeout_s)
+            ok_r, right = run_with_timeout(lambda value=right: value.subs(replacements), timeout_s)
+            if not (ok_l and ok_r):
+                return {"verdict": VERDICT_INCONCLUSIVE, "detail": "could not apply assumptions"}
+
+    equal = symbolic_equal(left, right, timeout_s)
+    if equal is True:
+        return {"verdict": VERDICT_PASS, "detail": "left and right sides are equal"}
+    result = {
+        "verdict": VERDICT_FAIL if equal is False else VERDICT_INCONCLUSIVE,
+        "detail": (
+            "left and right sides are NOT equal"
+            if equal is False
+            else "equality is undecidable — review the simplified difference"
+        ),
+    }
+    ok, difference = run_with_timeout(lambda: _sympy().simplify(left - right), timeout_s)
+    if ok:
+        result["difference"] = str(difference)
+    return result
+
+
+# ─── Series / asymptotic expansion checking ────────────────────────────────────
+
+
+def check_series(
+    expression: str,
+    variable: str,
+    point: str = "0",
+    order: int = 6,
+    expected: str | None = None,
+    timeout_s: float = _DEFAULT_TIMEOUT_S,
+) -> dict:
+    """Compute the series of ``expression`` in ``variable`` about ``point``.
+
+    Returns the truncated expansion (through ``order``). When ``expected`` is
+    given, compares the computed series to it → pass/fail; otherwise the verdict
+    is ``computed``. Unparseable input or a series SymPy cannot evaluate →
+    inconclusive, never a false pass.
+    """
+    expr = safe_parse(expression)
+    if expr is None:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": "expression is not machine-parseable"}
+    point_expr = safe_parse(point)
+    if point_expr is None:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": f"expansion point '{point}' is not machine-parseable"}
+    sympy = _sympy()
+    var = sympy.Symbol(variable)
+    ok, series = run_with_timeout(lambda: expr.series(var, point_expr, order).removeO(), timeout_s)
+    if not ok or series is None:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": f"SymPy could not compute the series ({series})"}
+
+    result: dict = {
+        "variable": variable,
+        "point": str(point_expr),
+        "order": order,
+        "computed_series": str(series),
+    }
+    if expected is None:
+        result["verdict"] = VERDICT_COMPUTED
+        result["detail"] = "computed the series expansion"
+        return result
+    expected_expr = safe_parse(expected)
+    if expected_expr is None:
+        result["verdict"] = VERDICT_COMPUTED
+        result["expected_parsed"] = False
+        result["detail"] = "computed series; expected expansion is prose — compare computed_series manually"
+        return result
+    result["expected_parsed"] = True
+    equal = symbolic_equal(series, expected_expr, timeout_s)
+    if equal is True:
+        result["verdict"] = VERDICT_PASS
+        result["detail"] = "computed series matches the expected expansion"
+    elif equal is False:
+        result["verdict"] = VERDICT_FAIL
+        result["detail"] = "computed series does NOT match the expected expansion"
+    else:
+        result["verdict"] = VERDICT_COMPUTED
+        result["detail"] = "equality undecidable — review computed_series vs expected"
+    return result

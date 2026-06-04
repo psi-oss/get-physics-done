@@ -1389,6 +1389,8 @@ def test_read_only_builtin_mcp_tools_publish_annotations() -> None:
             "symmetry_check",
             "get_verification_coverage",
             "conservation_check",
+            "equation_check",
+            "series_check",
         },
     }
 

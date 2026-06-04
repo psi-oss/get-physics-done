@@ -226,6 +226,8 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
             "symmetry_check",
             "get_verification_coverage",
             "conservation_check",
+            "equation_check",
+            "series_check",
         ],
         "registry_prefix": "gpd_verification",
         "health_check": {

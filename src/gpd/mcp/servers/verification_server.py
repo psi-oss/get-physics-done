@@ -5377,6 +5377,81 @@ def conservation_check(
         return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
 
 
+@mcp.tool(annotations=read_only_tool_annotations())
+def equation_check(lhs: str, rhs: str, assumptions: dict[str, str] | None = None) -> dict:
+    """Verify whether two expressions are algebraically equal (the core of any
+    derivation step).
+
+    Computes ``simplify(lhs - rhs)`` / ``.equals()`` with SymPy and returns a
+    real pass/fail, so equality is checked by the CAS rather than by the agent's
+    mental algebra. Accepts plain or LaTeX expressions. Optional ``assumptions``
+    maps a symbol to positive/negative/real/integer/nonzero/... for identities
+    that hold only under an assumption (e.g. ``sqrt(x**2) = x`` for x > 0).
+    Undecidable comparisons return inconclusive — never a false pass.
+
+    Args:
+        lhs: left-hand side, e.g. "sin(x)**2 + cos(x)**2" or LaTeX.
+        rhs: right-hand side, e.g. "1".
+        assumptions: optional symbol -> assumption (e.g. {"x": "positive"}).
+    """
+    with gpd_span("mcp.verification.equation_check"):
+        validated_lhs, error = _validate_string(lhs, field_name="lhs")
+        if error is not None:
+            return error
+        validated_rhs, error = _validate_string(rhs, field_name="rhs")
+        if error is not None:
+            return error
+        validated_assumptions = None
+        if assumptions is not None:
+            validated_assumptions, error = _validate_string_mapping(assumptions, field_name="assumptions")
+            if error is not None:
+                return error
+        result = _cas.check_equation(validated_lhs, validated_rhs, validated_assumptions)
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
+@mcp.tool(annotations=read_only_tool_annotations())
+def series_check(
+    expression: str, variable: str, point: str = "0", order: int = 6, expected: str | None = None
+) -> dict:
+    """Compute (and optionally verify) a Taylor / asymptotic series expansion.
+
+    Perturbation theory and asymptotic analysis are pervasive in physics and
+    error-prone by hand. This computes ``series(expression, variable, point,
+    order)`` with SymPy; if ``expected`` is supplied it returns a real pass/fail,
+    otherwise it returns the computed expansion. Accepts plain or LaTeX input.
+    Unparseable input or a series SymPy cannot evaluate → inconclusive.
+
+    Args:
+        expression: e.g. "sin(x)" or LaTeX r"\\frac{1}{1-x}".
+        variable: the expansion variable, e.g. "x".
+        point: expansion point ("0", "oo", or a symbol). Defaults to "0".
+        order: truncation order (1..15). Defaults to 6.
+        expected: optional claimed expansion to compare against.
+    """
+    with gpd_span("mcp.verification.series_check"):
+        validated_expression, error = _validate_string(expression, field_name="expression")
+        if error is not None:
+            return error
+        validated_variable, error = _validate_string(variable, field_name="variable")
+        if error is not None:
+            return error
+        validated_point, error = _validate_string(point, field_name="point")
+        if error is not None:
+            return error
+        if isinstance(order, bool) or not isinstance(order, int) or not (1 <= order <= 15):
+            return _error_result("order must be an integer between 1 and 15")
+        validated_expected = None
+        if expected is not None:
+            validated_expected, error = _validate_string(expected, field_name="expected")
+            if error is not None:
+                return error
+        result = _cas.check_series(
+            validated_expression, validated_variable, validated_point, order, validated_expected
+        )
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
 # ─── Entry Point ──────────────────────────────────────────────────────────────
 
 

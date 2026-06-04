@@ -3325,6 +3325,85 @@ class TestVerificationServer:
         result = conservation_check("not a real expr $$$", [{"x": 1.0}, {"x": 2.0}])
         assert result["verdict"] == "inconclusive"
 
+    # --- equation_check (symbolic identity) ---
+
+    def test_equation_check_true_identity(self):
+        from gpd.mcp.servers.verification_server import equation_check
+
+        assert equation_check("sin(x)**2 + cos(x)**2", "1")["verdict"] == "pass"
+
+    def test_equation_check_false_identity(self):
+        from gpd.mcp.servers.verification_server import equation_check
+
+        result = equation_check("sin(x)**2", "1 - cos(x)")
+        assert result["verdict"] == "fail"
+        assert "difference" in result
+
+    def test_equation_check_with_assumption(self):
+        from gpd.mcp.servers.verification_server import equation_check
+
+        # sqrt(x**2) == x only when x is positive.
+        assert equation_check("sqrt(x**2)", "x", {"x": "positive"})["verdict"] == "pass"
+        assert equation_check("sqrt(x**2)", "x")["verdict"] != "pass"
+
+    def test_equation_check_latex(self):
+        from gpd.mcp.servers.verification_server import equation_check
+
+        result = equation_check(r"\frac{a}{b} + \frac{c}{b}", r"\frac{a+c}{b}")
+        assert result["verdict"] == "pass"
+
+    def test_equation_check_unparseable_inconclusive(self):
+        from gpd.mcp.servers.verification_server import equation_check
+
+        assert equation_check("not real $$$", "1")["verdict"] == "inconclusive"
+
+    def test_equation_check_invalid_input_error_envelope(self):
+        from gpd.mcp.servers.verification_server import equation_check
+
+        result = equation_check("x", 5)
+        assert result["schema_version"] == 1
+        assert "error" in result
+
+    # --- series_check (Taylor / asymptotic expansion) ---
+
+    def test_series_check_computes_expansion(self):
+        from gpd.mcp.servers.verification_server import series_check
+
+        result = series_check("sin(x)", "x")
+        assert result["verdict"] == "computed"
+        assert "x**5/120" in result["computed_series"]
+
+    def test_series_check_matches_expected(self):
+        from gpd.mcp.servers.verification_server import series_check
+
+        result = series_check("sin(x)", "x", "0", 6, "x - x**3/6 + x**5/120")
+        assert result["verdict"] == "pass"
+
+    def test_series_check_catches_wrong_expansion(self):
+        from gpd.mcp.servers.verification_server import series_check
+
+        result = series_check("sin(x)", "x", "0", 6, "x - x**3/3")
+        assert result["verdict"] == "fail"
+
+    def test_series_check_latex_geometric(self):
+        from gpd.mcp.servers.verification_server import series_check
+
+        result = series_check(r"\frac{1}{1-x}", "x", "0", 5)
+        assert result["verdict"] == "computed"
+        assert "x**4" in result["computed_series"]
+
+    def test_series_check_invalid_order_error_envelope(self):
+        from gpd.mcp.servers.verification_server import series_check
+
+        result = series_check("sin(x)", "x", "0", 99)
+        assert result["schema_version"] == 1
+        assert "error" in result
+
+    def test_series_check_unparseable_inconclusive(self):
+        from gpd.mcp.servers.verification_server import series_check
+
+        assert series_check("not real $$$", "x")["verdict"] == "inconclusive"
+
     def test_dimensional_check_rejects_whitespace_only_expression(self):
         from gpd.mcp.servers.verification_server import dimensional_check
 
