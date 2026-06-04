@@ -328,6 +328,17 @@ Notes:
 - Output policy: mode=managed; managed root=gpd_managed_durable; default subtree=GPD/literature
 - Staged workflow: `literature-review`.
 
+**`gpd:historical-roast "<historical physicist[, physicist...]>" [target]`**
+Roast a manuscript or artifact through the source-backed voice and priorities of one historical physicist or a comma-separated panel
+
+- `gpd:historical-roast "Emmy Noether" paper/main.tex`
+- `gpd:historical-roast "Noether, Feynman, Dirac" draft/main.md`
+
+Notes:
+- The first argument is one roaster spec: either one historical physicist or a comma-separated panel.
+- Do not use separate `--reviewer` or `--panel` flags; panel mode is inferred from commas in the roaster spec.
+- Historical voice is allowed to be lively, but the review must first build source-backed dossiers.
+
 **`gpd:write-paper [--intake path/to/write-paper-authoring-input.json]`**
 Structure and write a physics paper from project research results or a bounded external-authoring intake
 

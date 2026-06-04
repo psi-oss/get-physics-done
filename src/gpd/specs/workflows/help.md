@@ -135,6 +135,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 ### Writing and publication
 
 - `gpd:literature-review [topic or research question]` - Create a structured literature review under `GPD/literature/` in the current workspace
+- `gpd:historical-roast "<historical physicist[, physicist...]>" [target]` - Produce a source-backed, in-character historical-physicist roast under `GPD/historical-roast/`
 - `gpd:write-paper [--intake path/to/write-paper-authoring-input.json]` - Draft a paper from current project results or one explicit external-authoring intake manifest into the resolved manuscript lane
 - `gpd:peer-review [paper directory | manuscript path | explicit artifact path]` - Run the staged review workflow on the current project manuscript or one explicit artifact
 - `gpd:respond-to-referees [--manuscript PATH --report PATH | report path | paste]` - Draft referee responses and revise the resolved manuscript root
@@ -287,6 +288,11 @@ Notes: Reviews a canonical current-workspace knowledge document using typed appr
 Structured literature review for a physics research topic with citation network analysis and open question identification
 Usage: `gpd:literature-review "holographic superconductors"`
 Notes: Runs on the current project or an explicit topic: a physics research topic or research question, and writes under GPD/literature/ in the current workspace.
+
+**`gpd:historical-roast "<historical physicist[, physicist...]>" [target]`**
+Roast a manuscript or artifact through the source-backed voice and priorities of one historical physicist or a comma-separated panel
+Usage: `gpd:historical-roast "Emmy Noether" paper/main.tex`; `gpd:historical-roast "Noether, Feynman, Dirac" draft/main.md`
+Notes: The first argument is one roaster spec: either one historical physicist or a comma-separated panel. Do not use separate `--reviewer` or `--panel` flags; panel mode is inferred from commas in the roaster spec. Historical voice is allowed to be lively, but the review must first build source-backed dossiers.
 
 **`gpd:write-paper [--intake path/to/write-paper-authoring-input.json]`**
 Structure and write a physics paper from project research results or a bounded external-authoring intake
