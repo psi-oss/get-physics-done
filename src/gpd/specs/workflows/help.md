@@ -100,6 +100,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:execute-phase <phase-number> [--gaps-only]` - Run all plans in a phase, or only gap-closure plans
 - `gpd:autonomous [--from N]` - Run all remaining phases autonomously (discuss→plan→execute→verify each)
 - `gpd:derive-equation` - Run a rigorous derivation workflow from project context or one explicit current-workspace target
+- `gpd:thought-experiment [phase or topic]` - Generate thought experiments and candidate postulates for a project phase or an explicit topic, before rigorous derivation
 
 ### Roadmap and milestones
 
@@ -232,6 +233,11 @@ Verify research results through physics consistency checks
 Perform a rigorous physics derivation with systematic verification at each step
 Usage: `gpd:derive-equation "effective mass from self-energy"`
 Notes: Part of the project-aware technical-analysis lane for explicit current-workspace derivations.
+
+**`gpd:thought-experiment [phase number or topic]`**
+Run Gedanken experiments to generate theoretical postulates and conjectures as inspiration before a rigorous derivation or proof
+Usage: `gpd:thought-experiment "what limits the entanglement entropy of an evaporating black hole"`
+Notes: Produces unproven conjectures filtered by cheap physics checks; it is inspiration, not proof, and routes survivors to gpd:derive-equation or gpd:plan-phase.
 
 **`gpd:dimensional-analysis [phase number or file path]`**
 Systematic dimensional analysis audit on all equations in a derivation or phase

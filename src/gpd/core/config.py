@@ -281,6 +281,13 @@ MODEL_PROFILES: dict[str, dict[str, ModelTier]] = {
         "review": ModelTier.TIER_2,
         "paper-writing": ModelTier.TIER_2,
     },
+    "gpd-thought-experimenter": {
+        "deep-theory": ModelTier.TIER_1,
+        "numerical": ModelTier.TIER_2,
+        "exploratory": ModelTier.TIER_1,
+        "review": ModelTier.TIER_2,
+        "paper-writing": ModelTier.TIER_3,
+    },
 }
 
 _MODEL_PROFILE_KEYS = frozenset(profile.value for profile in ModelProfile)

@@ -1639,6 +1639,7 @@ _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-sync": "management",
     "gpd-branch": "management",
     "gpd-tangent": "planning",
+    "gpd-thought-experiment": "exploration",
     "gpd-respond": "paper",
     "gpd-reapply": "management",
     "gpd-regression": "verification",

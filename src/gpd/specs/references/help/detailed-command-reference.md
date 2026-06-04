@@ -154,6 +154,17 @@ Notes:
 - Subject policy: explicit inputs=equation or topic to derive
 - Output policy: mode=managed; managed root=gpd_managed_durable; default subtree=GPD/analysis; stage artifacts=gpd_owned_outputs_only
 
+**`gpd:thought-experiment [phase number or topic]`**
+Run Gedanken experiments to generate theoretical postulates and conjectures as inspiration before a rigorous derivation or proof
+
+- `gpd:thought-experiment "what limits the entanglement entropy of an evaporating black hole"`
+
+Notes:
+- Produces unproven conjectures filtered by cheap physics checks; it is inspiration, not proof, and routes survivors to gpd:derive-equation or gpd:plan-phase.
+
+- Subject policy: subject=thought_experiment_subject; resolution=phase_or_topic; explicit inputs=phase number or standalone topic
+- Output policy: mode=managed; managed root=gpd_managed_durable; default subtree=GPD/analysis; stage artifacts=gpd_owned_outputs_only
+
 ### Roadmap and milestones
 
 **`gpd:add-phase <description>`**

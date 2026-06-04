@@ -91,6 +91,7 @@ COMMAND_BASELINES = {
     "suggest-next": (95, 3_258, 0),
     "sync-state": (108, 3_637, 1),
     "tangent": (211, 8_206, 1),
+    "thought-experiment": (442, 18_665, 1),
     "tour": (228, 10_119, 2),
     "undo": (348, 11_419, 1),
     "update": (269, 7_655, 1),
@@ -105,6 +106,7 @@ WORST_COMMAND_HARD_CAPS = {
     "settings": (400, 20_500),
     "discover": (510, 20_000),
     "error-propagation": (470, 19_700),
+    "thought-experiment": (480, 19_700),
 }
 PROJECTED_COMMAND_HARD_CAPS = {
     "execute-phase": (140, 7_500),
@@ -189,6 +191,7 @@ WORKFLOW_BASELINES = {
     "start": (241, 16_680, 2),
     "sync-state": (25, 1_384, 0),
     "tangent": (152, 6_349, 0),
+    "thought-experiment": (336, 14_989, 1),
     "tour": (173, 7_924, 1),
     "transition": (270, 8_759, 0),
     "undo": (299, 9_670, 0),
