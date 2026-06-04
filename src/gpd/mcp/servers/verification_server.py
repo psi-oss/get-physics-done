@@ -5452,6 +5452,63 @@ def series_check(
         return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
 
 
+@mcp.tool(annotations=read_only_tool_annotations())
+def ode_check(equation: str, solution: str, variable: str = "x", function: str = "y") -> dict:
+    """Verify a candidate solution satisfies a differential equation.
+
+    Substitutes the solution and its derivatives into the ODE and simplifies the
+    residual with SymPy: zero → pass, provably nonzero → fail. Use prime notation
+    for derivatives of ``function`` (``y``, ``y'``, ``y''`` …); the equation may
+    be a residual or "LHS = RHS".
+
+    Args:
+        equation: e.g. "y'' + omega**2 * y = 0".
+        solution: e.g. "A*cos(omega*x) + B*sin(omega*x)" (plain or LaTeX).
+        variable: the independent variable (default "x").
+        function: the dependent function name used in the equation (default "y").
+    """
+    with gpd_span("mcp.verification.ode_check"):
+        validated_equation, error = _validate_string(equation, field_name="equation")
+        if error is not None:
+            return error
+        validated_solution, error = _validate_string(solution, field_name="solution")
+        if error is not None:
+            return error
+        validated_variable, error = _validate_string(variable, field_name="variable")
+        if error is not None:
+            return error
+        validated_function, error = _validate_string(function, field_name="function")
+        if error is not None:
+            return error
+        result = _cas.check_ode(
+            validated_equation, validated_solution, validated_variable, validated_function
+        )
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
+@mcp.tool(annotations=read_only_tool_annotations())
+def tensor_check(equation: str) -> dict:
+    """Check free/dummy index consistency of a tensor equation.
+
+    Indices are written ``^{...}`` (upper) / ``_{...}`` (lower), space- or
+    backslash-separated, e.g. "F^{mu nu} = \\partial^{mu} A^{nu} - \\partial^{nu} A^{mu}".
+    Verifies every term on a side carries the same free indices in the same
+    up/down position, that the two sides match, and that repeated indices are
+    valid one-up/one-down contractions. Returns pass/fail with the free-index
+    signature and a list of issues; this checks index bookkeeping, not the
+    tensor algebra itself.
+
+    Args:
+        equation: a tensor equation "LHS = RHS" with indexed terms.
+    """
+    with gpd_span("mcp.verification.tensor_check"):
+        validated_equation, error = _validate_string(equation, field_name="equation")
+        if error is not None:
+            return error
+        result = _cas.check_tensor_indices(validated_equation)
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
 # ─── Entry Point ──────────────────────────────────────────────────────────────
 
 

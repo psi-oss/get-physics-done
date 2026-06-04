@@ -3404,6 +3404,97 @@ class TestVerificationServer:
 
         assert series_check("not real $$$", "x")["verdict"] == "inconclusive"
 
+    # --- ode_check (solution satisfies a differential equation) ---
+
+    def test_ode_check_sho_solution(self):
+        from gpd.mcp.servers.verification_server import ode_check
+
+        result = ode_check("y'' + omega**2 * y = 0", "A*cos(omega*x) + B*sin(omega*x)")
+        assert result["verdict"] == "pass"
+
+    def test_ode_check_wrong_solution(self):
+        from gpd.mcp.servers.verification_server import ode_check
+
+        result = ode_check("y'' + omega**2 * y = 0", "A*cos(2*omega*x)")
+        assert result["verdict"] == "fail"
+
+    def test_ode_check_first_order_decay(self):
+        from gpd.mcp.servers.verification_server import ode_check
+
+        result = ode_check("y' + k*y = 0", "C*exp(-k*x)")
+        assert result["verdict"] == "pass"
+
+    def test_ode_check_latex_solution(self):
+        from gpd.mcp.servers.verification_server import ode_check
+
+        result = ode_check("y'' + y = 0", r"\sin(x)")
+        assert result["verdict"] == "pass"
+
+    def test_ode_check_function_absent_inconclusive(self):
+        from gpd.mcp.servers.verification_server import ode_check
+
+        result = ode_check("z + 1 = 0", "x")
+        assert result["verdict"] == "inconclusive"
+
+    # --- symmetry_check scale invariance (Euler homogeneity) ---
+
+    def test_symmetry_check_scale_homogeneous(self):
+        from gpd.mcp.servers.verification_server import symmetry_check
+
+        result = symmetry_check("V = k*x**2", ["scale invariance"])
+        cas = result["results"][0]["cas"]
+        assert cas["scale_degree"] == "2"
+        assert "degree 2" in cas["classification"]
+
+    def test_symmetry_check_scale_not_homogeneous(self):
+        from gpd.mcp.servers.verification_server import symmetry_check
+
+        result = symmetry_check("f = x**2 + x", ["scale"])
+        cas = result["results"][0]["cas"]
+        assert cas["invariant"] is False
+        assert "not scale-homogeneous" in cas["classification"]
+
+    # --- tensor_check (index / contraction consistency) ---
+
+    def test_tensor_check_consistent_maxwell(self):
+        from gpd.mcp.servers.verification_server import tensor_check
+
+        result = tensor_check(r"F^{mu nu} = \partial^{mu} A^{nu} - \partial^{nu} A^{mu}")
+        assert result["verdict"] == "pass"
+        assert result["free_indices"] == ["mu(upper)", "nu(upper)"]
+
+    def test_tensor_check_valid_contraction(self):
+        from gpd.mcp.servers.verification_server import tensor_check
+
+        result = tensor_check(r"S = T^{mu nu} g_{mu nu}")
+        assert result["verdict"] == "pass"
+        assert result["free_indices"] == []
+
+    def test_tensor_check_up_down_mismatch(self):
+        from gpd.mcp.servers.verification_server import tensor_check
+
+        result = tensor_check(r"A^{mu} = B_{mu}")
+        assert result["verdict"] == "fail"
+
+    def test_tensor_check_same_position_repeat(self):
+        from gpd.mcp.servers.verification_server import tensor_check
+
+        result = tensor_check(r"X = A^{mu} B^{mu}")
+        assert result["verdict"] == "fail"
+        assert result["issues"]
+
+    def test_tensor_check_free_index_mismatch(self):
+        from gpd.mcp.servers.verification_server import tensor_check
+
+        result = tensor_check(r"A^{mu} = B^{mu} C^{nu}")
+        assert result["verdict"] == "fail"
+
+    def test_tensor_check_no_equals_inconclusive(self):
+        from gpd.mcp.servers.verification_server import tensor_check
+
+        result = tensor_check(r"A^{mu} B_{mu}")
+        assert result["verdict"] == "inconclusive"
+
     def test_dimensional_check_rejects_whitespace_only_expression(self):
         from gpd.mcp.servers.verification_server import dimensional_check
 

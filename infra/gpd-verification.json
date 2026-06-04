@@ -19,7 +19,9 @@
     "get_verification_coverage",
     "conservation_check",
     "equation_check",
-    "series_check"
+    "series_check",
+    "ode_check",
+    "tensor_check"
   ],
   "registry_prefix": "gpd_verification",
   "prerequisites": [

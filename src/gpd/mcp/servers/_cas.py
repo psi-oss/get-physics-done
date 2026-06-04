@@ -526,12 +526,63 @@ def _pick_variable(free_names: list[str], preferred: tuple[str, ...]) -> str | N
     return None
 
 
+def _scale_symmetry(expr, free_names: list[str], timeout_s: float) -> dict:
+    """Classify scale behavior via Euler's homogeneity theorem.
+
+    Under ``v -> lambda v``, ``f -> lambda^n f`` iff ``v df/dv = n f`` with ``n``
+    constant. Reports the homogeneity degree ``n`` in the chosen variable;
+    scale-invariant means ``n == 0``.
+    """
+    var_name = _pick_variable(free_names, _PARITY_VARS)
+    if var_name is None:
+        return {
+            "attempted": False,
+            "verdict": VERDICT_INCONCLUSIVE,
+            "detail": "could not unambiguously identify a single variable to scale",
+        }
+    sympy = _sympy()
+    var = sympy.Symbol(var_name)
+    ok, ratio = run_with_timeout(lambda: sympy.simplify(var * expr.diff(var) / expr), timeout_s)
+    if not ok:
+        return {
+            "attempted": True,
+            "verdict": VERDICT_INCONCLUSIVE,
+            "transformation": f"{var_name} -> lambda*{var_name}",
+            "detail": f"could not compute the scaling degree ({ratio})",
+        }
+    if ratio.free_symbols:
+        return {
+            "attempted": True,
+            "verdict": VERDICT_COMPUTED,
+            "transformation": f"{var_name} -> lambda*{var_name}",
+            "classification": f"not scale-homogeneous in {var_name}",
+            "invariant": False,
+            "detail": f"expression is not homogeneous under {var_name} -> lambda*{var_name}",
+        }
+    degree = sympy.nsimplify(ratio) if ratio.is_Float else ratio
+    invariant = degree == 0
+    return {
+        "attempted": True,
+        "verdict": VERDICT_COMPUTED,
+        "transformation": f"{var_name} -> lambda*{var_name}",
+        "scale_degree": str(degree),
+        "classification": f"homogeneous of degree {degree} in {var_name}",
+        "invariant": bool(invariant),
+        "detail": (
+            f"expression is scale-invariant in {var_name} (degree 0)"
+            if invariant
+            else f"expression scales as lambda^{degree} under {var_name} -> lambda*{var_name}"
+        ),
+    }
+
+
 def check_symmetry(expression: str, symmetry: str, timeout_s: float = _DEFAULT_TIMEOUT_S) -> dict:
-    """Execute a coordinate-reflection symmetry check where one is well-defined.
+    """Execute a symmetry check where one is well-defined.
 
     Handles parity (``x -> -x``) and time-reversal (``t -> -t``) by substitution
-    and classifies the expression as invariant (even) / odd / neither. Other
-    symmetries (gauge, Lorentz, ...) have no single-substitution test and return
+    (classifying even / odd / neither), and scale / dilation via Euler's
+    homogeneity theorem (reporting the homogeneity degree). Other symmetries
+    (gauge, Lorentz, ...) have no sound single-expression test and return
     inconclusive so the structural ``status`` field still drives those.
     """
     name = symmetry.lower().replace("_", " ").replace("-", " ")
@@ -548,11 +599,13 @@ def check_symmetry(expression: str, symmetry: str, timeout_s: float = _DEFAULT_T
         var_name = _pick_variable(free_names, _PARITY_VARS)
     elif "time" in name and "revers" in name:
         var_name = _pick_variable(free_names, _TIME_VARS)
+    elif "scale" in name or "dilat" in name:
+        return _scale_symmetry(expr, free_names, timeout_s)
     else:
         return {
             "attempted": False,
             "verdict": VERDICT_INCONCLUSIVE,
-            "detail": "no single-substitution transformation defined for this symmetry",
+            "detail": "no executable transformation defined for this symmetry",
         }
 
     if var_name is None:
@@ -907,3 +960,176 @@ def check_series(
         result["verdict"] = VERDICT_COMPUTED
         result["detail"] = "equality undecidable — review computed_series vs expected"
     return result
+
+
+# ─── ODE solution checking ─────────────────────────────────────────────────────
+
+# function + primes, as a whole token: y, y', y'' ...
+def _derivative_pattern(function: str) -> re.Pattern[str]:
+    return re.compile(r"(?<![A-Za-z0-9_])" + re.escape(function) + r"(?P<p>'*)(?![A-Za-z0-9_])")
+
+
+def check_ode(
+    equation: str, solution: str, variable: str = "x", function: str = "y", timeout_s: float = _DEFAULT_TIMEOUT_S
+) -> dict:
+    """Verify a candidate ``solution`` satisfies an ODE by substitution.
+
+    The ODE uses prime notation for derivatives of ``function`` (``y``, ``y'``,
+    ``y''`` …) and may be a residual or an ``LHS = RHS`` equation, e.g.
+    ``"y'' + omega**2 * y = 0"``. Substitutes the solution and its derivatives
+    and simplifies the residual: zero → pass, provably nonzero → fail.
+    Unparseable input or an undecidable residual → inconclusive.
+    """
+    sol = safe_parse(solution)
+    if sol is None:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": "solution is not machine-parseable"}
+    lhs_text, rhs_text = (equation.split("=", 1) + ["0"])[:2] if "=" in equation else (equation, "0")
+
+    pattern = _derivative_pattern(function)
+    orders: set[int] = set()
+
+    def _to_placeholder(match: re.Match[str]) -> str:
+        order = len(match.group("p"))
+        orders.add(order)
+        return f"DERIVPLACE{order}"
+
+    lhs_mod = pattern.sub(_to_placeholder, lhs_text)
+    rhs_mod = pattern.sub(_to_placeholder, rhs_text)
+    if not orders:
+        return {
+            "verdict": VERDICT_INCONCLUSIVE,
+            "detail": f"function '{function}' (optionally primed) not found in the equation",
+        }
+
+    lhs_expr = _parse_plain(lhs_mod)
+    rhs_expr = _parse_plain(rhs_mod)
+    if lhs_expr is None or rhs_expr is None:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": "equation is not machine-parseable"}
+
+    sympy = _sympy()
+    var = sympy.Symbol(variable)
+    substitutions = {}
+    for order in orders:
+        ok, derivative = run_with_timeout(lambda o=order: sympy.diff(sol, var, o), timeout_s)
+        if not ok:
+            return {"verdict": VERDICT_INCONCLUSIVE, "detail": "could not differentiate the solution"}
+        substitutions[sympy.Symbol(f"DERIVPLACE{order}")] = derivative
+
+    ok, residual = run_with_timeout(lambda: sympy.simplify((lhs_expr - rhs_expr).subs(substitutions)), timeout_s)
+    if not ok:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": "could not simplify the residual"}
+
+    is_zero = symbolic_equal(residual, _sympy().Integer(0), timeout_s)
+    if is_zero is True:
+        return {"verdict": VERDICT_PASS, "residual": "0", "detail": "solution satisfies the differential equation"}
+    if is_zero is False:
+        return {
+            "verdict": VERDICT_FAIL,
+            "residual": str(residual),
+            "detail": "solution does NOT satisfy the equation (residual is nonzero)",
+        }
+    return {
+        "verdict": VERDICT_INCONCLUSIVE,
+        "residual": str(residual),
+        "detail": "could not determine whether the residual vanishes",
+    }
+
+
+# ─── Tensor index / contraction consistency ────────────────────────────────────
+
+_INDEX_TOKEN = re.compile(r"\\?[A-Za-z][A-Za-z0-9]*")
+_UPPER_BRACED = re.compile(r"\^\{([^}]*)\}")
+_LOWER_BRACED = re.compile(r"_\{([^}]*)\}")
+_UPPER_SINGLE = re.compile(r"\^(\\?[A-Za-z][A-Za-z0-9]*)")
+_LOWER_SINGLE = re.compile(r"_(\\?[A-Za-z][A-Za-z0-9]*)")
+
+
+def _index_tokens(text: str) -> list[str]:
+    return [re.sub(r"[^A-Za-z0-9]", "", tok) for tok in _INDEX_TOKEN.findall(text)]
+
+
+def _term_indices(term: str) -> tuple[list[str], list[str]]:
+    uppers: list[str] = []
+    lowers: list[str] = []
+    for match in _UPPER_BRACED.finditer(term):
+        uppers += _index_tokens(match.group(1))
+    for match in _LOWER_BRACED.finditer(term):
+        lowers += _index_tokens(match.group(1))
+    stripped = re.sub(r"[\^_]\{[^}]*\}", " ", term)
+    for match in _UPPER_SINGLE.finditer(stripped):
+        uppers += _index_tokens(match.group(1))
+    for match in _LOWER_SINGLE.finditer(stripped):
+        lowers += _index_tokens(match.group(1))
+    return [u for u in uppers if u], [low for low in lowers if low]
+
+
+def _analyze_term(term: str) -> tuple[dict[str, str] | None, str | None]:
+    """Return (free-index map name->position, error) for one term."""
+    uppers, lowers = _term_indices(term)
+    names = set(uppers) | set(lowers)
+    free: dict[str, str] = {}
+    for name in names:
+        up, down = uppers.count(name), lowers.count(name)
+        total = up + down
+        if total == 1:
+            free[name] = "upper" if up else "lower"
+        elif total == 2 and up == 1 and down == 1:
+            continue  # valid contraction
+        else:
+            position = "upper" if up >= 2 else "lower" if down >= 2 else "mixed"
+            if total > 2:
+                return None, f"index '{name}' appears {total} times (max 2 for a valid contraction)"
+            return None, f"index '{name}' is repeated in the same ({position}) position — cannot contract"
+    return free, None
+
+
+def _split_terms(side: str) -> list[str]:
+    return [t.strip() for t in re.split(r"[+\-]", side) if t.strip()]
+
+
+def check_tensor_indices(equation: str) -> dict:
+    """Check free/dummy index consistency of a tensor equation.
+
+    Each side is a sum of terms with indices written ``^{...}`` (upper) /
+    ``_{...}`` (lower), space- or backslash-separated. Verifies that every term
+    in a side carries the same free indices (in the same up/down position), that
+    the two sides match, and that repeated indices are valid one-up/one-down
+    contractions. Returns pass/fail; unparseable input → inconclusive.
+    """
+    if "=" not in equation:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": "equation must contain '=' to compare index structure"}
+    left, right = equation.split("=", 1)
+    left_terms, right_terms = _split_terms(left), _split_terms(right)
+    if not left_terms or not right_terms:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": "could not parse terms on both sides"}
+
+    issues: list[str] = []
+
+    def _side_free(terms: list[str], label: str) -> dict[str, str] | None:
+        side_free: dict[str, str] | None = None
+        for term in terms:
+            free, error = _analyze_term(term)
+            if error is not None:
+                issues.append(f"{label} term '{term}': {error}")
+                continue
+            if side_free is None:
+                side_free = free
+            elif free != side_free:
+                issues.append(f"{label} term '{term}' has free indices {free}, expected {side_free}")
+        return side_free
+
+    left_free = _side_free(left_terms, "LHS")
+    right_free = _side_free(right_terms, "RHS")
+
+    if left_free is not None and right_free is not None and left_free != right_free:
+        issues.append(f"LHS free indices {left_free} differ from RHS {right_free}")
+
+    free_repr = sorted(f"{name}({pos})" for name, pos in (left_free or {}).items())
+    if issues:
+        return {"verdict": VERDICT_FAIL, "free_indices": free_repr, "issues": issues, "detail": "index structure is inconsistent"}
+    return {
+        "verdict": VERDICT_PASS,
+        "free_indices": free_repr,
+        "issues": [],
+        "detail": "index structure is consistent across all terms and both sides",
+    }
