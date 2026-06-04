@@ -103,7 +103,7 @@ _EXPECTED_OPTIONAL_DEPENDENCY_EXTRAS = {
     "httpx": {"arxiv"},
     "pypdf": {"arxiv", "paper"},
 }
-_EXPECTED_BUILD_BACKEND_REQUIREMENT = "hatchling==1.29.0"
+_EXPECTED_BUILD_BACKEND_REQUIREMENT = "hatchling==1.30.1"
 
 
 def _project_script_lines(repo_root: Path) -> list[str]:
