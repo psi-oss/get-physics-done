@@ -100,4 +100,19 @@ stage-stop projection is absent, surface the helper JSON instead of
 hand-rendering a route.
 </step>
 
+<step name="mayfly_notebook_maintenance">
+After the phase is closed, update the Mayfly research notebook so the next
+session starts informed (project_dir=$CWD). Skip silently if the gpd-mayfly
+tools are unavailable.
+
+1. `gpd_mayfly:read_session_log` — check for unprocessed sessions.
+2. For each significant finding: `gpd_mayfly:upsert_knowledge(topic, content)`.
+   Read the existing entry first; preserve prior bullets; add `→ session NNN` links.
+3. `gpd_mayfly:update_frontier` — overwrite FRONTIER.md with updated current best,
+   directions, hypotheses, dead ends. Every direction links to a knowledge entry.
+4. `gpd_mayfly:append_journal_row` — outcome + summary + knowledge_updated slugs.
+5. `gpd_mayfly:write_session_notes` — raw notes (approach, result, what worked/failed).
+6. If new topics or status changes: `gpd_mayfly:update_map`.
+</step>
+
 </process>

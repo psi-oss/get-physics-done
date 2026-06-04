@@ -46,6 +46,7 @@ __all__ = [
     "HOME_DATA_DIR_NAME",
     "LITERATURE_DIR_NAME",
     "KNOWLEDGE_DIR_NAME",
+    "MAYFLY_DIR_NAME",
     "MILESTONES_DIR_NAME",
     "MILESTONES_FILENAME",
     "MIN_PYTHON_MAJOR",
@@ -200,6 +201,9 @@ LITERATURE_DIR_NAME = "literature"
 
 KNOWLEDGE_DIR_NAME = "knowledge"
 """Subdirectory under GPD/ for knowledge documents."""
+
+MAYFLY_DIR_NAME = "mayfly"
+"""Subdirectory under GPD/ for the Mayfly research-campaign notebook."""
 
 RESEARCH_MAP_DIR_NAME = "research-map"
 """Subdirectory under GPD/ for theory/research map files."""
@@ -553,6 +557,38 @@ class ProjectLayout:
     @property
     def knowledge_dir(self) -> Path:
         return self.gpd / KNOWLEDGE_DIR_NAME
+
+    @property
+    def mayfly_dir(self) -> Path:
+        return self.gpd / MAYFLY_DIR_NAME
+
+    @property
+    def mayfly_knowledge_dir(self) -> Path:
+        return self.gpd / MAYFLY_DIR_NAME / "knowledge"
+
+    @property
+    def mayfly_sessions_dir(self) -> Path:
+        return self.gpd / MAYFLY_DIR_NAME / "sessions"
+
+    @property
+    def mayfly_epochs_dir(self) -> Path:
+        return self.gpd / MAYFLY_DIR_NAME / "epochs"
+
+    @property
+    def mayfly_frontier(self) -> Path:
+        return self.gpd / MAYFLY_DIR_NAME / "FRONTIER.md"
+
+    @property
+    def mayfly_map(self) -> Path:
+        return self.gpd / MAYFLY_DIR_NAME / "knowledge" / "MAP.md"
+
+    @property
+    def mayfly_journal(self) -> Path:
+        return self.gpd / MAYFLY_DIR_NAME / "JOURNAL.md"
+
+    @property
+    def mayfly_session_log(self) -> Path:
+        return self.gpd / MAYFLY_DIR_NAME / "session-log.jsonl"
 
     @property
     def research_map_dir(self) -> Path:

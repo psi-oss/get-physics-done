@@ -77,6 +77,7 @@ class SettingsCleanupResult:
     modified: bool = False
     removed_statusline: bool = False
     removed_session_start_hooks: int = 0
+    removed_stop_hooks: int = 0
     removed_mcp_server_keys: tuple[str, ...] = ()
 
 
@@ -90,6 +91,7 @@ HOOK_SCRIPTS: dict[str, str] = {
     "check_update": "check_update.py",
     "notify": "notify.py",
     "runtime_detect": "runtime_detect.py",
+    "mayfly_capture": "mayfly_capture.py",
 }
 
 # ---------------------------------------------------------------------------
@@ -3112,6 +3114,77 @@ def remove_session_start_managed_hooks(
     return removed_count, modified
 
 
+def remove_stop_managed_hooks(
+    settings: dict[str, object],
+    *,
+    managed_hook_filenames: Iterable[str],
+    target_dir: Path,
+    config_dir_name: str | None,
+) -> tuple[int, bool]:
+    """Remove managed Stop hook items while preserving unrelated entries.
+
+    Returns ``(removed_hook_count, modified)``.
+    """
+    hook_filenames = tuple(managed_hook_filenames)
+    if not hook_filenames:
+        return 0, False
+
+    hooks = settings.get("hooks")
+    if not isinstance(hooks, dict):
+        return 0, False
+    stop_hooks = hooks.get("Stop")
+    if not isinstance(stop_hooks, list):
+        return 0, False
+
+    removed_count = 0
+    modified = False
+    normalized_stop: list[object] = []
+
+    for entry in stop_hooks:
+        if not isinstance(entry, dict):
+            normalized_stop.append(entry)
+            continue
+        entry_hooks = entry.get("hooks")
+        if not isinstance(entry_hooks, list):
+            normalized_stop.append(entry)
+            continue
+
+        remaining: list[object] = []
+        for hook in entry_hooks:
+            if _is_managed_session_start_hook(
+                hook,
+                managed_hook_filenames=hook_filenames,
+                target_dir=target_dir,
+                config_dir_name=config_dir_name,
+            ):
+                removed_count += 1
+                modified = True
+            else:
+                remaining.append(hook)
+
+        if remaining:
+            if remaining != entry_hooks:
+                normalized_entry = dict(entry)
+                normalized_entry["hooks"] = remaining
+                normalized_stop.append(normalized_entry)
+                modified = True
+            else:
+                normalized_stop.append(entry)
+
+    if normalized_stop:
+        if modified:
+            hooks["Stop"] = normalized_stop
+    elif "Stop" in hooks:
+        del hooks["Stop"]
+        modified = True
+
+    if not hooks:
+        del settings["hooks"]
+        modified = True
+
+    return removed_count, modified
+
+
 def remove_managed_mcp_server_keys(
     settings_or_config: dict[str, object],
     *,
@@ -3139,6 +3212,7 @@ def cleanup_settings_json_managed_entries(
     target_dir: Path,
     config_dir_name: str | None,
     session_start_hook_filenames: Iterable[str],
+    stop_hook_filenames: Iterable[str] = (),
     mcp_server_keys: AbstractSet[str],
     remove_statusline: bool = True,
 ) -> SettingsCleanupResult:
@@ -3157,11 +3231,18 @@ def cleanup_settings_json_managed_entries(
         target_dir=target_dir,
         config_dir_name=config_dir_name,
     )
+    removed_stop_hooks, stop_modified = remove_stop_managed_hooks(
+        settings,
+        managed_hook_filenames=stop_hook_filenames,
+        target_dir=target_dir,
+        config_dir_name=config_dir_name,
+    )
     removed_mcp_server_keys = remove_managed_mcp_server_keys(settings, managed_keys=mcp_server_keys)
     return SettingsCleanupResult(
-        modified=removed_statusline or session_start_modified or bool(removed_mcp_server_keys),
+        modified=removed_statusline or session_start_modified or stop_modified or bool(removed_mcp_server_keys),
         removed_statusline=removed_statusline,
         removed_session_start_hooks=removed_session_start_hooks,
+        removed_stop_hooks=removed_stop_hooks,
         removed_mcp_server_keys=removed_mcp_server_keys,
     )
 
@@ -3280,6 +3361,92 @@ def ensure_update_hook(
 
     if changed:
         hooks["SessionStart"] = normalized_session_start
+
+
+def ensure_mayfly_stop_hook(
+    settings: dict[str, object],
+    mayfly_capture_command: str,
+    *,
+    target_dir: Path | None = None,
+    config_dir_name: str | None = None,
+) -> None:
+    """Ensure the Stop hook has one up-to-date GPD mayfly-capture entry.
+
+    The Stop hook fires after each Claude response and records which GPD
+    commands were run since the last capture into GPD/mayfly/session-log.jsonl.
+    No LLM call is made — the hook is pure Python and exits in milliseconds
+    when nothing relevant has changed.
+
+    Follows the same idempotent upsert pattern as ensure_update_hook so
+    reinstalls repair interpreter or path drift without duplicating entries.
+    """
+    hooks = settings.setdefault("hooks", {})
+    if not isinstance(hooks, dict):
+        hooks = {}
+        settings["hooks"] = hooks
+
+    stop_hooks = hooks.setdefault("Stop", [])
+    if not isinstance(stop_hooks, list):
+        stop_hooks = []
+        hooks["Stop"] = stop_hooks
+
+    normalized: list[object] = []
+    managed_found = False
+    changed = False
+
+    for entry in stop_hooks:
+        if not isinstance(entry, dict):
+            normalized.append(entry)
+            continue
+        entry_hooks = entry.get("hooks")
+        if not isinstance(entry_hooks, list):
+            normalized.append(entry)
+            continue
+
+        normalized_hooks: list[object] = []
+        for hook in entry_hooks:
+            if not isinstance(hook, dict):
+                normalized_hooks.append(hook)
+                continue
+            cmd = hook.get("command", "")
+            if not _is_hook_command_for_script(
+                cmd,
+                HOOK_SCRIPTS["mayfly_capture"],
+                target_dir=target_dir,
+                config_dir_name=config_dir_name,
+            ):
+                normalized_hooks.append(hook)
+                continue
+            if managed_found:
+                changed = True
+                continue
+            managed_found = True
+            desired = dict(hook)
+            if desired.get("type") != "command" or desired.get("command") != mayfly_capture_command:
+                desired["type"] = "command"
+                desired["command"] = mayfly_capture_command
+                changed = True
+            normalized_hooks.append(desired)
+
+        if normalized_hooks != entry_hooks:
+            changed = True
+            if not normalized_hooks:
+                continue
+            normalized_entry = dict(entry)
+            normalized_entry["hooks"] = normalized_hooks
+            normalized.append(normalized_entry)
+        else:
+            normalized.append(entry)
+
+    if not managed_found:
+        normalized.append({"hooks": [{"type": "command", "command": mayfly_capture_command}]})
+        changed = True
+        _install_logger.info("Configured mayfly capture Stop hook")
+    elif changed:
+        _install_logger.info("Updated mayfly capture Stop hook")
+
+    if changed:
+        hooks["Stop"] = normalized
 
 
 def finish_install(

@@ -17,6 +17,7 @@ from gpd.adapters.install_utils import (
     compile_markdown_for_runtime,
     convert_tool_references_in_body,
     copy_with_path_replacement,
+    ensure_mayfly_stop_hook,
     ensure_update_hook,
     parse_jsonc,
     prune_empty_ancestors,
@@ -316,6 +317,24 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         else:
             logger.warning("Skipping update check hook because hooks/check_update.py is not GPD-managed")
 
+        should_install_mayfly_hook = self._installed_hook_script_available(HOOK_SCRIPTS["mayfly_capture"])
+        if should_install_mayfly_hook:
+            mayfly_capture_command = build_hook_command(
+                target_dir,
+                HOOK_SCRIPTS["mayfly_capture"],
+                is_global=is_global,
+                config_dir_name=self.config_dir_name,
+                explicit_target=getattr(self, "_install_explicit_target", False),
+            )
+            ensure_mayfly_stop_hook(
+                settings,
+                mayfly_capture_command,
+                target_dir=target_dir,
+                config_dir_name=self.config_dir_name,
+            )
+        else:
+            logger.warning("Skipping mayfly capture hook because hooks/mayfly_capture.py is not GPD-managed")
+
         # Wire MCP servers into the correct config file.
         # Claude Code reads mcpServers from:
         #   Global: ~/.claude.json
@@ -607,6 +626,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                 target_dir=target_dir,
                 config_dir_name=self.config_dir_name,
                 session_start_hook_filenames=(HOOK_SCRIPTS["check_update"], HOOK_SCRIPTS["statusline"]),
+                stop_hook_filenames=(HOOK_SCRIPTS["mayfly_capture"],),
                 mcp_server_keys=runtime_managed_mcp_server_keys(),
             )
             modified = modified or cleanup.modified

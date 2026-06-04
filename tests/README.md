@@ -38,11 +38,11 @@ It covers:
 - `src/gpd/specs/templates/**/*.md`: `81`
 - `src/gpd/specs/references/**/*.md`: `241`
 - `src/gpd/adapters/*.py`: `15`
-- `src/gpd/hooks/*.py`: `11`
+- `src/gpd/hooks/*.py`: `12`
 - `src/gpd/mcp/*.py`: `5`
 - `src/gpd/mcp/integrations/*.py`: `2`
-- `src/gpd/mcp/servers/*.py`: `15`
-- `infra/gpd-*.json`: `8`
+- `src/gpd/mcp/servers/*.py`: `16`
+- `infra/gpd-*.json`: `9`
 
 Excluded as noise from node counting, but still modeled where contractually relevant:
 

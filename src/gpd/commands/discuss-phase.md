@@ -52,3 +52,14 @@ Execute the included workflow. Preserve its late-read rule for
 - CONTEXT.md captures decisions, not vague aspirations
 - User knows next steps
   </success_criteria>
+
+<mayfly_maintenance>
+**After discussion concludes** — capture key decisions and open questions
+in the Mayfly notebook (project_dir=$CWD):
+
+1. For each resolved question or key decision: `gpd_mayfly:upsert_knowledge`.
+2. `gpd_mayfly:update_frontier` — update active hypotheses and open directions.
+3. `gpd_mayfly:append_journal_row` — outcome=partial or new_best as appropriate.
+
+Skip silently if gpd-mayfly tools are unavailable.
+</mayfly_maintenance>

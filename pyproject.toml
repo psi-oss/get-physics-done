@@ -74,6 +74,7 @@ gpd = "gpd.cli:entrypoint"
 "gpd-mcp-wolfram" = "gpd.mcp.integrations.wolfram_bridge:main"
 "gpd-mcp-state" = "gpd.mcp.servers.state_server:main"
 "gpd-mcp-skills" = "gpd.mcp.servers.skills_server:main"
+"gpd-mcp-mayfly" = "gpd.mcp.servers.mayfly_server:main"
 
 [project.urls]
 Homepage = "https://github.com/psi-oss/get-physics-done"
