@@ -5600,6 +5600,71 @@ def commutator_check(operators: dict[str, str], a: str, b: str, expected: str, v
         return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
 
 
+@mcp.tool(annotations=read_only_tool_annotations())
+def pde_check(equation: str, solution: str, variables: list[str], function: str = "u") -> dict:
+    """Verify a candidate solution satisfies a partial differential equation.
+
+    Partial derivatives of ``function`` use subscript notation — each letter
+    after ``_`` is one differentiation w.r.t. that variable: ``u_t``, ``u_xx``,
+    ``u_xt`` (mixed). The equation may be a residual or "LHS = RHS". Substitutes
+    the solution and its partials and simplifies the residual: zero → pass,
+    nonzero → fail.
+
+    Args:
+        equation: e.g. the heat equation "u_t = alpha * u_xx".
+        solution: e.g. "exp(-alpha*k**2*t) * sin(k*x)" (plain or LaTeX).
+        variables: the independent variables, e.g. ["t", "x"].
+        function: the dependent function name (default "u").
+    """
+    with gpd_span("mcp.verification.pde_check"):
+        validated_equation, error = _validate_string(equation, field_name="equation")
+        if error is not None:
+            return error
+        validated_solution, error = _validate_string(solution, field_name="solution")
+        if error is not None:
+            return error
+        validated_variables, error = _validate_string_list(variables, field_name="variables")
+        if error is not None:
+            return error
+        validated_function, error = _validate_string(function, field_name="function")
+        if error is not None:
+            return error
+        result = _cas.check_pde(
+            validated_equation, validated_solution, validated_variables, validated_function
+        )
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
+@mcp.tool(annotations=read_only_tool_annotations())
+def matrix_check(matrix: list[list[str]], property: str) -> dict:
+    """Verify a structural property of a matrix.
+
+    ``property`` is one of: symmetric, antisymmetric, hermitian, anti-hermitian,
+    unitary, orthogonal, idempotent (projection), involutory, normal. Entries are
+    expression strings; ``I`` denotes the imaginary unit (e.g. the Pauli matrix
+    ``Y = [["0", "-I"], ["I", "0"]]``). Returns pass/fail; unparseable entries or
+    an undecidable comparison → inconclusive.
+
+    Args:
+        matrix: rows of entry strings, e.g. [["0", "1"], ["1", "0"]] (Pauli X).
+        property: the property to verify.
+    """
+    with gpd_span("mcp.verification.matrix_check"):
+        if not isinstance(matrix, list) or not matrix:
+            return _error_result("matrix must be a non-empty list of rows")
+        for index, row in enumerate(matrix):
+            if not isinstance(row, list) or not row:
+                return _error_result(f"matrix[{index}] must be a non-empty list of entry strings")
+            for col, cell in enumerate(row):
+                if not isinstance(cell, str):
+                    return _error_result(f"matrix[{index}][{col}] must be a string")
+        validated_property, error = _validate_string(property, field_name="property")
+        if error is not None:
+            return error
+        result = _cas.check_matrix(matrix, validated_property)
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
 # ─── Entry Point ──────────────────────────────────────────────────────────────
 
 

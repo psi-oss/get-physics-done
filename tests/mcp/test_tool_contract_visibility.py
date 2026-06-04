@@ -1395,6 +1395,8 @@ def test_read_only_builtin_mcp_tools_publish_annotations() -> None:
             "tensor_check",
             "integral_check",
             "commutator_check",
+            "pde_check",
+            "matrix_check",
         },
     }
 

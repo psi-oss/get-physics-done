@@ -3561,6 +3561,82 @@ class TestVerificationServer:
 
         assert commutator_check({"X": "x*f"}, "X", "P", "f")["verdict"] == "inconclusive"
 
+    # --- pde_check (solution satisfies a partial differential equation) ---
+
+    def test_pde_check_heat_equation(self):
+        from gpd.mcp.servers.verification_server import pde_check
+
+        result = pde_check("u_t = alpha*u_xx", "exp(-alpha*k**2*t)*sin(k*x)", ["t", "x"])
+        assert result["verdict"] == "pass"
+
+    def test_pde_check_wave_equation(self):
+        from gpd.mcp.servers.verification_server import pde_check
+
+        result = pde_check("u_tt = c**2*u_xx", "sin(k*x - c*k*t)", ["t", "x"])
+        assert result["verdict"] == "pass"
+
+    def test_pde_check_laplace(self):
+        from gpd.mcp.servers.verification_server import pde_check
+
+        result = pde_check("u_xx + u_yy = 0", "exp(k*x)*sin(k*y)", ["x", "y"])
+        assert result["verdict"] == "pass"
+
+    def test_pde_check_wrong_solution(self):
+        from gpd.mcp.servers.verification_server import pde_check
+
+        result = pde_check("u_t = alpha*u_xx", "sin(k*x)*t", ["t", "x"])
+        assert result["verdict"] == "fail"
+
+    def test_pde_check_function_absent_inconclusive(self):
+        from gpd.mcp.servers.verification_server import pde_check
+
+        result = pde_check("w + 1 = 0", "x", ["t", "x"])
+        assert result["verdict"] == "inconclusive"
+
+    # --- matrix_check (structural matrix properties) ---
+
+    def test_matrix_check_pauli_x_hermitian(self):
+        from gpd.mcp.servers.verification_server import matrix_check
+
+        assert matrix_check([["0", "1"], ["1", "0"]], "hermitian")["verdict"] == "pass"
+
+    def test_matrix_check_pauli_y_unitary(self):
+        from gpd.mcp.servers.verification_server import matrix_check
+
+        assert matrix_check([["0", "-I"], ["I", "0"]], "unitary")["verdict"] == "pass"
+
+    def test_matrix_check_rotation_orthogonal(self):
+        from gpd.mcp.servers.verification_server import matrix_check
+
+        assert matrix_check([["cos(t)", "-sin(t)"], ["sin(t)", "cos(t)"]], "orthogonal")["verdict"] == "pass"
+
+    def test_matrix_check_not_symmetric(self):
+        from gpd.mcp.servers.verification_server import matrix_check
+
+        assert matrix_check([["1", "2"], ["3", "4"]], "symmetric")["verdict"] == "fail"
+
+    def test_matrix_check_projection_idempotent(self):
+        from gpd.mcp.servers.verification_server import matrix_check
+
+        assert matrix_check([["1", "0"], ["0", "0"]], "idempotent")["verdict"] == "pass"
+
+    def test_matrix_check_non_square_unitary_fails(self):
+        from gpd.mcp.servers.verification_server import matrix_check
+
+        assert matrix_check([["1", "0", "0"], ["0", "1", "0"]], "unitary")["verdict"] == "fail"
+
+    def test_matrix_check_unknown_property_inconclusive(self):
+        from gpd.mcp.servers.verification_server import matrix_check
+
+        assert matrix_check([["1", "0"], ["0", "1"]], "magical")["verdict"] == "inconclusive"
+
+    def test_matrix_check_invalid_entry_error_envelope(self):
+        from gpd.mcp.servers.verification_server import matrix_check
+
+        result = matrix_check([["1", 2], ["3", "4"]], "symmetric")
+        assert result["schema_version"] == 1
+        assert "error" in result
+
     def test_dimensional_check_rejects_whitespace_only_expression(self):
         from gpd.mcp.servers.verification_server import dimensional_check
 

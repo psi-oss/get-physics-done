@@ -1286,3 +1286,146 @@ def check_commutator(
             else f"could not decide whether [{a}, {b}] matches the expected result"
         ),
     }
+
+
+# ─── PDE solution checking ─────────────────────────────────────────────────────
+
+
+def check_pde(
+    equation: str, solution: str, variables: list[str], function: str = "u", timeout_s: float = _DEFAULT_TIMEOUT_S
+) -> dict:
+    """Verify a candidate ``solution`` satisfies a PDE by substitution.
+
+    Partial derivatives of ``function`` use subscript notation — each letter
+    after ``_`` is one differentiation w.r.t. that variable: ``u_t``, ``u_xx``,
+    ``u_xt`` (mixed). The equation may be a residual or ``LHS = RHS``, e.g. the
+    heat equation ``"u_t = alpha * u_xx"``. Substitutes the solution and its
+    partials and simplifies the residual: zero → pass, nonzero → fail.
+    """
+    sol = safe_parse(solution)
+    if sol is None:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": "solution is not machine-parseable"}
+    sympy = _sympy()
+    var_syms: dict[str, object] = {}
+    for name in variables:
+        if not isinstance(name, str) or not name.isidentifier():
+            return {"verdict": VERDICT_INCONCLUSIVE, "detail": f"invalid variable name '{name}'"}
+        var_syms[name] = sympy.Symbol(name)
+
+    lhs_text, rhs_text = (equation.split("=", 1) + ["0"])[:2] if "=" in equation else (equation, "0")
+    pattern = re.compile(
+        r"(?<![A-Za-z0-9_])" + re.escape(function) + r"(?:_(?P<sub>[A-Za-z]+))?(?![A-Za-z0-9_])"
+    )
+    subscripts: set[str] = set()
+
+    def _to_placeholder(match: re.Match[str]) -> str:
+        sub = match.group("sub") or ""
+        subscripts.add(sub)
+        return f"PDEDERIV_{sub or 'BASE'}"
+
+    lhs_mod = pattern.sub(_to_placeholder, lhs_text)
+    rhs_mod = pattern.sub(_to_placeholder, rhs_text)
+    if not subscripts:
+        return {
+            "verdict": VERDICT_INCONCLUSIVE,
+            "detail": f"function '{function}' (optionally subscripted) not found in the equation",
+        }
+
+    lhs_expr = _parse_plain(lhs_mod)
+    rhs_expr = _parse_plain(rhs_mod)
+    if lhs_expr is None or rhs_expr is None:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": "equation is not machine-parseable"}
+
+    substitutions = {}
+    for sub in subscripts:
+        if not sub:
+            derivative = sol
+        else:
+            diff_args = []
+            for char in sub:
+                if char not in var_syms:
+                    return {"verdict": VERDICT_INCONCLUSIVE, "detail": f"subscript variable '{char}' is not in variables"}
+                diff_args.append(var_syms[char])
+            ok, derivative = run_with_timeout(lambda args=diff_args: sympy.diff(sol, *args), timeout_s)
+            if not ok:
+                return {"verdict": VERDICT_INCONCLUSIVE, "detail": "could not differentiate the solution"}
+        substitutions[sympy.Symbol(f"PDEDERIV_{sub or 'BASE'}")] = derivative
+
+    ok, residual = run_with_timeout(lambda: sympy.simplify((lhs_expr - rhs_expr).subs(substitutions)), timeout_s)
+    if not ok:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": "could not simplify the residual"}
+    is_zero = symbolic_equal(residual, sympy.Integer(0), timeout_s)
+    if is_zero is True:
+        return {"verdict": VERDICT_PASS, "residual": "0", "detail": "solution satisfies the PDE"}
+    if is_zero is False:
+        return {"verdict": VERDICT_FAIL, "residual": str(residual), "detail": "solution does NOT satisfy the PDE"}
+    return {"verdict": VERDICT_INCONCLUSIVE, "residual": str(residual), "detail": "could not determine whether the residual vanishes"}
+
+
+# ─── Matrix property checking ──────────────────────────────────────────────────
+
+_MATRIX_DIFFS = {
+    "symmetric": lambda m, eye: m - m.T,
+    "antisymmetric": lambda m, eye: m + m.T,
+    "skew-symmetric": lambda m, eye: m + m.T,
+    "hermitian": lambda m, eye: m - m.H,
+    "anti-hermitian": lambda m, eye: m + m.H,
+    "unitary": lambda m, eye: m.H * m - eye,
+    "orthogonal": lambda m, eye: m.T * m - eye,
+    "idempotent": lambda m, eye: m * m - m,
+    "projection": lambda m, eye: m * m - m,
+    "involutory": lambda m, eye: m * m - eye,
+    "normal": lambda m, eye: m.H * m - m * m.H,
+}
+_MATRIX_NEEDS_SQUARE = {
+    "hermitian", "anti-hermitian", "unitary", "orthogonal", "idempotent", "projection", "involutory", "normal"
+}
+
+
+def check_matrix(rows: list[list[str]], prop: str, timeout_s: float = _DEFAULT_TIMEOUT_S) -> dict:
+    """Verify a structural property of a matrix (entries are expression strings).
+
+    ``prop`` is one of symmetric / antisymmetric / hermitian / anti-hermitian /
+    unitary / orthogonal / idempotent (projection) / involutory / normal. ``I``
+    in entries is the imaginary unit (e.g. Pauli ``Y = [[0, -I], [I, 0]]``).
+    Returns pass/fail; unparseable entries or an undecidable comparison →
+    inconclusive.
+    """
+    sympy = _sympy()
+    parsed: list[list[object]] = []
+    for row in rows:
+        if not isinstance(row, list) or not row:
+            return {"verdict": VERDICT_INCONCLUSIVE, "detail": "matrix must be a non-empty list of rows"}
+        parsed_row = []
+        for cell in row:
+            entry = safe_parse(cell) if isinstance(cell, str) else None
+            if entry is None:
+                return {"verdict": VERDICT_INCONCLUSIVE, "detail": f"matrix entry '{cell}' is not machine-parseable"}
+            parsed_row.append(entry.subs(sympy.Symbol("I"), sympy.I))
+        parsed.append(parsed_row)
+    if any(len(row) != len(parsed[0]) for row in parsed):
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": "matrix rows have differing lengths"}
+
+    matrix = sympy.Matrix(parsed)
+    key = prop.strip().lower().replace(" ", "-").replace("_", "-")
+    if key == "antihermitian":
+        key = "anti-hermitian"
+    if key not in _MATRIX_DIFFS:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": f"unknown matrix property '{prop}'"}
+    square = matrix.rows == matrix.cols
+    if key in _MATRIX_NEEDS_SQUARE and not square:
+        return {"verdict": VERDICT_FAIL, "shape": f"{matrix.rows}x{matrix.cols}", "detail": f"matrix is not square, so it cannot be {prop}"}
+
+    eye = sympy.eye(matrix.rows) if square else None
+    ok, difference = run_with_timeout(lambda: _MATRIX_DIFFS[key](matrix, eye).applyfunc(sympy.simplify), timeout_s)
+    if not ok:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": "could not evaluate the matrix property"}
+    zero = difference.is_zero_matrix
+    return {
+        "verdict": VERDICT_PASS if zero is True else VERDICT_FAIL if zero is False else VERDICT_INCONCLUSIVE,
+        "property": prop,
+        "shape": f"{matrix.rows}x{matrix.cols}",
+        "detail": (
+            f"matrix is {prop}" if zero is True else f"matrix is NOT {prop}" if zero is False else f"could not decide whether the matrix is {prop}"
+        ),
+    }

@@ -23,7 +23,9 @@
     "ode_check",
     "tensor_check",
     "integral_check",
-    "commutator_check"
+    "commutator_check",
+    "pde_check",
+    "matrix_check"
   ],
   "registry_prefix": "gpd_verification",
   "prerequisites": [
