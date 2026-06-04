@@ -87,6 +87,48 @@ yields untrustworthy recommendations. This gate runs independently of
 `autonomy=supervised`).
 </reward_hacking_integrity_gate>
 
+<deslopification_gate>
+Run the deslopification gate AFTER the reward-hacking integrity gate and BEFORE
+`pre_submission_review`. The integrity gate secures claim/evidence integrity; this
+gate makes the manuscript read like expert work WITHOUT hiding the remaining issues.
+Peer review must see the cleaned manuscript plus `DESLOP-FLAGS.md`, never the raw
+agent scaffolding. Authority:
+`{GPD_INSTALL_DIR}/references/publication/deslopification-gate.md`. Always runs on a
+finalized manuscript; fail-closed on release blockers; never edits a protected span.
+
+1. Spawn `gpd-discipline-editor` (`readonly=false`) via the canonical delegation
+   convention:
+
+   ```python
+   task(
+     subagent_type="gpd-discipline-editor",
+     model="{writer_model}",
+     readonly=false,
+     prompt="Read {GPD_AGENTS_DIR}/gpd-discipline-editor.md and {GPD_INSTALL_DIR}/references/publication/deslopification-gate.md. Run the four-pass deslopification gate on ${manuscript_entrypoint} in --mode apply. Freeze all protected spans and the claim/notation/citation ledgers first; route each paragraph KEEP/EDIT/FLAG; apply only invariant-passing style edits; FLAG (never fix) everything substantive. Write ${PAPER_DIR}/DESLOP-AUDIT.jsonl, ${PAPER_DIR}/DESLOP-AUDIT.md, ${PAPER_DIR}/DESLOP-FLAGS.md, ${PAPER_DIR}/DESLOP-SUMMARY.json and the edited manuscript.\n\n<autonomy_mode>{AUTONOMY}</autonomy_mode>\n<research_mode>{RESEARCH_MODE}</research_mode>",
+     description="Deslopification gate"
+   )
+   ```
+
+2. Read `${PAPER_DIR}/DESLOP-SUMMARY.json`. If `gate_status` is `clean` or
+   `edited_with_flags` and `release_blocker_count == 0`, append a one-line entry to
+   `${PAPER_DIR}/CRITIQUE-LOG.md` (`edits=N, flags=M`) and proceed to
+   `pre_submission_review` with the cleaned manuscript.
+
+3. If `release_blocker_count > 0` (`gate_status: blocked`): do NOT proceed to peer
+   review.
+   - `autonomy=yolo`: record blockers in `CRITIQUE-LOG.md` and `gpd_return.issues`;
+     recommend the author actions in `DESLOP-FLAGS.md` (resolve placeholder citations,
+     scaffolding leakage, notation order).
+   - `autonomy=supervised|balanced`: present the `DESLOP-FLAGS.md` blockers (location,
+     why, recommended action) and ask whether to (1) resolve now via the delegated
+     owner, (2) accept as a known limitation, or (3) hold the manuscript. Re-run this
+     gate after resolution.
+
+Never silently waive: peer review on a manuscript still leaking agent scaffolding or
+carrying placeholder citations yields untrustworthy recommendations. Style edits here
+never alter a protected span; `DESLOP-AUDIT.md` is the by-line proof.
+</deslopification_gate>
+
 <pre_submission_review>
 Branch by write-paper lane before finalizing.
 

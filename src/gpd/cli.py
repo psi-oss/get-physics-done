@@ -5905,6 +5905,9 @@ def config_ensure_section() -> None:
 validate_app = typer.Typer(help="Validation checks")
 app.add_typer(validate_app, name="validate")
 
+deslop_app = typer.Typer(help="Deslopification gate tools")
+app.add_typer(deslop_app, name="deslop")
+
 verification_report_app = typer.Typer(help="Verification report skeleton helpers")
 app.add_typer(verification_report_app, name="verification-report")
 
@@ -9526,6 +9529,50 @@ def validate_paper_quality(
     _output(report)
     if not report.ready_for_submission:
         raise typer.Exit(code=1)
+
+
+@deslop_app.command("scan")
+def deslop_scan(
+    manuscript: str = typer.Argument(..., help="Path to the manuscript (.tex or extracted text)"),
+    mode: str = typer.Option("audit", "--mode", help="audit | apply | ci"),
+    no_write: bool = typer.Option(False, "--no-write", help="Do not write DESLOP-* artifacts"),
+) -> None:
+    """Scan a manuscript for AI/agent tells; in apply mode, apply only invariant-verified edits."""
+    from gpd.core.deslopification import _summary, scan_manuscript
+
+    path = _resolve_path_from_effective_cwd(manuscript)
+    if not path.exists():
+        _error(f"Manuscript not found: {path}")
+    res = scan_manuscript(path, mode=mode, write=not no_write)
+    _output(_summary(res))
+    if mode == "ci" and res.gate_status == "blocked":
+        raise typer.Exit(code=1)
+
+
+@deslop_app.command("check")
+def deslop_check(
+    before: str = typer.Argument(..., help="Path to the pre-edit text"),
+    after: str = typer.Argument(..., help="Path to the post-edit text"),
+) -> None:
+    """Prove an edit changed no protected span (math, citations, numbers, theorem status)."""
+    from gpd.core.deslopification import check_invariants
+    from gpd.core.utils import safe_read_file
+
+    b = safe_read_file(_resolve_path_from_effective_cwd(before)) or ""
+    a = safe_read_file(_resolve_path_from_effective_cwd(after)) or ""
+    report = check_invariants(b, a, is_tex=before.endswith(".tex"))
+    _output(report)
+    if not report["passed"]:
+        raise typer.Exit(code=2)
+
+
+@validate_app.command("deslop-invariants")
+def validate_deslop_invariants(
+    before: str = typer.Argument(..., help="Path to the pre-edit text"),
+    after: str = typer.Argument(..., help="Path to the post-edit text"),
+) -> None:
+    """Alias of `gpd deslop check`: fail (exit 2) if any protected span drifted."""
+    deslop_check(before, after)
 
 
 @validate_app.command("project-contract")
