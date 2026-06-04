@@ -51,6 +51,7 @@ review-contract:
     - unresolved publication blockers
     - same-round or newer response artifacts without newer staged peer-review clearance
     - latest staged peer-review recommendation blocks submission packaging
+    - unresolved deslopification release blockers (scaffolding leakage or placeholder/submission-time-check citations); run `gpd deslop scan <manuscript> --mode ci`
     - degraded review integrity
   preflight_checks:
     - command_context
