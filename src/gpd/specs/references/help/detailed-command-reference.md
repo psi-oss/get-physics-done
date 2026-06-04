@@ -183,6 +183,18 @@ Archive completed research milestone and prepare the next investigation stage
 
 ### Validation and analysis
 
+**`gpd:super-checker <task description or artifact> [--critics N] [--loops N]`**
+Iterative multi-critic review loop — Agent A produces a result, N independent critics fact-check it in parallel, a meta-critic synthesizes the critiques into a complete review, Agent A revises, and the loop repeats until convergence or the loop limit is reached
+
+- `gpd:super-checker "Derive the ground-state energy of the quantum harmonic oscillator"`
+- `gpd:super-checker "Verify the one-loop beta function for QCD" --critics 5`
+- `gpd:super-checker "Check the numerical result in GPD/phases/03-simulation/RESULTS.md" --loops 3`
+
+Notes:
+- Default critics N=3, default loops N=5.
+- The loop exits early when the meta-critic finds no substantive criticisms.
+- The final response includes the converged result and any remaining concerns.
+
 **`gpd:verify-work [phase] [--dimensional] [--limits] [--convergence] [--regression] [--all]`**
 Verify research results through physics consistency checks
 

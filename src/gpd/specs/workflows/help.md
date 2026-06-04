@@ -113,6 +113,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 
 ### Validation and analysis
 
+- `gpd:super-checker <task or artifact> [--critics N] [--loops N]` - Iterative multi-critic review-revision loop until convergence
 - `gpd:verify-work [phase]` - Run physics verification checks
 - `gpd:debug [issue description]` - Start a persistent debug session
 - `gpd:dimensional-analysis` - Check dimensional consistency for a project phase or one explicit current-workspace file
@@ -227,6 +228,11 @@ Execute all plans in a phase with wave-based parallelization
 
 **`gpd:verify-work [phase] [--dimensional] [--limits] [--convergence] [--regression] [--all]`**
 Verify research results through physics consistency checks
+
+**`gpd:super-checker <task description or artifact> [--critics N] [--loops N]`**
+Iterative multi-critic review loop — Agent A produces a result, N independent critics fact-check it in parallel, a meta-critic synthesizes the critiques into a complete review, Agent A revises, and the loop repeats until convergence or the loop limit is reached
+Usage: `gpd:super-checker "Derive the ground-state energy of the quantum harmonic oscillator"`; `gpd:super-checker "Verify the one-loop beta function for QCD" --critics 5`; `gpd:super-checker "Check the numerical result in GPD/phases/03-simulation/RESULTS.md" --loops 3`
+Notes: Default critics N=3, default loops N=5. The loop exits early when the meta-critic finds no substantive criticisms. The final response includes the converged result and any remaining concerns.
 
 **`gpd:derive-equation [equation or topic to derive]`**
 Perform a rigorous physics derivation with systematic verification at each step

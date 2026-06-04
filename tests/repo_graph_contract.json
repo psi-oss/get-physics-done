@@ -19,9 +19,9 @@
     "dist"
   ],
   "scope_counts": {
-    "`src/gpd/commands/*.md`": 71,
-    "`src/gpd/agents/*.md`": 24,
-    "`src/gpd/specs/workflows/*.md`": 72,
+    "`src/gpd/commands/*.md`": 72,
+    "`src/gpd/agents/*.md`": 27,
+    "`src/gpd/specs/workflows/*.md`": 73,
     "`src/gpd/specs/templates/**/*.md`": 81,
     "`src/gpd/specs/references/**/*.md`": 241,
     "`src/gpd/adapters/*.py`": 15,
@@ -94,6 +94,7 @@
       "show-phase",
       "slides",
       "start",
+      "super-checker",
       "sync-state",
       "tangent",
       "tour",

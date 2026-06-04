@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PROMPT_TOTAL_BUDGET = {"lines": 42_900, "chars": 1_773_000}
 PROMPT_KIND_BUDGETS = {
     "command": {"lines": 20_200, "chars": 760_000},
-    "agent": {"lines": 6_500, "chars": 363_000},
+    "agent": {"lines": 6_800, "chars": 375_000},
     "workflow": {"lines": 15_300, "chars": 618_000},
 }
 STAGE_FIRST_TURN_BUDGET = {"lines": 3_180, "chars": 134_000}

@@ -22,6 +22,7 @@ EXPECTED_WORKFLOW_COUNTS = {
     "parameter-sweep.md": 1,
     "plan-phase.md": 1,
     "research-phase.md": 1,
+    "super-checker.md": 4,
     "verify-work.md": 1,
     "verify-phase.md": 1,
 }

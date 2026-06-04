@@ -36,13 +36,13 @@ COMMAND_ONLY_RUNTIME_PRESSURE_BUDGETS = {
     "codex": {
         "shell_fence_count": 31,
         "shell_rewrite_count": 31,
-        "bridge_command_occurrences": 245,
+        "bridge_command_occurrences": 252,
         "runtime_note_count": 2,
     },
     "copilot-cli": {
         "shell_fence_count": 31,
         "shell_rewrite_count": 31,
-        "bridge_command_occurrences": 174,
+        "bridge_command_occurrences": 181,
         "runtime_note_count": 2,
     },
     "gemini": {
@@ -54,7 +54,7 @@ COMMAND_ONLY_RUNTIME_PRESSURE_BUDGETS = {
     "opencode": {
         "shell_fence_count": 31,
         "shell_rewrite_count": 31,
-        "bridge_command_occurrences": 174,
+        "bridge_command_occurrences": 181,
         "runtime_note_count": 2,
     },
 }

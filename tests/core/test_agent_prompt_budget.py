@@ -30,8 +30,8 @@ PATH_PREFIX = "/runtime/"
 
 MIN_LINE_MARGIN = 20
 MIN_CHAR_MARGIN = 1_000
-PHASE5_MAX_TOTAL_AGENT_EXPANDED_CHARS = 363_000
-PHASE5_FINAL_TOTAL_AGENT_EXPANDED_CHARS = 355_000
+PHASE5_MAX_TOTAL_AGENT_EXPANDED_CHARS = 375_000
+PHASE5_FINAL_TOTAL_AGENT_EXPANDED_CHARS = 367_000
 PHASE5_MAX_AGENT_EXPANDED_CHARS = 36_500
 PHASE5_MIN_ROLE_KIT_AGENT_COUNT = 12
 PHASE5_LARGE_AGENT_DROP_THRESHOLD_CHARS = 2_000
@@ -46,6 +46,7 @@ AGENT_BASELINES = {
     "gpd-experiment-designer": (360, 21_301),
     "gpd-explainer": (241, 9_508),
     "gpd-literature-reviewer": (395, 14_820),
+    "gpd-meta-critic": (79, 4_042),
     "gpd-notation-coordinator": (301, 20_042),
     "gpd-paper-writer": (416, 26_879),
     "gpd-phase-researcher": (370, 15_315),
@@ -55,6 +56,8 @@ AGENT_BASELINES = {
     "gpd-referee": (395, 29_711),
     "gpd-research-mapper": (355, 18_717),
     "gpd-research-synthesizer": (371, 22_366),
+    "gpd-result-critic": (88, 4_124),
+    "gpd-result-solver": (75, 3_028),
     "gpd-review-literature": (53, 2_591),
     "gpd-review-math": (54, 3_343),
     "gpd-review-physics": (53, 2_604),
