@@ -403,6 +403,14 @@ Create presentation slides from a GPD project or the current folder
 **`gpd:tangent [optional description]`**
 Choose how to handle a possible side investigation without silently widening scope
 
+**`gpd:btw <text to add as context>`**
+Add context, notes, or background information to the current conversation
+
+- `gpd:btw The coupling constant must be positive for stability`
+
+Notes:
+- Accepts inline text of any length via $ARGUMENTS; writes no files and modifies no project state.
+
 **`gpd:branch-hypothesis <description>`**
 Create a hypothesis branch for parallel investigation of an alternative approach
 

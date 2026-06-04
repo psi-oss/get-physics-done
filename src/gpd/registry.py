@@ -109,7 +109,7 @@ _PKG_ROOT = Path(__file__).resolve().parent  # gpd/
 AGENTS_DIR = _PKG_ROOT / "agents"
 COMMANDS_DIR = _PKG_ROOT / "commands"
 _MODEL_VISIBLE_INCLUDE_PATH_PREFIX = "{GPD_INSTALL_DIR}/__gpd_registry_include__/"
-LOCAL_CLI_BRIDGE_WORKFLOW_EXEMPT_COMMANDS: frozenset[str] = frozenset({"health", "suggest-next"})
+LOCAL_CLI_BRIDGE_WORKFLOW_EXEMPT_COMMANDS: frozenset[str] = frozenset({"btw", "health", "suggest-next"})
 
 # ─── Frontmatter parsing helpers ────────────────────────────────────────────
 
@@ -1646,6 +1646,7 @@ _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-help": "help",
     "gpd-suggest": "help",
     # Full-name entries for skills not captured by prefix matching.
+    "gpd-btw": "session",
     "gpd-bibliographer": "research",
     "gpd-check-todos": "management",
     "gpd-consistency-checker": "verification",

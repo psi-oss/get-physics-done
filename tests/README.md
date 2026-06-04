@@ -32,7 +32,7 @@ It covers:
 
 <!-- repo-graph-scope:start -->
 
-- `src/gpd/commands/*.md`: `71`
+- `src/gpd/commands/*.md`: `72`
 - `src/gpd/agents/*.md`: `24`
 - `src/gpd/specs/workflows/*.md`: `72`
 - `src/gpd/specs/templates/**/*.md`: `81`
@@ -68,7 +68,7 @@ Prompt stem inventory:
 
 <!-- repo-graph-prompt-stem-inventory:start -->
 - Same-stem command/workflow prompt stems: `69`
-- Command-only prompt stems: `health`, `suggest-next`
+- Command-only prompt stems: `btw`, `health`, `suggest-next`
 - Workflow-only prompt stems: `execute-plan`, `transition`, `verify-phase`
 <!-- repo-graph-prompt-stem-inventory:end -->
 

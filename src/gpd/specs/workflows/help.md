@@ -144,6 +144,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 ### Tangents, memory, and exports
 
 - `gpd:tangent [description]` - Chooser for stay / quick / defer / branch when a side investigation appears
+- `gpd:btw <text to add as context>` - Add paste-friendly context, notes, or background inline
 - `gpd:branch-hypothesis <description>` - Explicit git-backed alternative path for a side investigation
 - `gpd:compare-branches` - Compare results across hypothesis branches
 - `gpd:pause-work` - Save a continuation handoff before stepping away
@@ -402,6 +403,7 @@ Related knobs: `execution.review_cadence`, `planning.commit_docs`, and `git.bran
 - Suggested by `gpd:progress`: run `gpd:compact-state` when state compaction is useful.
 - Updates: `gpd:update` runs the public bootstrap update command for the active runtime and preserves local modifications via patch backups.
 - Compound route example: ordered compound sequence `gpd:complete-milestone` then `gpd:new-milestone`.
+- Add context mid-conversation (paste-friendly): `gpd:btw The lattice spacing must satisfy a < 1/Lambda for the continuum limit`; paste a referee comment, equation, constraint, or any background text inline after `gpd:btw`.
 
 ## Getting Help
 

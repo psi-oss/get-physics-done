@@ -1082,7 +1082,10 @@ def test_commands_are_workflow_backed_or_explicitly_exempt() -> None:
 
     for command_stem in sorted(exempt_commands):
         command_text = (COMMANDS_DIR / f"{command_stem}.md").read_text(encoding="utf-8")
-        if command_stem == "health":
+        if command_stem == "btw":
+            assert "$ARGUMENTS" in command_text
+            assert "@{GPD_INSTALL_DIR}/workflows/btw.md" not in command_text
+        elif command_stem == "health":
             assert "gpd --raw health" in command_text
             assert "@{GPD_INSTALL_DIR}/workflows/health.md" not in command_text
         elif command_stem == "suggest-next":

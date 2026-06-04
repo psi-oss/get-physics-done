@@ -19,7 +19,7 @@
     "dist"
   ],
   "scope_counts": {
-    "`src/gpd/commands/*.md`": 71,
+    "`src/gpd/commands/*.md`": 72,
     "`src/gpd/agents/*.md`": 24,
     "`src/gpd/specs/workflows/*.md`": 72,
     "`src/gpd/specs/templates/**/*.md`": 81,
@@ -104,6 +104,7 @@
       "write-paper"
     ],
     "command_only_stems": [
+      "btw",
       "health",
       "suggest-next"
     ],

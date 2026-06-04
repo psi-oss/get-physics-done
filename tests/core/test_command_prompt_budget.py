@@ -32,6 +32,7 @@ COMMAND_BASELINES = {
     "audit-milestone": (518, 20_292, 1),
     "autonomous": (77, 2_089, 1),
     "branch-hypothesis": (383, 11_072, 1),
+    "btw": (52, 1_907, 0),
     "check-todos": (241, 6_763, 1),
     "compact-state": (259, 8_283, 1),
     "compare-branches": (395, 12_490, 1),
