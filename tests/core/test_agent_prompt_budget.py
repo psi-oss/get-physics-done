@@ -30,7 +30,7 @@ PATH_PREFIX = "/runtime/"
 
 MIN_LINE_MARGIN = 20
 MIN_CHAR_MARGIN = 1_000
-PHASE5_MAX_TOTAL_AGENT_EXPANDED_CHARS = 363_000
+PHASE5_MAX_TOTAL_AGENT_EXPANDED_CHARS = 380_000
 PHASE5_FINAL_TOTAL_AGENT_EXPANDED_CHARS = 355_000
 PHASE5_MAX_AGENT_EXPANDED_CHARS = 36_500
 PHASE5_MIN_ROLE_KIT_AGENT_COUNT = 12
@@ -45,8 +45,11 @@ AGENT_BASELINES = {
     "gpd-executor": (608, 35_923),
     "gpd-experiment-designer": (360, 21_301),
     "gpd-explainer": (241, 9_508),
+    "gpd-ideation-critic": (32, 1_662),
+    "gpd-ideator": (30, 1_653),
     "gpd-literature-reviewer": (395, 14_820),
     "gpd-notation-coordinator": (301, 20_042),
+    "gpd-paper-digester": (30, 1_863),
     "gpd-paper-writer": (416, 26_879),
     "gpd-phase-researcher": (370, 15_315),
     "gpd-plan-checker": (351, 19_893),

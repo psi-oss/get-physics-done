@@ -300,6 +300,19 @@ Notes:
 - Subject policy: subject=knowledge_document; resolution=explicit_input_to_canonical_current_workspace_target; explicit inputs=knowledge_document_path, source_path, arxiv_id, topic; external subjects allowed=true
 - Output policy: mode=managed; managed root=gpd_managed_durable; default subtree=GPD/knowledge; stage artifacts=gpd_owned_outputs_only
 
+**`gpd:ideate [topic|papers|arXiv IDs|PDFs|TeX files|folder|GPD/knowledge docs] [--depth fast|balanced|deep]`**
+Source-grounded research ideation from papers, arXiv IDs, PDFs, TeX files, folders, knowledge docs, or an explicit topic
+
+- `gpd:ideate "quantum memory in disordered spin chains" 2401.12345 ./papers/review.pdf`
+- `gpd:ideate ./papers ./GPD/knowledge/K-renormalization-group-fixed-points.md --depth balanced`
+
+Notes:
+- Creates durable ideation files under `GPD/blackboards/` in the current workspace.
+- Topic-only runs must pass the workflow source gate before ranked source-grounded ideas are reported.
+
+- Subject policy: subject=ideation_intake; resolution=ideation_sources_or_topic; explicit inputs=topic, papers, arXiv IDs, PDF/TeX files, folder, or GPD/knowledge docs; external subjects allowed=true
+- Output policy: mode=managed; managed root=gpd_managed_durable; default subtree=GPD/blackboards; stage artifacts=gpd_owned_outputs_only
+
 **`gpd:review-knowledge [knowledge path or knowledge id]`**
 Review a current-workspace knowledge document for approval, changes, or promotion gating
 

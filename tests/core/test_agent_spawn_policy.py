@@ -112,6 +112,24 @@ def test_representative_agents_expose_expected_metadata_policy() -> None:
             "artifact_write_authority": "scoped_write",
             "shared_state_authority": "return_only",
         },
+        "gpd-paper-digester": {
+            "surface": "internal",
+            "role_family": "analysis",
+            "artifact_write_authority": "scoped_write",
+            "shared_state_authority": "return_only",
+        },
+        "gpd-ideator": {
+            "surface": "internal",
+            "role_family": "analysis",
+            "artifact_write_authority": "scoped_write",
+            "shared_state_authority": "return_only",
+        },
+        "gpd-ideation-critic": {
+            "surface": "internal",
+            "role_family": "review",
+            "artifact_write_authority": "scoped_write",
+            "shared_state_authority": "return_only",
+        },
     }
 
     for name, expected in expectations.items():

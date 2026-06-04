@@ -81,8 +81,8 @@ class TestEnums:
 
 
 class TestModelProfiles:
-    def test_all_24_agents_present(self):
-        assert len(MODEL_PROFILES) == 24
+    def test_all_27_agents_present(self):
+        assert len(MODEL_PROFILES) == 27
 
     def test_all_agents_have_5_profiles(self):
         profiles = {profile.value for profile in ModelProfile}
@@ -98,6 +98,29 @@ class TestModelProfiles:
         tiers = MODEL_PROFILES["gpd-research-mapper"]
         assert tiers["deep-theory"] == ModelTier.TIER_2
         assert tiers["numerical"] == ModelTier.TIER_3
+
+    def test_ideate_mvp_agents_use_approved_profile_tiers(self):
+        assert MODEL_PROFILES["gpd-paper-digester"] == {
+            ModelProfile.DEEP_THEORY.value: ModelTier.TIER_1,
+            ModelProfile.NUMERICAL.value: ModelTier.TIER_2,
+            ModelProfile.EXPLORATORY.value: ModelTier.TIER_2,
+            ModelProfile.REVIEW.value: ModelTier.TIER_2,
+            ModelProfile.PAPER_WRITING.value: ModelTier.TIER_2,
+        }
+        assert MODEL_PROFILES["gpd-ideator"] == {
+            ModelProfile.DEEP_THEORY.value: ModelTier.TIER_1,
+            ModelProfile.NUMERICAL.value: ModelTier.TIER_2,
+            ModelProfile.EXPLORATORY.value: ModelTier.TIER_1,
+            ModelProfile.REVIEW.value: ModelTier.TIER_2,
+            ModelProfile.PAPER_WRITING.value: ModelTier.TIER_2,
+        }
+        assert MODEL_PROFILES["gpd-ideation-critic"] == {
+            ModelProfile.DEEP_THEORY.value: ModelTier.TIER_1,
+            ModelProfile.NUMERICAL.value: ModelTier.TIER_2,
+            ModelProfile.EXPLORATORY.value: ModelTier.TIER_2,
+            ModelProfile.REVIEW.value: ModelTier.TIER_1,
+            ModelProfile.PAPER_WRITING.value: ModelTier.TIER_2,
+        }
 
     def test_agent_default_tiers_match_agents(self):
         assert set(AGENT_DEFAULT_TIERS.keys()) == set(MODEL_PROFILES.keys())

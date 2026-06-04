@@ -15,6 +15,7 @@ WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 EXPECTED_WORKFLOW_COUNTS = {
     "derive-equation.md": 1,
     "execute-phase.md": 2,
+    "ideate.md": 3,
     "literature-review.md": 2,
     "map-research.md": 4,
     "new-milestone.md": 3,

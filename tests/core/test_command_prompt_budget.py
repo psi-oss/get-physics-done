@@ -54,6 +54,7 @@ COMMAND_BASELINES = {
     "graph": (337, 10_491, 1),
     "health": (103, 3_132, 0),
     "help": (113, 5_723, 0),
+    "ideate": (474, 19_304, 1),
     "insert-phase": (198, 5_913, 1),
     "limiting-cases": (317, 11_484, 1),
     "list-phase-assumptions": (393, 14_092, 1),
@@ -101,6 +102,7 @@ COMMAND_BASELINES = {
 WORST_COMMAND_HARD_CAPS = {
     "compare-experiment": (540, 22_500),
     "audit-milestone": (560, 21_500),
+    "ideate": (540, 20_500),
     "start": (330, 21_000),
     "settings": (400, 20_500),
     "discover": (510, 20_000),
@@ -153,6 +155,7 @@ WORKFLOW_BASELINES = {
     "export-logs": (170, 6_195, 0),
     "graph": (258, 8_108, 0),
     "help": (441, 32_986, 0),
+    "ideate": (389, 16_361, 1),
     "insert-phase": (151, 4_335, 0),
     "limiting-cases": (238, 9_282, 0),
     "list-phase-assumptions": (279, 9_881, 0),

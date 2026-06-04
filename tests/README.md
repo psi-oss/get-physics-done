@@ -32,10 +32,10 @@ It covers:
 
 <!-- repo-graph-scope:start -->
 
-- `src/gpd/commands/*.md`: `71`
-- `src/gpd/agents/*.md`: `24`
-- `src/gpd/specs/workflows/*.md`: `72`
-- `src/gpd/specs/templates/**/*.md`: `81`
+- `src/gpd/commands/*.md`: `72`
+- `src/gpd/agents/*.md`: `27`
+- `src/gpd/specs/workflows/*.md`: `73`
+- `src/gpd/specs/templates/**/*.md`: `84`
 - `src/gpd/specs/references/**/*.md`: `241`
 - `src/gpd/adapters/*.py`: `15`
 - `src/gpd/hooks/*.py`: `11`
@@ -67,7 +67,7 @@ Excluded as noise from node counting, but still modeled where contractually rele
 Prompt stem inventory:
 
 <!-- repo-graph-prompt-stem-inventory:start -->
-- Same-stem command/workflow prompt stems: `69`
+- Same-stem command/workflow prompt stems: `70`
 - Command-only prompt stems: `health`, `suggest-next`
 - Workflow-only prompt stems: `execute-plan`, `transition`, `verify-phase`
 <!-- repo-graph-prompt-stem-inventory:end -->
@@ -565,7 +565,7 @@ flowchart TD
   Canonical parser for agent prompt definitions.
 
 <!-- repo-graph-same-stem-command-workflow:start -->
-- `src/gpd/commands/{add-phase,add-todo,arxiv-submission,audit-milestone,autonomous,branch-hypothesis,check-todos,compact-state,compare-branches,compare-experiment,compare-results,complete-milestone,debug,decisions,derive-equation,digest-knowledge,dimensional-analysis,discover,discuss-phase,error-patterns,error-propagation,execute-phase,explain,export,export-logs,graph,help,insert-phase,limiting-cases,list-phase-assumptions,literature-review,map-research,merge-phases,new-milestone,new-project,numerical-convergence,parameter-sweep,pause-work,peer-review,plan-milestone-gaps,plan-phase,progress,quick,reapply-patches,record-backtrack,record-insight,regression-check,remove-phase,research-phase,respond-to-referees,resume-work,review-knowledge,revise-phase,route,sensitivity-analysis,set-profile,set-tier-models,settings,show-phase,slides,start,sync-state,tangent,tour,undo,update,validate-conventions,verify-work,write-paper}.md -> src/gpd/specs/workflows/{same stems}.md`
+- `src/gpd/commands/{add-phase,add-todo,arxiv-submission,audit-milestone,autonomous,branch-hypothesis,check-todos,compact-state,compare-branches,compare-experiment,compare-results,complete-milestone,debug,decisions,derive-equation,digest-knowledge,dimensional-analysis,discover,discuss-phase,error-patterns,error-propagation,execute-phase,explain,export,export-logs,graph,help,ideate,insert-phase,limiting-cases,list-phase-assumptions,literature-review,map-research,merge-phases,new-milestone,new-project,numerical-convergence,parameter-sweep,pause-work,peer-review,plan-milestone-gaps,plan-phase,progress,quick,reapply-patches,record-backtrack,record-insight,regression-check,remove-phase,research-phase,respond-to-referees,resume-work,review-knowledge,revise-phase,route,sensitivity-analysis,set-profile,set-tier-models,settings,show-phase,slides,start,sync-state,tangent,tour,undo,update,validate-conventions,verify-work,write-paper}.md -> src/gpd/specs/workflows/{same stems}.md`
 <!-- repo-graph-same-stem-command-workflow:end -->
   `include`
   Explicit same-stem command-to-workflow includes are node-level edges, not just an aggregate count.

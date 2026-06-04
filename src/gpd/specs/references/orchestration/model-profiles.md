@@ -33,6 +33,9 @@ If no override is configured for the active runtime, `gpd resolve-model` returns
 | gpd-consistency-checker  | tier-1        | tier-2      | tier-2        | tier-1   | tier-2          |
 | gpd-paper-writer         | tier-1        | tier-2      | tier-2        | tier-2   | tier-1          |
 | gpd-literature-reviewer  | tier-1        | tier-2      | tier-1        | tier-2   | tier-2          |
+| gpd-paper-digester       | tier-1        | tier-2      | tier-2        | tier-2   | tier-2          |
+| gpd-ideator              | tier-1        | tier-2      | tier-1        | tier-2   | tier-2          |
+| gpd-ideation-critic      | tier-1        | tier-2      | tier-2        | tier-1   | tier-2          |
 | gpd-bibliographer        | tier-2        | tier-3      | tier-3        | tier-2   | tier-1          |
 | gpd-explainer            | tier-1        | tier-2      | tier-1        | tier-1   | tier-1          |
 | gpd-review-reader        | tier-2        | tier-2      | tier-2        | tier-2   | tier-2          |

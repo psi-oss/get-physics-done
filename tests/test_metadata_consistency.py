@@ -472,10 +472,14 @@ def test_paper_journal_vocabulary_docs_match_builder_contract() -> None:
 
 
 def test_agent_count_matches_prompts_and_user_docs() -> None:
-    agents_count = len(list((_repo_root() / "src" / "gpd" / "agents").glob("*.md")))
-    assert agents_count == len(MODEL_PROFILES)
+    ideate_mvp_agents = {"gpd-paper-digester", "gpd-ideator", "gpd-ideation-critic"}
+    agent_prompt_names = {path.stem for path in (_repo_root() / "src" / "gpd" / "agents").glob("*.md")}
+
+    assert len(MODEL_PROFILES) == 27
+    assert ideate_mvp_agents <= set(MODEL_PROFILES)
+    assert agent_prompt_names == set(MODEL_PROFILES)
     assert "specialist agents" in _read("README.md")
-    assert f"across all {agents_count} agents" in _read("src/gpd/specs/workflows/set-profile.md")
+    assert f"across all {len(MODEL_PROFILES)} agents" in _read("src/gpd/specs/workflows/set-profile.md")
 
 
 def test_settings_workflow_documents_runtime_native_model_override_guidance() -> None:

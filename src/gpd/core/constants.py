@@ -24,6 +24,7 @@ __all__ = [
     "ACTIVE_TRACE_FILENAME",
     "ANALYSIS_DIR_NAME",
     "AGENT_ID_FILENAME",
+    "BLACKBOARDS_DIR_NAME",
     "CHECKPOINTS_FILENAME",
     "CONFIG_FILENAME",
     "CONTEXT_SUFFIX",
@@ -44,6 +45,7 @@ __all__ = [
     "EXECUTION_LINEAGE_REDUCER_VERSION",
     "EXECUTION_LINEAGE_SCHEMA_VERSION",
     "HOME_DATA_DIR_NAME",
+    "IDEATE_FILE_PREFIX",
     "LITERATURE_DIR_NAME",
     "KNOWLEDGE_DIR_NAME",
     "MILESTONES_DIR_NAME",
@@ -155,6 +157,12 @@ PHASE_CHECKPOINTS_DIR_NAME = "phase-checkpoints"
 
 ANALYSIS_DIR_NAME = "analysis"
 """Subdirectory under GPD/ for internal analysis/provenance reports."""
+
+BLACKBOARDS_DIR_NAME = "blackboards"
+"""Subdirectory under GPD/ for durable blackboard-style session artifacts."""
+
+IDEATE_FILE_PREFIX = "ideate"
+"""Filename prefix for durable ``gpd:ideate`` session artifacts."""
 
 TRACES_DIR_NAME = "traces"
 """Subdirectory under GPD/ for execution trace JSONL files."""
@@ -501,6 +509,10 @@ class ProjectLayout:
     @property
     def analysis_dir(self) -> Path:
         return self.gpd / ANALYSIS_DIR_NAME
+
+    @property
+    def blackboards_dir(self) -> Path:
+        return self.gpd / BLACKBOARDS_DIR_NAME
 
     @property
     def traces_dir(self) -> Path:

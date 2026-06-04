@@ -130,6 +130,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 ### Knowledge authoring
 
 - `gpd:digest-knowledge [topic|arXiv id|source file|knowledge path]` - Create or update a draft knowledge doc under `GPD/knowledge/` in the current workspace
+- `gpd:ideate [topic|sources]` - Run source-grounded idea generation and write blackboard, transcript, and report files
 - `gpd:review-knowledge [knowledge path|knowledge id]` - Review one canonical current-workspace knowledge doc and write its review artifact
 
 ### Writing and publication
@@ -272,6 +273,11 @@ Notes: Complements the technical-analysis lane; use separate commands such as gp
 
 **`gpd:error-propagation [--target quantity] [--phase-range start:end]`**
 Track how uncertainties propagate through multi-step calculations across phases
+
+**`gpd:ideate [topic|papers|arXiv IDs|PDFs|TeX files|folder|GPD/knowledge docs] [--depth fast|balanced|deep]`**
+Source-grounded research ideation from papers, arXiv IDs, PDFs, TeX files, folders, knowledge docs, or an explicit topic
+Usage: `gpd:ideate "quantum memory in disordered spin chains" 2401.12345 ./papers/review.pdf`; `gpd:ideate ./papers ./GPD/knowledge/K-renormalization-group-fixed-points.md --depth balanced`
+Notes: Creates durable ideation files under `GPD/blackboards/` in the current workspace. Topic-only runs must pass the workflow source gate before ranked source-grounded ideas are reported.
 
 **`gpd:digest-knowledge [topic|arXiv id|source file|knowledge path]`**
 Create or update a draft knowledge document in the current workspace from a topic, source file, arXiv ID, or canonical knowledge path
