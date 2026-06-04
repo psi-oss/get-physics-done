@@ -1,0 +1,194 @@
+{
+  "name": "GPD Physics Benchmark — Quantum Field Theory",
+  "version": "0.1.0",
+  "description": "Benchmark tasks from quantum field theory: perturbative calculations, renormalization, symmetry analysis, and standard textbook derivations.",
+  "tasks": [
+    {
+      "task_id": "qft-001",
+      "title": "One-loop electron self-energy in QED",
+      "description": "Compute the one-loop electron self-energy in QED using dimensional regularization and extract the mass and wavefunction renormalization counterterms.",
+      "subfield": "qft",
+      "task_type": "derivation",
+      "difficulty": "advanced",
+      "topics": ["QED", "renormalization", "dimensional regularization", "self-energy"],
+      "problem_statement": "Starting from the QED Lagrangian, compute the one-loop electron self-energy Sigma(p) in dimensional regularization (d = 4 - 2*epsilon). Express the result in terms of Feynman parameters, identify the UV-divergent piece proportional to 1/epsilon, and extract the counterterms delta_m and delta_Z_2 in the MS-bar scheme.",
+      "given": [
+        "QED Lagrangian: L = psi_bar (i gamma^mu D_mu - m) psi - (1/4) F_{mu nu} F^{mu nu}",
+        "Covariant derivative: D_mu = partial_mu + i e A_mu",
+        "Dimensional regularization with d = 4 - 2*epsilon"
+      ],
+      "assumptions": [
+        "Work to one-loop order (O(alpha))",
+        "Use Feynman gauge for the photon propagator",
+        "MS-bar renormalization scheme"
+      ],
+      "conventions": [
+        "Metric signature: (+,-,-,-)",
+        "gamma^5 = i gamma^0 gamma^1 gamma^2 gamma^3",
+        "alpha = e^2 / (4 pi)"
+      ],
+      "expected_answer": "Sigma(p) = -(alpha/(4*pi)) * (1/epsilon) * (4m - p_slash) + finite terms. Counterterms: delta_m = (3*alpha)/(4*pi*epsilon) * m, delta_Z_2 = -(alpha)/(4*pi*epsilon).",
+      "output_format": "latex",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "Check Ward identity: at p_slash = m the self-energy relates to the vertex correction",
+        "Verify dimensions: Sigma(p) has dimension of mass",
+        "In the limit m -> 0, the mass counterterm delta_m must vanish",
+        "The coefficient of p_slash in the divergent part gives delta_Z_2"
+      ],
+      "reference": {
+        "title": "An Introduction to Quantum Field Theory",
+        "authors": ["M. E. Peskin", "D. V. Schroeder"],
+        "year": 1995,
+        "section": "Chapter 7.1"
+      }
+    },
+    {
+      "task_id": "qft-002",
+      "title": "Beta function of QED at one loop",
+      "description": "Derive the one-loop beta function for the QED coupling constant from the vacuum polarization.",
+      "subfield": "qft",
+      "task_type": "derivation",
+      "difficulty": "intermediate",
+      "topics": ["QED", "renormalization group", "beta function", "vacuum polarization"],
+      "problem_statement": "Compute the one-loop vacuum polarization Pi^{mu nu}(q) in QED, extract the running of the coupling alpha(mu), and derive the one-loop beta function beta(alpha) = mu * d(alpha)/d(mu).",
+      "given": [
+        "QED with a single fermion of mass m and charge e",
+        "One-loop vacuum polarization diagram (fermion loop)"
+      ],
+      "assumptions": [
+        "One-loop order",
+        "Dimensional regularization",
+        "MS-bar scheme"
+      ],
+      "conventions": [
+        "alpha = e^2 / (4 pi)",
+        "Metric signature: (+,-,-,-)"
+      ],
+      "expected_answer": "beta(alpha) = (2 * alpha^2) / (3 * pi)",
+      "output_format": "latex",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "The beta function is positive: QED coupling grows at high energy (not asymptotically free)",
+        "For N_f fermion flavors, beta = (2 * N_f * alpha^2) / (3 * pi)",
+        "Verify by checking the coefficient of 1/epsilon in the vacuum polarization"
+      ],
+      "reference": {
+        "title": "An Introduction to Quantum Field Theory",
+        "authors": ["M. E. Peskin", "D. V. Schroeder"],
+        "year": 1995,
+        "section": "Chapter 7.5"
+      }
+    },
+    {
+      "task_id": "qft-003",
+      "title": "Noether current for global U(1) symmetry",
+      "description": "Derive the conserved Noether current for a complex scalar field with global U(1) symmetry.",
+      "subfield": "qft",
+      "task_type": "derivation",
+      "difficulty": "introductory",
+      "topics": ["Noether theorem", "symmetry", "conservation laws", "scalar field theory"],
+      "problem_statement": "Given the Lagrangian for a free complex scalar field phi, derive the conserved current j^mu associated with the global U(1) symmetry phi -> e^{i alpha} phi. Verify that partial_mu j^mu = 0 using the equations of motion.",
+      "given": [
+        "L = (partial_mu phi^*)(partial^mu phi) - m^2 phi^* phi",
+        "Global U(1) transformation: phi -> e^{i alpha} phi, phi^* -> e^{-i alpha} phi^*"
+      ],
+      "assumptions": [
+        "Infinitesimal transformation: delta phi = i alpha phi",
+        "Fields satisfy the Klein-Gordon equation"
+      ],
+      "conventions": [
+        "Metric signature: (+,-,-,-)"
+      ],
+      "expected_answer": "j^mu = i (phi^* partial^mu phi - phi partial^mu phi^*)",
+      "output_format": "latex",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "Check dimensions: j^mu should have dimension [length]^{-3} in natural units",
+        "Verify partial_mu j^mu = 0 using the Klein-Gordon equation for phi and phi^*",
+        "The charge Q = integral d^3x j^0 is time-independent"
+      ],
+      "reference": {
+        "title": "An Introduction to Quantum Field Theory",
+        "authors": ["M. E. Peskin", "D. V. Schroeder"],
+        "year": 1995,
+        "section": "Chapter 2.2"
+      }
+    },
+    {
+      "task_id": "qft-004",
+      "title": "Casimir energy between parallel plates",
+      "description": "Calculate the Casimir energy per unit area between two parallel conducting plates separated by distance a.",
+      "subfield": "qft",
+      "task_type": "calculation",
+      "difficulty": "intermediate",
+      "topics": ["Casimir effect", "vacuum energy", "regularization", "quantum vacuum"],
+      "problem_statement": "Compute the vacuum energy of the electromagnetic field between two infinite parallel perfectly conducting plates separated by distance a. Use zeta-function regularization to handle the divergent sum, and express the result as energy per unit area.",
+      "given": [
+        "Two parallel perfectly conducting plates separated by distance a",
+        "Boundary conditions: E_parallel = 0, B_perpendicular = 0 at the plates",
+        "Allowed modes: k_z = n*pi/a for n = 1, 2, 3, ..."
+      ],
+      "assumptions": [
+        "Plates are infinite in extent",
+        "T = 0 (zero temperature)",
+        "Perfect conductors"
+      ],
+      "conventions": [
+        "Natural units: hbar = c = 1"
+      ],
+      "expected_answer": "E/A = -pi^2 / (720 * a^3)",
+      "output_format": "latex",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "The energy is negative (attractive force between plates)",
+        "Restoring hbar and c: E/A = -pi^2 * hbar * c / (720 * a^3)",
+        "The force per unit area is F/A = -pi^2 * hbar * c / (240 * a^4)",
+        "Dimensional analysis: in natural units, energy/area has dimension [length]^{-3}"
+      ],
+      "reference": {
+        "title": "The Casimir Effect",
+        "authors": ["H. B. G. Casimir"],
+        "year": 1948,
+        "doi": "10.1007/978-94-015-7776-3_20"
+      }
+    },
+    {
+      "task_id": "qft-005",
+      "title": "Dimensions of operators in phi^4 theory",
+      "description": "Determine the classical (engineering) mass dimension of the coupling constant lambda in phi^4 theory in d spacetime dimensions.",
+      "subfield": "qft",
+      "task_type": "dimensional_analysis",
+      "difficulty": "introductory",
+      "topics": ["dimensional analysis", "scalar field theory", "renormalizability", "power counting"],
+      "problem_statement": "For the Lagrangian L = (1/2)(partial_mu phi)^2 - (m^2/2) phi^2 - (lambda/4!) phi^4 in d spacetime dimensions, determine the mass dimension [lambda] of the coupling constant lambda. For which values of d is the theory renormalizable by power counting?",
+      "given": [
+        "L = (1/2)(partial_mu phi)^2 - (m^2/2) phi^2 - (lambda/4!) phi^4",
+        "The action S = integral d^d x L must be dimensionless in natural units"
+      ],
+      "assumptions": [
+        "Natural units: hbar = c = 1",
+        "Classical (tree-level) dimensional analysis"
+      ],
+      "conventions": [
+        "[S] = 0 (action is dimensionless)",
+        "Mass dimension denoted by [...]"
+      ],
+      "expected_answer": "[lambda] = 4 - d. The theory is renormalizable for d <= 4.",
+      "output_format": "symbolic",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "In d=4: [lambda] = 0 (marginal coupling, renormalizable)",
+        "In d=3: [lambda] = 1 (relevant coupling, super-renormalizable)",
+        "In d=6: [lambda] = -2 (irrelevant coupling, non-renormalizable)",
+        "Check: [phi] = (d-2)/2 from the kinetic term"
+      ],
+      "reference": {
+        "title": "An Introduction to Quantum Field Theory",
+        "authors": ["M. E. Peskin", "D. V. Schroeder"],
+        "year": 1995,
+        "section": "Chapter 10.1"
+      }
+    }
+  ]
+}

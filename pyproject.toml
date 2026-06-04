@@ -144,7 +144,7 @@ exclude = [
 ]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 # Default to maximal local parallelism with worker stealing so giant modules do

@@ -1,0 +1,201 @@
+{
+  "name": "GPD Physics Benchmark — General Relativity & Cosmology",
+  "version": "0.1.0",
+  "description": "Benchmark tasks from general relativity and cosmology: spacetime geometry, Einstein equations, perturbation theory, and cosmological observables.",
+  "tasks": [
+    {
+      "task_id": "gr-001",
+      "title": "Schwarzschild metric from Einstein equations",
+      "description": "Derive the Schwarzschild metric as the unique spherically symmetric vacuum solution of Einstein's equations.",
+      "subfield": "gr-cosmology",
+      "task_type": "derivation",
+      "difficulty": "intermediate",
+      "topics": ["Schwarzschild solution", "Einstein equations", "vacuum solution", "spherical symmetry"],
+      "problem_statement": "Starting from the most general static, spherically symmetric metric ansatz ds^2 = -e^{2 nu(r)} dt^2 + e^{2 lambda(r)} dr^2 + r^2 d Omega^2, compute the Ricci tensor components and solve R_{mu nu} = 0 to derive the Schwarzschild solution.",
+      "given": [
+        "General static spherically symmetric metric ansatz",
+        "Vacuum Einstein equations: R_{mu nu} = 0",
+        "Boundary condition: metric approaches Minkowski as r -> infinity"
+      ],
+      "assumptions": [
+        "Static spacetime (no time dependence)",
+        "Spherical symmetry",
+        "Vacuum (T_{mu nu} = 0)"
+      ],
+      "conventions": [
+        "Metric signature: (-,+,+,+)",
+        "G = c = 1 (geometric units)"
+      ],
+      "expected_answer": "ds^2 = -(1 - 2M/r) dt^2 + (1 - 2M/r)^{-1} dr^2 + r^2 (d theta^2 + sin^2 theta d phi^2)",
+      "output_format": "latex",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "Check Birkhoff's theorem: this is the unique spherically symmetric vacuum solution",
+        "Verify R_{mu nu} = 0 by direct computation for the derived metric",
+        "In the limit M -> 0, the Minkowski metric is recovered",
+        "The Kretschner scalar R_{abcd} R^{abcd} = 48 M^2/r^6 confirms a true singularity at r = 0"
+      ],
+      "reference": {
+        "title": "Gravitation",
+        "authors": ["C. W. Misner", "K. S. Thorne", "J. A. Wheeler"],
+        "year": 1973,
+        "section": "Chapter 23"
+      }
+    },
+    {
+      "task_id": "gr-002",
+      "title": "Friedmann equations from Einstein equations",
+      "description": "Derive the Friedmann equations for a homogeneous, isotropic universe from the Einstein field equations with the FLRW metric.",
+      "subfield": "gr-cosmology",
+      "task_type": "derivation",
+      "difficulty": "intermediate",
+      "topics": ["FLRW metric", "Friedmann equations", "cosmology", "perfect fluid"],
+      "problem_statement": "Starting from the FLRW metric and the Einstein equations with a perfect fluid source, derive the two Friedmann equations governing the scale factor a(t).",
+      "given": [
+        "FLRW metric: ds^2 = -dt^2 + a(t)^2 [dr^2/(1-kr^2) + r^2 d Omega^2]",
+        "Perfect fluid stress-energy: T^{mu nu} = (rho + p) u^mu u^nu + p g^{mu nu}",
+        "Einstein equations: G_{mu nu} = 8 pi G T_{mu nu}"
+      ],
+      "assumptions": [
+        "Homogeneous, isotropic universe",
+        "Perfect fluid with energy density rho and pressure p",
+        "Comoving observers: u^mu = (1, 0, 0, 0)"
+      ],
+      "conventions": [
+        "Metric signature: (-,+,+,+)",
+        "c = 1"
+      ],
+      "expected_answer": "First Friedmann equation: (a_dot/a)^2 = (8*pi*G/3)*rho - k/a^2. Second Friedmann equation: a_ddot/a = -(4*pi*G/3)*(rho + 3p).",
+      "output_format": "latex",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "Combining the two equations gives energy conservation: d(rho*a^3)/dt = -p*d(a^3)/dt",
+        "For matter domination (p=0): a(t) ~ t^{2/3}",
+        "For radiation domination (p=rho/3): a(t) ~ t^{1/2}",
+        "For k=0 and rho = 3H^2/(8*pi*G), the universe is spatially flat"
+      ],
+      "reference": {
+        "title": "Gravitation",
+        "authors": ["C. W. Misner", "K. S. Thorne", "J. A. Wheeler"],
+        "year": 1973,
+        "section": "Chapter 27"
+      }
+    },
+    {
+      "task_id": "gr-003",
+      "title": "Gravitational redshift",
+      "description": "Calculate the gravitational redshift of a photon emitted near a Schwarzschild black hole.",
+      "subfield": "gr-cosmology",
+      "task_type": "calculation",
+      "difficulty": "introductory",
+      "topics": ["gravitational redshift", "Schwarzschild", "photon", "time dilation"],
+      "problem_statement": "A photon is emitted at radius r_e in the Schwarzschild geometry and observed at radius r_o > r_e. Derive the ratio of observed to emitted frequency nu_o/nu_e in terms of M, r_e, and r_o.",
+      "given": [
+        "Schwarzschild metric with mass parameter M",
+        "Photon emitted at r = r_e",
+        "Photon observed at r = r_o >> r_e"
+      ],
+      "assumptions": [
+        "Static observers at both emission and observation points",
+        "Radial photon trajectory"
+      ],
+      "conventions": [
+        "G = c = 1"
+      ],
+      "expected_answer": "nu_o / nu_e = sqrt((1 - 2M/r_e) / (1 - 2M/r_o))",
+      "output_format": "latex",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "For r_o -> infinity: nu_o/nu_e = sqrt(1 - 2M/r_e), always < 1 (redshift)",
+        "For r_e -> 2M: nu_o/nu_e -> 0 (infinite redshift at the horizon)",
+        "In weak field (M/r << 1): Delta nu/nu approx -M/r_e + M/r_o approx -GM/(c^2 r_e)",
+        "This is purely a consequence of g_{tt} and does not require solving geodesic equations"
+      ],
+      "reference": {
+        "title": "Spacetime and Geometry",
+        "authors": ["S. M. Carroll"],
+        "year": 2004,
+        "section": "Chapter 5.2"
+      }
+    },
+    {
+      "task_id": "gr-004",
+      "title": "Hawking temperature of a Schwarzschild black hole",
+      "description": "Derive the Hawking temperature of a Schwarzschild black hole from the surface gravity.",
+      "subfield": "gr-cosmology",
+      "task_type": "derivation",
+      "difficulty": "advanced",
+      "topics": ["Hawking radiation", "black hole thermodynamics", "surface gravity", "Euclidean methods"],
+      "problem_statement": "Using the Euclidean continuation method, derive the Hawking temperature T_H of a Schwarzschild black hole of mass M. Show that requiring regularity of the Euclidean section at the horizon fixes the periodicity of imaginary time, which determines the temperature.",
+      "given": [
+        "Schwarzschild metric: ds^2 = -(1 - 2M/r)dt^2 + (1 - 2M/r)^{-1}dr^2 + r^2 d Omega^2",
+        "Wick rotation: t -> -i tau",
+        "Thermal state has periodic Euclidean time with period beta = 1/T"
+      ],
+      "assumptions": [
+        "Schwarzschild black hole (no charge, no angular momentum)",
+        "Semiclassical approximation (M >> M_Planck)",
+        "The quantum state is the Hartle-Hawking vacuum"
+      ],
+      "conventions": [
+        "G = c = k_B = hbar = 1"
+      ],
+      "expected_answer": "T_H = 1 / (8 * pi * M). With units restored: T_H = hbar * c^3 / (8 * pi * G * M * k_B).",
+      "output_format": "latex",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "The surface gravity is kappa = 1/(4M), and T_H = kappa/(2*pi)",
+        "For a solar mass black hole: T_H ~ 6 * 10^{-8} K",
+        "Temperature decreases with mass: larger black holes are colder",
+        "Check dimensions: [T] = [M]^{-1} in natural units"
+      ],
+      "reference": {
+        "arxiv_id": "2310.14698",
+        "title": "Black Holes, Thermodynamics, and Hawking Radiation",
+        "authors": ["S. W. Hawking"],
+        "year": 1975,
+        "section": "Section 2"
+      }
+    },
+    {
+      "task_id": "gr-005",
+      "title": "CMB acoustic peak scale estimation",
+      "description": "Estimate the angular scale of the first acoustic peak in the CMB power spectrum.",
+      "subfield": "gr-cosmology",
+      "task_type": "estimation",
+      "difficulty": "intermediate",
+      "topics": ["CMB", "acoustic oscillations", "sound horizon", "angular diameter distance"],
+      "problem_statement": "Estimate the angular scale theta_1 of the first acoustic peak in the CMB temperature power spectrum. This corresponds to the sound horizon at recombination projected onto the sky via the angular diameter distance.",
+      "given": [
+        "Recombination redshift: z_* approx 1100",
+        "Sound speed in baryon-photon fluid: c_s approx c/sqrt(3)",
+        "Age of universe at recombination: t_* approx 380,000 years",
+        "Flat universe (Omega_total = 1)"
+      ],
+      "assumptions": [
+        "Flat Lambda-CDM cosmology",
+        "Instantaneous recombination",
+        "Radiation-dominated era before recombination (for estimation)"
+      ],
+      "conventions": [
+        "l_1 approx pi / theta_1 is the multipole of the first peak"
+      ],
+      "expected_answer": "theta_1 approx 1 degree, corresponding to multipole l_1 approx 200.",
+      "output_format": "numeric",
+      "answer_tolerance": "theta_1 within factor of 2; l_1 between 100 and 400",
+      "verification_hints": [
+        "Planck best-fit: first peak at l approx 220",
+        "Sound horizon at recombination: r_s approx 150 Mpc (comoving)",
+        "Angular diameter distance to last scattering: d_A approx 13 Gpc (comoving)",
+        "theta_1 = r_s / d_A approx 0.01 rad approx 0.6 degrees"
+      ],
+      "reference": {
+        "arxiv_id": "1807.06209",
+        "title": "Planck 2018 results. VI. Cosmological parameters",
+        "authors": ["Planck Collaboration"],
+        "year": 2020,
+        "doi": "10.1051/0004-6361/201833910"
+      }
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+{
+  "name": "GPD Physics Benchmark — Quantum Information",
+  "version": "0.1.0",
+  "description": "Benchmark tasks from quantum information: entanglement, quantum circuits, error correction, and information-theoretic quantities.",
+  "tasks": [
+    {
+      "task_id": "qi-001",
+      "title": "Bell state entanglement entropy",
+      "description": "Compute the entanglement entropy of a Bell state by tracing over one qubit.",
+      "subfield": "quantum-info",
+      "task_type": "calculation",
+      "difficulty": "introductory",
+      "topics": ["entanglement entropy", "Bell states", "partial trace", "von Neumann entropy"],
+      "problem_statement": "For the Bell state |Phi+> = (|00> + |11>)/sqrt(2), compute the reduced density matrix rho_A by tracing over qubit B, and calculate the von Neumann entanglement entropy S(rho_A) = -Tr(rho_A ln rho_A).",
+      "given": [
+        "|Phi+> = (|00> + |11>) / sqrt(2)",
+        "Full density matrix: rho = |Phi+><Phi+|",
+        "Reduced density matrix: rho_A = Tr_B(rho)"
+      ],
+      "assumptions": [
+        "Two-qubit system",
+        "Pure state"
+      ],
+      "conventions": [
+        "Natural logarithm for entropy (units of nats); for bits use log base 2",
+        "|00> = |0>_A tensor |0>_B"
+      ],
+      "expected_answer": "rho_A = I/2 (maximally mixed state). S(rho_A) = ln 2 (in nats) = 1 bit.",
+      "output_format": "symbolic",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "rho_A = (1/2)|0><0| + (1/2)|1><1| = I/2",
+        "Eigenvalues of rho_A: {1/2, 1/2}",
+        "S = -2 * (1/2) ln(1/2) = ln 2",
+        "Maximum entanglement for a two-qubit system is exactly ln 2 nats = 1 ebit",
+        "All four Bell states have the same entanglement entropy"
+      ],
+      "reference": {
+        "title": "Quantum Computation and Quantum Information",
+        "authors": ["M. A. Nielsen", "I. L. Chuang"],
+        "year": 2010,
+        "section": "Chapter 2.4"
+      }
+    },
+    {
+      "task_id": "qi-002",
+      "title": "No-cloning theorem",
+      "description": "Prove that an unknown quantum state cannot be perfectly copied by a unitary operation.",
+      "subfield": "quantum-info",
+      "task_type": "derivation",
+      "difficulty": "introductory",
+      "topics": ["no-cloning theorem", "unitarity", "quantum copying", "linearity"],
+      "problem_statement": "Prove the no-cloning theorem: there is no unitary operator U acting on a system-ancilla Hilbert space H_A tensor H_B such that U|psi>|0> = |psi>|psi> for all |psi> in H_A.",
+      "given": [
+        "Suppose U exists such that U|psi>|0> = |psi>|psi> for all |psi>",
+        "In particular: U|phi>|0> = |phi>|phi> for any other state |phi>",
+        "U is unitary: U^dagger U = I"
+      ],
+      "assumptions": [
+        "Finite-dimensional Hilbert spaces",
+        "U is a valid unitary operation"
+      ],
+      "conventions": [
+        "|0> is the initial (blank) state of the ancilla"
+      ],
+      "expected_answer": "Proof by contradiction: Taking the inner product of U|psi>|0> = |psi>|psi> and U|phi>|0> = |phi>|phi>, unitarity gives <psi|phi> = (<psi|phi>)^2. This implies <psi|phi> = 0 or 1, so U can only clone states from an orthogonal set, not arbitrary states.",
+      "output_format": "text",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "The key step: <psi|<0|U^dagger U|phi>|0> = <psi|phi> (unitarity) but also = (<psi|phi>)^2 (from the cloning hypothesis)",
+        "The equation x = x^2 has solutions x = 0 and x = 1 only",
+        "This means cloning works only for orthogonal states or identical states",
+        "Linearity of quantum mechanics is the fundamental obstacle to cloning"
+      ],
+      "reference": {
+        "title": "A single quantum cannot be cloned",
+        "authors": ["W. K. Wootters", "W. H. Zurek"],
+        "year": 1982,
+        "doi": "10.1038/299802a0"
+      }
+    },
+    {
+      "task_id": "qi-003",
+      "title": "Quantum teleportation circuit verification",
+      "description": "Verify that the standard quantum teleportation protocol correctly transfers an arbitrary qubit state.",
+      "subfield": "quantum-info",
+      "task_type": "derivation",
+      "difficulty": "intermediate",
+      "topics": ["quantum teleportation", "Bell measurement", "quantum circuits", "classical communication"],
+      "problem_statement": "Alice wants to teleport the state |psi> = alpha|0> + beta|1> to Bob using a shared Bell pair. Walk through the teleportation protocol: (1) Alice performs a CNOT then Hadamard on her qubits, (2) Alice measures both her qubits in the computational basis, (3) Bob applies corrections based on Alice's measurement outcome. Show that Bob's final state is |psi> for all four measurement outcomes.",
+      "given": [
+        "Initial state: |psi>_1 |Phi+>_{23} = (alpha|0> + beta|1>)_1 (|00> + |11>)_{23} / sqrt(2)",
+        "Alice holds qubits 1 and 2; Bob holds qubit 3",
+        "CNOT_{12}: |a>|b> -> |a>|a XOR b>",
+        "Hadamard: H|0> = (|0>+|1>)/sqrt(2), H|1> = (|0>-|1>)/sqrt(2)"
+      ],
+      "assumptions": [
+        "Perfect quantum operations (no noise)",
+        "Classical communication channel from Alice to Bob",
+        "Pre-shared Bell pair"
+      ],
+      "conventions": [
+        "Pauli corrections: I, X, Z, XZ based on measurement outcomes 00, 01, 10, 11"
+      ],
+      "expected_answer": "After Alice's measurement of (m1, m2), Bob's state is: (00) -> alpha|0>+beta|1>, (01) -> alpha|1>+beta|0>, (10) -> alpha|0>-beta|1>, (11) -> alpha|1>-beta|0>. Applying X^{m2} Z^{m1} recovers |psi> in all cases.",
+      "output_format": "text",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "Each measurement outcome occurs with probability 1/4",
+        "Without the classical communication (corrections), Bob's state is maximally mixed",
+        "The protocol uses 1 ebit + 2 classical bits to teleport 1 qubit",
+        "No information travels faster than light: Bob cannot determine his state without Alice's message"
+      ],
+      "reference": {
+        "title": "Teleporting an unknown quantum state via dual classical and Einstein-Podolsky-Rosen channels",
+        "authors": ["C. H. Bennett", "G. Brassard", "C. Crepeau", "R. Jozsa", "A. Peres", "W. K. Wootters"],
+        "year": 1993,
+        "doi": "10.1103/PhysRevLett.70.1895"
+      }
+    }
+  ]
+}

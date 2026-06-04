@@ -1,0 +1,164 @@
+{
+  "name": "GPD Physics Benchmark — Condensed Matter",
+  "version": "0.1.0",
+  "description": "Benchmark tasks from condensed matter physics: band theory, many-body physics, topological phases, and response functions.",
+  "tasks": [
+    {
+      "task_id": "cm-001",
+      "title": "Bloch theorem and band structure of a 1D periodic potential",
+      "description": "Derive Bloch's theorem for a particle in a 1D periodic potential and explain the origin of band gaps.",
+      "subfield": "condensed-matter",
+      "task_type": "derivation",
+      "difficulty": "introductory",
+      "topics": ["Bloch theorem", "band theory", "periodic potential", "Brillouin zone"],
+      "problem_statement": "For a particle in a one-dimensional periodic potential V(x) = V(x + a), prove that the energy eigenstates can be written as psi_k(x) = e^{ikx} u_k(x) where u_k(x + a) = u_k(x). Then, using the nearly-free electron model with a weak periodic potential V(x) = 2V_0 cos(2 pi x / a), derive the energy gap at the first Brillouin zone boundary k = pi/a.",
+      "given": [
+        "Periodic potential: V(x + a) = V(x)",
+        "Translation operator: T_a psi(x) = psi(x + a)",
+        "Nearly-free electron: V(x) = 2V_0 cos(2 pi x / a) with V_0 << E_F"
+      ],
+      "assumptions": [
+        "One-dimensional system",
+        "Periodic boundary conditions on the crystal",
+        "Weak periodic potential (for gap calculation)"
+      ],
+      "conventions": [
+        "First Brillouin zone: -pi/a < k <= pi/a",
+        "hbar = 1 in intermediate steps"
+      ],
+      "expected_answer": "Bloch's theorem: psi_k(x) = e^{ikx} u_k(x). Energy gap at zone boundary: Delta E = 2|V_0|.",
+      "output_format": "latex",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "Bloch's theorem follows from [H, T_a] = 0 and the eigenvalues of T_a being e^{ika}",
+        "The gap arises from degenerate perturbation theory at the zone boundary",
+        "For V_0 -> 0, recover free electron parabola E = hbar^2 k^2 / (2m)",
+        "The gap opens where the Bragg condition is satisfied: 2k = 2pi n/a"
+      ],
+      "reference": {
+        "title": "Solid State Physics",
+        "authors": ["N. W. Ashcroft", "N. D. Mermin"],
+        "year": 1976,
+        "section": "Chapters 8-9"
+      }
+    },
+    {
+      "task_id": "cm-002",
+      "title": "Berry phase of a two-level system",
+      "description": "Compute the Berry phase acquired by the ground state of a spin-1/2 particle in a slowly rotating magnetic field.",
+      "subfield": "condensed-matter",
+      "task_type": "calculation",
+      "difficulty": "intermediate",
+      "topics": ["Berry phase", "geometric phase", "adiabatic evolution", "two-level system"],
+      "problem_statement": "A spin-1/2 particle is placed in a magnetic field B that slowly traces a closed loop on the sphere, subtending solid angle Omega. Compute the Berry phase gamma acquired by the ground state |down> (spin anti-parallel to B) after one complete cycle.",
+      "given": [
+        "Hamiltonian: H = -mu B dot sigma / 2 where sigma are Pauli matrices",
+        "B = B_0 (sin(theta) cos(phi), sin(theta) sin(phi), cos(theta))",
+        "The field direction (theta, phi) traces a closed loop on the unit sphere"
+      ],
+      "assumptions": [
+        "Adiabatic evolution (field changes slowly compared to energy gap)",
+        "The loop is traversed once",
+        "No degeneracies along the path"
+      ],
+      "conventions": [
+        "Berry connection: A_n = i <n|nabla_R|n>",
+        "Berry phase: gamma_n = oint A_n dot dR"
+      ],
+      "expected_answer": "gamma = -Omega/2 where Omega is the solid angle subtended by the loop on the unit sphere.",
+      "output_format": "latex",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "For a full sphere (Omega = 4 pi): gamma = -2 pi, which is equivalent to gamma = 0 mod 2pi",
+        "For a half sphere (Omega = 2 pi): gamma = -pi, giving a sign change",
+        "The Berry curvature is that of a magnetic monopole in parameter space",
+        "This is the Aharonov-Bohm effect in parameter space: Berry curvature = (1/2) sin(theta) in spherical coordinates"
+      ],
+      "reference": {
+        "title": "Quantal Phase Factors Accompanying Adiabatic Changes",
+        "authors": ["M. V. Berry"],
+        "year": 1984,
+        "doi": "10.1098/rspa.1984.0023"
+      }
+    },
+    {
+      "task_id": "cm-003",
+      "title": "Lindhard function for free electrons",
+      "description": "Derive the static Lindhard dielectric function for a free electron gas in 3D.",
+      "subfield": "condensed-matter",
+      "task_type": "derivation",
+      "difficulty": "advanced",
+      "topics": ["Lindhard function", "dielectric function", "screening", "electron gas"],
+      "problem_statement": "Derive the static (omega = 0) Lindhard dielectric function epsilon(q, 0) for a three-dimensional free electron gas at zero temperature. Show that in the long-wavelength limit (q -> 0) it reduces to the Thomas-Fermi result.",
+      "given": [
+        "Free electron gas with Fermi wavevector k_F and density n",
+        "Bare Coulomb interaction: v(q) = 4 pi e^2 / q^2",
+        "Polarization: Pi(q) = -sum_k [f(epsilon_k) - f(epsilon_{k+q})] / (epsilon_{k+q} - epsilon_k)"
+      ],
+      "assumptions": [
+        "Zero temperature (sharp Fermi surface)",
+        "Static limit: omega = 0",
+        "Non-interacting (RPA) electrons for the response"
+      ],
+      "conventions": [
+        "epsilon(q) = 1 - v(q) Pi(q)",
+        "Hartree atomic units or SI with explicit factors"
+      ],
+      "expected_answer": "epsilon(q, 0) = 1 + (k_TF^2 / q^2) * F(q/(2k_F)) where F(x) = (1/2) + (1 - x^2)/(4x) * ln|(1+x)/(1-x)| and k_TF^2 = 4 k_F / (pi a_0) is the Thomas-Fermi wavevector.",
+      "output_format": "latex",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "At q -> 0: F(0) = 1, recovering epsilon = 1 + k_TF^2/q^2 (Thomas-Fermi)",
+        "At q = 2k_F: the derivative of F has a logarithmic singularity (Kohn anomaly)",
+        "This singularity causes Friedel oscillations in real space: V(r) ~ cos(2k_F r)/r^3",
+        "For large q >> 2k_F: epsilon -> 1 (no screening at short wavelengths)"
+      ],
+      "reference": {
+        "title": "Quantum Theory of the Electron Liquid",
+        "authors": ["G. F. Giuliani", "G. Vignale"],
+        "year": 2005,
+        "section": "Chapter 4"
+      }
+    },
+    {
+      "task_id": "cm-004",
+      "title": "Quantized Hall conductance from Kubo formula",
+      "description": "Show that the Hall conductance of a filled Landau level is quantized to e^2/h using the Kubo formula.",
+      "subfield": "condensed-matter",
+      "task_type": "derivation",
+      "difficulty": "advanced",
+      "topics": ["quantum Hall effect", "Kubo formula", "topological invariant", "TKNN"],
+      "problem_statement": "Using the Kubo formula for the Hall conductivity, show that sigma_{xy} for a fully filled band in a 2D periodic system equals (e^2/h) times an integer (the first Chern number). This is the TKNN result.",
+      "given": [
+        "Kubo formula: sigma_{xy} = (e^2/hbar) sum_{n =/= m} integral_BZ [d^2k/(2pi)^2] * 2 Im[<n,k|v_x|m,k><m,k|v_y|n,k>] / (E_m - E_n)^2",
+        "Sum over filled band n and empty bands m",
+        "v_i = (1/hbar) partial H / partial k_i"
+      ],
+      "assumptions": [
+        "Non-interacting electrons",
+        "Fully filled band separated from empty bands by a gap",
+        "2D periodic system (Brillouin zone is a torus T^2)"
+      ],
+      "conventions": [
+        "Berry curvature: Omega_n(k) = -2 Im sum_{m =/= n} <n,k|v_x|m,k><m,k|v_y|n,k> / (E_m - E_n)^2",
+        "First Chern number: C_1 = (1/(2pi)) integral_BZ Omega_n(k) d^2k"
+      ],
+      "expected_answer": "sigma_{xy} = (e^2/h) * C_1 where C_1 is the first Chern number (an integer) of the occupied band.",
+      "output_format": "latex",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "C_1 is an integer because the Berry curvature integrates to 2pi*integer over a closed surface (torus)",
+        "For a single filled Landau level: C_1 = 1",
+        "The result is topological: sigma_{xy} cannot change under smooth deformations that keep the gap open",
+        "Dimensions: [sigma_{xy}] = e^2/h which is the conductance quantum"
+      ],
+      "reference": {
+        "arxiv_id": "cond-mat/9501003",
+        "title": "Quantized Hall Conductance in a Two-Dimensional Periodic Potential",
+        "authors": ["D. J. Thouless", "M. Kohmoto", "M. P. Nightingale", "M. den Nijs"],
+        "year": 1982,
+        "doi": "10.1103/PhysRevLett.49.405"
+      }
+    }
+  ]
+}

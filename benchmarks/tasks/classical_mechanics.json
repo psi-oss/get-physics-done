@@ -1,0 +1,125 @@
+{
+  "name": "GPD Physics Benchmark — Classical Mechanics",
+  "version": "0.1.0",
+  "description": "Benchmark tasks from classical mechanics: Lagrangian/Hamiltonian dynamics, symmetry, conservation laws, and nonlinear dynamics.",
+  "tasks": [
+    {
+      "task_id": "cl-001",
+      "title": "Kepler problem via Hamilton-Jacobi",
+      "description": "Solve the Kepler problem using the Hamilton-Jacobi method to derive the orbit equation.",
+      "subfield": "classical-mechanics",
+      "task_type": "derivation",
+      "difficulty": "intermediate",
+      "topics": ["Hamilton-Jacobi", "Kepler problem", "action-angle variables", "central force"],
+      "problem_statement": "For a particle of mass m in a gravitational potential V(r) = -GMm/r, use the Hamilton-Jacobi equation to derive the orbit equation r(phi). Verify that the result gives a conic section.",
+      "given": [
+        "Hamiltonian: H = p_r^2/(2m) + p_phi^2/(2mr^2) - GMm/r",
+        "Hamilton-Jacobi equation: H(q, partial S/partial q) + partial S/partial t = 0",
+        "Separable ansatz: S = -Et + S_r(r) + L*phi"
+      ],
+      "assumptions": [
+        "Two-body problem reduced to one body in center-of-mass frame",
+        "Planar motion (conservation of angular momentum vector)",
+        "Bound orbits (E < 0) for elliptical case"
+      ],
+      "conventions": [
+        "L = angular momentum (constant of motion)",
+        "E = total energy (constant of motion)"
+      ],
+      "expected_answer": "r(phi) = L^2/(GMm^2) * 1/(1 + e cos(phi - phi_0)) where e = sqrt(1 + 2EL^2/(G^2 M^2 m^3)) is the eccentricity.",
+      "output_format": "latex",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "For E < 0: e < 1 (ellipse), orbit is bound",
+        "For E = 0: e = 1 (parabola)",
+        "For E > 0: e > 1 (hyperbola)",
+        "The semi-latus rectum p = L^2/(GMm^2) and semi-major axis a = -GMm/(2E) for ellipses",
+        "Check: perihelion distance r_min = a(1-e), aphelion r_max = a(1+e)"
+      ],
+      "reference": {
+        "title": "Classical Mechanics",
+        "authors": ["H. Goldstein", "C. Poole", "J. Safko"],
+        "year": 2002,
+        "section": "Chapter 10.5"
+      }
+    },
+    {
+      "task_id": "cl-002",
+      "title": "Normal modes of a double pendulum (small oscillations)",
+      "description": "Find the normal mode frequencies of a double pendulum in the small-angle approximation.",
+      "subfield": "classical-mechanics",
+      "task_type": "calculation",
+      "difficulty": "intermediate",
+      "topics": ["normal modes", "small oscillations", "coupled oscillators", "Lagrangian mechanics"],
+      "problem_statement": "A double pendulum consists of two identical masses m connected by two identical massless rods of length l. Using the Lagrangian method with small-angle approximation, find the two normal mode frequencies.",
+      "given": [
+        "Two identical masses m",
+        "Two identical rods of length l",
+        "Small angle approximation: sin(theta) ~ theta, cos(theta) ~ 1 - theta^2/2",
+        "Gravitational acceleration g"
+      ],
+      "assumptions": [
+        "Small oscillations about the equilibrium (both angles small)",
+        "Massless, rigid rods",
+        "No friction or air resistance",
+        "Motion in a plane"
+      ],
+      "conventions": [
+        "theta_1 = angle of upper rod from vertical",
+        "theta_2 = angle of lower rod from vertical"
+      ],
+      "expected_answer": "omega_1^2 = g/l * (2 - sqrt(2)), omega_2^2 = g/l * (2 + sqrt(2))",
+      "output_format": "latex",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "Product: omega_1^2 * omega_2^2 = 2 g^2/l^2",
+        "Sum: omega_1^2 + omega_2^2 = 4 g/l",
+        "In the slow mode, both pendulums swing in phase; in the fast mode, they swing out of phase",
+        "For a single pendulum: omega^2 = g/l, which should be recoverable in appropriate limits"
+      ],
+      "reference": {
+        "title": "Classical Mechanics",
+        "authors": ["H. Goldstein", "C. Poole", "J. Safko"],
+        "year": 2002,
+        "section": "Chapter 6"
+      }
+    },
+    {
+      "task_id": "cl-003",
+      "title": "Dimensions of the gravitational constant",
+      "description": "Determine the dimensions of Newton's gravitational constant G from the law of gravitation and verify using Kepler's third law.",
+      "subfield": "classical-mechanics",
+      "task_type": "dimensional_analysis",
+      "difficulty": "introductory",
+      "topics": ["dimensional analysis", "gravitation", "Kepler's laws", "fundamental constants"],
+      "problem_statement": "From Newton's law of gravitation F = GMm/r^2, determine the SI dimensions of G. Then verify this by requiring Kepler's third law T^2 = (4 pi^2 / (GM)) a^3 to be dimensionally consistent.",
+      "given": [
+        "Newton's law: F = G M m / r^2",
+        "Kepler's third law: T^2 = (4 pi^2) / (G M) * a^3",
+        "SI dimensions: [F] = kg m s^{-2}, [M] = [m] = kg, [r] = m, [T] = s, [a] = m"
+      ],
+      "assumptions": [
+        "SI unit system",
+        "Point masses or spherically symmetric bodies"
+      ],
+      "conventions": [
+        "Dimensions denoted by square brackets: [X]"
+      ],
+      "expected_answer": "[G] = m^3 kg^{-1} s^{-2}",
+      "output_format": "symbolic",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "From F = GMm/r^2: [G] = [F][r^2]/([M][m]) = (kg m s^{-2})(m^2)/(kg^2) = m^3 kg^{-1} s^{-2}",
+        "From Kepler: [T^2] = [a^3]/([G][M]) => [G] = [a^3]/([T^2][M]) = m^3/(s^2 kg)",
+        "G approx 6.674 * 10^{-11} m^3 kg^{-1} s^{-2}",
+        "In Planck units, G = 1 by definition"
+      ],
+      "reference": {
+        "title": "Classical Mechanics",
+        "authors": ["J. R. Taylor"],
+        "year": 2005,
+        "section": "Chapter 8"
+      }
+    }
+  ]
+}

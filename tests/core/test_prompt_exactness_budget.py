@@ -12,8 +12,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 EXACTNESS_TOTAL_BUDGETS = {
     # Phase 5 pass4 observed 517/5134 after semantic-helper migration.
+    # Benchmark framework (eng-437) adds 6 machine-contract prompt-format
+    # assertions in tests/test_benchmarks.py; raise the exact-assertion ceiling
+    # to absorb them (5170 observed) while keeping the brittle-prose cap fixed.
     "brittle_prose_assertions": 525,
-    "exact_assertion_count": 5_165,
+    "exact_assertion_count": 5_170,
 }
 TAXONOMY_HELPER_TOTAL_FLOORS = {
     # Phase 8 observed 80 files and 735 helper calls; keep a small call-count cushion.
