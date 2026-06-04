@@ -10,8 +10,7 @@ import zipfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from click.testing import Result
-from typer.testing import CliRunner
+from typer.testing import CliRunner, Result
 
 from gpd.core.constants import STATE_JSON_BACKUP_FILENAME
 from gpd.core.costs import (
