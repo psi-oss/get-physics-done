@@ -46,6 +46,7 @@ __all__ = [
     "HOME_DATA_DIR_NAME",
     "LITERATURE_DIR_NAME",
     "KNOWLEDGE_DIR_NAME",
+    "METRICS_DIR_NAME",
     "MILESTONES_DIR_NAME",
     "MILESTONES_FILENAME",
     "MIN_PYTHON_MAJOR",
@@ -84,6 +85,10 @@ __all__ = [
     "RECENT_PROJECTS_INDEX_FILENAME",
     "RESEARCH_SUFFIX",
     "ROADMAP_FILENAME",
+    "SCORECARD_AUTOCAPTURE_FILENAME",
+    "SCORECARD_CHART_FILENAME",
+    "SCORECARD_DEFAULT_TOKEN_INTERVAL",
+    "SCORECARD_LEDGER_FILENAME",
     "SCRATCH_DIR_NAME",
     "SEED_PATTERN_INITIAL_OCCURRENCES",
     "SPECS_REFERENCES_DIR",
@@ -233,6 +238,21 @@ COST_LEDGER_DIR_NAME = "cost"
 
 COST_LEDGER_RECORDS_FILENAME = "usage.jsonl"
 """Append-only JSONL ledger filename for measured usage/cost records."""
+
+METRICS_DIR_NAME = "metrics"
+"""Subdirectory under GPD/ holding project-local research-quality metrics."""
+
+SCORECARD_LEDGER_FILENAME = "scorecard.jsonl"
+"""Append-only JSONL timeseries of research quality/efficiency scorecard snapshots."""
+
+SCORECARD_AUTOCAPTURE_FILENAME = "scorecard-autocapture.json"
+"""Marker recording the cumulative project token count at the last auto-captured snapshot."""
+
+SCORECARD_DEFAULT_TOKEN_INTERVAL = 50_000
+"""Cumulative project tokens between automatic scorecard snapshots (notify-hook driven)."""
+
+SCORECARD_CHART_FILENAME = "scorecard.png"
+"""Default PNG output for the rendered scorecard quality/efficiency chart."""
 
 COST_PRICING_SNAPSHOT_FILENAME = "pricing-snapshot.json"
 """Optional machine-local pricing snapshot used for conservative USD estimates."""
@@ -569,6 +589,22 @@ class ProjectLayout:
     @property
     def scratch_dir(self) -> Path:
         return self.gpd / SCRATCH_DIR_NAME
+
+    @property
+    def metrics_dir(self) -> Path:
+        return self.gpd / METRICS_DIR_NAME
+
+    @property
+    def scorecard_ledger(self) -> Path:
+        return self.metrics_dir / SCORECARD_LEDGER_FILENAME
+
+    @property
+    def scorecard_autocapture_marker(self) -> Path:
+        return self.metrics_dir / SCORECARD_AUTOCAPTURE_FILENAME
+
+    @property
+    def scorecard_chart(self) -> Path:
+        return self.metrics_dir / SCORECARD_CHART_FILENAME
 
     # ── Derived paths ─────────────────────────────────────────────────────
 

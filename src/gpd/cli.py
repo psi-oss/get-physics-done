@@ -4472,6 +4472,127 @@ def cost(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# scorecard — Research quality / dollar-efficiency timeseries
+# ═══════════════════════════════════════════════════════════════════════════
+
+scorecard_app = typer.Typer(
+    help="Research quality and dollar-efficiency scorecard timeseries (snapshot, show, annotate)"
+)
+app.add_typer(scorecard_app, name="scorecard")
+
+
+@scorecard_app.command("snapshot")
+def scorecard_snapshot(
+    judge: bool = typer.Option(
+        True,
+        "--judge/--no-judge",
+        help="Mark the snapshot as wanting a fresh LLM-judge pass (--no-judge records objective quality only)",
+    ),
+    trigger: str = typer.Option("manual", "--trigger", help="Snapshot trigger: manual or auto"),
+) -> None:
+    """Record one quality/efficiency snapshot to the project timeseries."""
+    from gpd.core.scorecard import append_snapshot, build_snapshot
+
+    cwd = _get_cwd()
+    snapshot = build_snapshot(cwd, trigger=trigger, include_judge=judge)
+    append_snapshot(snapshot, cwd)
+    if _raw:
+        _output(snapshot)
+        return
+    console.print(
+        f"[bold {_INSTALL_ACCENT_COLOR}]Scorecard snapshot recorded.[/]\n"
+        f"objective quality: {snapshot.objective_quality}\n"
+        f"cost: {snapshot.cost_usd} USD ({snapshot.cost_status}), total tokens: {snapshot.total_tokens:,}\n"
+        f"efficiency: {snapshot.efficiency_per_usd} quality/USD, "
+        f"{snapshot.efficiency_per_1k_tokens} quality/1k-tokens",
+        highlight=False,
+    )
+
+
+@scorecard_app.command("show")
+def scorecard_show(
+    last: int = typer.Option(0, "--last", help="Show only the most recent N snapshots (0 = all)"),
+    output_format: str = typer.Option("table", "--format", help="Output format: table, csv, or json"),
+) -> None:
+    """Render the recorded quality/efficiency trend."""
+    from gpd.core.scorecard import load_snapshots, render_trend_text, snapshots_to_csv
+
+    cwd = _get_cwd()
+    snapshots = load_snapshots(cwd)
+    if last and last > 0:
+        snapshots = snapshots[-last:]
+
+    if output_format == "json" or _raw:
+        _output(snapshots)
+        return
+    if output_format == "csv":
+        typer.echo(snapshots_to_csv(snapshots), nl=False)
+        return
+    console.print(render_trend_text(snapshots), highlight=False, markup=False)
+
+
+@scorecard_app.command("annotate")
+def scorecard_annotate(
+    judge_quality: float = typer.Option(..., "--judge-quality", help="LLM-judge quality score in [0, 1]"),
+    rubric_version: str = typer.Option("judge-1", "--rubric-version", help="Version tag for the judge rubric"),
+) -> None:
+    """Apply an LLM-judge quality score to the most recent snapshot."""
+    from gpd.core.scorecard import annotate_latest
+
+    if not 0.0 <= judge_quality <= 1.0:
+        _error("--judge-quality must be between 0 and 1")
+    cwd = _get_cwd()
+    updated = annotate_latest(cwd, judge_quality=judge_quality, rubric_version=rubric_version)
+    if updated is None:
+        _error("No scorecard snapshot to annotate. Run 'gpd scorecard snapshot' first.")
+    if _raw:
+        _output(updated)
+        return
+    console.print(
+        f"[bold {_INSTALL_ACCENT_COLOR}]Judge score applied.[/]\n"
+        f"headline quality: {updated.quality} (judge={updated.judge_quality}, objective={updated.objective_quality})\n"
+        f"efficiency: {updated.efficiency_per_usd} quality/USD, "
+        f"{updated.efficiency_per_1k_tokens} quality/1k-tokens",
+        highlight=False,
+    )
+
+
+@scorecard_app.command("chart")
+def scorecard_chart(
+    output: str | None = typer.Option(
+        None, "--output", "-o", help="PNG output path (default: GPD/metrics/scorecard.png)"
+    ),
+    last: int = typer.Option(0, "--last", help="Chart only the most recent N snapshots (0 = all)"),
+) -> None:
+    """Render the quality/efficiency timeseries to a PNG chart."""
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.root_resolution import resolve_project_root
+    from gpd.core.scorecard import load_snapshots
+    from gpd.core.scorecard_chart import render_chart_png
+
+    cwd = _get_cwd()
+    snapshots = load_snapshots(cwd)
+    if not snapshots:
+        _error("No scorecard snapshots to chart. Run 'gpd scorecard snapshot' first.")
+
+    if output is not None:
+        out_path = _resolve_path_from_effective_cwd(output)
+    else:
+        root = resolve_project_root(cwd) or cwd
+        out_path = ProjectLayout(root).scorecard_chart
+
+    written = render_chart_png(snapshots, out_path, last=last if last > 0 else None)
+    plotted = min(last, len(snapshots)) if last > 0 else len(snapshots)
+    if _raw:
+        _output({"chart_path": str(written), "points": plotted})
+        return
+    console.print(
+        f"[bold {_INSTALL_ACCENT_COLOR}]Scorecard chart written.[/]\n{_format_display_path(str(written))} ({plotted} points)",
+        highlight=False,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # stage — Read-only staged workflow metadata
 # ═══════════════════════════════════════════════════════════════════════════
 

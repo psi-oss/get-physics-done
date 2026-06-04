@@ -150,6 +150,25 @@ def _record_usage_telemetry(
         _debug(f"usage telemetry skipped: {exc}")
 
 
+def _autocapture_scorecard(*, project_root: str) -> None:
+    """Append an auto scorecard snapshot at token intervals; advisory only.
+
+    Runs after usage telemetry is recorded so the cumulative token count is
+    current. ``maybe_autocapture`` already swallows its own errors and only
+    records a point when cumulative project tokens cross the interval, but this
+    is wrapped again so it can never break the notify hook.
+    """
+    try:
+        if not project_root:
+            return
+        from gpd.core.scorecard import maybe_autocapture
+
+        root = Path(project_root)
+        maybe_autocapture(root, project_root=root)
+    except Exception as exc:
+        _debug(f"scorecard auto-capture skipped: {exc}")
+
+
 def _latest_update_cache(cwd: str | None = None) -> tuple[dict[str, object] | None, object | None]:
     return _shared_latest_update_cache(hook_file=__file__, cwd=cwd, debug=_debug)
 
@@ -372,12 +391,16 @@ def main() -> None:
         event_type = data.get("type")
         if allowed_event_types and event_type not in allowed_event_types:
             return
+        usage_project_root = side_effect_project_root or (
+            runtime_lookup_dir if prefer_local_notify_lookup else project_root
+        )
         _record_usage_telemetry(
             data,
             workspace_dir=workspace_dir,
-            project_root=side_effect_project_root or (runtime_lookup_dir if prefer_local_notify_lookup else project_root),
+            project_root=usage_project_root,
             active_runtime=runtime_lookup.active_runtime,
         )
+        _autocapture_scorecard(project_root=usage_project_root)
         _trigger_update_check(runtime_lookup_dir)
         _check_and_notify_update(runtime_lookup_dir, state_cwd=notification_state_dir)
         _emit_execution_notification(notification_state_dir)

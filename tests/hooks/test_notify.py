@@ -918,6 +918,67 @@ def test_main_passes_workspace_and_project_roots_to_usage_recorder_when_supporte
     assert captured["workspace_root"] != captured["project_root"]
 
 
+def test_main_invokes_scorecard_autocapture_with_resolved_project_root(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    nested = project / "src" / "notes"
+    nested.mkdir(parents=True)
+    (project / "GPD").mkdir()
+
+    payload = {
+        "type": "agent-turn-complete",
+        "workspace": {"cwd": str(nested), "project_dir": str(project)},
+        "model": {"id": _TEST_MODEL, "provider": _TEST_PROVIDER},
+        "tokens": {"promptTokens": 120, "completionTokens": 30},
+    }
+
+    with (
+        patch("sys.stdin", io.StringIO(json.dumps(payload))),
+        patch("gpd.hooks.notify._hook_payload_policy", return_value=get_hook_payload_policy(_TELEMETRY_RUNTIME)),
+        patch("gpd.hooks.notify._payload_runtime", return_value=_TELEMETRY_RUNTIME),
+        patch("gpd.hooks.notify._runtime_supports_usage_telemetry", return_value=True),
+        patch("gpd.core.costs.record_usage_from_runtime_payload"),
+        patch("gpd.core.scorecard.maybe_autocapture") as mock_autocapture,
+        patch("gpd.hooks.notify._trigger_update_check"),
+        patch("gpd.hooks.notify._check_and_notify_update"),
+        patch("gpd.hooks.notify._emit_execution_notification"),
+    ):
+        main()
+
+    resolved_project = project.resolve(strict=False)
+    mock_autocapture.assert_called_once()
+    _args, kwargs = mock_autocapture.call_args
+    assert kwargs["project_root"] == resolved_project
+
+
+def test_main_scorecard_autocapture_failure_does_not_break_hook(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    (project / "GPD").mkdir(parents=True)
+
+    payload = {
+        "type": "agent-turn-complete",
+        "workspace": {"cwd": str(project), "project_dir": str(project)},
+        "model": {"id": _TEST_MODEL, "provider": _TEST_PROVIDER},
+        "tokens": {"promptTokens": 120, "completionTokens": 30},
+    }
+
+    with (
+        patch("sys.stdin", io.StringIO(json.dumps(payload))),
+        patch("gpd.hooks.notify._hook_payload_policy", return_value=get_hook_payload_policy(_TELEMETRY_RUNTIME)),
+        patch("gpd.hooks.notify._payload_runtime", return_value=_TELEMETRY_RUNTIME),
+        patch("gpd.hooks.notify._runtime_supports_usage_telemetry", return_value=True),
+        patch("gpd.core.costs.record_usage_from_runtime_payload"),
+        patch("gpd.core.scorecard.maybe_autocapture", side_effect=RuntimeError("boom")),
+        patch("gpd.hooks.notify._trigger_update_check") as mock_trigger,
+        patch("gpd.hooks.notify._check_and_notify_update"),
+        patch("gpd.hooks.notify._emit_execution_notification") as mock_execution,
+    ):
+        # Must not raise; downstream notify steps still run.
+        main()
+
+    mock_trigger.assert_called_once()
+    mock_execution.assert_called_once()
+
+
 def test_main_does_not_promote_project_dir_when_policy_has_no_project_dir_keys(tmp_path: Path) -> None:
     project = tmp_path / "project"
     nested = project / "src" / "notes"
