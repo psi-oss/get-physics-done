@@ -17,6 +17,7 @@ from copy import deepcopy
 
 from gpd.mcp.descriptor_text import SKILLS_SERVER_DESCRIPTION
 from gpd.mcp.servers.arxiv_bridge import ADVERTISED_TOOL_NAMES, DOWNLOAD_SOURCE_TOOL_NAME, UPSTREAM_CORE_TOOL_NAMES
+from gpd.mcp.servers.compute_bridge import ADVERTISED_TOOL_NAMES as COMPUTE_ADVERTISED_TOOL_NAMES
 from gpd.mcp.verification_contract_policy import verification_server_description
 
 logger = logging.getLogger(__name__)
@@ -75,11 +76,21 @@ _BUILTIN_SERVERS: dict[str, _ServerDef] = {
         "optional": True,
         "module_check": "arxiv_mcp_server",
     },
+    "gpd-compute": {
+        "command": _PYTHON_COMMAND_SENTINEL,
+        "args": ["-m", "gpd.mcp.servers.compute_bridge"],
+        "env": {},
+        "optional": True,
+        "module_check": "gpd_compute",
+    },
 }
 
 _PUBLIC_BOOTSTRAP_PREREQUISITE = "Install GPD before enabling built-in MCP servers."
 _ARXIV_EXTRA_PREREQUISITE = (
     "Install GPD with the `arxiv` Python extra in the same environment before enabling gpd-arxiv."
+)
+_COMPUTE_EXTRA_PREREQUISITE = (
+    "Install the gpd-compute package in the same environment before enabling gpd-compute."
 )
 _ENTRY_POINT_NOTES = _PYTHON_LAUNCH_NOTES
 _ARXIV_UPSTREAM_CAPABILITIES = list(UPSTREAM_CORE_TOOL_NAMES)
@@ -255,6 +266,26 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
             "tool": "search_papers",
             "input": {"query": "quantum field theory", "max_results": 1},
             "expect": "contains paper",
+        },
+    },
+    "gpd-compute": {
+        "description": (
+            "Optional no-network numeric oracle for executed verification. Evaluates "
+            "agent-authored expressions or evaluators at caller-supplied sample points in a "
+            "sandboxed mpmath/numpy runtime with a timeout, and returns a stable content hash "
+            "of the executed source. No network access and no API keys; deterministic by design."
+        ),
+        "capabilities": list(COMPUTE_ADVERTISED_TOOL_NAMES),
+        "registry_prefix": "gpd_compute",
+        "prerequisites": [
+            _PUBLIC_BOOTSTRAP_PREREQUISITE,
+            _COMPUTE_EXTRA_PREREQUISITE,
+        ],
+        "health_check": {
+            "probe_kind": "schema_valid",
+            "tool": "describe_runtime",
+            "input": {},
+            "expect": "no_network is true",
         },
     },
 }

@@ -3,6 +3,8 @@ Plan, check, and close verifier-diagnosed gaps without changing verifier-owned c
 </purpose>
 <philosophy>
 Verifier owns scientific status. This stage turns diagnosed gaps into plans, checks, and records closeout after canonical validation.
+
+An INCONCLUSIVE numeric-oracle verdict (`contract.numeric_oracle_agreement` -> `insufficient_evidence`, including `no_oracle_yet`) is **not** a gap: the physics may be correct, the oracle just could not certify it. Route it to `expert_needed` or suggested checks, never to gap-closure. Only a RED verdict (genuine numeric disagreement) is a `gaps_found` issue for the loop below.
 </philosophy>
 <shared_contract_floor>
 **Project Contract Gate:** {project_contract_gate}

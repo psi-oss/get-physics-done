@@ -18,8 +18,10 @@ AGENTS_DIR = REPO_ROOT / "src" / "gpd" / "agents"
 SOURCE_ROOT = REPO_ROOT / "src" / "gpd"
 PATH_PREFIX = "/runtime/"
 RUNTIMES = tuple(descriptor.runtime_name for descriptor in iter_runtime_descriptors())
-BASELINE_EXPANDED_LINE_COUNT = 355
-BASELINE_EXPANDED_CHAR_COUNT = 24_913
+# Includes the verifier's hooks into the blind oracle sub-protocol
+# (gpd-compute tools + a pointer to references/.../blind-oracle-subprotocol.md).
+BASELINE_EXPANDED_LINE_COUNT = 363
+BASELINE_EXPANDED_CHAR_COUNT = 26_344
 MIN_LINE_MARGIN = 15
 MIN_CHAR_MARGIN = 750
 

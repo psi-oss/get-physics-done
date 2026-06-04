@@ -176,6 +176,13 @@ MODEL_PROFILES: dict[str, dict[str, ModelTier]] = {
         "review": ModelTier.TIER_1,
         "paper-writing": ModelTier.TIER_2,
     },
+    "gpd-blind-deriver": {
+        "deep-theory": ModelTier.TIER_1,
+        "numerical": ModelTier.TIER_1,
+        "exploratory": ModelTier.TIER_2,
+        "review": ModelTier.TIER_1,
+        "paper-writing": ModelTier.TIER_2,
+    },
     "gpd-plan-checker": {
         "deep-theory": ModelTier.TIER_2,
         "numerical": ModelTier.TIER_2,

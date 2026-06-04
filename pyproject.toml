@@ -62,6 +62,10 @@ arxiv = [
     "cairosvg>=2.7.0",
     "pypdf>=5.0",
 ]
+# NOTE: a `compute` extra pinning the standalone `gpd-compute` package is added
+# once that package is published to PyPI. Until then the gpd-compute MCP server
+# is gated purely by `module_check` (it is advertised only when the user has
+# installed gpd-compute into the environment), which keeps uv.lock solvable.
 
 [project.scripts]
 gpd = "gpd.cli:entrypoint"
@@ -71,6 +75,7 @@ gpd = "gpd.cli:entrypoint"
 "gpd-mcp-errors" = "gpd.mcp.servers.errors_mcp:main"
 "gpd-mcp-patterns" = "gpd.mcp.servers.patterns_server:main"
 "gpd-mcp-arxiv" = "gpd.mcp.servers.arxiv_bridge:main"
+"gpd-mcp-compute" = "gpd.mcp.servers.compute_bridge:main"
 "gpd-mcp-wolfram" = "gpd.mcp.integrations.wolfram_bridge:main"
 "gpd-mcp-state" = "gpd.mcp.servers.state_server:main"
 "gpd-mcp-skills" = "gpd.mcp.servers.skills_server:main"

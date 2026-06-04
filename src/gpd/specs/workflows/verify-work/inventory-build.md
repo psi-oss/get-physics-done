@@ -55,6 +55,8 @@ For PLAN contracts with project-local anchors or prior-output paths, call `sugge
 
 Spawn `gpd-verifier` once with scoped write. It owns target extraction, evidence mapping, proof policy, checks, decisive comparisons, canonical status, suggested contract checks, and the gap ledger.
 
+For decisive quantitative claims with a contracted observable, instruct the verifier to run its Blind Oracle Sub-Protocol: spawn `gpd-blind-deriver` with only the problem statement and ConventionLock (never the artifact's final answer or derivation), then compare claim-side vs blind-side numbers via `contract.numeric_oracle_agreement`. The blind deriver is a nested, write-nothing spawn — it touches no allowed paths, so it needs no additional spawn-contract scope here. A GREEN oracle verdict satisfies the verifier's Computational Oracle Gate; INCONCLUSIVE (including `no_oracle_yet`) never blocks and is not a pass; RED becomes a `gaps_found` issue.
+
 Pass the project contract, proof freshness summary, reference handles, and protocol bundle handoff fields into the handoff so the verifier can build its own authoritative ledger.
 Point it at `{GPD_INSTALL_DIR}/references/verification/verification-status-authority.md`. Presentation headings are non-authority; route through the verifier tuple plus canonical report status.
 

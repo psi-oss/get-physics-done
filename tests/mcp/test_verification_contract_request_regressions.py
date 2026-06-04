@@ -550,7 +550,10 @@ def test_contract_parse_recoverability_keeps_case_drift_nonblocking() -> None:
                     "metadata contains unsupported keys: unexpected; supported keys are "
                     "regime_label, expected_behavior, source_reference_id, declared_family, allowed_families, "
                     "forbidden_families, theorem_parameter_symbols, hypothesis_ids, quantifiers, "
-                    "conclusion_clause_ids, claim_statement"
+                    "conclusion_clause_ids, claim_statement, contracted_observable_id, "
+                    "contracted_observable_kind, typed_restatement_observable_id, "
+                    "typed_restatement_observable_kind, typed_restatement_statement, numeric_tolerance, "
+                    "min_shared_points, claim_evaluator_id, blind_evaluator_id, claim_cell_hash, blind_cell_hash"
                 ),
                 "schema_version": 1,
             },
@@ -568,7 +571,8 @@ def test_contract_parse_recoverability_keeps_case_drift_nonblocking() -> None:
                     "proxy_available, consistency_passed, selected_family, competing_family_checked, bias_checked, "
                     "calibration_checked, covered_hypothesis_ids, missing_hypothesis_ids, "
                     "covered_parameter_symbols, missing_parameter_symbols, uncovered_quantifiers, "
-                    "uncovered_conclusion_clause_ids, quantifier_status, scope_status, counterexample_status"
+                    "uncovered_conclusion_clause_ids, quantifier_status, scope_status, counterexample_status, "
+                    "sample_points, claim_values, blind_values"
                 ),
                 "schema_version": 1,
             },

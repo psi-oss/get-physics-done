@@ -60,6 +60,7 @@ class VerificationCheckDef(BaseModel):
         "contract_proof_quantifier_domain",
         "contract_claim_to_proof_alignment",
         "contract_counterexample_search",
+        "contract_numeric_oracle_agreement",
     ] = "universal"
     contract_aware: bool = False
     binding_targets: list[
@@ -348,6 +349,19 @@ VERIFICATION_CHECK_DEFS: tuple[VerificationCheckDef, ...] = (
         check_class="contract_counterexample_search",
         contract_aware=True,
         binding_targets=["observable", "claim", "deliverable", "acceptance_test"],
+    ),
+    VerificationCheckDef(
+        check_id="5.25",
+        check_key="contract.numeric_oracle_agreement",
+        name="Numeric-oracle agreement",
+        description="Confirm an independent blind re-derivation agrees numerically with the claim's evaluator at the required number of shared sample points, with a matching typed restatement and backing executed-cell hashes",
+        tier=1,
+        catches="Fabricated numbers, evaluator drift, proposition substitution, claim-vs-derivation divergence that survives because no independent executed check was run",
+        evidence_kind="computational",
+        oracle_hint="Evaluate both the blind and claim evaluators at the shared sample points via the gpd-compute oracle, then compare returned numbers and evaluator cell hashes deterministically; missing backing hash, fidelity mismatch, or too few shared points are inconclusive, not pass.",
+        check_class="contract_numeric_oracle_agreement",
+        contract_aware=True,
+        binding_targets=["observable", "claim", "acceptance_test"],
     ),
 )
 

@@ -327,7 +327,7 @@ class TestBuiltinServerDescriptors:
         for name, descriptor in descriptors.items():
             prerequisites = descriptor["prerequisites"]
             assert prerequisites[:1] == expected, name
-            if name != "gpd-arxiv":
+            if name not in ("gpd-arxiv", "gpd-compute"):
                 assert prerequisites == expected, name
             for prerequisite in prerequisites:
                 prerequisite = prerequisite.lower()
@@ -464,10 +464,11 @@ class TestBuiltinServerDescriptors:
 
         target_python = "/opt/gpd/python3.11"
         current_python = "/usr/bin/python3.9"
+        observed_commands: list[list[str]] = []
         observed: dict[str, object] = {}
 
         def fake_run(command, *, check, stdout, stderr, timeout):
-            observed["command"] = command
+            observed_commands.append(command)
             observed["check"] = check
             observed["stdout"] = stdout
             observed["stderr"] = stderr
@@ -480,9 +481,11 @@ class TestBuiltinServerDescriptors:
         servers = builtin_servers.build_mcp_servers_dict(python_path=target_python)
 
         assert "gpd-arxiv" in servers
-        assert observed["command"][0] == target_python
-        assert observed["command"][2].startswith("import importlib.util")
-        assert observed["command"][3] == "arxiv_mcp_server"
+        # Every optional module is probed in the target interpreter, not the current one.
+        assert observed_commands
+        assert all(command[0] == target_python for command in observed_commands)
+        assert all(command[2].startswith("import importlib.util") for command in observed_commands)
+        assert "arxiv_mcp_server" in {command[3] for command in observed_commands}
         assert observed["check"] is False
         assert observed["timeout"] == 5
 
@@ -3846,7 +3849,7 @@ class TestVerificationServer:
         assert result["found"] is True
         assert result["schema_version"] == 1
         assert result["domain_check_count"] > 0
-        assert result["universal_check_count"] == 24
+        assert result["universal_check_count"] == 25
         assert result["universal_checks"][0]["check_id"] == "5.1"
         assert "evidence_kind" in result["universal_checks"][0]
         contract_check = next(

@@ -57,6 +57,14 @@ from gpd.core.contract_validation import (
     is_repair_relevant_project_contract_schema_finding,
     split_project_contract_schema_findings,
 )
+from gpd.core.numeric_oracle import (
+    DEFAULT_MIN_SHARED_POINTS,
+    EvaluatorCell,
+    NumericOracleComparison,
+    SamplePointEvaluation,
+    TypedRestatement,
+    build_numeric_oracle_kernel_verdict,
+)
 from gpd.core.observability import gpd_span
 from gpd.core.protocol_bundles import ResolvedProtocolBundle, get_protocol_bundle, render_protocol_bundle_context
 from gpd.core.verification_checks import (
@@ -427,6 +435,18 @@ class ContractMetadataRequest(_ContractRequestBase):
     quantifiers: list[str] | None = None
     conclusion_clause_ids: list[str] | None = None
     claim_statement: str | None = None
+    # Numeric-oracle agreement (contract.numeric_oracle_agreement)
+    contracted_observable_id: str | None = None
+    contracted_observable_kind: str | None = None
+    typed_restatement_observable_id: str | None = None
+    typed_restatement_observable_kind: str | None = None
+    typed_restatement_statement: str | None = None
+    numeric_tolerance: int | float | None = None
+    min_shared_points: int | None = None
+    claim_evaluator_id: str | None = None
+    blind_evaluator_id: str | None = None
+    claim_cell_hash: str | None = None
+    blind_cell_hash: str | None = None
 
 
 class ContractObservedRequest(_ContractRequestBase):
@@ -451,6 +471,11 @@ class ContractObservedRequest(_ContractRequestBase):
     quantifier_status: str | None = None
     scope_status: str | None = None
     counterexample_status: str | None = None
+    # Numeric-oracle agreement (contract.numeric_oracle_agreement): per-point
+    # inputs and the numbers each evaluator returned from the gpd-compute oracle.
+    sample_points: list[dict[str, str]] | None = None
+    claim_values: list[float | None] | None = None
+    blind_values: list[float | None] | None = None
 
 
 class RunContractCheckRequest(_ContractRequestBase):
@@ -736,6 +761,17 @@ _CONTRACT_METADATA_INPUT_SCHEMA: dict[str, object] = _object_schema(
         "quantifiers": _string_list_or_null_schema(),
         "conclusion_clause_ids": _string_list_or_null_schema(),
         "claim_statement": _non_empty_string_or_null_schema(),
+        "contracted_observable_id": _non_empty_string_or_null_schema(),
+        "contracted_observable_kind": _non_empty_string_or_null_schema(),
+        "typed_restatement_observable_id": _non_empty_string_or_null_schema(),
+        "typed_restatement_observable_kind": _non_empty_string_or_null_schema(),
+        "typed_restatement_statement": _non_empty_string_or_null_schema(),
+        "numeric_tolerance": _number_or_null_schema(),
+        "min_shared_points": _number_or_null_schema(),
+        "claim_evaluator_id": _non_empty_string_or_null_schema(),
+        "blind_evaluator_id": _non_empty_string_or_null_schema(),
+        "claim_cell_hash": _non_empty_string_or_null_schema(),
+        "blind_cell_hash": _non_empty_string_or_null_schema(),
     },
     additional_properties=False,
 )
@@ -762,6 +798,21 @@ _CONTRACT_OBSERVED_INPUT_SCHEMA: dict[str, object] = _object_schema(
         "quantifier_status": _enum_string_or_null_schema(_QUANTIFIER_STATUS_VALUES),
         "scope_status": _enum_string_or_null_schema(_SCOPE_STATUS_VALUES),
         "counterexample_status": _enum_string_or_null_schema(_COUNTEREXAMPLE_STATUS_VALUES),
+        "sample_points": {
+            "anyOf": [{"type": "array", "items": {"type": "object"}}, {"type": "null"}]
+        },
+        "claim_values": {
+            "anyOf": [
+                {"type": "array", "items": {"anyOf": [{"type": "number"}, {"type": "null"}]}},
+                {"type": "null"},
+            ]
+        },
+        "blind_values": {
+            "anyOf": [
+                {"type": "array", "items": {"anyOf": [{"type": "number"}, {"type": "null"}]}},
+                {"type": "null"},
+            ]
+        },
     },
     additional_properties=False,
 )
@@ -805,6 +856,10 @@ _CONTRACT_OBSERVABLE_INPUT_SCHEMA: dict[str, object] = _object_schema(
         "definition": _non_empty_string_schema(),
         "regime": _non_empty_string_or_null_schema(),
         "units": _non_empty_string_or_null_schema(),
+        "numeric_tolerance": _number_or_null_schema(),
+        "min_shared_points": _number_or_null_schema(),
+        "sample_point_schema": {"anyOf": [{"type": "object"}, {"type": "null"}]},
+        "evaluator_role_hint": _non_empty_string_or_null_schema(),
     },
     required=("id", "name", "definition"),
     additional_properties=False,
@@ -4148,6 +4203,150 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 ):
                     status = "warning"
                     evidence_directness = "mixed"
+
+            elif check_meta.check_key == "contract.numeric_oracle_agreement":
+                string_fields = {
+                    "contracted_observable_id": metadata.get("contracted_observable_id"),
+                    "contracted_observable_kind": metadata.get("contracted_observable_kind"),
+                    "typed_restatement_observable_id": metadata.get("typed_restatement_observable_id"),
+                    "typed_restatement_observable_kind": metadata.get("typed_restatement_observable_kind"),
+                    "typed_restatement_statement": metadata.get("typed_restatement_statement"),
+                    "claim_evaluator_id": metadata.get("claim_evaluator_id"),
+                    "blind_evaluator_id": metadata.get("blind_evaluator_id"),
+                    "claim_cell_hash": metadata.get("claim_cell_hash"),
+                    "blind_cell_hash": metadata.get("blind_cell_hash"),
+                }
+                parsed_strings: dict[str, str | None] = {}
+                for field_key, field_value in string_fields.items():
+                    parsed_value, field_error = _validate_optional_string(
+                        field_value, field_name=f"metadata.{field_key}"
+                    )
+                    if field_error is not None:
+                        return _error_result(field_error)
+                    parsed_strings[field_key] = parsed_value
+
+                tolerance, error = _validate_number(
+                    metadata.get("numeric_tolerance"), field_name="metadata.numeric_tolerance"
+                )
+                if error is not None:
+                    return error
+
+                min_points_value = metadata.get("min_shared_points")
+                if min_points_value is None:
+                    min_shared_points = DEFAULT_MIN_SHARED_POINTS
+                elif isinstance(min_points_value, bool) or not isinstance(min_points_value, int):
+                    return _error_result("metadata.min_shared_points must be an integer")
+                elif min_points_value < 1:
+                    return _error_result("metadata.min_shared_points must be at least 1")
+                else:
+                    min_shared_points = min_points_value
+
+                sample_points_raw = observed.get("sample_points")
+                claim_values_raw = observed.get("claim_values")
+                blind_values_raw = observed.get("blind_values")
+                for observed_field, observed_value in (
+                    ("observed.sample_points", sample_points_raw),
+                    ("observed.claim_values", claim_values_raw),
+                    ("observed.blind_values", blind_values_raw),
+                ):
+                    if observed_value is not None and not isinstance(observed_value, list):
+                        return _error_result(f"{observed_field} must be a list")
+
+                contracted_observable_id = parsed_strings["contracted_observable_id"]
+                restated_id = parsed_strings["typed_restatement_observable_id"]
+                restated_kind = parsed_strings["typed_restatement_observable_kind"]
+                restated_statement = parsed_strings["typed_restatement_statement"]
+
+                if not contracted_observable_id:
+                    missing_inputs.append("metadata.contracted_observable_id")
+                if not (restated_id and restated_kind and restated_statement):
+                    missing_inputs.append("metadata.typed_restatement_observable_id/kind/statement")
+                if tolerance is None:
+                    missing_inputs.append("metadata.numeric_tolerance")
+                if not sample_points_raw:
+                    missing_inputs.append("observed.sample_points")
+                if claim_values_raw is None:
+                    missing_inputs.append("observed.claim_values")
+                if blind_values_raw is None:
+                    missing_inputs.append("observed.blind_values")
+
+                metrics["contracted_observable_id"] = contracted_observable_id
+                metrics["min_shared_points"] = min_shared_points
+                metrics["tolerance"] = tolerance
+
+                if not missing_inputs:
+                    claim_values = claim_values_raw or []
+                    blind_values = blind_values_raw or []
+                    try:
+                        point_models: list[SamplePointEvaluation] = []
+                        for index, raw_point in enumerate(sample_points_raw or []):
+                            point_map = (
+                                {str(key): str(value) for key, value in raw_point.items()}
+                                if isinstance(raw_point, dict)
+                                else {}
+                            )
+                            point_models.append(
+                                SamplePointEvaluation(
+                                    point_index=index,
+                                    sample_point=point_map,
+                                    claim_value=claim_values[index] if index < len(claim_values) else None,
+                                    blind_value=blind_values[index] if index < len(blind_values) else None,
+                                )
+                            )
+                        claim_cell = (
+                            EvaluatorCell(
+                                evaluator_id=parsed_strings["claim_evaluator_id"] or "claim",
+                                content_hash=parsed_strings["claim_cell_hash"],
+                                role="claim",
+                            )
+                            if parsed_strings["claim_cell_hash"]
+                            else None
+                        )
+                        blind_cell = (
+                            EvaluatorCell(
+                                evaluator_id=parsed_strings["blind_evaluator_id"] or "blind",
+                                content_hash=parsed_strings["blind_cell_hash"],
+                                role="blind",
+                            )
+                            if parsed_strings["blind_cell_hash"]
+                            else None
+                        )
+                        comparison = NumericOracleComparison(
+                            contracted_observable_id=contracted_observable_id,
+                            contracted_observable_kind=parsed_strings["contracted_observable_kind"],
+                            typed_restatement=TypedRestatement(
+                                observable_id=restated_id,
+                                observable_kind=restated_kind,
+                                statement=restated_statement,
+                            ),
+                            tolerance=tolerance,
+                            min_shared_points=min_shared_points,
+                            sample_points=point_models,
+                            claim_cell=claim_cell,
+                            blind_cell=blind_cell,
+                        )
+                    except (PydanticValidationError, ValueError) as exc:
+                        return _error_result(f"invalid numeric-oracle inputs: {exc}")
+
+                    oracle_verdict_dict = build_numeric_oracle_kernel_verdict(comparison)
+                    oracle_verdict = oracle_verdict_dict["numeric_oracle_verdict"]
+                    metrics["numeric_oracle_verdict"] = oracle_verdict
+                    metrics["verdict_hash"] = oracle_verdict_dict["verdict_hash"]
+                    metrics["shared_usable_points"] = oracle_verdict["total_shared_points"]
+                    verdict_label = oracle_verdict["verdict"]
+                    if verdict_label == "GREEN":
+                        status = "pass"
+                        evidence_directness = "direct"
+                    elif verdict_label == "RED":
+                        status = "fail"
+                        evidence_directness = "direct"
+                        automated_issues.append(oracle_verdict["reason"])
+                    else:
+                        status = "insufficient_evidence"
+                        evidence_directness = "metadata_only"
+                        automated_issues.append(oracle_verdict["reason"])
+                        if not oracle_verdict["both_cells_present"]:
+                            missing_inputs.append("metadata.claim_cell_hash/blind_cell_hash")
 
             elif check_meta.check_key == "contract.direct_proxy_consistency":
                 proxy_only, error = _validate_boolean(observed.get("proxy_only"), field_name="observed.proxy_only")

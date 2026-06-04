@@ -161,6 +161,10 @@ Rules:
   definition: "[What quantity or behavior is being established]"
   regime: "large-k"
   units: "dimensionless"
+  numeric_tolerance: 1.0e-6
+  min_shared_points: 20
+  sample_point_schema: { k: "dimensionless" }
+  evaluator_role_hint: "compute the residual F(k) at the sampled k values"
 ```
 
 Rules:
@@ -170,6 +174,7 @@ Rules:
 - `kind: scalar|curve|map|classification|proof_obligation|other`
 - When `kind: proof_obligation`, make `definition` name the theorem/result plus the hypotheses or parameter regime the proof must cover. Do not hide proof scope in body prose alone.
 - `regime` and `units` are optional strings; omit them instead of fabricating placeholders.
+- `numeric_tolerance`, `min_shared_points`, `sample_point_schema`, and `evaluator_role_hint` are optional and only used by the executed numeric-oracle check (`contract.numeric_oracle_agreement`): they declare how a blind re-derivation should be sampled and compared against the claim's evaluator. `numeric_tolerance` is a positive number, `min_shared_points` defaults to 20, `sample_point_schema` maps each input symbol to its units (or `dimensionless`), and `evaluator_role_hint` says what to compute without revealing the answer. Omit them for observables that have no constructible numeric evaluator.
 - Claims may only reference observables that appear in `observables[]`.
 
 ### `deliverables[]`

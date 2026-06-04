@@ -13,7 +13,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 EXACTNESS_TOTAL_BUDGETS = {
     # Phase 5 pass4 observed 517/5134 after semantic-helper migration.
     "brittle_prose_assertions": 525,
-    "exact_assertion_count": 5_165,
+    # +2 for the numeric-oracle unit + contract-check tests.
+    "exact_assertion_count": 5_167,
 }
 TAXONOMY_HELPER_TOTAL_FLOORS = {
     # Phase 8 observed 80 files and 735 helper calls; keep a small call-count cushion.

@@ -33,7 +33,7 @@ It covers:
 <!-- repo-graph-scope:start -->
 
 - `src/gpd/commands/*.md`: `71`
-- `src/gpd/agents/*.md`: `24`
+- `src/gpd/agents/*.md`: `25`
 - `src/gpd/specs/workflows/*.md`: `72`
 - `src/gpd/specs/templates/**/*.md`: `81`
 - `src/gpd/specs/references/**/*.md`: `241`
@@ -41,8 +41,8 @@ It covers:
 - `src/gpd/hooks/*.py`: `11`
 - `src/gpd/mcp/*.py`: `5`
 - `src/gpd/mcp/integrations/*.py`: `2`
-- `src/gpd/mcp/servers/*.py`: `15`
-- `infra/gpd-*.json`: `8`
+- `src/gpd/mcp/servers/*.py`: `16`
+- `infra/gpd-*.json`: `9`
 
 Excluded as noise from node counting, but still modeled where contractually relevant:
 

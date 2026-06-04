@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PROMPT_TOTAL_BUDGET = {"lines": 42_900, "chars": 1_773_000}
 PROMPT_KIND_BUDGETS = {
     "command": {"lines": 20_200, "chars": 760_000},
-    "agent": {"lines": 6_500, "chars": 363_000},
+    "agent": {"lines": 6_600, "chars": 368_000},
     "workflow": {"lines": 15_300, "chars": 618_000},
 }
 STAGE_FIRST_TURN_BUDGET = {"lines": 3_180, "chars": 134_000}
@@ -35,8 +35,8 @@ EXECUTE_PHASE_SPLIT_STAGE_EAGER_CHAR_BUDGET = 16_000
 PHASE3_TARGET_STAGE_EAGER_CHAR_BUDGETS = {
     ("execute-phase", "closeout"): 7_050,
     ("peer-review", "preflight"): 9_178,
-    ("verify-work", "gap_repair"): 10_100,
-    ("verify-work", "interactive_validation"): 5_000,
+    ("verify-work", "gap_repair"): 10_450,
+    ("verify-work", "interactive_validation"): 5_150,
     ("sync-state", "reconcile_and_validate"): 3_840,
     ("sync-state", "conflict_analysis"): 2_760,
     ("sync-state", "single_source_recovery"): 1_890,

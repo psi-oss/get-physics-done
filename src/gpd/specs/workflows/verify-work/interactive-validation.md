@@ -25,8 +25,12 @@ Display compactly:
 
 **Independent computation:** {computation description and result}
 
+**Oracle verdict:** {oracle_status: PASS | INCONCLUSIVE | (none)} — {sample_points_compared} points, fidelity {matched|mismatch}
+
 Confirm this matches your result, or describe what differs.
 ```
+
+The **Oracle verdict** line is shown only when the verifier recorded a blind oracle check (`contract.numeric_oracle_agreement`) for this check; omit it otherwise. Surface the verifier's recorded verdict verbatim — do not recompute it here.
 
 Present verifier-produced evidence exactly once per check. Do not derive a new physics criterion here.
 

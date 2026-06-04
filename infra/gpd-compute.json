@@ -1,0 +1,38 @@
+{
+  "name": "gpd-compute",
+  "description": "Optional no-network numeric oracle for executed verification. Evaluates agent-authored expressions or evaluators at caller-supplied sample points in a sandboxed mpmath/numpy runtime with a timeout, and returns a stable content hash of the executed source. No network access and no API keys; deterministic by design.",
+  "transport": "stdio",
+  "command": "gpd-mcp-compute",
+  "args": [],
+  "env": {},
+  "capabilities": [
+    "evaluate_expression",
+    "evaluator_hash",
+    "probe_capability",
+    "describe_runtime"
+  ],
+  "registry_prefix": "gpd_compute",
+  "prerequisites": [
+    "Install GPD before enabling built-in MCP servers.",
+    "Install the gpd-compute package in the same environment before enabling gpd-compute."
+  ],
+  "health_check": {
+    "probe_kind": "schema_valid",
+    "tool": "describe_runtime",
+    "input": {},
+    "expect": "no_network is true"
+  },
+  "alternatives": {
+    "python_module": {
+      "command": "${GPD_PYTHON}",
+      "args": [
+        "-m",
+        "gpd.mcp.servers.compute_bridge"
+      ],
+      "notes": "Replace `${GPD_PYTHON}` with a Python >=3.11 interpreter that has GPD installed."
+    }
+  },
+  "optional": true,
+  "availability": "conditional",
+  "availability_condition": "Available only when the optional Python module 'gpd_compute' is installed."
+}

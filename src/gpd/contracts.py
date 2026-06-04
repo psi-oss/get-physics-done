@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -1875,13 +1876,21 @@ class ContractObservable(BaseModel):
     definition: str
     regime: str | None = None
     units: str | None = None
+    # Optional numeric-oracle binding: how this observable should be sampled and
+    # compared when an executed numeric-oracle check (contract.numeric_oracle_agreement)
+    # diffs a blind re-derivation against the claim's evaluator. All optional so
+    # existing contracts validate unchanged.
+    numeric_tolerance: float | None = None
+    min_shared_points: int | None = None
+    sample_point_schema: dict[str, str] | None = None
+    evaluator_role_hint: str | None = None
 
     @field_validator("id", "name", "definition", mode="before")
     @classmethod
     def _normalize_required_fields(cls, value: object) -> object:
         return _normalize_required_str(value)
 
-    @field_validator("regime", "units", mode="before")
+    @field_validator("regime", "units", "evaluator_role_hint", mode="before")
     @classmethod
     def _normalize_optional_fields(cls, value: object) -> object:
         return _normalize_non_empty_optional_str(value)
@@ -1890,6 +1899,24 @@ class ContractObservable(BaseModel):
     @classmethod
     def _normalize_kind(cls, value: object) -> object:
         return _normalize_literal_choice(_normalize_required_str(value), CONTRACT_OBSERVABLE_KIND_VALUES)
+
+    @field_validator("numeric_tolerance")
+    @classmethod
+    def _validate_numeric_tolerance(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        if not math.isfinite(value) or value <= 0:
+            raise ValueError("numeric_tolerance must be a positive finite number")
+        return value
+
+    @field_validator("min_shared_points")
+    @classmethod
+    def _validate_min_shared_points(cls, value: int | None) -> int | None:
+        if value is None:
+            return None
+        if value < 1:
+            raise ValueError("min_shared_points must be at least 1")
+        return value
 
 
 class ContractClaim(BaseModel):
