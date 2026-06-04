@@ -1133,3 +1133,156 @@ def check_tensor_indices(equation: str) -> dict:
         "issues": [],
         "detail": "index structure is consistent across all terms and both sides",
     }
+
+
+# ─── Integral checking ─────────────────────────────────────────────────────────
+
+
+def check_integral(
+    integrand: str,
+    variable: str,
+    claimed: str | None = None,
+    lower: str | None = None,
+    upper: str | None = None,
+    timeout_s: float = _DEFAULT_TIMEOUT_S,
+) -> dict:
+    """Verify a claimed integral of ``integrand`` w.r.t. ``variable``.
+
+    Indefinite (no bounds): the claimed antiderivative is verified by
+    differentiation — ``d(claimed)/dx == integrand`` — which is always decidable
+    and so the robust direction. Definite (``lower`` & ``upper`` given): computes
+    ``integrate(integrand, (x, lower, upper))`` and compares to ``claimed``.
+    Unparseable input or an integral SymPy cannot evaluate → inconclusive.
+    """
+    integrand_expr = safe_parse(integrand)
+    if integrand_expr is None:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": "integrand is not machine-parseable"}
+    sympy = _sympy()
+    var = sympy.Symbol(variable)
+    definite = lower is not None and upper is not None
+
+    if definite:
+        a = safe_parse(lower)
+        b = safe_parse(upper)
+        if a is None or b is None:
+            return {"verdict": VERDICT_INCONCLUSIVE, "detail": "integration bounds are not machine-parseable"}
+        ok, value = run_with_timeout(lambda: sympy.integrate(integrand_expr, (var, a, b)), timeout_s)
+        if not ok or value is None or value.has(sympy.Integral):
+            return {"verdict": VERDICT_INCONCLUSIVE, "detail": "SymPy could not evaluate the definite integral"}
+        result: dict = {"computed_value": str(value)}
+        if claimed is None:
+            result["verdict"] = VERDICT_COMPUTED
+            result["detail"] = "computed the definite integral"
+            return result
+        claimed_expr = safe_parse(claimed)
+        if claimed_expr is None:
+            result["verdict"] = VERDICT_COMPUTED
+            result["expected_parsed"] = False
+            result["detail"] = "computed the definite integral; claimed value is prose — compare manually"
+            return result
+        equal = symbolic_equal(value, claimed_expr, timeout_s)
+        result["verdict"] = VERDICT_PASS if equal is True else VERDICT_FAIL if equal is False else VERDICT_COMPUTED
+        result["detail"] = (
+            "computed definite integral matches the claimed value"
+            if equal is True
+            else "computed definite integral does NOT match the claimed value"
+            if equal is False
+            else "equality undecidable — review computed_value vs claimed"
+        )
+        return result
+
+    # Indefinite.
+    if claimed is not None:
+        antiderivative = safe_parse(claimed)
+        if antiderivative is None:
+            return {"verdict": VERDICT_INCONCLUSIVE, "detail": "claimed antiderivative is not machine-parseable"}
+        ok, derivative = run_with_timeout(lambda: sympy.diff(antiderivative, var), timeout_s)
+        if not ok:
+            return {"verdict": VERDICT_INCONCLUSIVE, "detail": "could not differentiate the claimed antiderivative"}
+        equal = symbolic_equal(derivative, integrand_expr, timeout_s)
+        return {
+            "verdict": VERDICT_PASS if equal is True else VERDICT_FAIL if equal is False else VERDICT_INCONCLUSIVE,
+            "derivative_of_claimed": str(derivative),
+            "detail": (
+                f"d(claimed)/d{variable} equals the integrand — antiderivative is correct"
+                if equal is True
+                else f"d(claimed)/d{variable} does NOT equal the integrand"
+                if equal is False
+                else f"could not decide whether d(claimed)/d{variable} equals the integrand"
+            ),
+        }
+    ok, antiderivative = run_with_timeout(lambda: sympy.integrate(integrand_expr, var), timeout_s)
+    if not ok or antiderivative is None or antiderivative.has(sympy.Integral):
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": "SymPy could not evaluate the indefinite integral"}
+    return {"verdict": VERDICT_COMPUTED, "antiderivative": str(antiderivative), "detail": "computed the antiderivative"}
+
+
+# ─── Commutator / operator-algebra checking ────────────────────────────────────
+
+_DERIV_SYMBOL = re.compile(r"^f_(x+)$")
+
+
+def _operator_action(text: str, func, var):
+    """Parse an operator's action on a test function f into a SymPy expression.
+
+    Uses ``f`` for the function and ``f_x``, ``f_xx`` … for its derivatives.
+    Returns an expression in ``f(var)`` and its derivatives, or None.
+    """
+    parsed = _parse_plain(text)
+    if parsed is None:
+        return None
+    sympy = _sympy()
+    applied = func(var)
+    replacements = {}
+    for symbol in parsed.free_symbols:
+        name = str(symbol)
+        if name == "f":
+            replacements[symbol] = applied
+        else:
+            match = _DERIV_SYMBOL.match(name)
+            if match:
+                replacements[symbol] = sympy.Derivative(applied, var, len(match.group(1)))
+    return parsed.subs(replacements)
+
+
+def check_commutator(
+    operators: dict, a: str, b: str, expected: str, variable: str = "x", timeout_s: float = _DEFAULT_TIMEOUT_S
+) -> dict:
+    """Verify a commutator ``[A, B] = expected`` by acting on a test function.
+
+    ``operators`` maps a name to its action on ``f`` (e.g. {"X": "x*f",
+    "P": "-I*hbar*f_x"}); ``expected`` is the claimed result's action (e.g.
+    "I*hbar*f" for ``[X, P] = i hbar``). Computes ``A(B f) - B(A f)`` symbolically
+    and compares. Unparseable operators or an undecidable result → inconclusive.
+    """
+    if a not in operators or b not in operators:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": f"operators must include both '{a}' and '{b}'"}
+    sympy = _sympy()
+    var = sympy.Symbol(variable)
+    func = sympy.Function("f")
+    action_a = _operator_action(operators[a], func, var)
+    action_b = _operator_action(operators[b], func, var)
+    expected_expr = _operator_action(expected, func, var)
+    if action_a is None or action_b is None or expected_expr is None:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": "operator action or expected result is not machine-parseable"}
+
+    def _commutator():
+        apply_a_to_b = action_a.subs(func, sympy.Lambda(var, action_b)).doit()
+        apply_b_to_a = action_b.subs(func, sympy.Lambda(var, action_a)).doit()
+        return sympy.simplify(apply_a_to_b - apply_b_to_a)
+
+    ok, commutator = run_with_timeout(_commutator, timeout_s)
+    if not ok:
+        return {"verdict": VERDICT_INCONCLUSIVE, "detail": f"could not evaluate the commutator ({commutator})"}
+    equal = symbolic_equal(commutator, expected_expr, timeout_s)
+    return {
+        "verdict": VERDICT_PASS if equal is True else VERDICT_FAIL if equal is False else VERDICT_INCONCLUSIVE,
+        "commutator_action": str(commutator),
+        "detail": (
+            f"[{a}, {b}] matches the expected result"
+            if equal is True
+            else f"[{a}, {b}] does NOT match the expected result"
+            if equal is False
+            else f"could not decide whether [{a}, {b}] matches the expected result"
+        ),
+    }

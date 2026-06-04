@@ -1393,6 +1393,8 @@ def test_read_only_builtin_mcp_tools_publish_annotations() -> None:
             "series_check",
             "ode_check",
             "tensor_check",
+            "integral_check",
+            "commutator_check",
         },
     }
 

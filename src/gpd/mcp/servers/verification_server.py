@@ -5509,6 +5509,97 @@ def tensor_check(equation: str) -> dict:
         return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
 
 
+@mcp.tool(annotations=read_only_tool_annotations())
+def integral_check(
+    integrand: str,
+    variable: str,
+    claimed: str | None = None,
+    lower: str | None = None,
+    upper: str | None = None,
+) -> dict:
+    """Verify a claimed integral.
+
+    Indefinite (no bounds): the claimed antiderivative is verified by
+    differentiation — ``d(claimed)/dx == integrand`` — the robust direction.
+    Definite (``lower`` and ``upper`` given): computes the definite integral with
+    SymPy and compares to ``claimed``. With no ``claimed``, returns the computed
+    result. Plain or LaTeX input; an integral SymPy cannot evaluate →
+    inconclusive.
+
+    Args:
+        integrand: e.g. "2*x" or LaTeX.
+        variable: integration variable, e.g. "x".
+        claimed: claimed antiderivative (indefinite) or value (definite).
+        lower, upper: bounds for a definite integral (e.g. "0", "oo", "pi").
+    """
+    with gpd_span("mcp.verification.integral_check"):
+        validated_integrand, error = _validate_string(integrand, field_name="integrand")
+        if error is not None:
+            return error
+        validated_variable, error = _validate_string(variable, field_name="variable")
+        if error is not None:
+            return error
+        validated_claimed = None
+        if claimed is not None:
+            validated_claimed, error = _validate_string(claimed, field_name="claimed")
+            if error is not None:
+                return error
+        validated_lower = None
+        if lower is not None:
+            validated_lower, error = _validate_string(lower, field_name="lower")
+            if error is not None:
+                return error
+        validated_upper = None
+        if upper is not None:
+            validated_upper, error = _validate_string(upper, field_name="upper")
+            if error is not None:
+                return error
+        if (validated_lower is None) != (validated_upper is None):
+            return _error_result("a definite integral needs both lower and upper bounds")
+        result = _cas.check_integral(
+            validated_integrand, validated_variable, validated_claimed, validated_lower, validated_upper
+        )
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
+@mcp.tool(annotations=read_only_tool_annotations())
+def commutator_check(operators: dict[str, str], a: str, b: str, expected: str, variable: str = "x") -> dict:
+    """Verify an operator commutator ``[a, b] = expected`` on a test function.
+
+    ``operators`` maps a name to its action on the test function ``f``, using
+    ``f`` and ``f_x``, ``f_xx`` … for derivatives. Computes ``a(b f) - b(a f)``
+    with SymPy and compares to ``expected``. Example: the canonical commutator
+    ``operators={"X": "x*f", "P": "-I*hbar*f_x"}, a="X", b="P",
+    expected="I*hbar*f"`` (i.e. [x, p] = i hbar) → pass.
+
+    Args:
+        operators: name -> action on f (e.g. {"X": "x*f", "P": "-I*hbar*f_x"}).
+        a, b: operator names to commute.
+        expected: the claimed result's action on f (e.g. "I*hbar*f").
+        variable: the spatial variable used in the actions (default "x").
+    """
+    with gpd_span("mcp.verification.commutator_check"):
+        validated_operators, error = _validate_string_mapping(operators, field_name="operators")
+        if error is not None:
+            return error
+        validated_a, error = _validate_string(a, field_name="a")
+        if error is not None:
+            return error
+        validated_b, error = _validate_string(b, field_name="b")
+        if error is not None:
+            return error
+        validated_expected, error = _validate_string(expected, field_name="expected")
+        if error is not None:
+            return error
+        validated_variable, error = _validate_string(variable, field_name="variable")
+        if error is not None:
+            return error
+        result = _cas.check_commutator(
+            validated_operators, validated_a, validated_b, validated_expected, validated_variable
+        )
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
 # ─── Entry Point ──────────────────────────────────────────────────────────────
 
 

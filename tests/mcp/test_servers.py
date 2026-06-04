@@ -3495,6 +3495,72 @@ class TestVerificationServer:
         result = tensor_check(r"A^{mu} B_{mu}")
         assert result["verdict"] == "inconclusive"
 
+    # --- integral_check (antiderivative / definite integral) ---
+
+    def test_integral_check_antiderivative_correct(self):
+        from gpd.mcp.servers.verification_server import integral_check
+
+        assert integral_check("x**2", "x", "x**3/3")["verdict"] == "pass"
+
+    def test_integral_check_antiderivative_wrong(self):
+        from gpd.mcp.servers.verification_server import integral_check
+
+        assert integral_check("x**2", "x", "x**3")["verdict"] == "fail"
+
+    def test_integral_check_definite(self):
+        from gpd.mcp.servers.verification_server import integral_check
+
+        assert integral_check("x**2", "x", "1/3", "0", "1")["verdict"] == "pass"
+
+    def test_integral_check_gaussian(self):
+        from gpd.mcp.servers.verification_server import integral_check
+
+        assert integral_check("exp(-x**2)", "x", "sqrt(pi)", "-oo", "oo")["verdict"] == "pass"
+
+    def test_integral_check_latex_antiderivative(self):
+        from gpd.mcp.servers.verification_server import integral_check
+
+        assert integral_check(r"\frac{1}{x}", "x", "log(x)")["verdict"] == "pass"
+
+    def test_integral_check_computes_antiderivative(self):
+        from gpd.mcp.servers.verification_server import integral_check
+
+        result = integral_check("cos(x)", "x")
+        assert result["verdict"] == "computed"
+        assert result["antiderivative"] == "sin(x)"
+
+    def test_integral_check_one_bound_error_envelope(self):
+        from gpd.mcp.servers.verification_server import integral_check
+
+        result = integral_check("x", "x", None, "0", None)
+        assert result["schema_version"] == 1
+        assert "error" in result
+
+    # --- commutator_check (operator algebra) ---
+
+    def test_commutator_check_canonical(self):
+        from gpd.mcp.servers.verification_server import commutator_check
+
+        ops = {"X": "x*f", "P": "-I*hbar*f_x"}
+        assert commutator_check(ops, "X", "P", "I*hbar*f")["verdict"] == "pass"
+
+    def test_commutator_check_wrong(self):
+        from gpd.mcp.servers.verification_server import commutator_check
+
+        ops = {"X": "x*f", "P": "-I*hbar*f_x"}
+        assert commutator_check(ops, "X", "P", "f")["verdict"] == "fail"
+
+    def test_commutator_check_self_commutes(self):
+        from gpd.mcp.servers.verification_server import commutator_check
+
+        ops = {"X": "x*f", "P": "-I*hbar*f_x"}
+        assert commutator_check(ops, "X", "X", "0")["verdict"] == "pass"
+
+    def test_commutator_check_missing_operator_inconclusive(self):
+        from gpd.mcp.servers.verification_server import commutator_check
+
+        assert commutator_check({"X": "x*f"}, "X", "P", "f")["verdict"] == "inconclusive"
+
     def test_dimensional_check_rejects_whitespace_only_expression(self):
         from gpd.mcp.servers.verification_server import dimensional_check
 
