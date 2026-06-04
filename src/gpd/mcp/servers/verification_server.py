@@ -5337,6 +5337,46 @@ def _coverage_inner(error_class_ids: list[int], active_checks: list[str]) -> dic
     }
 
 
+@mcp.tool(annotations=read_only_tool_annotations())
+def conservation_check(
+    quantity: str, trajectory: list[dict[str, float]], tolerance: float = 1e-6
+) -> dict:
+    """Verify a conserved quantity stays constant along a trajectory.
+
+    Evaluates ``quantity`` (an expression in the state variables; plain or LaTeX)
+    at every state in ``trajectory`` and measures its drift. Returns a real
+    pass/fail verdict on the relative drift versus ``tolerance`` (absolute drift
+    when the quantity is ~0 throughout), with the min/max/initial/final values.
+
+    This catches the most common dynamics error class — energy/momentum/charge
+    that silently drifts — by actually computing it, rather than trusting that
+    the integrator conserved it.
+
+    Args:
+        quantity: e.g. "0.5*m*v**2 + 0.5*k*x**2" (SHO energy) or LaTeX.
+        trajectory: list of states, each a mapping of variable name -> number.
+        tolerance: maximum allowed relative drift (default 1e-6).
+    """
+    with gpd_span("mcp.verification.conservation_check"):
+        validated_quantity, error = _validate_string(quantity, field_name="quantity")
+        if error is not None:
+            return error
+        if not isinstance(trajectory, list) or not trajectory:
+            return _error_result("trajectory must be a non-empty list of state mappings")
+        for index, state in enumerate(trajectory):
+            if not isinstance(state, dict):
+                return _error_result(f"trajectory[{index}] must be a mapping of variable -> number")
+            for key, value in state.items():
+                if not isinstance(key, str):
+                    return _error_result(f"trajectory[{index}] keys must be strings")
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    return _error_result(f"trajectory[{index}][{key}] must be a number")
+        if isinstance(tolerance, bool) or not isinstance(tolerance, (int, float)) or tolerance < 0:
+            return _error_result("tolerance must be a non-negative number")
+        result = _cas.check_conservation(validated_quantity, trajectory, float(tolerance))
+        return stable_mcp_response({"schema_version": VERIFICATION_SCHEMA_VERSION, **result})
+
+
 # ─── Entry Point ──────────────────────────────────────────────────────────────
 
 

@@ -715,3 +715,84 @@ def check_dimensions(expression: str, symbol_dims: dict) -> dict:
             else "left and right sides have different dimensions"
         ),
     }
+
+
+# ─── Conservation-law drift along a trajectory ─────────────────────────────────
+
+
+def check_conservation(
+    quantity: str, trajectory: list[dict], tolerance: float = 1e-6, timeout_s: float = _DEFAULT_TIMEOUT_S
+) -> dict:
+    """Evaluate a conserved quantity at each state and measure its drift.
+
+    ``quantity`` is an expression (plain or LaTeX) in the state variables;
+    ``trajectory`` is a list of states, each a mapping name → number. Returns a
+    pass/fail verdict on the relative drift versus ``tolerance`` (absolute drift
+    when the quantity is ~0 throughout). Unparseable quantities, missing
+    variables, or non-real values → inconclusive, never a false pass.
+    """
+    if len(trajectory) < 2:
+        return {
+            "verdict": VERDICT_INCONCLUSIVE,
+            "detail": "need at least 2 states to measure drift",
+        }
+    expr = safe_parse(quantity)
+    if expr is None:
+        return {
+            "verdict": VERDICT_INCONCLUSIVE,
+            "detail": "quantity expression is not machine-parseable",
+        }
+    sympy = _sympy()
+    free = {str(s) for s in expr.free_symbols}
+    for index, state in enumerate(trajectory):
+        missing = free - set(state.keys())
+        if missing:
+            return {
+                "verdict": VERDICT_INCONCLUSIVE,
+                "detail": f"state {index} is missing variables: {sorted(missing)}",
+            }
+
+    def _evaluate() -> list[float]:
+        values: list[float] = []
+        for state in trajectory:
+            substitutions = {sympy.Symbol(name): state[name] for name in free}
+            values.append(float(expr.subs(substitutions).evalf()))
+        return values
+
+    ok, values = run_with_timeout(_evaluate, timeout_s)
+    if not ok:
+        return {
+            "verdict": VERDICT_INCONCLUSIVE,
+            "detail": f"could not evaluate the quantity numerically ({values})",
+        }
+
+    q_min, q_max = min(values), max(values)
+    abs_drift = q_max - q_min
+    scale = max(abs(v) for v in values)
+    if scale > 1e-300:
+        rel_drift = abs_drift / scale
+        conserved = rel_drift <= tolerance
+        basis = "relative"
+    else:
+        rel_drift = 0.0
+        conserved = abs_drift <= tolerance
+        basis = "absolute"
+    return {
+        "verdict": VERDICT_PASS if conserved else VERDICT_FAIL,
+        "conserved": conserved,
+        "n_steps": len(values),
+        "q_initial": values[0],
+        "q_final": values[-1],
+        "q_min": q_min,
+        "q_max": q_max,
+        "max_abs_drift": abs_drift,
+        "max_relative_drift": rel_drift,
+        "tolerance": tolerance,
+        "drift_basis": basis,
+        "detail": (
+            f"quantity is conserved within tolerance ({basis} drift {rel_drift if basis == 'relative' else abs_drift:.3g})"
+            if conserved
+            else f"quantity drifts beyond tolerance ({basis} drift "
+            f"{rel_drift if basis == 'relative' else abs_drift:.3g} > {tolerance:.3g})"
+        ),
+    }

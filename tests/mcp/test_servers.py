@@ -3262,6 +3262,69 @@ class TestVerificationServer:
         assert cas["classification"] == "invariant (even)"
         assert cas["invariant"] is True
 
+    # --- conservation_check (executable trajectory drift) ---
+
+    def test_conservation_check_conserved_energy(self):
+        import math
+
+        from gpd.mcp.servers.verification_server import conservation_check
+
+        # SHO on the unit circle: E = 1/2 v^2 + 1/2 x^2 is exactly conserved.
+        traj = [
+            {"x": math.cos(i * math.pi / 6), "v": -math.sin(i * math.pi / 6), "m": 1.0, "k": 1.0}
+            for i in range(13)
+        ]
+        result = conservation_check("0.5*m*v**2 + 0.5*k*x**2", traj)
+        assert result["verdict"] == "pass"
+        assert result["conserved"] is True
+        assert result["max_relative_drift"] < 1e-6
+
+    def test_conservation_check_catches_drift(self):
+        from gpd.mcp.servers.verification_server import conservation_check
+
+        bad = [{"x": 0.0, "v": 1.0 + 0.05 * i, "m": 1.0, "k": 1.0} for i in range(10)]
+        result = conservation_check("0.5*m*v**2 + 0.5*k*x**2", bad)
+        assert result["verdict"] == "fail"
+        assert result["conserved"] is False
+
+    def test_conservation_check_zero_quantity_absolute_basis(self):
+        from gpd.mcp.servers.verification_server import conservation_check
+
+        result = conservation_check("p1 + p2", [{"p1": 1.0, "p2": -1.0}, {"p1": 2.0, "p2": -2.0}])
+        assert result["verdict"] == "pass"
+        assert result["drift_basis"] == "absolute"
+
+    def test_conservation_check_latex_quantity(self):
+        from gpd.mcp.servers.verification_server import conservation_check
+
+        result = conservation_check(r"\frac{1}{2} m v^2", [{"m": 1, "v": 2}, {"m": 1, "v": 2}])
+        assert result["verdict"] == "pass"
+
+    def test_conservation_check_missing_variable_inconclusive(self):
+        from gpd.mcp.servers.verification_server import conservation_check
+
+        result = conservation_check("a + b", [{"a": 1.0}, {"a": 2.0}])
+        assert result["verdict"] == "inconclusive"
+
+    def test_conservation_check_too_short_inconclusive(self):
+        from gpd.mcp.servers.verification_server import conservation_check
+
+        result = conservation_check("x", [{"x": 1.0}])
+        assert result["verdict"] == "inconclusive"
+
+    def test_conservation_check_invalid_trajectory_returns_error_envelope(self):
+        from gpd.mcp.servers.verification_server import conservation_check
+
+        result = conservation_check("x", "notalist")
+        assert result["schema_version"] == 1
+        assert "error" in result
+
+    def test_conservation_check_unparseable_quantity_inconclusive(self):
+        from gpd.mcp.servers.verification_server import conservation_check
+
+        result = conservation_check("not a real expr $$$", [{"x": 1.0}, {"x": 2.0}])
+        assert result["verdict"] == "inconclusive"
+
     def test_dimensional_check_rejects_whitespace_only_expression(self):
         from gpd.mcp.servers.verification_server import dimensional_check
 
