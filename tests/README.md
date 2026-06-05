@@ -33,10 +33,10 @@ It covers:
 <!-- repo-graph-scope:start -->
 
 - `src/gpd/commands/*.md`: `71`
-- `src/gpd/agents/*.md`: `24`
+- `src/gpd/agents/*.md`: `25`
 - `src/gpd/specs/workflows/*.md`: `72`
 - `src/gpd/specs/templates/**/*.md`: `81`
-- `src/gpd/specs/references/**/*.md`: `241`
+- `src/gpd/specs/references/**/*.md`: `244`
 - `src/gpd/adapters/*.py`: `15`
 - `src/gpd/hooks/*.py`: `11`
 - `src/gpd/mcp/*.py`: `5`

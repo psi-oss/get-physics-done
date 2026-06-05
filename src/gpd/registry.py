@@ -1653,6 +1653,7 @@ _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-executor": "execution",
     "gpd-experiment-designer": "planning",
     "gpd-explainer": "help",
+    "gpd-lab-designer": "planning",
     "gpd-list-phase-assumptions": "planning",
     "gpd-notation-coordinator": "verification",
     "gpd-phase-researcher": "research",
