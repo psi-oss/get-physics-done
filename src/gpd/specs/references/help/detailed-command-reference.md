@@ -143,6 +143,11 @@ Run remaining phases through staged discuss→plan→execute→verify
 - Requires files: `GPD/ROADMAP.md`, `GPD/STATE.md`
 - Staged workflow: `autonomous`.
 
+**`gpd:goal "<goal statement>" [--budget-usd <amount>] [--max-phases <n>] | --resume [--budget-usd <amount>] [--max-phases <n>]`**
+Run toward a stated goal under binding caps (USD budget and/or phase count) until achieved, budget-stopped, or blocked
+
+- Requires files: `GPD/ROADMAP.md`, `GPD/STATE.md`
+
 **`gpd:derive-equation [equation or topic to derive]`**
 Perform a rigorous physics derivation with systematic verification at each step
 

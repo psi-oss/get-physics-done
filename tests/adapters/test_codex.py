@@ -980,7 +980,7 @@ class TestInstall:
             assert "bridge `" in block, skill_md.parent.name
             assert len(block.splitlines()) <= 3, skill_md.parent.name
 
-        assert total_note_chars <= 25_000
+        assert total_note_chars <= 26_000
 
     def test_install_keeps_canonical_local_cli_language_in_skill_prose(
         self,

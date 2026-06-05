@@ -36,13 +36,13 @@ COMMAND_ONLY_RUNTIME_PRESSURE_BUDGETS = {
     "codex": {
         "shell_fence_count": 31,
         "shell_rewrite_count": 31,
-        "bridge_command_occurrences": 245,
+        "bridge_command_occurrences": 251,
         "runtime_note_count": 2,
     },
     "copilot-cli": {
         "shell_fence_count": 31,
         "shell_rewrite_count": 31,
-        "bridge_command_occurrences": 174,
+        "bridge_command_occurrences": 179,
         "runtime_note_count": 2,
     },
     "gemini": {
@@ -54,7 +54,7 @@ COMMAND_ONLY_RUNTIME_PRESSURE_BUDGETS = {
     "opencode": {
         "shell_fence_count": 31,
         "shell_rewrite_count": 31,
-        "bridge_command_occurrences": 174,
+        "bridge_command_occurrences": 179,
         "runtime_note_count": 2,
     },
 }
@@ -66,8 +66,8 @@ ADDITIONAL_COMPACT_WORKFLOW_REFERENCE_COMMAND_PROJECTION_BUDGETS = {
         "opencode": {"chars": 5_200, "lines": 100},
     },
     "explain": {
-        "codex": {"chars": 6_150, "lines": 130},
-        "copilot-cli": {"chars": 6_470, "lines": 145},
+        "codex": {"chars": 6_200, "lines": 130},
+        "copilot-cli": {"chars": 6_550, "lines": 145},
         "gemini": {"chars": 6_950, "lines": 130},
         "opencode": {"chars": 6_550, "lines": 145},
     },

@@ -94,7 +94,7 @@ ADDITIONAL_COMPACT_WORKFLOW_REFERENCE_COMMAND_PROJECTION_BUDGETS = {
         "opencode": {"chars": 5_200, "lines": 100},
     },
     "explain": {
-        "codex": {"chars": 6_150, "lines": 130},
+        "codex": {"chars": 6_200, "lines": 130},
         "copilot-cli": {"chars": 6_600, "lines": 145},
         "gemini": {"chars": 6_950, "lines": 130},
         "opencode": {"chars": 6_550, "lines": 145},

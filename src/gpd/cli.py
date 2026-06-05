@@ -4472,6 +4472,96 @@ def cost(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# goal — Goal-contract status and gate decisions for gpd:goal runs
+# ═══════════════════════════════════════════════════════════════════════════
+
+goal_app = typer.Typer(help="Goal-contract status and gate decisions for gpd:goal runs")
+app.add_typer(goal_app, name="goal")
+
+
+def _goal_gate_payload() -> dict:
+    from gpd.core.costs import build_cost_summary
+    from gpd.core.goal_contract import GoalContract, validate_goal_contract_payload
+    from gpd.core.goal_evidence import collect_claim_outcomes, collect_phase_statuses
+    from gpd.core.goal_gate import GoalGateError, goal_gate_summary
+    from gpd.core.state import state_load_readonly
+
+    # goal gate/status are read-only inspectors; mirror `gpd state load` and use
+    # the project-scoped resolver plus the read-only loader so we never acquire
+    # a lock or write recovery state, even when invoked from a nested directory.
+    cwd = _read_only_project_scoped_cwd()
+    loaded = state_load_readonly(cwd)
+    payload = (loaded.state or {}).get("goal_contract")
+    if payload is None:
+        goal_command = format_active_runtime_command(
+            "goal",
+            cwd=cwd,
+            detect_runtime=detect_runtime_for_gpd_use,
+            fallback="the active runtime's `goal` command",
+        )
+        _error(
+            f'No goal contract found. Start one with {goal_command} "<statement>" '
+            "--budget-usd <amount> and/or --max-phases <n>."
+        )
+    issues = validate_goal_contract_payload(payload)
+    if issues:
+        _error("Invalid goal contract: " + "; ".join(issues))
+    contract = GoalContract.model_validate(payload)
+    spent_usd = build_cost_summary(cwd, last_sessions=0).project.cost_usd
+    claim_outcomes = collect_claim_outcomes(cwd)
+    phase_statuses = collect_phase_statuses(cwd)
+    all_phases_passed = bool(phase_statuses) and all(
+        status == "passed" for status in phase_statuses.values()
+    )
+    try:
+        summary = goal_gate_summary(
+            contract,
+            spent_usd=spent_usd,
+            claim_outcomes=claim_outcomes,
+            all_phases_passed=all_phases_passed,
+        )
+    except GoalGateError as exc:
+        _error(str(exc))
+    return summary.model_dump(mode="json")
+
+
+def _render_goal_status(payload: dict) -> None:
+    if payload["usd_cap_enforceable"]:
+        percent = round(payload["run_spent_usd"] / payload["budget_usd"] * 100.0, 1)
+        console.print(
+            f"Budget: ${payload['run_spent_usd']:.2f} of ${payload['budget_usd']:.2f} used "
+            f"({percent}%) — decision: {payload['budget_decision']}"
+        )
+    else:
+        console.print(
+            f"Budget: USD spend unavailable on this runtime — decision: {payload['budget_decision']}"
+        )
+    if payload["max_phases"] is not None:
+        console.print(f"Phases: {payload['phases_completed']} of {payload['max_phases']} used")
+    table = Table("Criterion", "Claim", "Outcome")
+    for criterion in payload["criteria"]:
+        table.add_row(criterion["id"], criterion["claim_ref"], criterion["outcome"])
+    console.print(table)
+    console.print("Goal achieved." if payload["achieved"] else "Goal not yet achieved.")
+
+
+@goal_app.command("gate")
+def goal_gate() -> None:
+    """Emit the gate decision for the active goal run (caps + criteria)."""
+    _output(_goal_gate_payload())
+
+
+@goal_app.command("status")
+def goal_status() -> None:
+    """Show the goal run receipt: spend, phases, criteria, and status."""
+    payload = _goal_gate_payload()
+    if _raw:
+        _output(payload)
+        return
+    _render_goal_status(payload)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # stage — Read-only staged workflow metadata
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -9994,6 +10084,20 @@ def validate_referee_decision(
     )
     _output(report)
     if not report.valid:
+        raise typer.Exit(code=1)
+
+
+@validate_app.command("goal-contract")
+def validate_goal_contract(
+    file: str = typer.Argument(..., help="Path to a goal-contract JSON file, or '-' for stdin"),
+) -> None:
+    """Validate a gpd:goal goal-contract payload."""
+    from gpd.core.goal_contract import validate_goal_contract_payload
+
+    payload = _load_json_document_or_error(file)
+    issues = validate_goal_contract_payload(payload)
+    _output({"valid": not issues, "issues": issues})
+    if issues:
         raise typer.Exit(code=1)
 
 

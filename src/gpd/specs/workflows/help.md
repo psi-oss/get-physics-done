@@ -99,6 +99,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:plan-phase <number>` - Build a detailed execution plan for a phase
 - `gpd:execute-phase <phase-number> [--gaps-only]` - Run all plans in a phase, or only gap-closure plans
 - `gpd:autonomous [--from N]` - Run all remaining phases autonomously (discuss→plan→execute→verify each)
+- `gpd:goal "<goal>" [--budget-usd <amount>] [--max-phases <n>]` - Goal-directed autonomous run with binding caps and verifier-gated completion
 - `gpd:derive-equation` - Run a rigorous derivation workflow from project context or one explicit current-workspace target
 
 ### Roadmap and milestones

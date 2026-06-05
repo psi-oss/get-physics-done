@@ -33,6 +33,7 @@ Source of truth: `default_state_dict()` in `gpd.core.state`.
 | `blockers` | `(string \| object)[]` | `[]` | Active blockers/concerns | Synced from STATE.md |
 | `continuation` | `ContinuationObject` | see below | Durable canonical continuation authority for session handoff and recorded machine identity | **Authoritative** (JSON-only) |
 | `contract_alignment` | `ContractAlignmentGate` | see below | Hashes confirming the user-approved project contract and context alignment | **Authoritative** (JSON-only) |
+| `goal_contract` | `GoalContract \| null` | `null` | Goal statement, success criteria, and binding caps for a gpd:goal run | **Authoritative** (JSON-only, from gpd:goal) |
 
 ### Authoritative vs Derived
 
@@ -431,7 +432,7 @@ STATE.md and state.json are kept in sync:
 state.json > state.json.bak > STATE.md
 ```
 
-For JSON-only fields (`project_contract`, `resolved_questions`, `approximations`, `convention_lock`, `propagated_uncertainties`, `continuation`, `contract_alignment`, and structured `intermediate_results`): state.json is sole authority. STATE.md renders a lossy view where projections exist.
+For JSON-only fields (`project_contract`, `resolved_questions`, `approximations`, `convention_lock`, `propagated_uncertainties`, `continuation`, `contract_alignment`, `goal_contract`, and structured `intermediate_results`): state.json is sole authority. STATE.md renders a lossy view where projections exist.
 
 For position/decisions/blockers: STATE.md is the primary edit surface; state.json is synced from it.
 

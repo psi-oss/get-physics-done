@@ -74,6 +74,7 @@ from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
 from gpd.core.errors import StateError
 from gpd.core.extras import Approximation
 from gpd.core.extras import Uncertainty as PropagatedUncertainty
+from gpd.core.goal_contract import GoalContract
 from gpd.core.observability import gpd_span, instrument_gpd_function
 from gpd.core.recent_projects import (
     RecentProjectEntry,
@@ -501,6 +502,7 @@ class ResearchState(BaseModel):
     blockers: list[str | dict] = Field(default_factory=list)
     continuation: ContinuationState = Field(default_factory=ContinuationState)
     contract_alignment: ContractAlignmentGate = Field(default_factory=ContractAlignmentGate)
+    goal_contract: GoalContract | None = None
 
     model_config = {"extra": "allow"}
 
@@ -2210,6 +2212,22 @@ def _normalize_state_schema(
             for err in exc.errors():
                 loc = tuple(err.get("loc", ()))
                 message = str(err.get("msg", "validation failed")).strip() or "validation failed"
+                if loc and loc[0] == "goal_contract" and "goal_contract" in normalized:
+                    # Never auto-heal individual goal-contract fields: pruning a
+                    # malformed cap (e.g. budget_usd) could silently weaken gate
+                    # semantics while the rest of the contract stays valid. Fail
+                    # closed by dropping the whole contract with a finding.
+                    normalized.pop("goal_contract", None)
+                    removed_validation_paths.add(loc)
+                    issue = (
+                        f'schema normalization: dropped "goal_contract" because '
+                        f'"{_format_validation_location(loc)}" failed validation: {message}; '
+                        "goal-contract fields are never auto-healed"
+                    )
+                    if issue not in validation_findings:
+                        validation_findings.append(issue)
+                    nested_removed = True
+                    continue
                 if len(loc) > 1 and loc not in removed_validation_paths:
                     if _remove_validation_error_path(normalized, loc):
                         removed_validation_paths.add(loc)

@@ -4434,3 +4434,58 @@ def test_state_contract_alignment_survives_markdown_rebuild(tmp_path: Path) -> N
     assert final["contract_alignment"]["confirmed_at"] == "2026-04-23T12:00:00+00:00"
     assert final["contract_alignment"]["confirmed_contract_hash"] == "sha256:abc"
     assert final["contract_alignment"]["confirmed_context_hash"] == "sha256:def"
+
+
+def test_normalize_drops_whole_goal_contract_on_any_field_error():
+    """A malformed goal-contract field must never be auto-healed away.
+
+    Pruning just the malformed cap (e.g. budget_usd) would leave a valid
+    contract with silently weakened gate semantics, so normalization drops
+    the entire goal_contract with an integrity finding instead.
+    """
+    goal_contract = {
+        "schema_version": 1,
+        "statement": "Derive and verify the dispersion relation",
+        "success_criteria": [
+            {
+                "id": "GC-1",
+                "description": "main claim",
+                "claim_ref": "goal-gc-1",
+                "expected": "pass",
+            }
+        ],
+        "budget_usd": "five",  # malformed: must be a positive number
+        "max_phases": 6,
+        "status": "active",
+    }
+
+    normalized, issues = _normalize_state_schema({"goal_contract": goal_contract})
+
+    assert normalized["goal_contract"] is None
+    assert any(
+        'dropped "goal_contract"' in issue and "never auto-healed" in issue for issue in issues
+    )
+
+
+def test_normalize_preserves_valid_goal_contract():
+    goal_contract = {
+        "schema_version": 1,
+        "statement": "Derive and verify the dispersion relation",
+        "success_criteria": [
+            {
+                "id": "GC-1",
+                "description": "main claim",
+                "claim_ref": "goal-gc-1",
+                "expected": "pass",
+            }
+        ],
+        "budget_usd": 5.0,
+        "max_phases": 6,
+        "status": "active",
+    }
+
+    normalized, issues = _normalize_state_schema({"goal_contract": goal_contract})
+
+    assert normalized["goal_contract"]["budget_usd"] == 5.0
+    assert normalized["goal_contract"]["max_phases"] == 6
+    assert not any("goal_contract" in issue for issue in issues)

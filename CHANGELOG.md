@@ -4,6 +4,12 @@ All notable changes to Get Physics Done are documented here.
 
 ## vNEXT
 
+- Added `gpd:goal`: goal-directed autonomous runs under binding caps. A typed
+  goal contract (statement, success criteria tied to plan-contract claims, USD
+  budget and/or phase-count cap) drives a goal loop; runs terminate as achieved
+  (verifier-gated via VERIFICATION.md contract results), budget_stopped (clean
+  checkpoint + receipt), or blocked. New CLI surfaces: `gpd goal status`,
+  `gpd goal gate`, `gpd validate goal-contract`.
 - Add pandoc-driven markdown→LaTeX pipeline for the paper writer. Sections can opt in via `Section.content_format="markdown"`; raw-LaTeX payloads still pass through unchanged. Pandoc is probed once per `render_paper` call and shared across sections. When pandoc is missing the markdown path raises `PandocNotAvailable` with a recovery hint; legacy `maybe_convert_to_latex` callers degrade to pass-through. `--natbib` is the default so `@key` / `[@k1; @k2]` emit `\citet`/`\citep` for the template's `\bibliography{…}` to resolve; `pandoc-crossref` is auto-enabled when installed and `pandoc-citeproc` is intentionally excluded from auto-detection.
 - Fix Nature template citation rendering: switch from `naturemag.bst` to `unsrtnat` with `\usepackage[numbers,super,sort&compress]{natbib}`. `naturemag.bst` predates natbib and has no author-name macro, so pandoc's `\citet` rendered as "(author?)" in the final PDF while passing every string-level `.tex` assertion.
 - Fix PRL template cite-command resolution under revtex4-2: pass `natbib` as a class option (`\documentclass[…,natbib]{revtex4-2}`) instead of `\usepackage{natbib}`, which would otherwise option-clash with revtex's internal natbib load.

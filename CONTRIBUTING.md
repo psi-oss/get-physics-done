@@ -108,7 +108,7 @@ You don't need to share your full manuscript or data — even a brief write-up w
 - Keep public artifacts present and up to date: `README.md`, `LICENSE`, `CITATION.cff`, `CONTRIBUTING.md`, `package.json`, and `pyproject.toml`.
 - Keep the `tests` workflow pinned to the minimum supported Python version (`3.11`) unless we intentionally broaden CI coverage.
 - Keep `infra/gpd-*.json` synced with the canonical descriptor builder in `src/gpd/mcp/builtin_servers.py`.
-- Keep user-facing validation docs aligned with the CLI surface in `gpd validate`, especially `consistency`, `project-contract`, `review-preflight`, `paper-quality`, `referee-decision`, and `reproducibility-manifest`.
+- Keep user-facing validation docs aligned with the CLI surface in `gpd validate`, especially `consistency`, `project-contract`, `review-preflight`, `paper-quality`, `referee-decision`, `goal-contract`, and `reproducibility-manifest`.
 - Do not commit secrets, private infrastructure details, internal strategy notes, or cached research outputs.
 
 ## Pull Request Checklist

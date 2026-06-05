@@ -1586,6 +1586,7 @@ def _discover_commands() -> dict[str, CommandDef]:
 
 _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-autonomous": "execution",
+    "gpd-goal": "execution",
     "gpd-digest-knowledge": "research",
     "gpd-execute": "execution",
     "gpd-plan-checker": "verification",
