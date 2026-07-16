@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import copy
 import importlib
+import json
 import logging
 import os
 import re
@@ -208,13 +209,60 @@ def _set_tool_attribute(tool: object, attribute: str, value: object) -> None:
         object.__setattr__(tool, attribute, value)
 
 
+def _rewrite_const_constraint(fragment: dict[str, object], value: object) -> None:
+    """Rewrite one popped ``const`` value into runtime-portable keywords in place."""
+
+    if isinstance(value, str):
+        fragment["enum"] = [value]
+        return
+    if isinstance(value, bool):
+        fragment["enum"] = [value]
+        return
+    if isinstance(value, (int, float)):
+        fragment["minimum"] = value
+        fragment["maximum"] = value
+        return
+    note = f"Must be exactly {json.dumps(value)}."
+    description = fragment.get("description")
+    fragment["description"] = f"{description} {note}" if isinstance(description, str) and description else note
+
+
+def _make_schema_fragment_portable(fragment: object) -> None:
+    if isinstance(fragment, dict):
+        if "const" in fragment:
+            _rewrite_const_constraint(fragment, fragment.pop("const"))
+        for value in fragment.values():
+            _make_schema_fragment_portable(value)
+    elif isinstance(fragment, list):
+        for item in fragment:
+            _make_schema_fragment_portable(item)
+
+
+def portable_published_schema(schema: dict[str, object]) -> dict[str, object]:
+    """Return a deep copy of ``schema`` with draft-only keywords rewritten for cross-runtime portability.
+
+    Published tool schemas are re-encoded by MCP clients for model providers
+    whose restricted schema dialects reject the JSON Schema ``const`` keyword
+    and type ``enum`` members as strings, so a published ``{"const": 1}``
+    surfaces as an ``Invalid value ... (TYPE_STRING), 1`` error at call time
+    (issue #239). Exact string values survive as single-member enums and exact
+    numeric values as ``minimum``/``maximum`` bounds; server-side argument
+    validation remains the enforcement layer.
+    """
+
+    portable = copy.deepcopy(schema)
+    _make_schema_fragment_portable(portable)
+    return portable
+
+
 def set_published_tool_input_schema(tool: object, schema: dict[str, object]) -> None:
     """Write a published input schema onto both public and private FastMCP surfaces."""
 
+    portable = portable_published_schema(schema)
     if hasattr(tool, "inputSchema"):
-        _set_tool_attribute(tool, "inputSchema", copy.deepcopy(schema))
+        _set_tool_attribute(tool, "inputSchema", portable)
     if hasattr(tool, "parameters"):
-        _set_tool_attribute(tool, "parameters", copy.deepcopy(schema))
+        _set_tool_attribute(tool, "parameters", copy.deepcopy(portable))
 
 
 def set_registered_and_published_tool_input_schema(mcp: object, tool: object, schema: dict[str, object]) -> None:
@@ -336,6 +384,7 @@ __all__ = [
     "parse_frontmatter_safe",
     "parse_frontmatter_with_error",
     "patterns_server",
+    "portable_published_schema",
     "protocols_server",
     "resolve_absolute_project_dir",
     "run_mcp_server",
