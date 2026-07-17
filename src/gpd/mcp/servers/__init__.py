@@ -8,7 +8,12 @@ import importlib
 import logging
 import os
 import re
+import signal
+import subprocess
 import sys
+import tempfile
+import threading
+import time
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -169,11 +174,162 @@ def parse_frontmatter_safe(text: str) -> tuple[dict[str, object], str]:
     return meta, body
 
 
+_LIFECYCLE_POLL_SECONDS = 5.0
+
+
+def _client_pid_dir() -> Path | None:
+    """Return a private per-user directory for client-lifetime pid files, or ``None`` when unsafe."""
+    base = Path(tempfile.gettempdir()) / f"gpd-mcp-{os.getuid()}"
+    try:
+        base.mkdir(mode=0o700, exist_ok=True)
+        if base.is_symlink() or base.stat().st_uid != os.getuid():
+            return None
+    except OSError:
+        return None
+    return base
+
+
+def _word_names_entry_point(word: str, invocation_token: str) -> bool:
+    """Return whether one command-line word names ``invocation_token`` exactly.
+
+    Exact comparison against the word's path basename and its dot-split halves
+    covers console scripts (``.../gpd-mcp-state``), dotted modules
+    (``gpd.mcp.servers.state_server``), and script files (``state_server.py``)
+    without admitting prefix collisions such as ``state_server_extra``.
+    """
+    tail = word.rsplit("/", 1)[-1]
+    head, _, last = tail.rpartition(".")
+    return invocation_token in (tail, head, last)
+
+
+def _is_gpd_server_spawned_by(pid: int, parent_pid: int, invocation_token: str) -> bool:
+    """Return whether ``pid`` is a live GPD MCP server whose parent is ``parent_pid``.
+
+    ``invocation_token`` (the replacement instance's own entry-point name) must
+    exactly name a word of the candidate's command line so that a recycled pid
+    pointing at a *different* GPD server under the same client — including one
+    whose name merely extends ours — is never treated as ours.
+    """
+    try:
+        listing = subprocess.run(
+            ["ps", "-o", "ppid=,command=", "-p", str(pid)],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    if listing.returncode != 0:
+        return False
+    reported = listing.stdout.strip().split(None, 1)
+    if len(reported) != 2:
+        return False
+    return (
+        reported[0] == str(parent_pid)
+        and "gpd.mcp.servers" in reported[1]
+        and any(_word_names_entry_point(word, invocation_token) for word in reported[1].split())
+    )
+
+
+def _terminate_superseded_instance(
+    server_name: str,
+    parent_pid: int,
+    pid_dir: Path,
+    invocation_token: str,
+) -> None:
+    """SIGTERM the previous instance of ``server_name`` that the same client spawned and abandoned.
+
+    MCP clients that restart their stdio servers (startup-timeout retries,
+    reconnects) can leave the previous instance running with its pipes held
+    open, so it never sees EOF and outlives every session. Each instance
+    records its pid in a file keyed by (server, client pid); the next instance
+    verifies the recorded process is still that client's instance of the same
+    server before terminating it. Stale files from exited instances fail
+    verification and are simply overwritten. The whole read-verify-kill-record
+    sequence holds a per-key lock so concurrent replacements cannot interleave
+    and leave a live instance unrecorded.
+    """
+    import fcntl  # POSIX-only, matching the guard's platform gate
+
+    pid_file = pid_dir / f"{server_name}-client{parent_pid}.pid"
+    try:
+        lock_handle = open(pid_dir / f"{server_name}-client{parent_pid}.lock", "w")
+    except OSError:
+        return
+    try:
+        try:
+            fcntl.flock(lock_handle, fcntl.LOCK_EX)
+        except OSError:
+            # Locking is unavailable (e.g. NFS-backed tmp); skip the takeover
+            # rather than crash startup — the reparent watchdog still guards.
+            return
+        try:
+            previous_pid = int(pid_file.read_text().strip())
+        except (OSError, ValueError):
+            previous_pid = None
+        if (
+            previous_pid is not None
+            and previous_pid != os.getpid()
+            and _is_gpd_server_spawned_by(previous_pid, parent_pid, invocation_token)
+        ):
+            try:
+                os.kill(previous_pid, signal.SIGTERM)
+            except OSError:
+                pass
+        try:
+            staging = pid_file.parent / f"{pid_file.name}.{os.getpid()}.tmp"
+            staging.write_text(str(os.getpid()))
+            staging.replace(pid_file)
+        except OSError:
+            pass
+    finally:
+        lock_handle.close()
+
+
+def _exit_when_reparented(initial_parent_pid: int, poll_seconds: float) -> None:
+    """Block until the spawning client process dies, then force-exit this process.
+
+    Covers clients that die without our stdin ever reaching EOF (fds leaked
+    to other processes, transport regressions). An ``initial_parent_pid`` of 1
+    means the client already died during our startup — exit immediately rather
+    than guard init/launchd, which never dies. ``os._exit`` is deliberate:
+    the client is gone, so graceful shutdown paths that touch the dead
+    transport could block forever.
+    """
+    while initial_parent_pid != 1 and os.getppid() == initial_parent_pid:
+        time.sleep(poll_seconds)
+    os._exit(0)
+
+
+def _install_stdio_lifecycle_guard(server_name: str) -> None:
+    """Bind this stdio server's lifetime to the client process that spawned it (POSIX only)."""
+    if os.name != "posix":
+        return
+    parent_pid = os.getppid()
+    pid_dir = _client_pid_dir()
+    # The watchdog must be running before the takeover: the takeover blocks on
+    # a per-key lock, and a starter waiting behind a hung holder still needs
+    # to exit when its own client dies.
+    threading.Thread(
+        target=_exit_when_reparented,
+        args=(parent_pid, _LIFECYCLE_POLL_SECONDS),
+        daemon=True,
+        name="gpd-mcp-lifecycle-guard",
+    ).start()
+    if parent_pid != 1 and pid_dir is not None:
+        # The entry-point name identifies this server type in a predecessor's
+        # command line for both `python -m gpd.mcp.servers.X` and console-
+        # script invocations, since the same client uses the same registration.
+        _terminate_superseded_instance(server_name, parent_pid, pid_dir, Path(sys.argv[0]).stem)
+
+
 def run_mcp_server(mcp: object, description: str) -> None:
     """Run an MCP server with standard CLI arguments (transport, host, port).
 
     Every MCP server in this package uses the same entry-point pattern.
-    This function eliminates that boilerplate.
+    This function eliminates that boilerplate. For the stdio transport it
+    also binds the server's lifetime to the spawning client so abandoned
+    instances cannot accumulate (see ``_install_stdio_lifecycle_guard``).
 
     Args:
         mcp: A FastMCP instance.
@@ -188,6 +344,8 @@ def run_mcp_server(mcp: object, description: str) -> None:
         mcp.settings.host = args.host  # type: ignore[union-attr]
     if args.port is not None:
         mcp.settings.port = args.port  # type: ignore[union-attr]
+    if args.transport == "stdio":
+        _install_stdio_lifecycle_guard(getattr(mcp, "name", None) or Path(sys.argv[0]).stem)
     mcp.run(transport=args.transport)  # type: ignore[union-attr]
 
 

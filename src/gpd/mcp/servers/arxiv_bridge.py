@@ -969,6 +969,9 @@ async def _run() -> None:
 def main() -> None:
     """Console entry point for the GPD arXiv MCP bridge."""
 
+    from gpd.mcp.servers import _install_stdio_lifecycle_guard
+
+    _install_stdio_lifecycle_guard("gpd-arxiv")
     asyncio.run(_run())
 
 

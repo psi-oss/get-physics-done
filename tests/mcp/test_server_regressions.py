@@ -136,10 +136,13 @@ def test_error_store_rejects_duplicate_error_ids(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    with patch(
-        "gpd.mcp.servers.errors_mcp.ERROR_CATALOG_FILES",
-        ["verification/errors/catalog-a.md", "verification/errors/catalog-b.md"],
-    ), patch("gpd.mcp.servers.errors_mcp.TRACEABILITY_FILE", "verification/errors/traceability.md"):
+    with (
+        patch(
+            "gpd.mcp.servers.errors_mcp.ERROR_CATALOG_FILES",
+            ["verification/errors/catalog-a.md", "verification/errors/catalog-b.md"],
+        ),
+        patch("gpd.mcp.servers.errors_mcp.TRACEABILITY_FILE", "verification/errors/traceability.md"),
+    ):
         with pytest.raises(ValueError, match="Duplicate error class id 1"):
             ErrorStore(tmp_path)
 
@@ -156,9 +159,12 @@ def test_error_store_rejects_catalog_ids_outside_declared_file_ranges(tmp_path: 
         encoding="utf-8",
     )
 
-    with patch("gpd.mcp.servers.errors_mcp.ERROR_CATALOG_FILES", ["verification/errors/catalog.md"]), patch(
-        "gpd.mcp.servers.errors_mcp.ERROR_CATALOG_FILE_RANGES",
-        (("verification/errors/catalog.md", ((1, 1),)),),
+    with (
+        patch("gpd.mcp.servers.errors_mcp.ERROR_CATALOG_FILES", ["verification/errors/catalog.md"]),
+        patch(
+            "gpd.mcp.servers.errors_mcp.ERROR_CATALOG_FILE_RANGES",
+            (("verification/errors/catalog.md", ((1, 1),)),),
+        ),
     ):
         with pytest.raises(ValueError, match=r"catalog\.md.*1.*out-of-range error class id 2"):
             ErrorStore(tmp_path)
@@ -187,16 +193,16 @@ def test_error_store_rejects_duplicate_traceability_rows(tmp_path: Path) -> None
         encoding="utf-8",
     )
     (errors_dir / "traceability.md").write_text(
-        "| Error Class | Dimensional Analysis |\n"
-        "|---|---|\n"
-        "| 1. Foo | direct |\n"
-        "| 1. Foo | mixed |\n",
+        "| Error Class | Dimensional Analysis |\n|---|---|\n| 1. Foo | direct |\n| 1. Foo | mixed |\n",
         encoding="utf-8",
     )
 
-    with patch("gpd.mcp.servers.errors_mcp.ERROR_CATALOG_FILES", ["verification/errors/catalog.md"]), patch(
-        "gpd.mcp.servers.errors_mcp.TRACEABILITY_FILE",
-        "verification/errors/traceability.md",
+    with (
+        patch("gpd.mcp.servers.errors_mcp.ERROR_CATALOG_FILES", ["verification/errors/catalog.md"]),
+        patch(
+            "gpd.mcp.servers.errors_mcp.TRACEABILITY_FILE",
+            "verification/errors/traceability.md",
+        ),
     ):
         with pytest.raises(ValueError, match="Duplicate traceability row for error class 1"):
             ErrorStore(tmp_path)
@@ -300,11 +306,7 @@ def _call_mcp_tool(mcp_server: object, tool_name: str, arguments: dict[str, obje
         result = await mcp_server.call_tool(tool_name, arguments)
         if isinstance(result, dict):
             return result
-        if (
-            isinstance(result, tuple)
-            and len(result) == 2
-            and isinstance(result[1], dict)
-        ):
+        if isinstance(result, tuple) and len(result) == 2 and isinstance(result[1], dict):
             return result[1]
         if (
             isinstance(result, list)
@@ -328,7 +330,9 @@ def _call_mcp_tool(mcp_server: object, tool_name: str, arguments: dict[str, obje
         ("gpd.mcp.servers.skills_server", "get_skill_index", {"unexpected": True}),
     ],
 )
-def test_non_verification_mcp_tools_reject_unknown_arguments(module_name: str, tool_name: str, arguments: dict[str, object]) -> None:
+def test_non_verification_mcp_tools_reject_unknown_arguments(
+    module_name: str, tool_name: str, arguments: dict[str, object]
+) -> None:
     module = __import__(module_name, fromlist=["mcp"])
 
     result = _call_mcp_tool(module.mcp, tool_name, arguments)
@@ -634,7 +638,9 @@ def test_absolute_project_dir_schema_matches_current_host_path_semantics() -> No
     from gpd.mcp.servers import ABSOLUTE_PROJECT_DIR_SCHEMA, resolve_absolute_project_dir
 
     if os.name == "nt":
-        assert ABSOLUTE_PROJECT_DIR_SCHEMA["pattern"] == r"^(?:[A-Za-z]:[\\/](?:.*)?|\\\\[^\\/]+[\\/][^\\/]+(?:[\\/].*)?)"
+        assert (
+            ABSOLUTE_PROJECT_DIR_SCHEMA["pattern"] == r"^(?:[A-Za-z]:[\\/](?:.*)?|\\\\[^\\/]+[\\/][^\\/]+(?:[\\/].*)?)"
+        )
     else:
         assert ABSOLUTE_PROJECT_DIR_SCHEMA["pattern"] == r"^/"
         assert resolve_absolute_project_dir(r"C:\repo") is None
@@ -650,13 +656,7 @@ def test_protocol_store_rejects_invalid_tier_frontmatter(
     protocols_dir.mkdir()
     domain_manifest = protocols_dir / "protocol-domains.json"
     (protocols_dir / "bad-tier.md").write_text(
-        "---\n"
-        "tier: high\n"
-        "load_when:\n"
-        "  - asymptotic\n"
-        "---\n"
-        "# Bad Tier\n"
-        "- First step\n",
+        "---\ntier: high\nload_when:\n  - asymptotic\n---\n# Bad Tier\n- First step\n",
         encoding="utf-8",
     )
     domain_manifest.write_text(
@@ -678,6 +678,7 @@ def test_protocol_store_rejects_invalid_tier_frontmatter(
     finally:
         _load_protocol_domain_manifest.cache_clear()
 
+
 def test_protocol_store_rejects_invalid_load_when_frontmatter(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -687,14 +688,7 @@ def test_protocol_store_rejects_invalid_load_when_frontmatter(
     protocols_dir = tmp_path / "protocols"
     protocols_dir.mkdir()
     (protocols_dir / "bad-load-when.md").write_text(
-        "---\n"
-        "tier: 2\n"
-        "load_when:\n"
-        "  - asymptotic\n"
-        "  - 5\n"
-        "---\n"
-        "# Bad Load When\n"
-        "- First step\n",
+        "---\ntier: 2\nload_when:\n  - asymptotic\n  - 5\n---\n# Bad Load When\n- First step\n",
         encoding="utf-8",
     )
     domain_manifest = protocols_dir / "protocol-domains.json"
@@ -762,13 +756,7 @@ def test_protocol_store_rejects_unknown_domain_filters(
     protocols_dir = tmp_path / "protocols"
     protocols_dir.mkdir()
     (protocols_dir / "good.md").write_text(
-        "---\n"
-        "tier: 1\n"
-        "load_when:\n"
-        "  - asymptotic\n"
-        "---\n"
-        "# Good\n"
-        "- First step\n",
+        "---\ntier: 1\nload_when:\n  - asymptotic\n---\n# Good\n- First step\n",
         encoding="utf-8",
     )
     domain_manifest = protocols_dir / "protocol-domains.json"
@@ -787,7 +775,9 @@ def test_protocol_store_rejects_unknown_domain_filters(
         _load_protocol_domain_manifest.cache_clear()
 
 
-def test_protocol_store_rejects_boolean_manifest_schema_version(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_protocol_store_rejects_boolean_manifest_schema_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from gpd.mcp.servers.protocols_server import _load_protocol_domain_manifest
 
     protocols_dir = tmp_path / "protocols"
@@ -837,3 +827,294 @@ def test_protocol_store_rejects_malformed_frontmatter(
             ProtocolStore(protocols_dir)
     finally:
         _load_protocol_domain_manifest.cache_clear()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="stdio lifecycle guard is POSIX-only")
+def test_lifecycle_guard_terminates_superseded_sibling(tmp_path: Path) -> None:
+    import subprocess
+
+    from gpd.mcp.servers import _terminate_superseded_instance
+
+    decoy = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(60)  # gpd.mcp.servers.decoy_server"],
+    )
+    try:
+        pid_file = tmp_path / f"gpd-test-client{os.getpid()}.pid"
+        pid_file.write_text(str(decoy.pid))
+
+        _terminate_superseded_instance("gpd-test", os.getpid(), tmp_path, "decoy_server")
+
+        assert decoy.wait(timeout=10) == -15, "superseded instance was not SIGTERMed"
+        assert pid_file.read_text() == str(os.getpid()), "pid file must record the new instance"
+    finally:
+        if decoy.poll() is None:
+            decoy.kill()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="stdio lifecycle guard is POSIX-only")
+def test_lifecycle_guard_spares_a_different_gpd_server_type(tmp_path: Path) -> None:
+    import subprocess
+
+    from gpd.mcp.servers import _terminate_superseded_instance
+
+    # A recycled pid can land on the same client's *other* GPD server; the
+    # family marker alone must not be enough to kill it.
+    other_server = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(60)  # gpd.mcp.servers.other_server"],
+    )
+    try:
+        pid_file = tmp_path / f"gpd-test-client{os.getpid()}.pid"
+        pid_file.write_text(str(other_server.pid))
+
+        _terminate_superseded_instance("gpd-test", os.getpid(), tmp_path, "decoy_server")
+
+        with pytest.raises(subprocess.TimeoutExpired):
+            other_server.wait(timeout=0.5)
+        assert pid_file.read_text() == str(os.getpid())
+    finally:
+        other_server.kill()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="stdio lifecycle guard is POSIX-only")
+def test_lifecycle_guard_takeover_serializes_concurrent_contenders(tmp_path: Path) -> None:
+    import subprocess
+    import time
+
+    # The contender code lives in a file so its command line is just the path
+    # (a `-c` source would leak the family marker into ps output); the token
+    # matches the script name, so contenders genuinely take each other over:
+    # each one terminates the previously recorded instance and records itself.
+    contender_dir = tmp_path / "gpd.mcp.servers"
+    contender_dir.mkdir()
+    contender_script = contender_dir / "contender.py"
+    contender_script.write_text(
+        "import os\n"
+        "import sys\n"
+        "import time\n"
+        "from pathlib import Path\n"
+        "from gpd.mcp.servers import _terminate_superseded_instance\n"
+        "_terminate_superseded_instance('gpd-test', int(sys.argv[1]), Path(sys.argv[2]), 'contender')\n"
+        "Path(sys.argv[3]).write_text(str(os.getpid()))\n"
+        "time.sleep(60)\n"
+    )
+    out_files = [tmp_path / f"contender_{index}.out" for index in range(4)]
+    contenders = [
+        subprocess.Popen([sys.executable, str(contender_script), str(os.getpid()), str(tmp_path), str(out)])
+        for out in out_files
+    ]
+    try:
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            if all(out.exists() and out.read_text().strip() for out in out_files):
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("contenders never completed their takeovers")
+
+        pid_file = tmp_path / f"gpd-test-client{os.getpid()}.pid"
+        recorded_pid = int(pid_file.read_text())
+        contender_pids = {contender.pid for contender in contenders}
+        assert recorded_pid in contender_pids, "pid file must record exactly one contender"
+
+        survivor_count = 0
+        for contender in contenders:
+            if contender.pid == recorded_pid:
+                assert contender.poll() is None, "recorded contender must survive the takeover chain"
+                survivor_count += 1
+            else:
+                assert contender.wait(timeout=10) == -15, "superseded contender was not SIGTERMed"
+        assert survivor_count == 1
+        assert not list(tmp_path.glob("*.tmp")), "staging files must not be left behind"
+    finally:
+        for contender in contenders:
+            if contender.poll() is None:
+                contender.kill()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="stdio lifecycle guard is POSIX-only")
+def test_lifecycle_guard_spares_a_prefix_colliding_server_name(tmp_path: Path) -> None:
+    import subprocess
+
+    from gpd.mcp.servers import _terminate_superseded_instance
+
+    # A name that merely extends ours must not satisfy the identity check:
+    # substring matching would kill it.
+    prefix_bystander = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(60)  # gpd.mcp.servers.decoy_server_extra"],
+    )
+    try:
+        pid_file = tmp_path / f"gpd-test-client{os.getpid()}.pid"
+        pid_file.write_text(str(prefix_bystander.pid))
+
+        _terminate_superseded_instance("gpd-test", os.getpid(), tmp_path, "decoy_server")
+
+        with pytest.raises(subprocess.TimeoutExpired):
+            prefix_bystander.wait(timeout=0.5)
+        assert pid_file.read_text() == str(os.getpid())
+    finally:
+        prefix_bystander.kill()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="stdio lifecycle guard is POSIX-only")
+def test_lifecycle_guard_spares_processes_that_are_not_gpd_servers(tmp_path: Path) -> None:
+    import subprocess
+
+    from gpd.mcp.servers import _terminate_superseded_instance
+
+    bystander = subprocess.Popen([sys.executable, "-c", "import time\ntime.sleep(60)"])
+    try:
+        pid_file = tmp_path / f"gpd-test-client{os.getpid()}.pid"
+        pid_file.write_text(str(bystander.pid))
+
+        _terminate_superseded_instance("gpd-test", os.getpid(), tmp_path, "decoy_server")
+
+        with pytest.raises(subprocess.TimeoutExpired):
+            # Signal delivery is asynchronous; a short wait (not an instant
+            # poll) is what proves the bystander was left alive.
+            bystander.wait(timeout=0.5)
+        assert pid_file.read_text() == str(os.getpid())
+    finally:
+        bystander.kill()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="stdio lifecycle guard is POSIX-only")
+def test_reparented_server_exits_when_client_dies(tmp_path: Path) -> None:
+    import subprocess
+    import time
+
+    script = (
+        "import os, sys, threading, time\n"
+        "from gpd.mcp.servers import _exit_when_reparented\n"
+        "pid = os.fork()\n"
+        "if pid == 0:\n"
+        "    threading.Thread(target=_exit_when_reparented, args=(os.getppid(), 0.05), daemon=True).start()\n"
+        "    print(os.getpid(), flush=True)\n"
+        "    time.sleep(30)\n"
+        "    os._exit(7)\n"
+        "else:\n"
+        "    time.sleep(0.5)\n"
+        "    os._exit(0)\n"
+    )
+    intermediate = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    grandchild_pid = int(intermediate.stdout.strip())
+
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        try:
+            os.kill(grandchild_pid, 0)
+        except ProcessLookupError:
+            return
+        time.sleep(0.1)
+    os.kill(grandchild_pid, 9)
+    pytest.fail("server did not exit after its spawning client died")
+
+
+@pytest.mark.skipif(os.name != "posix", reason="stdio lifecycle guard is POSIX-only")
+def test_server_exits_immediately_when_client_died_during_startup(tmp_path: Path) -> None:
+    import subprocess
+    import time
+
+    # Client death before the guard captures getppid() leaves initial ppid == 1;
+    # the guard must treat that as "already orphaned", not guard init forever.
+    # Reproduce faithfully: orphan the probe (double fork, wait for reparenting
+    # to pid 1) BEFORE it starts the guard with its now-stale parent pid.
+    pid_path = tmp_path / "orphan.pid"
+    script = (
+        "import os, sys, threading, time\n"
+        "from gpd.mcp.servers import _exit_when_reparented\n"
+        "if os.fork() == 0:\n"
+        "    deadline = time.monotonic() + 2\n"
+        "    while os.getppid() != 1 and time.monotonic() < deadline:\n"
+        "        time.sleep(0.02)\n"
+        f"    open({str(pid_path)!r}, 'w').write(str(os.getpid()))\n"
+        "    threading.Thread(target=_exit_when_reparented, args=(os.getppid(), 0.05), daemon=True).start()\n"
+        "    time.sleep(30)\n"
+        "    os._exit(7)\n"
+        "os._exit(0)\n"
+    )
+    subprocess.run([sys.executable, "-c", script], timeout=15)
+
+    deadline = time.monotonic() + 10
+    orphan_pid = None
+    while time.monotonic() < deadline:
+        if pid_path.exists() and pid_path.read_text().strip():
+            orphan_pid = int(pid_path.read_text())
+            break
+        time.sleep(0.05)
+    assert orphan_pid is not None, "orphaned probe never reported its pid"
+
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        try:
+            os.kill(orphan_pid, 0)
+        except ProcessLookupError:
+            return
+        time.sleep(0.1)
+    os.kill(orphan_pid, 9)
+    pytest.fail("orphaned server kept running instead of exiting immediately")
+
+
+@pytest.mark.skipif(os.name != "posix", reason="stdio lifecycle guard is POSIX-only")
+def test_takeover_skips_when_locking_unavailable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import fcntl
+
+    from gpd.mcp.servers import _terminate_superseded_instance
+
+    def broken_flock(fd: object, operation: int) -> None:
+        raise OSError("flock unsupported on this filesystem")
+
+    monkeypatch.setattr(fcntl, "flock", broken_flock)
+
+    # Must skip quietly, never crash server startup.
+    _terminate_superseded_instance("gpd-test", os.getpid(), tmp_path, "decoy_server")
+
+
+@pytest.mark.skipif(os.name != "posix", reason="stdio lifecycle guard is POSIX-only")
+def test_server_blocked_in_takeover_still_exits_when_client_dies(tmp_path: Path) -> None:
+    import subprocess
+    import time
+
+    # The takeover blocks on a per-key lock; the watchdog must already be
+    # running so a starter stuck behind a hung lock holder still dies with
+    # its client instead of leaking.
+    pid_path = tmp_path / "blocked.pid"
+    script = (
+        "import os, sys, time\n"
+        "import gpd.mcp.servers as servers\n"
+        "servers._terminate_superseded_instance = lambda *args, **kwargs: time.sleep(30)\n"
+        "servers._LIFECYCLE_POLL_SECONDS = 0.05\n"
+        "if os.fork() == 0:\n"
+        f"    open({str(pid_path)!r}, 'w').write(str(os.getpid()))\n"
+        "    servers._install_stdio_lifecycle_guard('gpd-test')\n"
+        "    os._exit(7)\n"
+        "time.sleep(0.5)\n"
+        "os._exit(0)\n"
+    )
+    subprocess.run([sys.executable, "-c", script], timeout=15)
+
+    deadline = time.monotonic() + 10
+    blocked_pid = None
+    while time.monotonic() < deadline:
+        if pid_path.exists() and pid_path.read_text().strip():
+            blocked_pid = int(pid_path.read_text())
+            break
+        time.sleep(0.05)
+    assert blocked_pid is not None, "blocked probe never reported its pid"
+
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        try:
+            os.kill(blocked_pid, 0)
+        except ProcessLookupError:
+            return
+        time.sleep(0.1)
+    os.kill(blocked_pid, 9)
+    pytest.fail("server blocked in takeover leaked after its client died")
