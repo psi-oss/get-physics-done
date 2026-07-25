@@ -822,7 +822,9 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
     assert "Closed reference-anchor object." in reference_item["description"]
     reference_surface_rule = reference_item["allOf"][0]
     assert reference_surface_rule["if"]["required"] == ["must_surface"]
-    assert reference_surface_rule["if"]["properties"]["must_surface"]["const"] is True
+    # Published as a single-member enum: draft-only `const` is rewritten for
+    # runtime portability (see test_portable_published_schemas.py).
+    assert reference_surface_rule["if"]["properties"]["must_surface"]["enum"] == [True]
     assert reference_surface_rule["then"]["required"] == ["applies_to", "required_actions"]
     assert reference_surface_rule["then"]["properties"]["applies_to"]["minItems"] == 1
     assert reference_surface_rule["then"]["properties"]["required_actions"]["minItems"] == 1
