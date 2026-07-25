@@ -228,6 +228,12 @@ def _rewrite_const_constraint(fragment: dict[str, object], value: object) -> Non
 
 
 def _make_schema_fragment_portable(fragment: object) -> None:
+    """Recursively rewrite every ``const`` keyword under ``fragment`` in place.
+
+    Walks dicts and lists so nested subtrees (``anyOf`` members, ``items``,
+    conditional ``if``/``then`` branches) are covered, not just the top level.
+    """
+
     if isinstance(fragment, dict):
         if "const" in fragment:
             _rewrite_const_constraint(fragment, fragment.pop("const"))

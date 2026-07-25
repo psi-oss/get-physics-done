@@ -35,6 +35,12 @@ _CONDITIONAL_KEYWORDS = frozenset({"if", "then", "else", "not"})
 
 
 def _collect_violations(fragment: object, path: str, *, in_conditional: bool, violations: list[str]) -> None:
+    """Append a dotted-path complaint for each restricted-dialect violation under ``fragment``.
+
+    Flags any surviving ``const`` keyword, and non-string ``enum`` members
+    outside the conditional subtrees listed in ``_CONDITIONAL_KEYWORDS``.
+    """
+
     if isinstance(fragment, dict):
         if "const" in fragment:
             violations.append(f"{path}: draft-only `const` keyword in published schema")
@@ -56,6 +62,12 @@ def _collect_violations(fragment: object, path: str, *, in_conditional: bool, vi
 
 
 def _published_tool_schemas(module_name: str) -> list[tuple[str, dict[str, object]]]:
+    """Return ``(tool_name, inputSchema)`` pairs as the named server actually publishes them.
+
+    Reads through ``list_tools()`` rather than the in-process registry so the
+    assertion covers the payload a client receives.
+    """
+
     module = importlib.import_module(f"gpd.mcp.servers.{module_name}")
 
     async def _load() -> list[tuple[str, dict[str, object]]]:
@@ -66,6 +78,8 @@ def _published_tool_schemas(module_name: str) -> list[tuple[str, dict[str, objec
 
 
 def test_all_published_tool_schemas_are_runtime_portable() -> None:
+    """Every FastMCP server publishes schemas a restricted-dialect client can encode."""
+
     violations: list[str] = []
     for module_name in _FASTMCP_SERVER_MODULES:
         for tool_name, schema in _published_tool_schemas(module_name):
@@ -79,6 +93,8 @@ def test_all_published_tool_schemas_are_runtime_portable() -> None:
 
 
 def test_portable_schema_rewrites_string_const_to_enum() -> None:
+    """A string ``const`` becomes a single-member ``enum``, leaving the input untouched."""
+
     schema = {"type": "object", "properties": {"mode": {"type": "string", "const": "strict"}}}
     portable = portable_published_schema(schema)
     assert portable["properties"]["mode"] == {"type": "string", "enum": ["strict"]}
@@ -87,12 +103,16 @@ def test_portable_schema_rewrites_string_const_to_enum() -> None:
 
 
 def test_portable_schema_rewrites_integer_const_to_bounds() -> None:
+    """A numeric ``const`` becomes equal ``minimum``/``maximum`` bounds, not a typed enum."""
+
     schema = {"type": "object", "properties": {"schema_version": {"type": "integer", "const": 1}}}
     portable = portable_published_schema(schema)
     assert portable["properties"]["schema_version"] == {"type": "integer", "minimum": 1, "maximum": 1}
 
 
 def test_portable_schema_rewrites_boolean_const_to_single_member_enum() -> None:
+    """A boolean ``const`` inside a conditional subtree becomes a single-member ``enum``."""
+
     schema = {"if": {"properties": {"must_surface": {"const": True}}}, "then": {"required": ["applies_to"]}}
     portable = portable_published_schema(schema)
     assert portable["if"]["properties"]["must_surface"] == {"enum": [True]}
@@ -100,6 +120,8 @@ def test_portable_schema_rewrites_boolean_const_to_single_member_enum() -> None:
 
 
 def test_portable_schema_walks_nested_structures() -> None:
+    """Rewriting reaches ``const`` nested under ``anyOf`` members and ``items``."""
+
     schema = {
         "type": "object",
         "properties": {
@@ -116,6 +138,8 @@ def test_portable_schema_walks_nested_structures() -> None:
 
 
 def test_portable_schema_documents_unrepresentable_const_values() -> None:
+    """Values with no keyword equivalent are dropped and described in prose instead."""
+
     schema = {"properties": {"marker": {"const": None, "description": "Sentinel."}}}
     portable = portable_published_schema(schema)
     marker = portable["properties"]["marker"]
