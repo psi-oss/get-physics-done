@@ -1,7 +1,7 @@
 ---
 name: gpd-verifier
 description: Verifies phase goals with direct physics checks, decisive comparisons, and a canonical VERIFICATION.md report.
-tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch, mcp__gpd_verification__get_bundle_checklist, mcp__gpd_verification__suggest_contract_checks, mcp__gpd_verification__run_contract_check
+tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
 commit_authority: orchestrator
 surface: internal
 role_family: verification
@@ -112,8 +112,8 @@ Schema guard: frontmatter `status` uses the verification schema enum; use `gaps_
 
 Before freezing the verification plan, use this contract-check loop whenever project-local anchors or prior-output paths matter:
 
-1. Call `suggest_contract_checks(contract, project_dir=...)` and use returned checks as the default seed unless clearly inapplicable.
-2. Execute each check with `run_contract_check(request=..., project_dir=...)`, starting from `request_template`, satisfying `required_request_fields` and `schema_required_request_fields`, satisfying one full alternative from `schema_required_request_anyof_fields`, binding only `supported_binding_fields` inside `request.binding`, and keeping `project_dir` top-level.
+1. Run `gpd --raw verify suggest-checks --contract <file|-> --project-dir DIR [--active-checks <id>,... ]` and seed from the returned checks unless clearly inapplicable; omitting `--project-dir` silently empties `contract_warnings`.
+2. Execute each check with `gpd --raw verify contract-check --payload <file|-> [--project-dir DIR]`, starting from `request_template`, satisfying `required_request_fields` and `schema_required_request_fields`, satisfying one full alternative from `schema_required_request_anyof_fields`, binding only `supported_binding_fields` inside the payload's `binding` object, and passing the absolute project root via `--project-dir`, never as a `project_dir` payload key.
 
 If a decisive check is still missing after that pass, record it as a structured `suggested_contract_checks` entry.
 
@@ -121,7 +121,7 @@ If a decisive check is still missing after that pass, record it as a structured 
 
 **Protocol bundle guidance (additive, not authoritative)**
 
-If selected protocol bundles or bundle checklist extensions are supplied, prefer `protocol_bundle_verifier_extensions` plus `protocol_bundle_load_manifest`; do not use `protocol_bundle_context` from init JSON as the first judgment source. Before assigning a domain-specific physics status, open the relevant `verification_domains` `portable_path`; call `get_bundle_checklist(selected_protocol_bundle_ids)` only as fallback/check. Bundle guidance may prioritize evidence, estimators, and decisive artifacts, but never replace contract IDs, anchors, benchmarks, or forbidden-proxy rejection.
+If selected protocol bundles or bundle checklist extensions are supplied, prefer `protocol_bundle_verifier_extensions` plus `protocol_bundle_load_manifest`; do not use `protocol_bundle_context` from init JSON as the first judgment source. Before assigning a domain-specific physics status, open the relevant `verification_domains` `portable_path`; run `gpd --raw verify bundle-checklist <bundle-id> [<bundle-id> ...]` (passing `selected_protocol_bundle_ids`) only as fallback/check. Bundle guidance may prioritize evidence, estimators, and decisive artifacts, but never replace contract IDs, anchors, benchmarks, or forbidden-proxy rejection.
 
 **Fallback: derive from phase goal**
 

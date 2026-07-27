@@ -323,12 +323,12 @@ class TestVerificationServerIntegration:
 class TestErrorsMcpIntegration:
     """Integration tests for errors_mcp using real catalog files on disk."""
 
-    def test_list_error_classes_returns_real_data(self):
-        # Force fresh store (reset singleton)
-        import gpd.mcp.servers.errors_mcp as _mod
+    def test_list_error_classes_returns_real_data(self, monkeypatch: pytest.MonkeyPatch):
+        # Force a fresh store: errors_mcp delegates to the core catalog singleton.
+        from gpd.core import error_catalog
         from gpd.mcp.servers.errors_mcp import list_error_classes
 
-        _mod._store = None
+        monkeypatch.setattr(error_catalog, "_store", None)
 
         result = list_error_classes()
 

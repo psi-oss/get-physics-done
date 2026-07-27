@@ -121,14 +121,14 @@ def test_domain_judgments_open_relevant_selected_handles_first() -> None:
                 "physics status",
                 "verification_domains",
                 "portable_path",
-                "get_bundle_checklist",
+                "gpd --raw verify bundle-checklist",
                 "fallback/check",
             ),
             forbidden=("prefer `protocol_bundle_verifier_extensions` and `protocol_bundle_context`",),
         ),
     )
     assert verifier_protocol.index("protocol_bundle_load_manifest") < verifier_protocol.index("Before")
-    assert verifier_protocol.index("Before") < verifier_protocol.index("get_bundle_checklist")
+    assert verifier_protocol.index("Before") < verifier_protocol.index("gpd --raw verify bundle-checklist")
 
 
 def test_verify_phase_keeps_independent_confirmed_tally_out_of_machine_fields() -> None:

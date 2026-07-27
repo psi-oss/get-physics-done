@@ -234,7 +234,7 @@ Rules:
 For `VERIFICATION.md`, keep the frontmatter compatible with `verification-report.md`.
 If a decisive benchmark / cross-method check remains `partial`, `not_attempted`, or still lacks a decisive verdict, the frontmatter must also include structured `suggested_contract_checks` entries explaining the missing decisive work.
 The same requirement applies when a benchmark-style reference anchors the subject or a reference with `required_actions` containing `compare` is still incomplete.
-Each `suggested_contract_checks` entry may only use these keys: `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path`. Invented keys such as `check_id` fail validation. Copy the `check_key` returned by `suggest_contract_checks(contract)` into the frontmatter `check` field when you record one of those suggestions in `VERIFICATION.md`.
+Each `suggested_contract_checks` entry may only use these keys: `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path`. Invented keys such as `check_id` fail validation. Copy the `check_key` returned by `gpd --raw verify suggest-checks --contract <file|-> --project-dir DIR` into the frontmatter `check` field when you record one of those suggestions in `VERIFICATION.md`.
 If you bind a `suggested_contract_checks` entry to a known contract target, `suggested_subject_kind` and `suggested_subject_id` must appear together; otherwise omit both.
 
 ---

@@ -177,11 +177,11 @@ def test_verifier_prompt_points_to_canonical_verification_schema_sources() -> No
         ),
     )
     _assert_contains_all(
-        str(agent_frontmatter.get("tools", "")),
+        verifier,
         (
-            "mcp__gpd_verification__get_bundle_checklist",
-            "mcp__gpd_verification__suggest_contract_checks",
-            "mcp__gpd_verification__run_contract_check",
+            "gpd --raw verify contract-check",
+            "gpd --raw verify suggest-checks",
+            "gpd --raw verify bundle-checklist",
         ),
     )
     assert "@{GPD_INSTALL_DIR}/templates/verification-report.md" not in verifier
@@ -321,7 +321,7 @@ def test_verifier_prompt_surfaces_validator_enforced_contract_ledger_rules() -> 
     for field_name in SuggestedContractCheck.model_fields:
         assert f"`{field_name}`" in contract_results_schema
     assert (
-        "Copy the `check_key` returned by `suggest_contract_checks(contract)` into the frontmatter `check` field"
+        "Copy the `check_key` returned by `gpd --raw verify suggest-checks --contract <file|-> --project-dir DIR` into the frontmatter `check` field"
         in contract_results_schema
     )
     _assert_semantic_contract(
@@ -338,17 +338,20 @@ def test_verifier_prompt_surfaces_validator_enforced_contract_ledger_rules() -> 
     _assert_contains_all(
         verifier,
         (
-            "suggest_contract_checks(contract, project_dir=...)",
+            "gpd --raw verify suggest-checks --contract",
             "`request_template`",
             "`required_request_fields`",
             "`schema_required_request_fields`",
             "`schema_required_request_anyof_fields`",
             "`supported_binding_fields`",
-            "`request.binding`",
+            "the payload's `binding` object",
             "`project_dir`",
+            # Regression lock: dropping --project-dir from the suggest-checks
+            # invocation silently nulls contract_warnings (no anchor grounding).
+            "gpd --raw verify suggest-checks --contract <file|-> --project-dir DIR",
         ),
     )
-    assert "Execute each check with `run_contract_check(request=..., project_dir=...)`" in verifier
+    assert "Execute each check with `gpd --raw verify contract-check --payload" in verifier
     _assert_contains_all(
         gap_output,
         (
@@ -777,16 +780,14 @@ def test_verifier_protocol_bundle_guidance_is_manifest_first_for_domain_status()
                 "physics status",
                 "verification_domains",
                 "portable_path",
-                "get_bundle_checklist(selected_protocol_bundle_ids)",
+                "gpd --raw verify bundle-checklist",
                 "fallback/check",
             ),
             forbidden=(
                 "prefer `protocol_bundle_verifier_extensions` and `protocol_bundle_context`",
-                "call `get_bundle_checklist(selected_protocol_bundle_ids)` before assigning",
+                "run `gpd --raw verify bundle-checklist` before assigning",
             ),
         ),
     )
     assert protocol_guidance.index("protocol_bundle_load_manifest") < protocol_guidance.index("Before")
-    assert protocol_guidance.index("Before") < protocol_guidance.index(
-        "get_bundle_checklist(selected_protocol_bundle_ids)"
-    )
+    assert protocol_guidance.index("Before") < protocol_guidance.index("gpd --raw verify bundle-checklist")

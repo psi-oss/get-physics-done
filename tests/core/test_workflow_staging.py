@@ -39,7 +39,6 @@ from gpd.core.workflow_staging import (
     QUICK_STAGE_MANIFEST_PATH,
     RESEARCH_PHASE_STAGE_MANIFEST_PATH,
     VERIFY_WORK_INIT_FIELDS,
-    VERIFY_WORK_MCP_VERIFICATION_TOOLS,
     WORKFLOW_STAGE_MANIFEST_DIR,
     WORKFLOW_STAGE_MANIFEST_SUFFIX,
     WRITE_PAPER_MANAGED_INTAKE_ROOT,
@@ -480,9 +479,8 @@ def test_validate_workflow_stage_manifest_payload_loads_verify_work_manifest() -
     assert "verification_report_finalizer_bridge" in manifest.stages[2].required_init_fields
     assert "verification_report_skeleton_bridge" in manifest.stages[2].required_init_fields
     assert "reference_artifacts_content" not in manifest.stages[2].required_init_fields
-    assert set(VERIFY_WORK_MCP_VERIFICATION_TOOLS).issubset(manifest.stages[2].allowed_tools)
-    assert set(VERIFY_WORK_MCP_VERIFICATION_TOOLS).isdisjoint(manifest.stages[0].allowed_tools)
-    assert set(VERIFY_WORK_MCP_VERIFICATION_TOOLS).isdisjoint(manifest.stages[1].allowed_tools)
+    assert all(not tool.startswith("mcp__gpd_") for stage in manifest.stages for tool in stage.allowed_tools)
+    assert "shell" in manifest.stages[2].allowed_tools
     assert manifest.stages[3].allowed_tools == (
         "ask_user",
         "file_read",
@@ -603,14 +601,15 @@ def test_stage_manifests_are_prompt_used_or_cli_reachable() -> None:
         )
 
 
-def test_verify_work_manifest_accepts_declared_mcp_verification_tools() -> None:
+def test_verify_work_manifest_uses_cli_shell_not_mcp_verification_tools() -> None:
     manifest = validate_workflow_stage_manifest_payload(
         _workflow_payload("verify-work"),
         expected_workflow_id="verify-work",
     )
 
     inventory = manifest.stage("inventory_build")
-    assert set(VERIFY_WORK_MCP_VERIFICATION_TOOLS).issubset(inventory.allowed_tools)
+    assert "shell" in inventory.allowed_tools
+    assert all(not tool.startswith("mcp__gpd_") for tool in inventory.allowed_tools)
 
 
 def test_workflow_allowed_tool_defaults_cover_all_stage_manifests() -> None:
@@ -989,7 +988,7 @@ def test_load_workflow_stage_manifest_from_path_validates_inferred_workflow_init
         load_workflow_stage_manifest_from_path(manifest_path)
 
 
-def test_load_verify_work_manifest_from_path_uses_workflow_mcp_tool_defaults(tmp_path: Path) -> None:
+def test_load_verify_work_manifest_from_path_uses_workflow_tool_defaults(tmp_path: Path) -> None:
     payload = _workflow_payload("verify-work")
     manifest_path = tmp_path / "verify-work-stage-manifest.json"
     manifest_path.write_text(json.dumps(payload), encoding="utf-8")
@@ -997,7 +996,7 @@ def test_load_verify_work_manifest_from_path_uses_workflow_mcp_tool_defaults(tmp
     manifest = load_workflow_stage_manifest_from_path(manifest_path)
 
     assert manifest.workflow_id == "verify-work"
-    assert set(VERIFY_WORK_MCP_VERIFICATION_TOOLS).issubset(manifest.stage("inventory_build").allowed_tools)
+    assert "shell" in manifest.stage("inventory_build").allowed_tools
 
 
 def test_known_init_fields_for_verify_work_include_proof_gate_and_artifact_context() -> None:

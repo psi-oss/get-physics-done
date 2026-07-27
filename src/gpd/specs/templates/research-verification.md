@@ -260,7 +260,7 @@ and `forbidden_proxy_id` fields instead of leaving blanks. -->
 - Use `forbidden_proxy_id` for explicit proxy-rejection checks
 - Use `comparison_kind` / `comparison_reference_id` when the check should later emit a comparison verdict
 - Use `suggested_contract_checks` only when the verifier believes the contract omitted a decisive check, or when a decisive benchmark / cross-method check remains partial, not attempted, or still lacks a decisive verdict
-- Keep `suggested_contract_checks` schema-tight by following `contract-results-schema.md`; when the entry comes from `suggest_contract_checks(contract)`, the frontmatter `check` value must copy the returned `check_key`
+- Keep `suggested_contract_checks` schema-tight by following `contract-results-schema.md`; when the entry comes from `gpd --raw verify suggest-checks`, the frontmatter `check` value must copy the returned `check_key`
 - `suggested_subject_kind` and `suggested_subject_id` travel together; if the missing check is not bound to a known contract target yet, omit both keys instead of leaving one blank
 
 **Summary:**

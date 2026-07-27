@@ -3492,7 +3492,7 @@ def test_phase_research_and_verification_surfaces_keep_anchor_checks_mandatory()
     assert "project_contract_gate" in verify_workflow
     assert "project_contract_validation" in verify_workflow
     assert "project_contract_load_info" in verify_workflow
-    assert "suggest_contract_checks(contract, project_dir=...)" in verify_workflow
+    assert "gpd --raw verify suggest-checks --contract" in verify_workflow
     _assert_prompt_contracts(
         verify_workflow,
         fragment_count(
@@ -3603,7 +3603,7 @@ def test_verify_phase_and_gap_reverify_prompts_surface_contract_context_before_c
         "protocol_bundle_context",
         context="verify-phase contract context fields",
     )
-    assert verify_phase.index("project_contract_gate") < verify_phase.index("suggest_contract_checks(contract)")
+    assert verify_phase.index("project_contract_gate") < verify_phase.index("gpd --raw verify suggest-checks")
     _mf(
         execute_phase,
         "{GPD_INSTALL_DIR}/workflows/verify-phase.md",
@@ -3892,7 +3892,7 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
         "request_template",
         "required_request_fields",
         "supported_binding_fields",
-        "run_contract_check(request=..., project_dir=...)",
+        "gpd --raw verify contract-check --payload",
         "copy the returned `check_key` into the frontmatter `check` field",
         "schema_required_request_fields",
         "schema_required_request_anyof_fields",
@@ -4406,20 +4406,23 @@ def test_verification_prompt_wiring_requires_suggested_checks_for_compare_requir
     )
 
 
-def test_verifier_entry_points_expose_contract_check_tools() -> None:
+def test_verifier_entry_points_use_cli_contract_check_commands() -> None:
     verify_work_meta, _ = _parse_frontmatter((COMMANDS_DIR / "verify-work.md").read_text(encoding="utf-8"))
-    verifier_meta, _ = _parse_frontmatter((AGENTS_DIR / "gpd-verifier.md").read_text(encoding="utf-8"))
+    verifier_meta, verifier_body = _parse_frontmatter((AGENTS_DIR / "gpd-verifier.md").read_text(encoding="utf-8"))
 
     verify_work_tools = verify_work_meta.get("allowed-tools", [])
     verifier_tools = _parse_tools(verifier_meta.get("tools"))
 
-    for tool_name in (
-        "mcp__gpd_verification__get_bundle_checklist",
-        "mcp__gpd_verification__suggest_contract_checks",
-        "mcp__gpd_verification__run_contract_check",
+    assert "shell" in verify_work_tools
+    assert "shell" in verifier_tools
+    for tool_name in (*verify_work_tools, *verifier_tools):
+        assert not str(tool_name).startswith("mcp__gpd_")
+    for cli_invocation in (
+        "gpd --raw verify suggest-checks",
+        "gpd --raw verify contract-check",
+        "gpd --raw verify bundle-checklist",
     ):
-        assert tool_name in verify_work_tools
-        assert tool_name in verifier_tools
+        assert cli_invocation in verifier_body
 
 
 def test_manuscript_documentation_uses_current_manuscript_root_paths_only() -> None:

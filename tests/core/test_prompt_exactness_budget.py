@@ -12,8 +12,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 EXACTNESS_TOTAL_BUDGETS = {
     # Phase 5 pass4 observed 517/5134 after semantic-helper migration.
+    # exact_assertion_count raised 5165 -> 5171 for the verification CLI
+    # migration: six new contract locks (gpd verify CLI invocation forms,
+    # the suggest-checks --project-dir pin, and schema_version envelope pins).
     "brittle_prose_assertions": 525,
-    "exact_assertion_count": 5_165,
+    "exact_assertion_count": 5_171,
 }
 TAXONOMY_HELPER_TOTAL_FLOORS = {
     # Phase 8 observed 80 files and 735 helper calls; keep a small call-count cushion.

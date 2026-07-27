@@ -24,7 +24,7 @@ This file is intentionally evergreen. Dated point-in-time audits belong outside 
 ## Current Source of Truth
 
 - `gpd.core.verification_checks` — live machine-readable verification registry
-- `gpd-verification` MCP server — machine-facing verification metadata surface
+- `gpd verify` CLI (`contract-check`, `suggest-checks`, `bundle-checklist`) — machine-facing verification metadata surface
 - `../errors/llm-physics-errors.md` — current 104-class error catalog
 - `../meta/verifier-profile-checks.md` — domain-specific verifier checklists
 - `gpd-executor.md` `<post_step_physics_guards>` — early-intercept guardrails and the 52-type computation mini-checklist

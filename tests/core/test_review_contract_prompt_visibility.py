@@ -2003,7 +2003,7 @@ def test_contract_ledgers_surface_decisive_only_verdict_rules_and_strict_suggest
                 "disconfirming_observations: [observation-1]",
                 "`check_id`",
                 "`check_key`",
-                "`suggest_contract_checks(contract)`",
+                "`gpd --raw verify suggest-checks --contract <file|-> --project-dir DIR`",
                 "`check`",
             ),
             owner=REVIEW_CONTRACT_OWNER,

@@ -135,7 +135,7 @@ Treat these as separate obligations:
   experiment, cross-method, or baseline checks; use `inconclusive` or `tension`
   honestly when evidence does not justify `pass`.
 
-When project-local anchors or prior-output paths matter, run `suggest_contract_checks(contract, project_dir=...)`, fold applicable returned checks into the plan, build each request from its template with the required/any-of fields and supported bindings, keep `project_dir` as the absolute project root, and execute `run_contract_check(request=..., project_dir=...)`.
+When project-local anchors or prior-output paths matter, run `gpd --raw verify suggest-checks --contract <file|-> --project-dir DIR [--active-checks <id>,... ]`, fold applicable returned checks into the plan, build each request from its template with the required/any-of fields and supported bindings, pass the absolute project root through the `--project-dir` option and never as a `project_dir` payload key, and execute `gpd --raw verify contract-check --payload <file|-> [--project-dir DIR]`.
 
 Schema/helper field names that must remain visible when helper errors are repaired: `request_template`, `required_request_fields`, `supported_binding_fields`, `schema_required_request_fields`, and `schema_required_request_anyof_fields`.
 Reference paths stay staged, not raw-included: `{GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md` and `{GPD_INSTALL_DIR}/templates/contract-results-schema.md`.
@@ -150,7 +150,7 @@ If the plan contract omits an obvious decisive check, record a structured
 `suggested_contract_checks` entry rather than silently ignoring it. Record only
 decisive, user-visible gaps. Every entry must include `check`, `reason`,
 `suggested_subject_kind`, `suggested_subject_id` when known, and
-`evidence_path`. When the gap comes from `suggest_contract_checks(contract)`,
+`evidence_path`. When the gap comes from `gpd --raw verify suggest-checks`,
 copy the returned `check_key` into the frontmatter `check` field.
 
 If a theorem-style claim or `proof_obligation` lacks a structured theorem

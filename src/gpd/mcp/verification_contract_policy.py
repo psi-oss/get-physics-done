@@ -2,6 +2,19 @@
 
 from __future__ import annotations
 
+from gpd.core.verification_bindings import VERIFICATION_BINDING_FIELD_NAMES, VERIFICATION_BINDING_TARGETS
+
+__all__ = [
+    "VERIFICATION_BINDING_FIELD_NAMES",
+    "VERIFICATION_BINDING_TARGETS",
+    "VERIFICATION_CONTRACT_POLICY_TEXT",
+    "VERIFICATION_CONTRACT_SURFACE_SUMMARY_TEXT",
+    "VERIFICATION_SERVER_DESCRIPTION_INTRO",
+    "verification_contract_policy_text",
+    "verification_contract_surface_summary_text",
+    "verification_server_description",
+]
+
 VERIFICATION_SERVER_DESCRIPTION_INTRO = (
     "GPD physics verification support tools. They expose check metadata, static triage, "
     "contract-aware check execution, dimensional-analysis helpers, domain and bundle-specific "
@@ -14,16 +27,6 @@ VERIFICATION_CONTRACT_SURFACE_SUMMARY_TEXT = (
     "stay explicit. Use `suggest_contract_checks(...)` before `run_contract_check(...)`. "
     "Only contract-payload enum case drift is recoverable; observed enums must match source evidence exactly."
 )
-
-VERIFICATION_BINDING_TARGETS = (
-    "observable",
-    "claim",
-    "deliverable",
-    "acceptance_test",
-    "reference",
-    "forbidden_proxy",
-)
-VERIFICATION_BINDING_FIELD_NAMES = tuple(f"binding.{target}_ids" for target in VERIFICATION_BINDING_TARGETS)
 
 _VERIFICATION_CONTRACT_POLICY_CLAUSES = (
     "Validate contract payloads whose `schema_version` is required and must equal `1`.",
@@ -65,8 +68,7 @@ _VERIFICATION_CONTRACT_POLICY_CLAUSES = (
 )
 
 VERIFICATION_CONTRACT_POLICY_TEXT = "Contract payload rules: " + " ".join(
-    f"{index}) {clause}"
-    for index, clause in enumerate(_VERIFICATION_CONTRACT_POLICY_CLAUSES, start=1)
+    f"{index}) {clause}" for index, clause in enumerate(_VERIFICATION_CONTRACT_POLICY_CLAUSES, start=1)
 )
 
 

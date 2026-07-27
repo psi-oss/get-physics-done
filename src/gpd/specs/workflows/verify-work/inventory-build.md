@@ -45,9 +45,9 @@ rendered prose or bodies.
 </step>
 
 <step name="load_protocol_bundle_handles">
-Use `protocol_bundle_load_manifest` as specialized-loading guidance. If bundles are selected, use `protocol_bundle_verifier_extensions` as the primary checklist surface; call `get_bundle_checklist(selected_protocol_bundle_ids)` only when extensions are missing or inconsistent. Bundle guidance may add checks, but it never replaces the plan contract or reduces anchor obligations.
+Use `protocol_bundle_load_manifest` as specialized-loading guidance. If bundles are selected, use `protocol_bundle_verifier_extensions` as the primary checklist surface; run `gpd --raw verify bundle-checklist <bundle-id> [<bundle-id> ...]` (passing `selected_protocol_bundle_ids`) only when extensions are missing or inconsistent. Bundle guidance may add checks, but it never replaces the plan contract or reduces anchor obligations.
 
-For PLAN contracts with project-local anchors or prior-output paths, call `suggest_contract_checks(contract, project_dir=...)`, fill the returned `request_template` completely, and run each applicable check with `run_contract_check(request=..., project_dir=...)`.
+For PLAN contracts with project-local anchors or prior-output paths, run `gpd --raw verify suggest-checks --contract <file|-> --project-dir DIR [--active-checks <id>,... ]`, fill the returned `request_template` completely, and run each applicable check with `gpd --raw verify contract-check --payload <file|-> [--project-dir DIR]`.
 </step>
 
 <step name="delegate_verification">

@@ -2651,6 +2651,66 @@ def convention_vocabulary() -> None:
     )
 
 
+@convention_app.command("validate-assert")
+def convention_validate_assert(
+    file: str = typer.Argument(..., help="Path to the derivation file whose ASSERT_CONVENTION lines are checked"),
+    project_dir: str | None = typer.Option(
+        None,
+        "--project-dir",
+        help="Project root whose state.json convention lock is used. Defaults to the effective --cwd.",
+    ),
+    lock: str | None = typer.Option(
+        None,
+        "--lock",
+        help="Path to a JSON convention lock. Mutually exclusive with --project-dir.",
+    ),
+) -> None:
+    """Verify ASSERT_CONVENTION lines in a file against a convention lock."""
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.convention_checks import assert_convention_validate_payload, load_lock_from_project
+    from gpd.core.errors import ConventionError
+
+    if lock is not None and project_dir is not None:
+        _error("Pass either --lock or --project-dir, not both.")
+
+    _target, file_content = _load_text_document_or_error(file)
+
+    if lock is not None:
+        lock_document = _read_json_payload_argument(lock, option_label="--lock")
+        if not isinstance(lock_document, dict):
+            _error(f"Convention lock must be a JSON object: {lock}")
+        lock_data: dict[str, object] = lock_document
+    else:
+        lock_root = _resolve_path_from_effective_cwd(project_dir) if project_dir is not None else _get_cwd()
+        # Fail closed: without a state file there is no lock to assert against, and an
+        # implicit empty lock would let every ASSERT_CONVENTION line pass vacuously.
+        layout = ProjectLayout(lock_root)
+        if not any(path.exists() for path in (layout.state_json, layout.state_json_backup, layout.state_md)):
+            _emit_error_envelope(
+                f"No convention lock is resolvable from {_format_display_path(lock_root)}: "
+                "pass --lock <file|-> or run inside a GPD project that has state.json."
+            )
+        try:
+            lock_data = load_lock_from_project(str(lock_root)).model_dump(exclude_none=True)
+        except ConventionError as exc:
+            _error(f"Could not resolve a convention lock from {_format_display_path(lock_root)}: {exc}")
+
+    payload = assert_convention_validate_payload(file_content, lock_data)
+    _output(payload)
+    if payload.get("error") is not None or payload.get("valid") is not True:
+        raise typer.Exit(code=1)
+
+
+@convention_app.command("subfield-defaults")
+def convention_subfield_defaults(
+    domain: str = typer.Argument(..., help="Physics subfield domain key (e.g. qft, condensed_matter)"),
+) -> None:
+    """Show the recommended default conventions for a physics subfield."""
+    from gpd.core.convention_checks import subfield_defaults_payload
+
+    _emit_contract_check_payload(subfield_defaults_payload(domain))
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # result — Intermediate result tracking
 # ═══════════════════════════════════════════════════════════════════════════
@@ -3305,6 +3365,274 @@ def verify_artifacts(
     _output(result)
     if not result.all_passed:
         raise typer.Exit(code=1)
+
+
+def _read_json_payload_argument(source: str, *, option_label: str) -> object:
+    """Load a JSON payload from a file or piped stdin, refusing an interactive stdin."""
+
+    if source == "-" and sys.stdin.isatty():
+        _error(f"Usage: {option_label} - requires JSON piped on stdin. Pass a file path instead.")
+    return _load_json_document_or_error(source)
+
+
+def _resolve_optional_project_dir(project_dir: str | None) -> str | None:
+    """Return the absolute project root a contract-aware check should resolve anchors against."""
+
+    if project_dir is None:
+        return None
+    return str(_resolve_path_from_effective_cwd(project_dir))
+
+
+def _emit_error_envelope(message: str) -> NoReturn:
+    """Emit the stable error envelope on stdout and exit 1, matching the MCP tool contract."""
+
+    from gpd.core.envelopes import stable_mcp_error
+
+    _output(stable_mcp_error(message))
+    raise typer.Exit(code=1)
+
+
+def _emit_contract_check_payload(payload: dict[str, object], *, failed: bool = False) -> None:
+    """Emit a tool envelope and fail the command on an error, a failed lookup, or a caller-detected failure."""
+
+    _output(payload)
+    if failed or payload.get("error") is not None or payload.get("found") is False:
+        raise typer.Exit(code=1)
+
+
+def _split_repeatable_csv_option(values: list[str] | None) -> list[str]:
+    """Flatten a repeatable option whose values may also be comma-separated."""
+
+    flattened: list[str] = []
+    for value in values or []:
+        flattened.extend(item.strip() for item in value.split(",") if item.strip())
+    return flattened
+
+
+@verify_app.command("contract-check")
+def verify_contract_check(
+    payload: str | None = typer.Option(
+        None,
+        "--payload",
+        help="Path to a run-contract-check request JSON file, or '-' for stdin",
+    ),
+    project_dir: str | None = typer.Option(
+        None,
+        "--project-dir",
+        help="Project root used to resolve contract anchors and prior-output paths",
+    ),
+    schema: bool = typer.Option(
+        False,
+        "--schema",
+        help="Print the contract-check payload model's pydantic JSON schema and exit without running a check.",
+    ),
+) -> None:
+    """Run one contract-aware verification check from a structured request payload.
+
+    Exits 1 when the check result reports `status: fail`, so CI callers can gate on `$?`.
+    """
+    from gpd.core.contract_checks import RunContractCheckRequest, run_contract_check
+
+    if schema:
+        _output(RunContractCheckRequest.model_json_schema())
+        return
+    if payload is None:
+        _error("Usage: --payload <file|-> is required unless --schema is passed.")
+
+    request = _read_json_payload_argument(payload, option_label="--payload")
+    result = run_contract_check(request, _resolve_optional_project_dir(project_dir))
+    _emit_contract_check_payload(result, failed=result.get("status") == "fail")
+
+
+@verify_app.command("suggest-checks")
+def verify_suggest_checks(
+    contract: str = typer.Option(
+        ...,
+        "--contract",
+        help="Path to a project or phase contract JSON file, or '-' for stdin",
+    ),
+    active_checks: list[str] | None = typer.Option(
+        None,
+        "--active-checks",
+        help="Already-enabled check ids or check keys as a comma-separated list; repeat the option for several.",
+    ),
+    project_dir: str | None = typer.Option(
+        None,
+        "--project-dir",
+        help="Project root used to resolve contract anchors and prior-output paths",
+    ),
+) -> None:
+    """Suggest contract-aware checks for a schema-validated contract."""
+    from gpd.core.contract_checks import suggest_contract_checks
+
+    contract_payload = _read_json_payload_argument(contract, option_label="--contract")
+    split_active_checks = _split_repeatable_csv_option(active_checks)
+    _emit_contract_check_payload(
+        suggest_contract_checks(
+            contract_payload,
+            split_active_checks or None,
+            _resolve_optional_project_dir(project_dir),
+        )
+    )
+
+
+@verify_app.command("bundle-checklist")
+def verify_bundle_checklist(
+    bundle_ids: list[str] = typer.Argument(..., help="Protocol bundle ids to expand into verifier checklist items"),
+) -> None:
+    """Show additive verifier checklist extensions for the selected protocol bundles.
+
+    Exits 1 when any requested bundle id is unknown, so callers can gate on `$?`.
+    """
+    from gpd.core.contract_checks import get_bundle_checklist
+
+    result = get_bundle_checklist(list(bundle_ids))
+    _emit_contract_check_payload(result, failed=bool(result.get("missing_bundle_ids")))
+
+
+@verify_app.command("checklist")
+def verify_checklist(
+    domain: str = typer.Argument(..., help="Physics domain key (e.g. qft, condensed_matter)"),
+) -> None:
+    """Show the domain-specific verification checklist and the universal checks."""
+    from gpd.core.contract_checks import get_checklist
+
+    _emit_contract_check_payload(get_checklist(domain))
+
+
+@verify_app.command("coverage")
+def verify_coverage(
+    error_classes: list[str] = typer.Option(
+        ...,
+        "--error-classes",
+        help="Error class ids as a comma-separated list; repeat the option for several.",
+    ),
+    active_checks: list[str] = typer.Option(
+        ...,
+        "--active-checks",
+        help="Active check ids as a comma-separated list; repeat the option for several.",
+    ),
+) -> None:
+    """Show which error classes the active verification checks cover."""
+    from gpd.core.contract_checks import get_verification_coverage
+
+    raw_error_classes = _split_repeatable_csv_option(error_classes)
+    if not raw_error_classes:
+        _error("Usage: --error-classes requires at least one error class id.")
+    # ``isdecimal`` (not ``isdigit``) is what ``int()`` actually accepts: it rejects
+    # superscripts like "²" as well as signed forms such as "-5" and a bare "-".
+    non_numeric = [item for item in raw_error_classes if not item.isdecimal()]
+    if non_numeric:
+        _emit_error_envelope(
+            f"--error-classes must be non-negative integer error class ids; got {', '.join(non_numeric)}"
+        )
+    error_class_ids = list(dict.fromkeys(int(item) for item in raw_error_classes))
+    _emit_contract_check_payload(
+        get_verification_coverage(error_class_ids, _split_repeatable_csv_option(active_checks))
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# refs — Read-only physics reference catalogs (error classes, protocols)
+# ═══════════════════════════════════════════════════════════════════════════
+
+refs_app = typer.Typer(help="Read-only physics reference catalogs (error classes, protocols)")
+app.add_typer(refs_app, name="refs")
+
+
+@refs_app.command("errors")
+def refs_errors(
+    domain: str | None = typer.Option(None, "--domain", help="Filter the listing to one error-catalog domain"),
+    error_id: int | None = typer.Option(None, "--id", help="Show one error class by numeric id"),
+    detection: bool = typer.Option(False, "--detection", help="With --id, show the detection strategy instead"),
+    traceability: bool = typer.Option(False, "--traceability", help="With --id, show the check coverage instead"),
+) -> None:
+    """List physics error classes, or inspect one class by id."""
+    from gpd.core import error_catalog
+    from gpd.core.envelopes import stable_mcp_response
+
+    if detection and traceability:
+        _error("Pass either --detection or --traceability, not both.")
+    if (detection or traceability) and error_id is None:
+        _error("--detection and --traceability require --id.")
+    if domain is not None and error_id is not None:
+        _error("Pass either --domain or --id, not both.")
+
+    try:
+        store = error_catalog.get_error_store()
+        if error_id is None:
+            payload = error_catalog.list_error_classes(store, error_catalog.normalize_error_domain(domain))
+        elif detection:
+            payload = error_catalog.get_detection_strategy(store, error_id)
+        elif traceability:
+            payload = error_catalog.get_traceability(store, error_id)
+        else:
+            payload = error_catalog.get_error_class(store, error_id)
+    except (OSError, ValueError, KeyError) as exc:
+        _emit_error_envelope(str(exc))
+
+    _emit_contract_check_payload(stable_mcp_response(payload))
+
+
+@refs_app.command("protocols")
+def refs_protocols(
+    domain: str | None = typer.Option(None, "--domain", help="Filter the listing to one protocol domain"),
+    name: str | None = typer.Option(None, "--name", help="Show one protocol by name (the .md file stem)"),
+    route: str | None = typer.Option(None, "--route", help="Auto-select protocols for a computation description"),
+    checkpoints: str | None = typer.Option(
+        None, "--checkpoints", help="Show the verification checkpoints for one protocol"
+    ),
+) -> None:
+    """List physics computation protocols, or inspect, route, or checkpoint one."""
+    from gpd.core.envelopes import stable_mcp_response
+    from gpd.core.protocol_catalog import (
+        available_protocol_names,
+        get_protocol_store,
+        protocol_checkpoints_payload,
+        protocol_detail_payload,
+        protocol_listing_payload,
+        protocol_route_payload,
+    )
+
+    selectors = [selector for selector in (name, route, checkpoints) if selector is not None]
+    if len(selectors) > 1:
+        _error("Pass at most one of --name, --route, or --checkpoints.")
+    if domain is not None and selectors:
+        _error("Pass either --domain or one of --name, --route, or --checkpoints, not both.")
+    for option_label, value in (("--name", name), ("--route", route), ("--checkpoints", checkpoints)):
+        if value is not None and not value.strip():
+            _error(f"{option_label} requires a non-empty value.")
+
+    try:
+        store = get_protocol_store()
+        if name is not None:
+            payload = protocol_detail_payload(store, name)
+            if payload is None:
+                _output(
+                    stable_mcp_response(
+                        {"available": available_protocol_names(store)},
+                        error=f"Protocol '{name}' not found",
+                    )
+                )
+                raise typer.Exit(code=1)
+        elif checkpoints is not None:
+            payload = protocol_checkpoints_payload(store, checkpoints)
+            if payload is None:
+                _output(
+                    stable_mcp_response(
+                        {"available": available_protocol_names(store)},
+                        error=f"Protocol '{checkpoints}' not found",
+                    )
+                )
+                raise typer.Exit(code=1)
+        elif route is not None:
+            payload = protocol_route_payload(store, route)
+        else:
+            payload = protocol_listing_payload(store, domain)
+    except (OSError, ValueError, KeyError) as exc:
+        _emit_error_envelope(str(exc))
+
+    _emit_contract_check_payload(stable_mcp_response(payload))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
