@@ -874,6 +874,82 @@ def test_validate_tex_draft_preserves_escaped_percent_before_reference_lint() ->
     assert any(finding.check == "empty_reference_command" and finding.line == 3 for finding in findings)
 
 
+def test_validate_tex_draft_catches_todo_hidden_by_matlab_comment_in_listing() -> None:
+    findings = validate_tex_draft(
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        "\\begin{lstlisting}\n"
+        "efficiency = 0.87  % TODO: verify convergence tolerance\n"
+        "\\end{lstlisting}\n"
+        "\\end{document}\n"
+    )
+
+    assert any(finding.check == "placeholder_marker" and finding.line == 4 for finding in findings)
+
+
+@pytest.mark.parametrize("env_name", ["verbatim", "lstlisting", "minted"])
+def test_validate_tex_draft_ignores_real_comment_before_verbatim_environment(env_name: str) -> None:
+    findings = validate_tex_draft(
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        f"\\begin{{{env_name}}}  % this really is a comment, should still strip\n"
+        "plain text\n"
+        f"\\end{{{env_name}}}\n"
+        "\\end{document}\n"
+    )
+
+    assert findings == []
+
+
+def test_validate_tex_draft_does_not_confuse_environment_begin_when_preceded_by_non_verbatim_begin() -> None:
+    findings = validate_tex_draft(
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        "\\begin{figure}\\begin{lstlisting}\n"
+        "value = 1  % TODO: this must survive\n"
+        "\\end{lstlisting}\\end{figure}\n"
+        "\\end{document}\n"
+    )
+
+    assert any(finding.check == "placeholder_marker" and finding.line == 4 for finding in findings)
+
+
+def test_validate_tex_draft_matches_first_verbatim_begin_when_two_open_on_one_line() -> None:
+    # \begin{verbatim} fires first; real LaTeX starts reading raw text right
+    # after it, so \begin{lstlisting} appearing next is literal body text, not
+    # a real environment open. The tracker should be watching for
+    # \end{verbatim}, not \end{lstlisting}.
+    findings = validate_tex_draft(
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        "\\begin{verbatim}\\begin{lstlisting}\n"
+        "\\end{lstlisting} is not a real close here % TODO: hidden\n"
+        "\\end{verbatim}\n"
+        "\\end{document}\n"
+    )
+
+    assert any(finding.check == "placeholder_marker" and finding.line == 4 for finding in findings)
+
+
+def test_validate_tex_draft_finds_real_close_tag_when_preceded_by_unrelated_end_on_same_line() -> None:
+    # The blast-radius regression: if the closing-tag search stopped at the
+    # first \end{...} on the line regardless of name, the verbatim_stack would
+    # never pop here, and every line for the rest of the document would be
+    # silently excluded from lint scanning.
+    findings = validate_tex_draft(
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        "\\begin{lstlisting}\n"
+        "\\end{document} is how you end a doc \\end{lstlisting}\n"
+        "\\end{document}\n"
+        "See \\cite{}.\n"
+    )
+
+    # The literal "\end{document}" text inside the listing must not register
+    # as a real environment close either -- it's example text, not a marker.
+    assert [(f.check, f.line) for f in findings] == [("empty_citation_command", 6)]
+
+
 def test_validate_tex_draft_detects_natbib_empty_citep() -> None:
     findings = validate_tex_draft("\\documentclass{article}\n\\begin{document}\nSee \\citep{}.\n\\end{document}\n")
     checks = {finding.check for finding in findings}

@@ -37,6 +37,19 @@ class TestCitationBibCoherence:
         assert result.unreferenced_bib_keys == {"hidden2026"}
         assert result.unresolved_cite_keys == set()
 
+    def test_verbatim_environment_percent_is_not_a_comment(self) -> None:
+        tex = (
+            "\\cite{smith2024}\n"
+            "\\begin{lstlisting}\n"
+            "efficiency = 0.87  % TODO: verify convergence, see \\cite{jones2023}\n"
+            "\\end{lstlisting}\n"
+        )
+        bib = "@article{smith2024,\n  title={A Result},\n  author={Smith},\n  year={2024}\n}\n"
+        result = check_citation_bib_coherence(tex, bib)
+
+        assert result.tex_cite_keys == {"smith2024", "jones2023"}
+        assert result.unresolved_cite_keys == {"jones2023"}
+
     def test_partial_citation_warns_unreferenced(self) -> None:
         tex = r"\cite{einstein1905}"
         bib = (
