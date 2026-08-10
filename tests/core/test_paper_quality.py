@@ -928,7 +928,10 @@ def test_validate_tex_draft_matches_first_verbatim_begin_when_two_open_on_one_li
         "\\end{document}\n"
     )
 
-    assert any(finding.check == "placeholder_marker" and finding.line == 4 for finding in findings)
+    # The literal "\begin{lstlisting}" text after the real opener must not
+    # register as its own environment either -- it's example text, not a
+    # marker, same as the mirrored case on the closing side below.
+    assert [(f.check, f.line) for f in findings] == [("placeholder_marker", 4)]
 
 
 def test_validate_tex_draft_finds_real_close_tag_when_preceded_by_unrelated_end_on_same_line() -> None:

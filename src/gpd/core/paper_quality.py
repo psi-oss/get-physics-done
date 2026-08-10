@@ -867,14 +867,16 @@ def _visible_tex_lines(tex_content: str) -> list[tuple[str, str]]:
             continue
 
         stripped = _visible_tex_line(line)
-        visible.append((stripped, stripped))
 
         begin_match = next(
             (m for m in _BEGIN_ENV_FINDING_RE.finditer(stripped) if m.group(1) in _VERBATIM_ENV_NAMES),
             None,
         )
         if begin_match is not None:
+            visible.append((stripped, stripped[: begin_match.end()]))
             verbatim_stack.append(begin_match.group(1))
+        else:
+            visible.append((stripped, stripped))
 
     return visible
 
