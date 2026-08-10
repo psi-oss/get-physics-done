@@ -806,6 +806,11 @@ _BEGIN_ENV_FINDING_RE = re.compile(r"\\begin\{([^}]+)\}")
 _END_ENV_FINDING_RE = re.compile(r"\\end\{([^}]+)\}")
 _UNLABELED_EQUATION_FINDING_RE = re.compile(r"\\begin\{equation\}(.*?)\\end\{equation\}", re.DOTALL)
 
+# Environments whose body is literal text in real LaTeX: `%` is not a comment
+# character inside them, and any \begin{}/\end{}/\label{}/\cite{}-looking text
+# is inert example content, not live LaTeX.
+_VERBATIM_ENV_NAMES = frozenset({"verbatim", "verbatim*", "lstlisting", "minted"})
+
 
 def _comment_start_index(line: str) -> int | None:
     for idx, char in enumerate(line):
@@ -826,8 +831,58 @@ def _visible_tex_line(line: str) -> str:
     return line if comment_start is None else line[:comment_start]
 
 
+def _visible_tex_lines(tex_content: str) -> list[tuple[str, str]]:
+    """Per-line visible text, in two views.
+
+    ``scan_text`` strips real LaTeX comments, except inside verbatim-family
+    environments (verbatim, lstlisting, minted), where `%` is not a comment
+    character in real LaTeX and body lines are preserved as-is -- a genuine
+    placeholder/label/citation accidentally left inside a listing should
+    still be caught.
+
+    ``env_scan_text`` is the same, except verbatim-family body content never
+    contributes \\begin{}/\\end{} tokens: environment-looking text inside a
+    listing (e.g. sample LaTeX/BibTeX syntax shown as an example) is literal,
+    not a real environment marker, and must not confuse environment-balance
+    tracking.
+    """
+    lines = tex_content.splitlines()
+    visible: list[tuple[str, str]] = []
+    verbatim_stack: list[str] = []
+
+    for line in lines:
+        if verbatim_stack:
+            end_match = next(
+                (m for m in _END_ENV_FINDING_RE.finditer(line) if m.group(1) == verbatim_stack[-1]),
+                None,
+            )
+            if end_match is None:
+                visible.append((line, ""))  # literal verbatim body -- preserved as-is, not comment-stripped
+                continue
+            verbatim_stack.pop()
+            tail = _visible_tex_line(line[end_match.end() :])
+            scan_text = line[: end_match.end()] + tail
+            env_scan_text = line[end_match.start() : end_match.end()] + tail
+            visible.append((scan_text, env_scan_text))
+            continue
+
+        stripped = _visible_tex_line(line)
+
+        begin_match = next(
+            (m for m in _BEGIN_ENV_FINDING_RE.finditer(stripped) if m.group(1) in _VERBATIM_ENV_NAMES),
+            None,
+        )
+        if begin_match is not None:
+            visible.append((stripped, stripped[: begin_match.end()]))
+            verbatim_stack.append(begin_match.group(1))
+        else:
+            visible.append((stripped, stripped))
+
+    return visible
+
+
 def _visible_tex_content(tex_content: str) -> str:
-    return "\n".join(_visible_tex_line(line) for line in tex_content.splitlines())
+    return "\n".join(scan_text for scan_text, _ in _visible_tex_lines(tex_content))
 
 
 def validate_tex_draft(tex_content: str) -> list[DraftingFinding]:
@@ -836,12 +891,9 @@ def validate_tex_draft(tex_content: str) -> list[DraftingFinding]:
     findings: list[DraftingFinding] = []
     seen_labels: dict[str, int] = {}
     env_stack: list[tuple[str, int]] = []
-    visible_lines: list[str] = []
+    visible_lines = _visible_tex_lines(tex_content)
 
-    for lineno, line in enumerate(tex_content.splitlines(), start=1):
-        visible = _visible_tex_line(line)
-        visible_lines.append(visible)
-
+    for lineno, (visible, env_visible) in enumerate(visible_lines, start=1):
         for match in _PLACEHOLDER_FINDING_RE.finditer(visible):
             findings.append(
                 DraftingFinding(
@@ -912,9 +964,9 @@ def validate_tex_draft(tex_content: str) -> list[DraftingFinding]:
             elif label:
                 seen_labels[label] = lineno
 
-        for match in _BEGIN_ENV_FINDING_RE.finditer(visible):
+        for match in _BEGIN_ENV_FINDING_RE.finditer(env_visible):
             env_stack.append((match.group(1), lineno))
-        for match in _END_ENV_FINDING_RE.finditer(visible):
+        for match in _END_ENV_FINDING_RE.finditer(env_visible):
             env_name = match.group(1)
             if env_stack and env_stack[-1][0] == env_name:
                 env_stack.pop()
@@ -936,11 +988,11 @@ def validate_tex_draft(tex_content: str) -> list[DraftingFinding]:
                 )
             )
 
-    visible_content = "\n".join(visible_lines)
-    for match in _UNLABELED_EQUATION_FINDING_RE.finditer(visible_content):
+    env_visible_content = "\n".join(env_visible for _, env_visible in visible_lines)
+    for match in _UNLABELED_EQUATION_FINDING_RE.finditer(env_visible_content):
         if "\\label{" in match.group(1):
             continue
-        line = visible_content.count("\n", 0, match.start()) + 1
+        line = env_visible_content.count("\n", 0, match.start()) + 1
         findings.append(
             DraftingFinding(
                 category="equations",
