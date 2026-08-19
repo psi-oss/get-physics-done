@@ -637,11 +637,11 @@ Papers that cite or acknowledge use of GPD. If your paper should be listed here,
 ## Star History
 
 <p align="center">
-  <a href="https://star-history.com/#psi-oss/get-physics-done&Date">
+  <a href="https://star-history.dera.page/#psi-oss/get-physics-done&Date">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=psi-oss/get-physics-done&type=Date&theme=dark" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=psi-oss/get-physics-done&type=Date" />
-      <img alt="Star History Chart" src="https://api.star-history.com/image?repos=psi-oss/get-physics-done&type=Date" />
+      <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=psi-oss/get-physics-done&type=Date&theme=dark" />
+      <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=psi-oss/get-physics-done&type=Date" />
+      <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=psi-oss/get-physics-done&type=Date" />
     </picture>
   </a>
 </p>
