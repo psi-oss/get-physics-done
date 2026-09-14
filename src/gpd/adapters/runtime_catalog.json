@@ -244,5 +244,28 @@
       "env_var": "COPILOT_CONFIG_DIR",
       "home_subpath": ".copilot"
     }
+  },
+  {
+    "runtime_name": "hermes",
+    "display_name": "Hermes Agent",
+    "priority": 60,
+    "config_dir_name": ".hermes",
+    "install_flag": "--hermes",
+    "launch_command": "hermes",
+    "adapter_module": "gpd.adapters.hermes",
+    "adapter_class": "HermesAdapter",
+    "command_prefix": "/gpd:",
+    "native_include_support": false,
+    "activation_env_vars": ["HERMES_SESSION", "HERMES_HOME"],
+    "selection_flags": ["--hermes", "--hermes-agent"],
+    "selection_aliases": ["hermes", "hermes-agent"],
+    "manifest_file_prefixes": ["skills/"],
+    "manifest_metadata_list_policies": [
+      {"key": "hermes_generated_skill_dirs", "value_kind": "path_segment", "item_prefix": "gpd-"}
+    ],
+    "validated_command_surface": "public_runtime_dollar_command",
+    "capabilities": {},
+    "hook_payload": {},
+    "global_config": {"strategy": "env_or_home", "env_var": "HERMES_HOME", "home_subpath": "Hermes"}
   }
 ]
