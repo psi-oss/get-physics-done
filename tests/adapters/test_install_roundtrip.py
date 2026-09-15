@@ -22,6 +22,7 @@ from gpd.adapters.claude_code import ClaudeCodeAdapter
 from gpd.adapters.codex import CodexAdapter
 from gpd.adapters.copilot_cli import CopilotCliAdapter
 from gpd.adapters.gemini import GeminiAdapter
+from gpd.adapters.hermes import HermesAdapter
 from gpd.adapters.install_utils import (
     convert_tool_references_in_body,
     expand_at_includes,
@@ -301,6 +302,14 @@ def _install_real_repo_for_runtime(tmp_path: Path, runtime: str, source_root: Pa
         CopilotCliAdapter().install(source_root, target)
         return target
 
+    if runtime == "hermes":
+        target = tmp_path / ".hermes"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir(exist_ok=True)
+        HermesAdapter().install(source_root, target, is_global=False, skills_dir=skills)
+        return target
+
     raise AssertionError(f"Unsupported runtime {runtime}")
 
 
@@ -431,6 +440,9 @@ def _read_runtime_command_prompt(tmp_path: Path, target: Path, runtime: str, com
     if runtime in {"copilot-cli", "opencode"}:
         return (target / "command" / f"gpd-{command_name}.md").read_text(encoding="utf-8")
 
+    if runtime == "hermes":
+        return (tmp_path / "skills" / f"gpd-{command_name}" / "SKILL.md").read_text(encoding="utf-8")
+
     raise AssertionError(f"Unsupported runtime {runtime}")
 
 
@@ -462,6 +474,8 @@ def _installed_command_kind(runtime: str) -> str:
         return "copilot_flat_md"
     if runtime == "opencode":
         return "opencode_flat_md"
+    if runtime == "hermes":
+        return "hermes_skill"
     raise AssertionError(f"Unsupported runtime {runtime}")
 
 
@@ -512,12 +526,17 @@ def _read_runtime_update_surface(tmp_path: Path, target: Path, runtime: str) -> 
     if runtime in {"copilot-cli", "opencode"}:
         return (target / "command" / "gpd-update.md").read_text(encoding="utf-8")
 
+    if runtime == "hermes":
+        return (tmp_path / "skills" / "gpd-update" / "SKILL.md").read_text(encoding="utf-8")
+
     raise AssertionError(f"Unsupported runtime {runtime}")
 
 
 def _read_runtime_agent_prompt(target: Path, runtime: str, agent_name: str) -> str:
     if runtime in {"claude-code", "codex", "copilot-cli", "gemini", "opencode"}:
         return (target / "agents" / f"{agent_name}.md").read_text(encoding="utf-8")
+    if runtime == "hermes":
+        return (target.parent / "skills" / f"gpd-agent-{agent_name}" / "SKILL.md").read_text(encoding="utf-8")
     raise AssertionError(f"Unsupported runtime {runtime}")
 
 

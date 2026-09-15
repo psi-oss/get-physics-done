@@ -20,17 +20,27 @@ Hermes exposes the canonical GPD tool names directly (read_file, shell,
 write_file, web_search, web_fetch, search_files, find_files, tool_search),
 so the tool name map is intentionally small — only legacy/alias tokens
 are remapped.
+
+The ``global_config_dir`` and ``resolve_global_config_dir`` hooks both route
+through ``_hermes_global_config_dir()`` so the *installer* (which resolves the
+target via ``resolve_global_config_dir``) and the *skill reader* (which uses
+``skills_dir``) agree on the same Hermes config directory. On Windows that is
+``%LOCALAPPDATA%\\Hermes``; elsewhere it is ``$HERMES_HOME`` or ``~/.hermes``.
+This keeps installed GPD skills and the Hermes skills directory in one place.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-import shutil
 from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
+from gpd.adapters.command_projection import render_projected_command_shell_fences
 from gpd.adapters.install_utils import (
+    compile_command_markdown_for_runtime,
+    compile_markdown_for_runtime,
+    install_gpd_content,
     verify_installed,
 )
 
@@ -47,9 +57,13 @@ _TOOL_NAME_MAP: dict[str, str] = {
     "find_files": "find_files",
     "web_search": "web_search",
     "web_fetch": "web_fetch",
+    "notebook_edit": "notebook_edit",
+    "agent": "delegate_task",
+    "ask_user": "ask_user",
     "todo_write": "todo_list",
-    "tool_search": "tool_search",
     "task": "delegate_task",
+    "slash_command": "tool_search",
+    "tool_search": "tool_search",
 }
 
 # Hermes surfaces ``tool_search`` etc. as first-class; nothing is
@@ -115,11 +129,24 @@ def _copy_commands_as_skills(
     skills_dir: Path,
     prefix: str,
     path_prefix: str,
+    *,
+    runtime: str,
+    install_scope: str | None,
+    src_root: Path,
+    explicit_target: bool,
+    adapter,
+    bridge_command: str | None = None,
 ) -> set[str]:
     """Copy GPD command markdown into Hermes skill directories.
 
     Hermes expects: skills/gpd-plan-phase/SKILL.md
     Source structure: commands/plan-phase.md -> gpd-plan-phase/SKILL.md
+
+    Each command is projected through ``compile_command_markdown_for_runtime``
+    (path placeholders, includes, command surface) and then through the
+    adapter's ``translate_shared_markdown`` so tool references in the body and
+    frontmatter (``file_read`` -> ``read_file``) are rewritten for this runtime
+    before writing.
     """
     if not src_dir.exists():
         return set()
@@ -130,7 +157,20 @@ def _copy_commands_as_skills(
         skill_name = _skill_dir_name(str(rel), prefix)
         dest = skills_dir / skill_name / "SKILL.md"
         dest.parent.mkdir(parents=True, exist_ok=True)
-        content = cmd.read_text(encoding="utf-8")
+        raw = cmd.read_text(encoding="utf-8")
+        content = compile_command_markdown_for_runtime(
+            raw,
+            runtime=runtime,
+            command_name=str(rel),
+            path_prefix=path_prefix,
+            install_scope=install_scope,
+            src_root=src_root,
+            explicit_target=explicit_target,
+            bridge_command=bridge_command,
+        )
+        if bridge_command:
+            content = render_projected_command_shell_fences(content, bridge_command=bridge_command)
+        content = adapter.translate_shared_markdown(content, path_prefix, install_scope=install_scope)
         dest.write_text(_inject_marker_after_frontmatter(content), encoding="utf-8")
         generated.add(skill_name)
     return generated
@@ -141,21 +181,38 @@ def _copy_agents_as_skills(
     skills_dir: Path,
     prefix: str,
     path_prefix: str,
+    *,
+    runtime: str,
+    install_scope: str | None,
+    src_root: Path,
 ) -> set[str]:
     """Copy GPD agent role markdown into Hermes skill directories.
 
     Hermes has no separate agent-role surface: role briefs install as
     skills named ``gpd-agent-<name>``.
+
+    Agent prompts go through ``compile_markdown_for_runtime`` with
+    ``protect_agent_prompt_body=True`` so ``$var``/``${VAR}`` shell examples in
+    the role brief body are not swallowed by Hermes prompt templating, and
+    placeholders/tool references are translated for this runtime.
     """
     if not agents_src.exists():
         return set()
     skills_dir.mkdir(parents=True, exist_ok=True)
     generated: set[str] = set()
     for agent in sorted(agents_src.rglob("*.md")):
-        skill_name = f"{prefix}-agent-{agent.stem.removeprefix('gpd-')}"
+        skill_name = f"{prefix}-agent-{agent.stem}"
         dest = skills_dir / skill_name / "SKILL.md"
         dest.parent.mkdir(parents=True, exist_ok=True)
-        content = agent.read_text(encoding="utf-8")
+        raw = agent.read_text(encoding="utf-8")
+        content = compile_markdown_for_runtime(
+            raw,
+            runtime=runtime,
+            path_prefix=path_prefix,
+            install_scope=install_scope,
+            src_root=src_root,
+            protect_agent_prompt_body=True,
+        )
         dest.write_text(_inject_marker_after_frontmatter(content), encoding="utf-8")
         generated.add(skill_name)
     return generated
@@ -183,9 +240,24 @@ class HermesAdapter(RuntimeAdapter):
         """Hermes global config directory (HERMES_HOME)."""
         return _hermes_global_config_dir()
 
+    def resolve_global_config_dir(self, *, home: Path | None = None) -> Path:
+        """Resolve the Hermes global config dir consistently everywhere.
+
+        This overrides the catalog-backed default so the installer (which
+        calls ``resolve_target_dir`` -> ``resolve_global_config_dir``) and the
+        skill reader (``skills_dir``) agree on the same directory. Without it,
+        the catalog would target ``~/Hermes`` while skills read
+        ``%LOCALAPPDATA%\\Hermes``, splitting the install.
+        """
+        del home  # Hermes dir is not home-relative on Windows.
+        return _hermes_global_config_dir()
+
     @property
     def skills_dir(self) -> Path:
         """Hermes skills directory (where GPD skills get installed)."""
+        explicit = getattr(self, "_explicit_skills_dir", None)
+        if explicit is not None:
+            return explicit
         env_skills = os.environ.get("HERMES_SKILLS_DIR")
         if env_skills:
             return Path(env_skills).expanduser().resolve()
@@ -213,19 +285,30 @@ class HermesAdapter(RuntimeAdapter):
         target_dir: Path,
         *,
         is_global: bool = True,
+        skills_dir: Path | None = None,
         explicit_target: bool = False,
     ) -> dict[str, object]:
-        """Full GPD installation into a Hermes config directory."""
+        """Full GPD installation into a Hermes config directory.
+
+        Mirrors the Codex adapter: an explicit *skills_dir* (used by tests and
+        project-scoped installs) wins; otherwise skills resolve to the global
+        skills directory (``skills_dir``) for global installs or to
+        ``<target_dir>/skills`` for local installs.
+        """
         self._install_explicit_target = explicit_target
-        if is_global:
-            self._skills_dir = self.skills_dir
-        else:
-            self._skills_dir = self.local_skills_dir(target_dir)
-        self._generated_skill_dirs = set()
+        self._explicit_skills_dir = skills_dir.resolve() if skills_dir is not None else None
         try:
+            if skills_dir is not None:
+                self._skills_dir = self._explicit_skills_dir
+            elif is_global:
+                self._skills_dir = self.skills_dir
+            else:
+                self._skills_dir = self.local_skills_dir(target_dir)
+            self._generated_skill_dirs = set()
             return super().install(gpd_root, target_dir, is_global=is_global, explicit_target=explicit_target)
         finally:
             self._skills_dir = None
+            self._explicit_skills_dir = None
             self._install_explicit_target = False
 
     def _compute_path_prefix(self, target_dir: Path, is_global: bool) -> str:
@@ -239,13 +322,45 @@ class HermesAdapter(RuntimeAdapter):
         if skills_dir is None:
             failures.append("command skills (skills_dir unset)")
             return 0
-        generated = _copy_commands_as_skills(commands_src, skills_dir, "gpd", path_prefix)
+        commands_exist = commands_src.exists()
+        generated = set()
+        if commands_exist:
+            generated = _copy_commands_as_skills(
+                commands_src,
+                skills_dir,
+                "gpd",
+                path_prefix,
+                runtime=self.runtime_name,
+                install_scope=self._current_install_scope_flag(),
+                src_root=gpd_root / "specs",
+                explicit_target=getattr(self, "_install_explicit_target", False),
+                adapter=self,
+                bridge_command=self.runtime_cli_bridge_command(target_dir),
+            )
         self._generated_skill_dirs = set(generated)
-        if verify_installed(skills_dir):
-            logger.info("Installed GPD command skills for Hermes")
-        else:
+        if not commands_exist or not generated:
             failures.append("command skills")
         return len(generated)
+
+    def _install_content(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> None:
+        """Install get-physics-done/ content via the shared installer.
+
+        The shared ``install_gpd_content`` already applies the adapter's
+        ``translate_shared_markdown`` transform to every installed reference,
+        so placeholders and tool names in spec content are correctly translated
+        for this runtime.
+        """
+        failures.extend(
+            install_gpd_content(
+                gpd_root / "specs",
+                target_dir,
+                path_prefix,
+                self.runtime_name,
+                install_scope=self._current_install_scope_flag(),
+                markdown_transform=self.translate_shared_markdown,
+                explicit_target=getattr(self, "_install_explicit_target", False),
+            )
+        )
 
     def _install_agents(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         agents_src = gpd_root / "agents"
@@ -253,17 +368,27 @@ class HermesAdapter(RuntimeAdapter):
         if skills_dir is None:
             failures.append("agents (skills_dir unset)")
             return 0
-        generated = _copy_agents_as_skills(agents_src, skills_dir, "gpd", path_prefix)
+        agents_exist = agents_src.exists()
+        generated = set()
+        if agents_exist:
+            generated = _copy_agents_as_skills(
+                agents_src,
+                skills_dir,
+                "gpd",
+                path_prefix,
+                runtime=self.runtime_name,
+                install_scope=self._current_install_scope_flag(),
+                src_root=gpd_root / "specs",
+            )
         self._generated_skill_dirs |= set(generated)
-        if verify_installed(skills_dir):
-            logger.info("Installed GPD agent skills for Hermes")
-        else:
+        if not agents_exist or not generated:
             failures.append("agents")
         return len(generated)
 
     def _preflight_runtime_config(self, target_dir: Path, is_global: bool) -> None:
         """Hermes config.yaml is only needed for MCP server registration;
         a missing file is fine (Hermes creates defaults on first launch)."""
+        del target_dir, is_global
         return None
 
     def missing_install_artifacts(self, target_dir: Path) -> tuple[str, ...]:
@@ -274,6 +399,27 @@ class HermesAdapter(RuntimeAdapter):
 
     # -- Surface helpers ---------------------------------------------------
 
-    def format_command(self, name: str) -> str:
-        """Format a runtime-side command reference (gpd:<name>)."""
-        return f"gpd:{name}"
+    def runtime_permissions_status(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
+        """Report that Hermes has no GPD-managed permission surface.
+
+        Hermes does not expose an approval/permission sync contract the way
+        Claude Code / Codex do, so this reports an unsupported configured mode.
+        The override exists so the capability contract distinguishes this
+        adapter from the bare base implementation.
+        """
+        return {
+            "runtime": self.runtime_name,
+            "desired_mode": "yolo" if autonomy == "yolo" else "default",
+            "configured_mode": "unsupported",
+            "config_aligned": autonomy != "yolo",
+            "requires_relaunch": False,
+            "managed_by_gpd": False,
+            "message": "Hermes Agent does not expose a GPD runtime-permissions sync surface.",
+        }
+
+    def sync_runtime_permissions(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
+        status = self.runtime_permissions_status(target_dir, autonomy=autonomy)
+        return {**status, "changed": False, "sync_applied": False}
+
+
+__all__ = ["HermesAdapter", "_hermes_global_config_dir"]
