@@ -36,7 +36,10 @@ import os
 from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
-from gpd.adapters.command_projection import render_projected_command_shell_fences
+from gpd.adapters.command_projection import (
+    render_projected_command_shell_fences,
+    rewrite_projection_shell_bridge,
+)
 from gpd.adapters.install_utils import (
     compile_command_markdown_for_runtime,
     compile_markdown_for_runtime,
@@ -345,11 +348,20 @@ class HermesAdapter(RuntimeAdapter):
     def _install_content(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> None:
         """Install get-physics-done/ content via the shared installer.
 
-        The shared ``install_gpd_content`` already applies the adapter's
+        The shared ``install_gpd_content`` applies the adapter's
         ``translate_shared_markdown`` transform to every installed reference,
         so placeholders and tool names in spec content are correctly translated
-        for this runtime.
+        for this runtime. On top of that, staged workflow bodies keep their
+        shell-executable ``gpd`` / ``gpd --raw`` lines in source form, so —
+        mirroring the Codex adapter — every fence is rewritten onto the
+        runtime CLI bridge command before writing.
         """
+        launcher = self.runtime_cli_bridge_command(target_dir)
+
+        def _translate(content: str, prefix: str, install_scope: str | None = None) -> str:
+            translated = self.translate_shared_markdown(content, prefix, install_scope=install_scope)
+            return rewrite_projection_shell_bridge(translated, launcher)
+
         failures.extend(
             install_gpd_content(
                 gpd_root / "specs",
@@ -357,7 +369,7 @@ class HermesAdapter(RuntimeAdapter):
                 path_prefix,
                 self.runtime_name,
                 install_scope=self._current_install_scope_flag(),
-                markdown_transform=self.translate_shared_markdown,
+                markdown_transform=_translate,
                 explicit_target=getattr(self, "_install_explicit_target", False),
             )
         )
@@ -396,6 +408,37 @@ class HermesAdapter(RuntimeAdapter):
         if skills_dir is None:
             return ("command skills",)
         return () if verify_installed(skills_dir) else ("command skills",)
+
+    def project_markdown_surface(
+        self,
+        content: str,
+        *,
+        surface_kind: str,
+        path_prefix: str,
+        command_name: str | None = None,
+        bridge_command: str | None = None,
+    ) -> str:
+        if surface_kind != "command":
+            return super().project_markdown_surface(
+                content,
+                surface_kind=surface_kind,
+                path_prefix=path_prefix,
+                command_name=command_name,
+                bridge_command=bridge_command,
+            )
+        base_surface = super().project_markdown_surface(
+            content,
+            surface_kind=surface_kind,
+            path_prefix=path_prefix,
+            command_name=command_name,
+            bridge_command=bridge_command,
+        )
+        if bridge_command is None:
+            return base_surface
+        # Rewrite fenced shell ``gpd``/``gpd --raw`` invocations onto the runtime
+        # bridge so the projected command surface carries the pinned interpreter
+        # and (for checkout installs) the checkout Python, mirroring Codex.
+        return rewrite_projection_shell_bridge(base_surface, bridge_command)
 
     # -- Surface helpers ---------------------------------------------------
 

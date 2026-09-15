@@ -18,6 +18,7 @@ STAGED_INIT_COMMAND_PROJECTION_BUDGETS = {
         "copilot-cli": 6_700,
         "gemini": 7_400,
         "opencode": 6_900,
+        "hermes": 6_900,
     },
     "execute-phase": {
         "claude-code": 3_426,
@@ -25,6 +26,7 @@ STAGED_INIT_COMMAND_PROJECTION_BUDGETS = {
         "copilot-cli": 5_900,
         "gemini": 6_496,
         "opencode": 5_920,
+        "hermes": 5_920,
     },
     "new-project": {
         "claude-code": 7_500,
@@ -32,6 +34,7 @@ STAGED_INIT_COMMAND_PROJECTION_BUDGETS = {
         "copilot-cli": 9_000,
         "gemini": 9_800,
         "opencode": 9_200,
+        "hermes": 9_200,
     },
     "write-paper": {
         "claude-code": 13_076,
@@ -39,6 +42,7 @@ STAGED_INIT_COMMAND_PROJECTION_BUDGETS = {
         "copilot-cli": 15_200,
         "gemini": 12_692,
         "opencode": 15_578,
+        "hermes": 15_250,
     },
 }
 STAGED_INIT_TARGET_COMMANDS = tuple(STAGED_INIT_COMMAND_PROJECTION_BUDGETS)
@@ -50,18 +54,21 @@ COMPACT_WORKFLOW_REFERENCE_COMMAND_PROJECTION_BUDGETS = {
         "copilot-cli": {"chars": 8_000, "lines": 150},
         "gemini": {"chars": 8_400, "lines": 150},
         "opencode": {"chars": 7_950, "lines": 160},
+        "hermes": {"chars": 7_950, "lines": 160},
     },
     "dimensional-analysis": {
         "codex": {"chars": 7_100, "lines": 145},
         "copilot-cli": {"chars": 7_200, "lines": 145},
         "gemini": {"chars": 8_000, "lines": 145},
         "opencode": {"chars": 7_300, "lines": 160},
+        "hermes": {"chars": 7_300, "lines": 160},
     },
     "review-knowledge": {
         "codex": {"chars": 9_800, "lines": 170},
         "copilot-cli": {"chars": 10_800, "lines": 205},
         "gemini": {"chars": 9_700, "lines": 165},
         "opencode": {"chars": 11_200, "lines": 220},
+        "hermes": {"chars": 11_200, "lines": 220},
     },
 }
 COMPACT_WORKFLOW_REFERENCE_TARGET_COMMANDS = tuple(COMPACT_WORKFLOW_REFERENCE_COMMAND_PROJECTION_BUDGETS)
