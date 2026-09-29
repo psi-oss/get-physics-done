@@ -35,7 +35,9 @@ dependencies = [
     "rich>=15.0.0",
     "pydantic>=2.13.3",
     "PyYAML>=6.0.3",
-    "mcp>=1.27.0",
+    # mcp 2.x removed `mcp.server.fastmcp`, which seven of the built-in
+    # servers import. Keep the 1.x API until they are ported.
+    "mcp>=1.27.0,<2",
     # Utilities
     "pybtex>=0.25.1",
     "Pillow>=12.1.1",

@@ -1475,7 +1475,7 @@ def test_public_runtime_dependency_surface_stays_curated() -> None:
     optional = project.get("optional-dependencies", {})
 
     assert _normalized_dependency_names(dependencies) == _expected_runtime_dependency_names()
-    assert "mcp>=1.27.0" in dependencies
+    assert "mcp>=1.27.0,<2" in dependencies
     assert not any(item.startswith("mcp[") for item in dependencies)
     assert optional == _EXPECTED_OPTIONAL_DEPENDENCIES
 
@@ -1493,7 +1493,7 @@ def test_uv_lock_tracks_runtime_dependency_extras() -> None:
 
     assert [item for item in dependencies if isinstance(item, dict) and item.get("name") == "mcp"] == [{"name": "mcp"}]
     assert [item for item in requires_dist if isinstance(item, dict) and item.get("name") == "mcp"] == [
-        {"name": "mcp", "specifier": ">=1.27.0"}
+        {"name": "mcp", "specifier": ">=1.27.0,<2"}
     ]
 
 
