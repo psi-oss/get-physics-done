@@ -285,6 +285,32 @@ def openalex_search(args: dict[str, object]) -> dict[str, object]:
     return {"papers": papers, "total_results": len(papers)}
 
 
+def _find_arxiv_work(paper_id: str) -> tuple[int, dict[str, object] | None]:
+    """Find the OpenAlex work that carries an arXiv preprint.
+
+    OpenAlex merges arXiv preprints into canonical works whose primary DOI can
+    belong to another version, so ``/works/doi:10.48550/arxiv.<id>`` returns
+    404 for most arXiv IDs (observed 2026-09-29). The arXiv DOI and abstract
+    page remain as location landing pages, which the list filter matches
+    exactly. Returns ``(status, work)``; ``work`` is ``None`` when nothing
+    matches or the request fails.
+    """
+    landing_pages = (
+        f"https://doi.org/10.48550/arxiv.{paper_id}",
+        f"http://arxiv.org/abs/{paper_id}",
+    )
+    status, body, _ = _http_get(
+        "/works",
+        {"filter": "locations.landing_page_url:" + "|".join(landing_pages), "per_page": 1},
+    )
+    if status != 200 or body is None:
+        return status, None
+    results = body.get("results")
+    if not isinstance(results, list) or not results or not isinstance(results[0], dict):
+        return status, None
+    return status, results[0]
+
+
 def openalex_abstract(args: dict[str, object]) -> dict[str, object]:
     """Fetch a single paper's metadata + abstract by arxiv ID."""
     paper_id_raw = args.get("paper_id")
@@ -292,11 +318,14 @@ def openalex_abstract(args: dict[str, object]) -> dict[str, object]:
         return _abstract_error("", "paper_id must be a non-empty string")
     paper_id = _strip_version(paper_id_raw.strip())
 
-    # OpenAlex resolves arxiv preprints via the canonical DOI prefix.
-    # URL-encode the DOI segment so old-style arXiv IDs containing slashes
-    # (e.g. "hep-th/9901001") don't break the request path.
-    doi = f"10.48550/arxiv.{paper_id}"
-    status, body, _ = _http_get(f"/works/doi:{quote(doi, safe='')}")
+    status, body = _find_arxiv_work(paper_id)
+    if body is None:
+        # Fall back to the DOI singleton, which still resolves works whose
+        # primary DOI is the arXiv DOI. URL-encode the DOI segment so old-style
+        # arXiv IDs containing slashes (e.g. "hep-th/9901001") don't break the
+        # request path.
+        doi = f"10.48550/arxiv.{paper_id}"
+        status, body, _ = _http_get(f"/works/doi:{quote(doi, safe='')}")
     if status != 200 or body is None:
         return _abstract_error(paper_id, f"OpenAlex lookup failed (HTTP {status}) for {paper_id}")
 

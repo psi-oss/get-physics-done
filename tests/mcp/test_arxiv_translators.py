@@ -217,3 +217,65 @@ def test_shape_parity_search(translators):
     assert isinstance(p["published"], str)
     assert isinstance(p["url"], str)
     assert p["resource_uri"] == f"arxiv://{p['id']}"
+
+
+def test_abstract_lookup_matches_arxiv_landing_pages(monkeypatch):
+    """OpenAlex merges arXiv preprints into works whose primary DOI can belong
+    to another version, so the lookup filters on location landing pages rather
+    than the ``/works/doi:`` singleton. No network: fakes the HTTP layer."""
+    from gpd.mcp.servers import arxiv_translators  # type: ignore
+
+    work = {
+        "id": "https://openalex.org/W2041262588",
+        "title": "String Junctions and Their Duals in Heterotic String Theory",
+        "authorships": [{"author": {"display_name": "A"}}],
+        "abstract_inverted_index": {"hello": [0], "world": [1]},
+        "publication_date": "1999-01-04",
+        "concepts": [{"display_name": "physics"}],
+    }
+    calls = []
+
+    def fake_get(path, params=None):
+        calls.append((path, params))
+        return 200, {"meta": {"count": 1}, "results": [work]}, ""
+
+    monkeypatch.setattr(arxiv_translators, "_http_get", fake_get)
+    res = arxiv_translators.openalex_abstract({"paper_id": "hep-th/9901001v2"})
+
+    assert res["status"] == "success"
+    assert res["paper_id"] == "hep-th/9901001"
+    assert res["abstract"] == arxiv_translators.EXTERNAL_CONTENT_PREFIX + "hello world"
+    assert res["pdf_url"] == "https://arxiv.org/pdf/hep-th/9901001"
+    assert calls == [
+        (
+            "/works",
+            {
+                "filter": (
+                    "locations.landing_page_url:https://doi.org/10.48550/arxiv.hep-th/9901001"
+                    "|http://arxiv.org/abs/hep-th/9901001"
+                ),
+                "per_page": 1,
+            },
+        )
+    ]
+
+
+def test_abstract_lookup_falls_back_to_doi_singleton(monkeypatch):
+    """With no landing-page match the lookup tries the DOI singleton and
+    reports its HTTP status. No network: fakes the HTTP layer."""
+    from gpd.mcp.servers import arxiv_translators  # type: ignore
+
+    calls = []
+
+    def fake_get(path, params=None):
+        calls.append(path)
+        if path == "/works":
+            return 200, {"meta": {"count": 0}, "results": []}, ""
+        return 404, None, "not found"
+
+    monkeypatch.setattr(arxiv_translators, "_http_get", fake_get)
+    res = arxiv_translators.openalex_abstract({"paper_id": "2401.12345"})
+
+    assert res["status"] == "error"
+    assert "HTTP 404" in res["message"]
+    assert calls == ["/works", "/works/doi:10.48550%2Farxiv.2401.12345"]
