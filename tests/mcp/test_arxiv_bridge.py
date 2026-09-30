@@ -1128,3 +1128,111 @@ def test_resolve_backend_rejects_garbage(monkeypatch: pytest.MonkeyPatch) -> Non
 
     monkeypatch.setenv("GPD_ARXIV_BACKEND", "potato")
     assert _resolve_backend() == "hybrid"
+
+
+@pytest.mark.asyncio
+async def test_download_paper_ignores_cached_conversion_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """An older bridge cached ar5iv's failed-conversion page as the paper;
+    download_paper must fetch the paper again instead of serving it."""
+    import json as _json
+
+    from gpd.mcp.servers import _arxiv_ar5iv, _arxiv_gcs, _arxiv_token_bucket
+    from gpd.mcp.servers.arxiv_bridge import ArxivBridge, ArxivBridgeConfig
+
+    _arxiv_token_bucket._reset_for_tests()
+
+    async def no_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(_arxiv_token_bucket.asyncio, "sleep", no_sleep)
+    monkeypatch.setattr(_arxiv_ar5iv, "fetch_html_content", lambda pid: None)
+    monkeypatch.setattr(_arxiv_gcs, "fetch_pdf_from_gcs", lambda pid: b"fake-pdf-bytes")
+    monkeypatch.setattr(_arxiv_gcs, "pdf_bytes_to_markdown", lambda pdf, pid, storage: "# AdS/CFT\n\nbody")
+    stub = "No content available\nConversion to HTML had a Fatal error and exited abruptly."
+    (tmp_path / "hep-th_9711200.md").write_text(stub, encoding="utf-8")
+
+    fake, log = _make_fake_session()
+    bridge = ArxivBridge(ArxivBridgeConfig(storage_path=tmp_path, backend="hybrid"))
+    bridge._session = fake  # type: ignore[assignment]
+    try:
+        result = await bridge.call_tool("download_paper", {"paper_id": "hep-th/9711200"})
+    finally:
+        bridge._session = None
+
+    payload = _json.loads(result.content[0].text)
+    assert payload["source"] == "pdf-gcs"
+    assert "# AdS/CFT" in payload["content"]
+    assert "Fatal error" not in (tmp_path / "hep-th_9711200.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_read_paper_refetches_cached_conversion_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    import json as _json
+
+    from gpd.mcp.servers import _arxiv_ar5iv, _arxiv_gcs, _arxiv_token_bucket
+    from gpd.mcp.servers.arxiv_bridge import ArxivBridge, ArxivBridgeConfig
+
+    _arxiv_token_bucket._reset_for_tests()
+
+    async def no_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(_arxiv_token_bucket.asyncio, "sleep", no_sleep)
+    monkeypatch.setattr(_arxiv_ar5iv, "fetch_html_content", lambda pid: None)
+    monkeypatch.setattr(_arxiv_gcs, "fetch_pdf_from_gcs", lambda pid: b"fake-pdf-bytes")
+    monkeypatch.setattr(_arxiv_gcs, "pdf_bytes_to_markdown", lambda pdf, pid, storage: "# AdS/CFT\n\nbody")
+    (tmp_path / "hep-th_9711200.md").write_text(
+        "No content available\nConversion to HTML had a Fatal error and exited abruptly.", encoding="utf-8"
+    )
+
+    fake, log = _make_fake_session()
+    bridge = ArxivBridge(ArxivBridgeConfig(storage_path=tmp_path, backend="hybrid"))
+    bridge._session = fake  # type: ignore[assignment]
+    try:
+        result = await bridge.call_tool("read_paper", {"paper_id": "hep-th/9711200"})
+    finally:
+        bridge._session = None
+
+    assert log == []
+    payload = _json.loads(result.content[0].text)
+    assert payload["source"] == "pdf-gcs"
+    assert "# AdS/CFT" in payload["content"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tool", ["download_paper", "read_paper"])
+async def test_rejected_cached_conversion_failure_is_removed_before_upstream_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, tool
+) -> None:
+    """When ar5iv and the PDF mirror both miss, the call falls through to the
+    upstream server, which serves any cached Markdown file as it is; the
+    rejected failure page must be gone by then."""
+    from gpd.mcp.servers import _arxiv_ar5iv, _arxiv_gcs, _arxiv_token_bucket
+    from gpd.mcp.servers.arxiv_bridge import ArxivBridge, ArxivBridgeConfig
+
+    _arxiv_token_bucket._reset_for_tests()
+
+    async def no_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(_arxiv_token_bucket.asyncio, "sleep", no_sleep)
+    monkeypatch.setattr(_arxiv_ar5iv, "fetch_html_content", lambda pid: None)
+    monkeypatch.setattr(_arxiv_gcs, "fetch_pdf_from_gcs", lambda pid: None)
+    stub = tmp_path / "hep-th_9711200.md"
+    stub.write_text("No content available\nConversion to HTML had a Fatal error and exited abruptly.", encoding="utf-8")
+
+    fake, log = _make_fake_session(call_outputs=[("upstream answer", False)])
+    bridge = ArxivBridge(ArxivBridgeConfig(storage_path=tmp_path, backend="hybrid"))
+    bridge._session = fake  # type: ignore[assignment]
+    try:
+        result = await bridge.call_tool(tool, {"paper_id": "hep-th/9711200"})
+    finally:
+        bridge._session = None
+
+    assert not stub.exists()
+    assert [call[0] for call in log] == [tool]
+    assert "Fatal error" not in result.content[0].text

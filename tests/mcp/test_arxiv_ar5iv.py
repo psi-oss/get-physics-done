@@ -122,3 +122,15 @@ def test_fetch_treats_empty_extracted_text_as_miss(
     result = _arxiv_ar5iv.fetch_html_content("2401.00001")
     assert result is not None
     assert "real" in result
+
+
+def test_fetch_treats_conversion_failure_page_as_miss(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ar5iv answers 200 with a failed-conversion page for some papers (for
+    example hep-th/9711200); that page is not the paper."""
+    stub = (
+        b"<html><body><p>No content available</p>"
+        b"<p>Conversion to HTML had a Fatal error and exited abruptly.</p></body></html>"
+    )
+    fake = _make_fake_client([_FakeResponse(200, content=stub, text=stub.decode()), _FakeResponse(404)])
+    monkeypatch.setattr(_arxiv_ar5iv.httpx, "Client", lambda *a, **k: fake)
+    assert _arxiv_ar5iv.fetch_html_content("hep-th/9711200") is None

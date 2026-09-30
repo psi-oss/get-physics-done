@@ -75,6 +75,16 @@ def _html_to_text(html: str) -> str:
     return parser.get_text()
 
 
+# ar5iv serves this page with HTTP 200 when LaTeXML failed on a paper (for
+# example hep-th/9711200). It is not the paper, so callers fall through to PDF.
+_CONVERSION_FAILED_MARKER = "Conversion to HTML had a Fatal error"
+
+
+def is_conversion_failure(text: str) -> bool:
+    """True when ``text`` is ar5iv's failed-conversion page, not a paper."""
+    return _CONVERSION_FAILED_MARKER in text
+
+
 def fetch_html_content(paper_id: str) -> str | None:
     # ar5iv first (follow_redirects=False so 307 = miss, not a hop into
     # arxiv.org). arxiv.org/html as fallback for papers ar5iv lacks.
@@ -114,6 +124,9 @@ def fetch_html_content(paper_id: str) -> str | None:
                     continue
 
                 text = _html_to_text(body.decode("utf-8", errors="replace"))
+                if is_conversion_failure(text):
+                    logger.info("html-%s conversion failed for %s; treating as miss", label, paper_id)
+                    continue
                 if text.strip():
                     return text
     except Exception:

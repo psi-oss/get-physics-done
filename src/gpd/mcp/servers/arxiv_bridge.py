@@ -421,13 +421,25 @@ class ArxivBridge:
             except OSError as exc:
                 logger.warning("cache read failed %s: %s", cache_path, exc)
             else:
-                return _content_envelope(
-                    "cache",
-                    "Paper already available (returned from cache)",
-                    paper_id,
-                    content,
-                    cache_path,
-                )
+                if _arxiv_ar5iv.is_conversion_failure(content):
+                    # An older bridge cached ar5iv's failed-conversion page.
+                    # Remove it so no fallback, including the upstream
+                    # server's own cache check, can serve it again.
+                    try:
+                        cache_path.unlink()
+                    except OSError as exc:
+                        return _tool_error(
+                            f"Cached failed-conversion page for {paper_id} could not be removed: {exc}"
+                        )
+                    logger.info("removed cached conversion failure for %s", paper_id)
+                else:
+                    return _content_envelope(
+                        "cache",
+                        "Paper already available (returned from cache)",
+                        paper_id,
+                        content,
+                        cache_path,
+                    )
 
         html = await asyncio.to_thread(_arxiv_ar5iv.fetch_html_content, paper_id)
         if html is not None:
@@ -507,6 +519,9 @@ class ArxivBridge:
         except OSError as exc:
             logger.warning("read_paper cache read failed %s: %s", cache_path, exc)
             return None
+        if _arxiv_ar5iv.is_conversion_failure(content):
+            # A cached failed-conversion page is not the paper: fetch it again.
+            return await self._intercept_download(args)
         return _content_envelope(
             "cache", "Paper read from local cache", paper_id, content, cache_path
         )
