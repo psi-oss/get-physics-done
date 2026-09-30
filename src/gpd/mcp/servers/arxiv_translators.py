@@ -21,6 +21,7 @@ Public surface:
 from __future__ import annotations
 
 import logging
+import os
 import re
 from urllib.parse import quote
 
@@ -51,6 +52,21 @@ _USER_AGENT = (
     "(+https://github.com/psi-oss/get-physics-done; mailto:ops@psi.inc)"
 )
 _HEADERS = {"User-Agent": _USER_AGENT, "Accept": "application/json"}
+
+# OpenAlex meters requests. Without a key, every client on the caller's IP
+# address shares a small free daily budget (observed 2026-09-29: $0.10 a day,
+# $0.001 per search, $0.0001 per filter lookup), and a spent budget returns
+# HTTP 429 until midnight UTC. A free personal key has its own budget:
+# https://help.openalex.org/api/authentication/
+OPENALEX_API_KEY_ENV = "OPENALEX_API_KEY"
+
+
+def _request_headers() -> dict[str, str]:
+    headers = dict(_HEADERS)
+    key = os.environ.get(OPENALEX_API_KEY_ENV, "").strip()
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    return headers
 _TIMEOUT = httpx.Timeout(20.0, connect=10.0)
 
 # Recognise arxiv IDs anywhere inside an OpenAlex Work record (pdf_url,
@@ -228,7 +244,7 @@ def _http_get(
     """
     url = f"{_OPENALEX_BASE}{path}"
     try:
-        resp = httpx.get(url, params=params, headers=_HEADERS, timeout=_TIMEOUT)
+        resp = httpx.get(url, params=params, headers=_request_headers(), timeout=_TIMEOUT)
     except httpx.RequestError as exc:
         logger.info("OpenAlex request error on %s: %s", path, exc)
         return 0, None, str(exc)

@@ -97,12 +97,20 @@ def test_search_new_format_id_extractable(translators):
         assert p["abstract"].startswith("[EXTERNAL CONTENT]"), "must preserve upstream prefix"
 
 
+def _skip_if_budget_exhausted(res: dict) -> None:
+    """OpenAlex answers HTTP 429 once the shared anonymous daily budget for the
+    caller's IP is spent (CI runners share IPs); that is not a translator bug."""
+    if res.get("status") == "error" and "HTTP 429" in str(res.get("message", "")):
+        pytest.skip("OpenAlex daily budget exhausted for this IP (HTTP 429)")
+
+
 @pytest.mark.skipif(not NETWORK, reason="network probes disabled")
 def test_abstract_new_format(translators):
     _, openalex_abstract, _ = translators
     res = openalex_abstract({"paper_id": PAPERS["new_format"]})
     assert isinstance(res, dict)
     assert set(res.keys()) >= UPSTREAM_ABSTRACT_KEYS
+    _skip_if_budget_exhausted(res)
     assert res["status"] == "success"
     assert res["paper_id"] == PAPERS["new_format"]
     assert res["abstract"].startswith("[EXTERNAL CONTENT]")
@@ -113,8 +121,39 @@ def test_abstract_new_format(translators):
 def test_abstract_old_format(translators):
     _, openalex_abstract, _ = translators
     res = openalex_abstract({"paper_id": PAPERS["old_format"]})
+    _skip_if_budget_exhausted(res)
     assert res["status"] == "success"
     assert isinstance(res["categories"], list)
+
+
+@pytest.mark.parametrize("key", ["", "test-key"])
+def test_openalex_api_key_is_sent_as_bearer_token(monkeypatch, key):
+    from gpd.mcp.servers import arxiv_translators  # type: ignore
+
+    seen = {}
+
+    class FakeResponse:
+        status_code = 200
+        text = "{}"
+
+        def json(self):
+            return {"results": []}
+
+    def fake_httpx_get(url, params=None, headers=None, timeout=None):
+        seen.update(headers or {})
+        return FakeResponse()
+
+    if key:
+        monkeypatch.setenv(arxiv_translators.OPENALEX_API_KEY_ENV, key)
+    else:
+        monkeypatch.delenv(arxiv_translators.OPENALEX_API_KEY_ENV, raising=False)
+    monkeypatch.setattr(arxiv_translators.httpx, "get", fake_httpx_get)
+    arxiv_translators._http_get("/works", {"search": "x"})
+
+    if key:
+        assert seen["Authorization"] == f"Bearer {key}"
+    else:
+        assert "Authorization" not in seen
 
 
 @pytest.mark.skipif(not NETWORK, reason="network probes disabled")
